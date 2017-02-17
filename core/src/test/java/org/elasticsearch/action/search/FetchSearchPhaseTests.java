@@ -46,7 +46,8 @@ import java.util.concurrent.atomic.AtomicReference;
 public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testShortcutQueryAndFetchOptimization() throws IOException {
-        AtomicArray<QuerySearchResultProvider> results = new AtomicArray<>(1);
+        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
+        SearchPhaseController.QueryPhaseResultConsumer results = new SearchPhaseController.QueryPhaseResultConsumer(controller, 1, 1);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         boolean hasHits = randomBoolean();
         final int numHits;
@@ -56,13 +57,12 @@ public class FetchSearchPhaseTests extends ESTestCase {
             queryResult.size(1);
             FetchSearchResult fetchResult = new FetchSearchResult();
             fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(42)}, 1, 1.0F));
-            results.set(0, new QueryFetchSearchResult(queryResult, fetchResult));
+            results.consumeResult(0, new QueryFetchSearchResult(queryResult, fetchResult));
             numHits = 1;
         } else {
             numHits = 0;
         }
 
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
             (searchResponse) -> new SearchPhase("test") {
@@ -83,20 +83,20 @@ public class FetchSearchPhaseTests extends ESTestCase {
     }
 
     public void testFetchTwoDocument() throws IOException {
-        AtomicArray<QuerySearchResultProvider> results = new AtomicArray<>(2);
+        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
+        SearchPhaseController.QueryPhaseResultConsumer results = new SearchPhaseController.QueryPhaseResultConsumer(controller, 2, 2);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         int resultSetSize = randomIntBetween(2, 10);
         QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0));
         queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(42, 1.0F)}, 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize); // the size of the result set
-        results.set(0, queryResult);
+        results.consumeResult(0, queryResult);
 
         queryResult = new QuerySearchResult(321, new SearchShardTarget("node2", new Index("test", "na"), 1));
         queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(84, 2.0F)}, 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize);
-        results.set(1, queryResult);
+        results.consumeResult(1, queryResult);
 
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
         SearchTransportService searchTransportService = new SearchTransportService(
             Settings.builder().put("search.remote.connect", false).build(), null,  null) {
             @Override
@@ -134,20 +134,20 @@ public class FetchSearchPhaseTests extends ESTestCase {
     }
 
     public void testFailFetchOneDoc() throws IOException {
-        AtomicArray<QuerySearchResultProvider> results = new AtomicArray<>(2);
+        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
+        SearchPhaseController.QueryPhaseResultConsumer results = new SearchPhaseController.QueryPhaseResultConsumer(controller, 2, 2);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         int resultSetSize = randomIntBetween(2, 10);
         QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0));
         queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(42, 1.0F)}, 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize); // the size of the result set
-        results.set(0, queryResult);
+        results.consumeResult(0, queryResult);
 
         queryResult = new QuerySearchResult(321, new SearchShardTarget("node2", new Index("test", "na"), 1));
         queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(84, 2.0F)}, 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize);
-        results.set(1, queryResult);
+        results.consumeResult(1, queryResult);
 
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
         SearchTransportService searchTransportService = new SearchTransportService(
             Settings.builder().put("search.remote.connect", false).build(), null,  null) {
             @Override
@@ -190,15 +190,16 @@ public class FetchSearchPhaseTests extends ESTestCase {
         int resultSetSize = randomIntBetween(0, 100);
         // we use at least 2 hits otherwise this is subject to single shard optimization and we trip an assert...
         int numHits = randomIntBetween(2, 100); // also numshards --> 1 hit per shard
-        AtomicArray<QuerySearchResultProvider> results = new AtomicArray<>(numHits);
+        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
+        SearchPhaseController.QueryPhaseResultConsumer results = new SearchPhaseController.QueryPhaseResultConsumer(controller,
+            numHits, numHits);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         for (int i = 0; i < numHits; i++) {
             QuerySearchResult queryResult = new QuerySearchResult(i, new SearchShardTarget("node1", new Index("test", "na"), 0));
             queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(i+1, i)}, i), new DocValueFormat[0]);
             queryResult.size(resultSetSize); // the size of the result set
-            results.set(i, queryResult);
+            results.consumeResult(i, queryResult);
         }
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
         SearchTransportService searchTransportService = new SearchTransportService(
             Settings.builder().put("search.remote.connect", false).build(), null,  null) {
             @Override
@@ -243,20 +244,20 @@ public class FetchSearchPhaseTests extends ESTestCase {
     }
 
     public void testExceptionFailsPhase() throws IOException {
-        AtomicArray<QuerySearchResultProvider> results = new AtomicArray<>(2);
+        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
+        SearchPhaseController.QueryPhaseResultConsumer results = new SearchPhaseController.QueryPhaseResultConsumer(controller, 2, 2);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         int resultSetSize = randomIntBetween(2, 10);
         QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0));
         queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(42, 1.0F)}, 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize); // the size of the result set
-        results.set(0, queryResult);
+        results.consumeResult(0, queryResult);
 
         queryResult = new QuerySearchResult(321, new SearchShardTarget("node2", new Index("test", "na"), 1));
         queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(84, 2.0F)}, 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize);
-        results.set(1, queryResult);
+        results.consumeResult(1, queryResult);
         AtomicInteger numFetches = new AtomicInteger(0);
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
         SearchTransportService searchTransportService = new SearchTransportService(
             Settings.builder().put("search.remote.connect", false).build(), null,  null) {
             @Override
@@ -293,20 +294,20 @@ public class FetchSearchPhaseTests extends ESTestCase {
     }
 
     public void testCleanupIrrelevantContexts() throws IOException { // contexts that are not fetched should be cleaned up
-        AtomicArray<QuerySearchResultProvider> results = new AtomicArray<>(2);
+        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
+        SearchPhaseController.QueryPhaseResultConsumer results = new SearchPhaseController.QueryPhaseResultConsumer(controller, 2, 2);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         int resultSetSize = 1;
         QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0));
         queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(42, 1.0F)}, 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize); // the size of the result set
-        results.set(0, queryResult);
+        results.consumeResult(0, queryResult);
 
         queryResult = new QuerySearchResult(321, new SearchShardTarget("node2", new Index("test", "na"), 1));
         queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(84, 2.0F)}, 2.0F), new DocValueFormat[0]);
         queryResult.size(resultSetSize);
-        results.set(1, queryResult);
+        results.consumeResult(1, queryResult);
 
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
         SearchTransportService searchTransportService = new SearchTransportService(
             Settings.builder().put("search.remote.connect", false).build(), null,  null) {
             @Override

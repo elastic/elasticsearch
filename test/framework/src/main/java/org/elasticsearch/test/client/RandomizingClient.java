@@ -36,6 +36,7 @@ public class RandomizingClient extends FilterClient {
 
     private final SearchType defaultSearchType;
     private final String defaultPreference;
+    private final int reduceUpTo;
 
 
     public RandomizingClient(Client client, Random random) {
@@ -53,12 +54,13 @@ public class RandomizingClient extends FilterClient {
         } else {
             defaultPreference = null;
         }
+        this.reduceUpTo = 2 + random.nextInt(10);
 
     }
-    
+
     @Override
     public SearchRequestBuilder prepareSearch(String... indices) {
-        return in.prepareSearch(indices).setSearchType(defaultSearchType).setPreference(defaultPreference);
+        return in.prepareSearch(indices).setSearchType(defaultSearchType).setPreference(defaultPreference).setReduceUpTo(reduceUpTo);
     }
 
     @Override

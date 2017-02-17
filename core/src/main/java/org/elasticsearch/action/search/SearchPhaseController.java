@@ -459,12 +459,17 @@ public class SearchPhaseController extends AbstractComponent {
             reducedQueryPhase.maxScore);
     }
 
+    public final ReducedQueryPhase reducedQueryPhase(List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults) {
+        return reducedQueryPhase(queryResults, null);
+    }
+
     /**
      * Reduces the given query results and consumes all aggregations and profile results.
      * @see QuerySearchResult#consumeAggs()
      * @see QuerySearchResult#consumeProfileResult()
      */
-    public final ReducedQueryPhase reducedQueryPhase(List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults) {
+    public final ReducedQueryPhase reducedQueryPhase(List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults,
+                                                     List<InternalAggregations> reducedAggs) {
         long totalHits = 0;
         long fetchHits = 0;
         float maxScore = Float.NEGATIVE_INFINITY;
@@ -475,9 +480,14 @@ public class SearchPhaseController extends AbstractComponent {
         }
         QuerySearchResult firstResult = queryResults.get(0).value.queryResult();
         final boolean hasSuggest = firstResult.suggest() != null;
-        final boolean hasAggs = firstResult.hasAggs();
+        final boolean hasAggs = firstResult.hasAggs() && reducedAggs == null;
         final boolean hasProfileResults = firstResult.hasProfileResults();
-        final List<InternalAggregations> aggregationsList = hasAggs ? new ArrayList<>(queryResults.size()) : Collections.emptyList();
+        final List<InternalAggregations> aggregationsList;
+        if (hasAggs) {
+            aggregationsList = new ArrayList<>(queryResults.size());
+        } else {
+            aggregationsList = reducedAggs == null ? Collections.emptyList() : reducedAggs;
+        }
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         final Map<String, List<Suggestion>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
         final Map<String, ProfileShardResult> profileResults = hasProfileResults ? new HashMap<>(queryResults.size())
@@ -515,16 +525,23 @@ public class SearchPhaseController extends AbstractComponent {
             }
         }
         final Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
+        ReduceContext reduceContext = new ReduceContext(bigArrays, scriptService, true);
         final InternalAggregations aggregations = aggregationsList.isEmpty() ? null : reduceAggs(aggregationsList,
-            firstResult.pipelineAggregators());
+            firstResult.pipelineAggregators(), reduceContext);
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         return new ReducedQueryPhase(totalHits, fetchHits, maxScore, timedOut, terminatedEarly, firstResult, suggest, aggregations,
             shardResults);
     }
 
+
+    private InternalAggregations reduceAggsOnly(List<InternalAggregations> aggregationsList) {
+        ReduceContext reduceContext = new ReduceContext(bigArrays, scriptService, false);
+        return aggregationsList.isEmpty() ? null : reduceAggs(aggregationsList,
+            null, reduceContext);
+    }
+
     private InternalAggregations reduceAggs(List<InternalAggregations> aggregationsList,
-                                            List<SiblingPipelineAggregator> pipelineAggregators) {
-        ReduceContext reduceContext = new ReduceContext(bigArrays, scriptService);
+                                            List<SiblingPipelineAggregator> pipelineAggregators, ReduceContext reduceContext) {
         InternalAggregations aggregations = InternalAggregations.reduce(aggregationsList, reduceContext);
         if (pipelineAggregators != null) {
             List<InternalAggregation> newAggs = StreamSupport.stream(aggregations.spliterator(), false)
@@ -593,4 +610,91 @@ public class SearchPhaseController extends AbstractComponent {
         }
     }
 
+    /**
+     * A {@link org.elasticsearch.action.search.InitialSearchPhase.SearchPhaseResults} implementation
+     * that incrementally reduces aggregation results as shard results are consumed.
+     * This implementation can be configured to batch up a certain amount of results and only reduce them
+     * iff the buffer is exhausted.
+     */
+    static class QueryPhaseResultConsumer
+        extends InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> {
+        private final InternalAggregations[] buffer;
+        private int index;
+        private Boolean hasAggs = null;
+        private final SearchPhaseController controller;
+
+        /**
+         * Creates a new {@link QueryPhaseResultConsumer}
+         * @param controller a controller instance to reduce the query response objects
+         * @param expectedResultSize the expected number of query results. Corresponds to the number of shards queried
+         * @param bufferSize the size of the reduce buffer. if the buffer size is smaller than the number of expected results
+         *                   the buffer is used to incrementally reduce aggregation results before all shards responded.
+         */
+        QueryPhaseResultConsumer(SearchPhaseController controller, int expectedResultSize, int bufferSize) {
+            super(expectedResultSize);
+            this.controller = controller;
+            // TODO should we not allocate a buffer if there are no aggs in the search request?
+            if (expectedResultSize != 1 && bufferSize < 2) {
+                throw new IllegalArgumentException("buffer size must be >= 2 if there is more than one expected result");
+            }
+            // no need to buffer anything if we have less expected results. in this case we don't consume any results ahead of time.
+            this.buffer = expectedResultSize <= bufferSize ? null : new InternalAggregations[bufferSize];
+        }
+
+        @Override
+        public void consumeResult(int shardIndex, QuerySearchResultProvider result) {
+            super.consumeResult(shardIndex, result);
+            QuerySearchResult queryResult = result.queryResult();
+            if (queryResult.hasAggs()) {
+                consumeInternal(queryResult);
+            } else {
+                assert assertNoAggs();
+            }
+        }
+
+        private synchronized boolean assertNoAggs() {
+            assert hasAggs == null || hasAggs == false;
+            hasAggs = Boolean.FALSE;
+            return true;
+        }
+
+        private synchronized void consumeInternal(QuerySearchResult querySearchResult) {
+            assert hasAggs == null || hasAggs;
+            hasAggs = Boolean.TRUE;
+            if (buffer != null) {
+                InternalAggregations aggregations = (InternalAggregations) querySearchResult.consumeAggs();
+                // once the size is incremented to the length of the buffer we know all elements are added
+                // we also have happens before guarantees due to the memory barrier of the size write
+                if (index == buffer.length) {
+                    InternalAggregations reducedAggs = controller.reduceAggsOnly(Arrays.asList(buffer));
+                    Arrays.fill(buffer, null);
+                    buffer[0] = reducedAggs;
+                    index = 1;
+                }
+                final int i = index++;
+                buffer[i] = aggregations;
+            }
+
+        }
+
+        private synchronized List<InternalAggregations> getRemaining() {
+            if (buffer == null) {
+                return null; // we have no buffer..
+            } else {
+                return Arrays.asList(buffer).subList(0, index);
+            }
+        }
+
+        @Override
+        public ReducedQueryPhase reduce() {
+            return controller.reducedQueryPhase(results.asList(), getRemaining());
+        }
+
+        /**
+         * Returns the number of buffered results
+         */
+        int getNumBuffered() {
+            return index;
+        }
+    }
 }

@@ -26,7 +26,11 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -45,6 +49,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -229,5 +235,66 @@ public class SearchPhaseControllerTests extends ESTestCase {
             fetchResults.set(shardIndex, fetchSearchResult);
         }
         return fetchResults;
+    }
+
+    public void testConsumer() {
+        int bufferSize = randomIntBetween(2, 3);
+        SearchPhaseController.QueryPhaseResultConsumer consumer = new SearchPhaseController.QueryPhaseResultConsumer(searchPhaseController,
+            3, bufferSize);
+        QuerySearchResult result = new QuerySearchResult(0, new SearchShardTarget("node", new Index("a", "b"), 0));
+        result.topDocs(new TopDocs(0, new ScoreDoc[0], 0.0F), new DocValueFormat[0]);
+        InternalAggregations aggs = new InternalAggregations(Arrays.asList(new InternalMax("test", 1.0D, DocValueFormat.RAW,
+            Collections.emptyList(), Collections.emptyMap())));
+        result.aggregations(aggs);
+        consumer.consumeResult(0, result);
+
+        result = new QuerySearchResult(1, new SearchShardTarget("node", new Index("a", "b"), 0));
+        result.topDocs(new TopDocs(0, new ScoreDoc[0], 0.0F), new DocValueFormat[0]);
+        aggs = new InternalAggregations(Arrays.asList(new InternalMax("test", 3.0D, DocValueFormat.RAW,
+            Collections.emptyList(), Collections.emptyMap())));
+        result.aggregations(aggs);
+        consumer.consumeResult(2, result);
+
+        result = new QuerySearchResult(1, new SearchShardTarget("node", new Index("a", "b"), 0));
+        result.topDocs(new TopDocs(0, new ScoreDoc[0], 0.0F), new DocValueFormat[0]);
+        aggs = new InternalAggregations(Arrays.asList(new InternalMax("test", 2.0D, DocValueFormat.RAW,
+            Collections.emptyList(), Collections.emptyMap())));
+        result.aggregations(aggs);
+        consumer.consumeResult(1, result);
+
+        assertEquals(bufferSize == 3 ? 0 : 2, consumer.getNumBuffered());
+
+        SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
+        InternalMax max = (InternalMax) reduce.aggregations.asList().get(0);
+        assertEquals(3.0D, max.getValue(), 0.0D);
+    }
+
+    public void testConsumerConcurrently() throws InterruptedException {
+        int expectedNumResults = randomIntBetween(1, 100);
+        int bufferSize = randomIntBetween(2, 200);
+        SearchPhaseController.QueryPhaseResultConsumer consumer = new SearchPhaseController.QueryPhaseResultConsumer(searchPhaseController,
+            expectedNumResults, bufferSize);
+        AtomicInteger max = new AtomicInteger();
+        CountDownLatch latch = new CountDownLatch(expectedNumResults);
+        for (int i = 0; i < expectedNumResults; i++) {
+            int id = i;
+            Thread t = new Thread(() -> {
+                int number = randomIntBetween(1, 1000);
+                max.updateAndGet(prev -> Math.max(prev, number));
+                QuerySearchResult result = new QuerySearchResult(id, new SearchShardTarget("node", new Index("a", "b"), id));
+                result.topDocs(new TopDocs(id, new ScoreDoc[0], 0.0F), new DocValueFormat[0]);
+                InternalAggregations aggs = new InternalAggregations(Arrays.asList(new InternalMax("test", (double) number,
+                    DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap())));
+                result.aggregations(aggs);
+                consumer.consumeResult(id, result);
+                latch.countDown();
+
+            });
+            t.start();
+        }
+        latch.await();
+        SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
+        InternalMax internalMax = (InternalMax) reduce.aggregations.asList().get(0);
+        assertEquals(max.get(), internalMax.getValue(), 0.0D);
     }
 }

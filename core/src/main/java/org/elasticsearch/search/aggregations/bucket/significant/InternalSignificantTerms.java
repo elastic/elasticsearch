@@ -198,13 +198,13 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         }
 
         SignificanceHeuristic heuristic = getSignificanceHeuristic().rewrite(reduceContext);
-        final int size = Math.min(requiredSize, buckets.size());
+        final int size = reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size());
         BucketSignificancePriorityQueue<B> ordered = new BucketSignificancePriorityQueue<>(size);
         for (Map.Entry<String, List<B>> entry : buckets.entrySet()) {
             List<B> sameTermBuckets = entry.getValue();
             final B b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
             b.updateScore(heuristic);
-            if ((b.score > 0) && (b.subsetDf >= minDocCount)) {
+            if ((b.score > 0) && (b.subsetDf >= minDocCount || reduceContext.isFinalReduce() == false)) {
                 ordered.insertWithOverflow(b);
             }
         }

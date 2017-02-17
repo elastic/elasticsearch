@@ -228,7 +228,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             }
         }
 
-        final int size = Math.min(requiredSize, buckets.size());
+        final int size = reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size());
         BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator(null));
         for (List<B> sameTermBuckets : buckets.values()) {
             final B b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
@@ -239,7 +239,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                     b.docCountError = sumDocCountError - b.docCountError;
                 }
             }
-            if (b.docCount >= minDocCount) {
+            if (b.docCount >= minDocCount || reduceContext.isFinalReduce() == false) {
                 B removed = ordered.insertWithOverflow(b);
                 if (removed != null) {
                     otherDocCount += removed.getDocCount();

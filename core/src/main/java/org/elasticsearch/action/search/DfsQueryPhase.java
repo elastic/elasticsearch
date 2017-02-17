@@ -40,18 +40,20 @@ import java.util.function.Function;
  * @see CountedCollector#onFailure(int, SearchShardTarget, Exception)
  */
 final class DfsQueryPhase extends SearchPhase {
-    private final AtomicArray<QuerySearchResultProvider> queryResult;
+    private final InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> queryResult;
     private final SearchPhaseController searchPhaseController;
     private final AtomicArray<DfsSearchResult> dfsSearchResults;
-    private final Function<AtomicArray<QuerySearchResultProvider>, SearchPhase> nextPhaseFactory;
+    private final Function<InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final SearchTransportService searchTransportService;
 
     DfsQueryPhase(AtomicArray<DfsSearchResult> dfsSearchResults,
                   SearchPhaseController searchPhaseController,
-                  Function<AtomicArray<QuerySearchResultProvider>, SearchPhase> nextPhaseFactory, SearchPhaseContext context) {
+                  Function<InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider>, SearchPhase> nextPhaseFactory,
+                  SearchPhaseContext context) {
         super("dfs_query");
-        this.queryResult = new AtomicArray<>(dfsSearchResults.length());
+        this.queryResult = new SearchPhaseController.QueryPhaseResultConsumer(searchPhaseController, dfsSearchResults.length(),
+            context.getRequest().getReduceUpTo());
         this.searchPhaseController = searchPhaseController;
         this.dfsSearchResults = dfsSearchResults;
         this.nextPhaseFactory = nextPhaseFactory;
@@ -64,7 +66,8 @@ final class DfsQueryPhase extends SearchPhase {
         // TODO we can potentially also consume the actual per shard results from the initial phase here in the aggregateDfs
         // to free up memory early
         final AggregatedDfs dfs = searchPhaseController.aggregateDfs(dfsSearchResults);
-        final CountedCollector<QuerySearchResultProvider> counter = new CountedCollector<>(queryResult, dfsSearchResults.asList().size(),
+        final CountedCollector<QuerySearchResultProvider> counter = new CountedCollector<>(queryResult::consumeResult,
+            dfsSearchResults.asList().size(),
             () -> {
                 context.executeNextPhase(this, nextPhaseFactory.apply(queryResult));
             }, context);

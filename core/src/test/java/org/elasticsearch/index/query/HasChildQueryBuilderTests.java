@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -240,18 +240,14 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertThat(booleanQuery.clauses().size(), equalTo(2));
         //check the inner ids query, we have to call rewrite to get to check the type it's executed against
         assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
-        assertThat(booleanQuery.clauses().get(0).getQuery(), instanceOf(TermsQuery.class));
-        TermsQuery termsQuery = (TermsQuery) booleanQuery.clauses().get(0).getQuery();
-        // we need to rewrite once for TermsQuery -> TermInSetQuery and than againt TermInSetQuery -> ConstantScoreQuery
+        assertThat(booleanQuery.clauses().get(0).getQuery(), instanceOf(TermInSetQuery.class));
+        TermInSetQuery termsQuery = (TermInSetQuery) booleanQuery.clauses().get(0).getQuery();
+        // we need to rewrite once for TermInSetQuery -> TermInSetQuery and than againt TermInSetQuery -> ConstantScoreQuery
         Query rewrittenTermsQuery = termsQuery.rewrite(null).rewrite(null);
         assertThat(rewrittenTermsQuery, instanceOf(ConstantScoreQuery.class));
         ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) rewrittenTermsQuery;
-        assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
-        BooleanQuery booleanTermsQuery = (BooleanQuery) constantScoreQuery.getQuery();
-        assertThat(booleanTermsQuery.clauses().toString(), booleanTermsQuery.clauses().size(), equalTo(1));
-        assertThat(booleanTermsQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-        assertThat(booleanTermsQuery.clauses().get(0).getQuery(), instanceOf(TermQuery.class));
-        TermQuery termQuery = (TermQuery) booleanTermsQuery.clauses().get(0).getQuery();
+        assertThat(constantScoreQuery.getQuery(), instanceOf(TermQuery.class));
+        TermQuery termQuery = (TermQuery) constantScoreQuery.getQuery();
         assertThat(termQuery.getTerm().field(), equalTo(UidFieldMapper.NAME));
         //we want to make sure that the inner ids query gets executed against the child type rather than the main type we initially set to the context
         BytesRef[] ids = Uid.createUidsForTypesAndIds(Collections.singletonList(type), Collections.singletonList(id));

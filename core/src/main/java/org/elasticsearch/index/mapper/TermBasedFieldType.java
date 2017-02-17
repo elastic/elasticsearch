@@ -22,9 +22,9 @@ package org.elasticsearch.index.mapper;
 import java.util.List;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -66,7 +66,7 @@ abstract class TermBasedFieldType extends MappedFieldType {
         for (int i = 0; i < bytesRefs.length; i++) {
             bytesRefs[i] = indexedValueForSearch(values.get(i));
         }
-        return new TermsQuery(name(), bytesRefs);
+        return new TermInSetQuery(name(), bytesRefs);
     }
 
 }

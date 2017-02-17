@@ -84,36 +84,23 @@ public class BulkItemResponseTests extends ESTestCase {
                 parsedBulkItemResponse = BulkItemResponse.fromXContent(parser, bulkItemId);
                 assertNull(parser.nextToken());
             }
-
-            assertEquals(expectedBulkItemResponse.getIndex(), parsedBulkItemResponse.getIndex());
-            assertEquals(expectedBulkItemResponse.getType(), parsedBulkItemResponse.getType());
-            assertEquals(expectedBulkItemResponse.getId(), parsedBulkItemResponse.getId());
-            assertEquals(expectedBulkItemResponse.getOpType(), parsedBulkItemResponse.getOpType());
-            assertEquals(expectedBulkItemResponse.getVersion(), parsedBulkItemResponse.getVersion());
-            assertEquals(bulkItemId, parsedBulkItemResponse.getItemId());
-
-            if (opType == DocWriteRequest.OpType.UPDATE) {
-                UpdateResponseTests.assertUpdateResponse(expectedBulkItemResponse.getResponse(), parsedBulkItemResponse.getResponse());
-            } else {
-                IndexResponseTests.assertDocWriteResponse(expectedBulkItemResponse.getResponse(), parsedBulkItemResponse.getResponse());
-            }
+            assertBulkItemResponse(expectedBulkItemResponse, parsedBulkItemResponse);
         }
     }
 
     public void testFailureToAndFromXContent() throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());
 
-        final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();
-        final Throwable cause = exceptions.v1();
-        final ElasticsearchException expectedCause = exceptions.v2();
-
-        int bulkItemId = randomIntBetween(0, 100);
+        int itemId = randomIntBetween(0, 100);
         String index = randomAsciiOfLength(5);
         String type = randomAsciiOfLength(5);
         String id = randomAsciiOfLength(5);
         DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
 
-        BulkItemResponse bulkItemResponse = new BulkItemResponse(bulkItemId, opType, new Failure(index, type, id, (Exception) cause));
+        final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();
+
+        BulkItemResponse bulkItemResponse = new BulkItemResponse(itemId, opType, new Failure(index, type, id, (Exception)  exceptions.v1()));
+        BulkItemResponse expectedBulkItemResponse = new BulkItemResponse(itemId, opType, new Failure(index, type, id,  exceptions.v2()));
         BytesReference originalBytes = toXContent(bulkItemResponse, xContentType, randomBoolean());
 
         // Shuffle the XContent fields
@@ -126,22 +113,38 @@ public class BulkItemResponseTests extends ESTestCase {
         BulkItemResponse parsedBulkItemResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsedBulkItemResponse = BulkItemResponse.fromXContent(parser, bulkItemId);
+            parsedBulkItemResponse = BulkItemResponse.fromXContent(parser, itemId);
             assertNull(parser.nextToken());
         }
+        assertBulkItemResponse(expectedBulkItemResponse, parsedBulkItemResponse);
+    }
 
-        assertNotNull(parsedBulkItemResponse);
-        assertEquals(index, parsedBulkItemResponse.getIndex());
-        assertEquals(type, parsedBulkItemResponse.getType());
-        assertEquals(id, parsedBulkItemResponse.getId());
-        assertEquals(opType, parsedBulkItemResponse.getOpType());
-        assertEquals(bulkItemId, parsedBulkItemResponse.getItemId());
+    public static void assertBulkItemResponse(BulkItemResponse expected, BulkItemResponse actual) {
+        assertEquals(expected.getItemId(), actual.getItemId());
+        assertEquals(expected.getIndex(), actual.getIndex());
+        assertEquals(expected.getType(), actual.getType());
+        assertEquals(expected.getId(), actual.getId());
+        assertEquals(expected.getOpType(), actual.getOpType());
+        assertEquals(expected.getVersion(), actual.getVersion());
+        assertEquals(expected.isFailed(), actual.isFailed());
 
-        Failure parsedFailure = parsedBulkItemResponse.getFailure();
-        assertEquals(index, parsedFailure.getIndex());
-        assertEquals(type, parsedFailure.getType());
-        assertEquals(id, parsedFailure.getId());
+        if (expected.isFailed()) {
+            BulkItemResponse.Failure expectedFailure = expected.getFailure();
+            BulkItemResponse.Failure actualFailure = actual.getFailure();
 
-        assertDeepEquals(expectedCause, (ElasticsearchException) parsedFailure.getCause());
+            assertEquals(expectedFailure.getIndex(), actualFailure.getIndex());
+            assertEquals(expectedFailure.getType(), actualFailure.getType());
+            assertEquals(expectedFailure.getId(), actualFailure.getId());
+            assertEquals(expectedFailure.getMessage(), actualFailure.getMessage());
+            assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
+
+            assertDeepEquals((ElasticsearchException) expectedFailure.getCause(), (ElasticsearchException) actualFailure.getCause());
+        } else {
+            if (expected.getOpType() == DocWriteRequest.OpType.UPDATE) {
+                UpdateResponseTests.assertUpdateResponse(expected.getResponse(), actual.getResponse());
+            } else {
+                IndexResponseTests.assertDocWriteResponse(expected.getResponse(), actual.getResponse());
+            }
+        }
     }
 }

@@ -19,7 +19,11 @@
 
 package org.elasticsearch.painless;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -149,6 +153,18 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertEquals(10, scriptEngine.compile(DefaultMethods.class, null, "a + b + c + d", emptyMap()).execute(1, 2, 3, 4));
         assertEquals(4, scriptEngine.compile(DefaultMethods.class, null, "a + b + c + d", emptyMap()).executeWithOne());
         assertEquals(7, scriptEngine.compile(DefaultMethods.class, null, "a + b + c + d", emptyMap()).executeWithASingleOne(1, 2, 3));
+    }
+
+    public interface ReturnsVoid {
+        String[] ARGUMENTS = new String[] {"map"};
+        void execute(Map<String, Object> map);
+    }
+    public void testReturnsVoid() {
+        Map<String, Object> map = new HashMap<>();
+        scriptEngine.compile(ReturnsVoid.class, null, "map.a = 'foo'", emptyMap()).execute(map);
+        assertEquals(singletonMap("a", "foo"), map);
+        scriptEngine.compile(ReturnsVoid.class, null, "map.remove('a')", emptyMap()).execute(map);
+        assertEquals(emptyMap(), map);
     }
 
     public interface NoArgumentsConstant {

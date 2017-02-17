@@ -246,6 +246,8 @@ import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
+import org.elasticsearch.search.suggest.filteredsuggest.FilteredSuggestSuggester;
+import org.elasticsearch.search.suggest.filteredsuggest.FilteredSuggestSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.Laplace;
 import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
@@ -567,6 +569,8 @@ public class SearchModule {
         registerSuggester(new SuggesterSpec<>("term", TermSuggestionBuilder::new, TermSuggestionBuilder::fromXContent));
         registerSuggester(new SuggesterSpec<>("phrase", PhraseSuggestionBuilder::new, PhraseSuggestionBuilder::fromXContent));
         registerSuggester(new SuggesterSpec<>("completion", CompletionSuggestionBuilder::new, CompletionSuggestionBuilder::fromXContent));
+        registerSuggester(new SuggesterSpec<>("filteredsuggest", FilteredSuggestSuggestionBuilder::new,
+                FilteredSuggestSuggestionBuilder::fromXContent));
 
         registerFromPlugin(plugins, SearchPlugin::getSuggesters, this::registerSuggester);
     }

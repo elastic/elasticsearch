@@ -23,12 +23,17 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -45,6 +50,8 @@ public final class Mapping implements ToXContent {
     final MetadataFieldMapper[] metadataMappers;
     final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
     final Map<String, Object> meta;
+    
+    final List<BaseSuggestFieldMapper> suggestFieldMappers;
 
     public Mapping(Version indexCreated, RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
         this.indexCreated = indexCreated;
@@ -63,8 +70,25 @@ public final class Mapping implements ToXContent {
         });
         this.metadataMappersMap = unmodifiableMap(metadataMappersMap);
         this.meta = meta;
+        this.suggestFieldMappers = new ArrayList<>(1);
+        
+        loadSuggestFieldMappers(rootObjectMapper);
     }
-
+    
+    private void loadSuggestFieldMappers(ObjectMapper mapper) {
+        for(Iterator<Mapper> it = mapper.iterator(); it.hasNext();) {
+            final Mapper mp = it.next();
+            
+            if (BaseSuggestFieldMapper.class.isInstance(mp)) {
+                suggestFieldMappers.add((BaseSuggestFieldMapper) mp);
+            }
+            
+            if (mp.getClass().isAssignableFrom(ObjectMapper.class)) {
+                loadSuggestFieldMappers((ObjectMapper) mp);
+            }
+        }
+    }
+    
     /** Return the root object mapper. */
     public RootObjectMapper root() {
         return root;

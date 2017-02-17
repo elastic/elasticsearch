@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.search.suggest.filteredsuggest.FilteredSuggestSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 
@@ -137,6 +138,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 throw new IllegalArgumentException("Completion suggester 2.x is not supported anymore");
             case PhraseSuggestion.TYPE:
                 suggestion = new PhraseSuggestion();
+                break;
+            case FilteredSuggestSuggestion.TYPE:
+                suggestion = new FilteredSuggestSuggestion();
                 break;
             default:
                 suggestion = new Suggestion();

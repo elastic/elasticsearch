@@ -49,16 +49,26 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     protected final String name;
 
     public enum Type {
-        CATEGORY, GEO;
+        CATEGORY("category"), GEO("geo");
+        
+        String name;
+        
+        Type(String name) {
+            this.name = name;
+        }
 
         public static Type fromString(String type) {
-            if (type.equalsIgnoreCase("category")) {
+            if (type.equals(Type.CATEGORY.name)) {
                 return CATEGORY;
-            } else if (type.equalsIgnoreCase("geo")) {
+            } else if (type.equals(Type.GEO.name)) {
                 return GEO;
             } else {
                 throw new IllegalArgumentException("No context type for [" + type + "]");
             }
+        }
+        
+        public String getName() {
+            return name;
         }
     }
 

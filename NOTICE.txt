@@ -1,5 +1,105 @@
 Elasticsearch
-Copyright 2009-2017 Elasticsearch
+Copyright 2009-2016 Elasticsearch
 
 This product includes software developed by The Apache Software
 Foundation (http://www.apache.org/).
+
+The Combinatoricslib (combinatoricslib:2.1) used here is developed by Dmytro Paukov
+under the GNU Lesser General Public License v3.0
+See http://www.gnu.org/licenses/lgpl.html
+
+The Filtered Autosuggest on Nested model is developed by Nilabh Sagar and Devikiran Ramadas at Optum. The details of which
+are as below:
+
+Added Files:
+============
+	core\src\main\java\org\elasticsearch\index\mapper\BaseSuggestFieldMapper.java
+		Suggest field mapper for handling of pre-parse/parse/post-parse state; this is helpful to identify those suggestion fields for which the mapping is defined but indexed document does not have instance of the said suggest field.
+
+	core\src\main\java\org\elasticsearch\index\mapper\FilteredSuggestFieldMapper.java
+		To parse the mapping information given for the filter suggest field and parsing the Suggest Field values at Index time.
+
+	core\src\main\java\org\elasticsearch\common\SuggestFieldFilterIdGenerator.java
+		Maintains identifiers for every filter field across hierarchy.
+
+	core\src\main\java\org\elasticsearch\search\suggest\filteredsuggest\FilteredSuggestSuggester.java
+		Executes the suggest query and constructs the suggest response.
+
+	core\src\main\java\org\elasticsearch\search\suggest\filteredsuggest\FilteredSuggestSuggestion.java
+		Value object to hold the FilteredSuggest Suggestion.
+
+	core\src\main\java\org\elasticsearch\search\suggest\filteredsuggest\FilteredSuggestSuggestionBuilder.java
+		Builder for Filtered Suggest Suggestion Context.
+
+	core\src\main\java\org\elasticsearch\search\suggest\filteredsuggest\FilteredSuggestSuggestionContext.java
+		Context for Filtered Suggestion in order to exchange the configuration during suggest query execution
+
+	core\src\main\java\org\elasticsearch\search\suggest\filteredsuggest\filter\FilterMappings.java
+		Constructs relational mapping hierarchy.
+
+	core\src\main\java\org\elasticsearch\search\suggest\filteredsuggest\filter\FilteredSuggestFilterBuilder.java
+		Its a builder class for constructing different filter mapping.
+
+	core\src\main\java\org\elasticsearch\search\suggest\filteredsuggest\filter\FilteredSuggestFilterMapping.java
+		Used to define a filter that may used in conjunction with a suggester.
+
+	core\src\main\java\org\elasticsearch\search\suggest\filteredsuggest\filter\FilteredSuggestCategoryFilterMapping.java
+		Used to define Query Context for Category filter that may used in conjunction with a suggester.
+
+	core\src\main\java\org\elasticsearch\search\suggest\filteredsuggest\filter\FilteredSuggestCategoryQueryContext.java
+		Used to define a Category filter that may used in conjunction with a suggester.
+
+	core\src\main\java\org\elasticsearch\search\suggest\filteredsuggest\filter\FilteredSuggestFilterValueGenerator.java
+		Generates all possible filter value combinations required for the Category filter.
+
+	core\src\main\java\org\elasticsearch\search\suggest\filteredsuggest\filter\FilteredSuggestFilterValues.java
+		Abstract Class for generating possible filter value combinations required for the Category filter.
+
+	core\src\test\java\org\elasticsearch\search\suggest\filteredsuggest\filter\FilteredSuggestFilterMappingTests.java
+		Tests to Test Filtered Suggesters Filter Mapping
+
+	core\src\main\java\org\apache\lucene\search\suggest\document\FilteredSuggestField.java
+		Extends the ContextSugestField and increase the default Max Expansion limit to 200000
+	
+	
+
+Modified Files:
+===============
+	core\src\main\java\org\elasticsearch\indices\IndicesModule.java
+		Configures classes and services that are shared by indices on each node, added a filtered suggest field mapper
+	
+	core\src\main\java\org\elasticsearch\search\SearchModule.java
+		Sets up things that can be done at search time like queries, aggregations, and suggesters; registered filtered suggester.
+	
+	core\src\main\java\org\elasticsearch\search\suggest\Suggest.java
+		Top level suggest result, containing the result for each suggestion; added handling for FilteredSuggestSuggestion type.
+	
+	core\src\main\java\org\elasticsearch\search\suggest\completion\context\ContextMapping.java
+		Adjusted Category and geo enums for storing type names.
+		
+	core\src\main\java\org\elasticsearch\index\mapper\Mapper.java
+		Changes to hold the Suggest Field Id Generator under ParseContext.
+
+	core\src\main\java\org\elasticsearch\index\mapper\Mapping.java
+		To identify the BaseSuggestFieldMapper from root field mapper.
+
+	core\src\main\java\org\elasticsearch\index\mapper\ParseContext.java
+		Changes to include child reference in the document.
+
+	core\src\main\java\org\elasticsearch\index\mapper\DocumentParser.java
+		Changes to execute the BaseSuggestFieldMappers pre and post Mapper functions.
+
+	core\src\main\java\org\elasticsearch\index\mapper\DocumentMapperParser.java
+		Changes to instantiate the Suggest Field Id Generator.
+
+	core\src\main\java\org\elasticsearch\index\codec\PerFieldMappingPostingFormatCodec.java
+		Added Handling for fetching the Postings format for FilteredSuggest Field.
+
+	core\src\main\java\org\elasticsearch\search\suggest\completion\CompletionSuggester.java
+		Made the TopDocumentCollector inner class public, so that the collector can be reused in FilteredSuggest as well.
+
+	core\src\main\java\org\elasticsearch\search\suggest\completion\FuzzyOptions.java
+		Made the fuzzy option constant, parse method and constructor public, so that the same can be used for filtered auto suggest. 
+
+	core\src\main\java\org\elasticsearch\search\suggest\completion\RegexOptions.java
+		Made the regx option constant, parse method and constructor public, so that the same can be used for filtered auto suggest.

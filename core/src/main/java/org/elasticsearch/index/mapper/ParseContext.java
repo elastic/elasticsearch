@@ -32,8 +32,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 public abstract class ParseContext {
 
@@ -45,12 +47,19 @@ public abstract class ParseContext {
         private final String prefix;
         private final List<IndexableField> fields;
         private ObjectObjectMap<Object, IndexableField> keyedFields;
+        private final Map<String,List<Document>> children = new HashMap<String, List<Document>>();
 
         private Document(String path, Document parent) {
             fields = new ArrayList<>();
             this.path = path;
             this.prefix = path.isEmpty() ? "" : path + ".";
             this.parent = parent;
+            if (parent != null) {
+                String key = this.path;
+                List<Document> list = parent.children.get(key) != null ? parent.children.get(key) : new ArrayList<>();
+                list.add(this);
+                parent.children.put(key, list);
+            }
         }
 
         public Document() {
@@ -86,7 +95,10 @@ public abstract class ParseContext {
         public List<IndexableField> getFields() {
             return fields;
         }
-
+        
+        public List<Document> getChildren(String path) {
+            return children.get(path);
+        }
         public void add(IndexableField field) {
             // either a meta fields or starts with the prefix
             assert field.name().startsWith("_") || field.name().startsWith(prefix) : field.name() + " " + prefix;
@@ -162,6 +174,10 @@ public abstract class ParseContext {
                 }
             }
             return null;
+        }
+
+        public boolean hasChildren() {
+            return this.children.size() > 0;
         }
 
     }

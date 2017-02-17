@@ -38,7 +38,7 @@ import java.util.Objects;
  * Fuzzy options for completion suggester
  */
 public class FuzzyOptions implements ToXContent, Writeable {
-    static final ParseField FUZZY_OPTIONS = new ParseField("fuzzy");
+    public static final ParseField FUZZY_OPTIONS = new ParseField("fuzzy");
     private static final ParseField TRANSPOSITION_FIELD = new ParseField("transpositions");
     private static final ParseField MIN_LENGTH_FIELD = new ParseField("min_length");
     private static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
@@ -66,7 +66,7 @@ public class FuzzyOptions implements ToXContent, Writeable {
         PARSER.declareField(Builder::setFuzziness, Fuzziness::parse, Fuzziness.FIELD, ObjectParser.ValueType.VALUE);
     }
 
-    static FuzzyOptions parse(XContentParser parser) throws IOException {
+    public static FuzzyOptions parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null).build();
     }
 
@@ -94,7 +94,7 @@ public class FuzzyOptions implements ToXContent, Writeable {
     /**
      * Read from a stream.
      */
-    FuzzyOptions(StreamInput in) throws IOException {
+    public FuzzyOptions(StreamInput in) throws IOException {
         transpositions = in.readBoolean();
         unicodeAware = in.readBoolean();
         editDistance = in.readVInt();

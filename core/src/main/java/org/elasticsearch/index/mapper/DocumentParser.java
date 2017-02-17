@@ -84,12 +84,20 @@ final class DocumentParser {
         for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
             metadataMapper.preParse(context);
         }
+        
+        for(BaseSuggestFieldMapper entry : mapping.suggestFieldMappers) {
+            entry.preParse(context);
+        }
 
         if (mapping.root.isEnabled() == false) {
             // entire type is disabled
             parser.skipChildren();
         } else if (emptyDoc == false) {
             parseObjectOrNested(context, mapping.root, true);
+        }
+        
+        for(BaseSuggestFieldMapper entry : mapping.suggestFieldMappers) {
+            entry.postParse(context);
         }
 
         for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {

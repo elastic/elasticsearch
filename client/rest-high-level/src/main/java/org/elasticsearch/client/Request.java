@@ -71,8 +71,21 @@ final class Request {
                 '}';
     }
 
-    static Request ping() {
-        return new Request("HEAD", "/", Collections.emptyMap(), null);
+    // For developers please add your new methods in the alphabetical order
+
+    static Request delete(DeleteRequest deleteRequest) {
+        String endpoint = endpoint(deleteRequest.index(), deleteRequest.type(), deleteRequest.id());
+
+        Params parameters = Params.builder();
+        parameters.withRouting(deleteRequest.routing());
+        parameters.withParent(deleteRequest.parent());
+        parameters.withTimeout(deleteRequest.timeout());
+        parameters.withVersion(deleteRequest.version());
+        parameters.withVersionType(deleteRequest.versionType());
+        parameters.withRefreshPolicy(deleteRequest.getRefreshPolicy());
+        parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards());
+
+        return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 
     static Request exists(GetRequest getRequest) {
@@ -120,19 +133,8 @@ final class Request {
         return new Request(method, endpoint, parameters.getParams(), entity);
     }
 
-    static Request delete(DeleteRequest deleteRequest) {
-        String endpoint = endpoint(deleteRequest.index(), deleteRequest.type(), deleteRequest.id());
-
-        Params parameters = Params.builder();
-        parameters.withRouting(deleteRequest.routing());
-        parameters.withParent(deleteRequest.parent());
-        parameters.withTimeout(deleteRequest.timeout());
-        parameters.withVersion(deleteRequest.version());
-        parameters.withVersionType(deleteRequest.versionType());
-        parameters.withRefreshPolicy(deleteRequest.getRefreshPolicy());
-        parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards());
-
-        return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
+    static Request ping() {
+        return new Request("HEAD", "/", Collections.emptyMap(), null);
     }
 
     /**

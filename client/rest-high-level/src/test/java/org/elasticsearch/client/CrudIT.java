@@ -46,6 +46,79 @@ import static org.hamcrest.CoreMatchers.containsString;
 
 public class CrudIT extends ESRestHighLevelClientTestCase {
 
+    public void testDelete() throws IOException {
+        {
+            // Testing non existing document
+            DeleteRequest deleteRequest = new DeleteRequest("index", "type", "does_not_exist");
+            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
+            assertEquals("index", deleteResponse.getIndex());
+            assertEquals("type", deleteResponse.getType());
+            assertEquals("does_not_exist", deleteResponse.getId());
+            assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
+        }
+        {
+            // Testing deletion
+            String docId = createSampleDocument(createSampleIndexRequest());
+            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
+            if (randomBoolean()) {
+                deleteRequest.version(1L);
+            }
+            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
+            assertEquals("index", deleteResponse.getIndex());
+            assertEquals("type", deleteResponse.getType());
+            assertEquals(docId, deleteResponse.getId());
+            assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+        }
+        {
+            // Testing version conflict
+            String docId = createSampleDocument(createSampleIndexRequest());
+            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).version(2);
+            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync));
+            assertEquals(RestStatus.CONFLICT, exception.status());
+            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, " +
+                "reason=[type][" + docId + "]: " +
+                "version conflict, current version [1] is different than the one provided [2]]", exception.getMessage());
+            assertEquals("index", exception.getMetadata("es.index").get(0));
+        }
+        {
+            // Testing version type
+            String docId = createSampleDocument(createSampleIndexRequest()
+                .id(randomAsciiOfLength(15))
+                .versionType(VersionType.EXTERNAL).version(12));
+            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).versionType(VersionType.EXTERNAL).version(13);
+            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
+            assertEquals("index", deleteResponse.getIndex());
+            assertEquals("type", deleteResponse.getType());
+            assertEquals(docId, deleteResponse.getId());
+            assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+        }
+        {
+            // Testing version type with a wrong version
+            String docId = createSampleDocument(createSampleIndexRequest()
+                .id(randomAsciiOfLength(15))
+                .versionType(VersionType.EXTERNAL).version(12));
+            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
+                DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).versionType(VersionType.EXTERNAL).version(10);
+                execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
+            });
+            assertEquals(RestStatus.CONFLICT, exception.status());
+            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][" +
+                docId + "]: version conflict, current version [12] is higher or equal to the one provided [10]]", exception.getMessage());
+            assertEquals("index", exception.getMetadata("es.index").get(0));
+        }
+        {
+            // Testing routing
+            String docId = createSampleDocument(createSampleIndexRequest().routing("foo"));
+            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).routing("foo");
+            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
+            assertEquals("index", deleteResponse.getIndex());
+            assertEquals("type", deleteResponse.getType());
+            assertEquals(docId, deleteResponse.getId());
+            assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+        }
+    }
+
     public void testExists() throws IOException {
         {
             GetRequest getRequest = new GetRequest("index", "type", "id");
@@ -268,39 +341,26 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testDelete() throws IOException {
-        {
-            DeleteRequest deleteRequest = new DeleteRequest("index", "type", "does_not_exist");
-            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
-            assertEquals("index", deleteResponse.getIndex());
-            assertEquals("type", deleteResponse.getType());
-            assertEquals("does_not_exist", deleteResponse.getId());
-            assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
-            assertEquals(1, deleteResponse.getVersion());
-        }
-        String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
-        StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
-        Response response = client().performRequest("PUT", "/index/type/id", Collections.singletonMap("refresh", "wait_for"), stringEntity);
-        assertEquals(201, response.getStatusLine().getStatusCode());
-        {
-            DeleteRequest deleteRequest = new DeleteRequest("index", "type", "id").version(2);
-            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync));
-            assertEquals(RestStatus.CONFLICT, exception.status());
-            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, " + "reason=[type][id]: " +
-                    "version conflict, current version [1] is different than the one provided [2]]", exception.getMessage());
-            assertEquals("index", exception.getMetadata("es.index").get(0));
-        }
-        {
-            DeleteRequest deleteRequest = new DeleteRequest("index", "type", "id");
-            if (randomBoolean()) {
-                deleteRequest.version(1L);
-            }
-            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
-            assertEquals("index", deleteResponse.getIndex());
-            assertEquals("type", deleteResponse.getType());
-            assertEquals("id", deleteResponse.getId());
-            assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
-        }
+    /**
+     * @return A sample index request
+     * @throws IOException If problem when generating the content
+     */
+    private IndexRequest createSampleIndexRequest() throws IOException {
+        final XContentType xContentType = randomFrom(XContentType.values());
+        IndexRequest indexRequest = new IndexRequest("index", "type");
+        indexRequest.source(XContentBuilder.builder(xContentType.xContent()).startObject().field("test", "test").endObject());
+        return indexRequest;
+    }
+
+    /**
+     * Executes an index request and returns the document _id
+     * @param request index request
+     * @return the document _id
+     * @throws IOException if something goes wrong while executing the index request
+     */
+    private String createSampleDocument(IndexRequest request) throws IOException {
+        IndexResponse indexResponse = execute(request, highLevelClient()::index, highLevelClient()::indexAsync);
+        assertEquals(RestStatus.CREATED, indexResponse.status());
+        return indexResponse.getId();
     }
 }

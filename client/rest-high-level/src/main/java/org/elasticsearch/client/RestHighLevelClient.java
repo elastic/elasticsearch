@@ -124,7 +124,9 @@ public class RestHighLevelClient {
     }
 
     /**
-     * Deletes a document by id using the delete api
+     * Deletes a document by id using the Delete api
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
      */
     public DeleteResponse delete(DeleteRequest deleteRequest, Header... headers) throws IOException {
         return performRequestAndParseEntity(deleteRequest, Request::delete, DeleteResponse::fromXContent, Collections.singleton(404),
@@ -132,7 +134,9 @@ public class RestHighLevelClient {
     }
 
     /**
-     * Asynchronously deletes a document by id using the delete api
+     * Asynchronously deletes a document by id using the Delete api
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
      */
     public void deleteAsync(DeleteRequest deleteRequest, ActionListener<DeleteResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(deleteRequest, Request::delete, DeleteResponse::fromXContent, listener,

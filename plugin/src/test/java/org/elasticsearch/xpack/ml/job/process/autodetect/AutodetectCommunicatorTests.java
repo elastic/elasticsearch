@@ -28,7 +28,6 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
@@ -156,11 +155,11 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class));
 
-        communicator.inUse.set(new CountDownLatch(1));
+        communicator.inUse.set(true);
         expectThrows(ElasticsearchStatusException.class,
                 () -> communicator.writeToJob(in, mock(DataLoadParams.class)));
 
-        communicator.inUse.set(null);
+        communicator.inUse.set(false);
         communicator.writeToJob(in, new DataLoadParams(TimeRange.builder().build(), Optional.empty()));
     }
 
@@ -170,11 +169,11 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         when(resultProcessor.waitForFlushAcknowledgement(any(), any())).thenReturn(true);
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
 
-        communicator.inUse.set(new CountDownLatch(1));
+        communicator.inUse.set(true);
         InterimResultsParams params = mock(InterimResultsParams.class);
         expectThrows(ElasticsearchStatusException.class, () -> communicator.flushJob(params));
 
-        communicator.inUse.set(null);
+        communicator.inUse.set(false);
         communicator.flushJob(params);
     }
 
@@ -184,12 +183,10 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         when(resultProcessor.waitForFlushAcknowledgement(any(), any())).thenReturn(true);
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
 
-        CountDownLatch latch = mock(CountDownLatch.class);
-        communicator.inUse.set(latch);
-        communicator.close();
-        verify(latch, times(1)).await();
+        communicator.inUse.set(true);
+        expectThrows(ElasticsearchStatusException.class, () -> communicator.close());
 
-        communicator.inUse.set(null);
+        communicator.inUse.set(false);
         communicator.close();
     }
 
@@ -198,10 +195,10 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         AutoDetectResultProcessor resultProcessor = mock(AutoDetectResultProcessor.class);
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
 
-        communicator.inUse.set(new CountDownLatch(1));
+        communicator.inUse.set(true);
         expectThrows(ElasticsearchStatusException.class, () -> communicator.writeUpdateModelDebugMessage(mock(ModelDebugConfig.class)));
 
-        communicator.inUse.set(null);
+        communicator.inUse.set(false);
         communicator.writeUpdateModelDebugMessage(mock(ModelDebugConfig.class));
     }
 
@@ -211,10 +208,10 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
 
         List<DetectionRule> rules = Collections.singletonList(mock(DetectionRule.class));
-        communicator.inUse.set(new CountDownLatch(1));
+        communicator.inUse.set(true);
         expectThrows(ElasticsearchStatusException.class, () -> communicator.writeUpdateDetectorRulesMessage(0, rules));
 
-        communicator.inUse.set(null);
+        communicator.inUse.set(false);
         communicator.writeUpdateDetectorRulesMessage(0, rules);
     }
 }

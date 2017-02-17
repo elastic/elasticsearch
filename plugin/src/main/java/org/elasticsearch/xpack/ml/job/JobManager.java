@@ -198,7 +198,9 @@ public class JobManager extends AbstractComponent {
                 });
     }
 
-    public void updateJob(String jobId, JobUpdate jobUpdate, AckedRequest request, ActionListener<PutJobAction.Response> actionListener) {
+    public void updateJob(String jobId, JobUpdate jobUpdate, AckedRequest request, Client client,
+                          ActionListener<PutJobAction.Response> actionListener) {
+
         clusterService.submitStateUpdateTask("update-job-" + jobId,
                 new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
                     private Job updatedJob;

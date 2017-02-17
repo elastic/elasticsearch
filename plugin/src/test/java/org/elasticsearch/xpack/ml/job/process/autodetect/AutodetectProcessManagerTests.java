@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -270,19 +271,14 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertEquals("[foo] exception while flushing job", e.getMessage());
     }
 
-    public void testWriteUpdateModelDebugMessage() throws IOException {
+    public void testwriteUpdateProcessMessage() throws IOException {
         AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
         AutodetectProcessManager manager = createManagerAndCallProcessData(communicator, "foo");
         ModelDebugConfig debugConfig = mock(ModelDebugConfig.class);
-        manager.writeUpdateModelDebugMessage("foo", debugConfig);
-        verify(communicator).writeUpdateModelDebugMessage(debugConfig);
-    }
-
-    public void testWriteUpdateDetectorRulesMessage() throws IOException {
-        AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
-        AutodetectProcessManager manager = createManagerAndCallProcessData(communicator, "foo");
         List<DetectionRule> rules = Collections.singletonList(mock(DetectionRule.class));
-        manager.writeUpdateDetectorRulesMessage("foo", 2, rules);
+        List<JobUpdate.DetectorUpdate> detectorUpdates = Collections.singletonList(new JobUpdate.DetectorUpdate(2, null, rules));
+        manager.writeUpdateProcessMessage("foo", detectorUpdates, debugConfig);
+        verify(communicator).writeUpdateModelDebugMessage(debugConfig);
         verify(communicator).writeUpdateDetectorRulesMessage(2, rules);
     }
 

@@ -12,7 +12,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;

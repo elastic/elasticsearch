@@ -37,7 +37,6 @@ import java.util.Objects;
 public class UpdateProcessAction extends
         Action<UpdateProcessAction.Request, UpdateProcessAction.Response, UpdateProcessAction.RequestBuilder> {
 
-
     public static final UpdateProcessAction INSTANCE = new UpdateProcessAction();
     public static final String NAME = "cluster:admin/ml/job/update/process";
 
@@ -199,15 +198,8 @@ public class UpdateProcessAction extends
         protected void taskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener) {
             threadPool.executor(MachineLearning.THREAD_POOL_NAME).execute(() -> {
                 try {
-                    if (request.getModelDebugConfig() != null) {
-                        processManager.writeUpdateModelDebugMessage(request.getJobId(), request.getModelDebugConfig());
-                    }
-                    if (request.getDetectorUpdates() != null) {
-                        for (JobUpdate.DetectorUpdate update : request.getDetectorUpdates()) {
-                            processManager.writeUpdateDetectorRulesMessage(request.getJobId(), update.getIndex(), update.getRules());
-                        }
-                    }
-
+                    processManager.writeUpdateProcessMessage(request.getJobId(), request.getDetectorUpdates(),
+                            request.getModelDebugConfig());
                     listener.onResponse(new Response());
                 } catch (Exception e) {
                     listener.onFailure(e);

@@ -221,7 +221,7 @@ public class XContentHelper {
 
     /**
      * Updates the provided changes into the source. If the key exists in the changes, it overrides the one in source
-     * unless both are Maps, in which case it recuersively updated it.
+     * unless both are Maps, in which case it recursively updated it.
      *
      * @param source                 the original map to be updated
      * @param changes                the changes to update into updated

@@ -72,12 +72,12 @@ import java.util.stream.Stream;
  * records the current translog generation {@link Translog#getGeneration()} in it's commit metadata using {@link #TRANSLOG_GENERATION_KEY}
  * to reference the generation that contains all operations that have not yet successfully been committed to the engines lucene index.
  * Additionally, since Elasticsearch 2.0 the engine also records a {@link #TRANSLOG_UUID_KEY} with each commit to ensure a strong association
- * between the lucene index an the transaction log file. This UUID is used to prevent accidential recovery from a transaction log that belongs to a
+ * between the lucene index an the transaction log file. This UUID is used to prevent accidental recovery from a transaction log that belongs to a
  * different engine.
  * <p>
  * Each Translog has only one translog file open at any time referenced by a translog generation ID. This ID is written to a <tt>translog.ckp</tt> file that is designed
  * to fit in a single disk block such that a write of the file is atomic. The checkpoint file is written on each fsync operation of the translog and records the number of operations
- * written, the current tranlogs file generation and it's fsynced offset in bytes.
+ * written, the current translogs file generation and it's fsynced offset in bytes.
  * </p>
  * <p>
  * When a translog is opened the checkpoint is use to retrieve the latest translog file generation and subsequently to open the last written file to recovery operations.
@@ -781,7 +781,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         long seqNo();
 
         /**
-         * Reads the type and the operation from the given stream. The operatino must be written with
+         * Reads the type and the operation from the given stream. The operation must be written with
          * {@link Operation#writeType(Operation, StreamOutput)}
          */
         static Operation readType(StreamInput input) throws IOException {
@@ -1227,7 +1227,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          */
         ASYNC,
         /**
-         * Request durability - translogs are synced for each high levle request (bulk, index, delete)
+         * Request durability - translogs are synced for each high level request (bulk, index, delete)
          */
         REQUEST;
 
@@ -1429,7 +1429,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Returns <code>true</code> iff the given generation is the current gbeneration of this translog
+     * Returns <code>true</code> iff the given generation is the current generation of this translog
      */
     public boolean isCurrent(TranslogGeneration generation) {
         try (ReleasableLock lock = writeLock.acquire()) {

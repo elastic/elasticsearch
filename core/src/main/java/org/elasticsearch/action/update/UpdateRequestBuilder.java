@@ -408,7 +408,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
 
     /**
      * Sets whether to perform extra effort to detect noop updates via docAsUpsert.
-     * Defautls to true.
+     * Defaults to true.
      */
     public UpdateRequestBuilder setDetectNoop(boolean detectNoop) {
         request.detectNoop(detectNoop);

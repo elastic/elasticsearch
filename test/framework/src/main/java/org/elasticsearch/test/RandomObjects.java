@@ -21,6 +21,7 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
@@ -166,11 +167,11 @@ public final class RandomObjects {
         for (int i = 0; i < numFields; i++) {
             if (currentDepth < 5 && random.nextBoolean()) {
                 if (random.nextBoolean()) {
-                    builder.startObject(RandomStrings.randomAsciiOfLengthBetween(random, 3, 10));
+                    builder.startObject(RandomStrings.randomAsciiOfLengthBetween(random, 4, 10));
                     addFields(random, builder, currentDepth + 1);
                     builder.endObject();
                 } else {
-                    builder.startArray(RandomStrings.randomAsciiOfLengthBetween(random, 3, 10));
+                    builder.startArray(RandomStrings.randomAsciiOfLengthBetween(random, 4, 10));
                     int numElements = randomIntBetween(random, 1, 5);
                     boolean object = random.nextBoolean();
                     int dataType = -1;
@@ -189,7 +190,7 @@ public final class RandomObjects {
                     builder.endArray();
                 }
             } else {
-                builder.field(RandomStrings.randomAsciiOfLengthBetween(random, 3, 10),
+                builder.field(RandomStrings.randomAsciiOfLengthBetween(random, 4, 10),
                         randomFieldValue(random, randomDataType(random)));
             }
         }

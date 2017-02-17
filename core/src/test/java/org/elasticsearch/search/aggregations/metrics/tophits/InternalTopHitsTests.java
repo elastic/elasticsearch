@@ -36,7 +36,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -188,11 +187,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             @SuppressWarnings("rawtypes")
             FieldComparator[] comparators = new FieldComparator[testInstancesSortFields.length];
             for (int i = 0; i < testInstancesSortFields.length; i++) {
-                try {
-                    comparators[i] = testInstancesSortFields[i].getComparator(0, 0);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+                comparators[i] = testInstancesSortFields[i].getComparator(0, 0);
             }
             return (lhs, rhs) -> {
                 FieldDoc l = (FieldDoc) lhs;

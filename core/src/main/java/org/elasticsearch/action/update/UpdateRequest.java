@@ -423,7 +423,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
-     * Explicitely set the fetch source context for this request
+     * Explicitly set the fetch source context for this request
      */
     public UpdateRequest fetchSource(FetchSourceContext context) {
         this.fetchSourceContext = context;

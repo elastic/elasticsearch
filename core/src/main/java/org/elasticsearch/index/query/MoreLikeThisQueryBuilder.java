@@ -228,7 +228,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             type = in.readOptionalString();
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();
-                if (in.getVersion().after(Version.V_5_3_0_UNRELEASED)) { // TODO update to onOrAfter after backporting
+                if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
                     xContentType = XContentType.readFrom(in);
                 } else {
                     xContentType = XContentFactory.xContentType(doc);
@@ -250,7 +250,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             out.writeBoolean(doc != null);
             if (doc != null) {
                 out.writeGenericValue(doc);
-                if (out.getVersion().after(Version.V_5_3_0_UNRELEASED)) { // TODO update to onOrAfter after backporting
+                if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
                     xContentType.writeTo(out);
                 }
             } else {

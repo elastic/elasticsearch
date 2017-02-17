@@ -437,7 +437,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     void forceMerge(ForceMergeRequest request, ActionListener<ForceMergeResponse> listener);
 
     /**
-     * Explicitly force mergee one or more indices into a the number of segments.
+     * Explicitly force merge one or more indices into a the number of segments.
      */
     ForceMergeRequestBuilder prepareForceMerge(String... indices);
 

@@ -346,7 +346,7 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Cancel active tasks
      *
      * @param request  The nodes tasks request
-     * @param listener A cancelener to be notified with a result
+     * @param listener A listener to be notified with a result
      * @see org.elasticsearch.client.Requests#cancelTasksRequest()
      */
     void cancelTasks(CancelTasksRequest request, ActionListener<CancelTasksResponse> listener);

@@ -188,7 +188,7 @@ public class OsProbe {
     }
 
     // pattern for lines in /proc/self/cgroup
-    private static final Pattern CONTROL_GROUP_PATTERN = Pattern.compile("\\d+:([^:,]+(?:,[^:,]+)?):(/.*)");
+    private static final Pattern CONTROL_GROUP_PATTERN = Pattern.compile("\\d+:([^:]+):(/.*)");
 
     // this property is to support a hack to workaround an issue with Docker containers mounting the cgroups hierarchy inconsistently with
     // respect to /proc/self/cgroup; for Docker containers this should be set to "/"

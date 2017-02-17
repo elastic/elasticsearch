@@ -75,6 +75,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/592")
     public void testMiniFarequoteWithDatafeeder() throws Exception {
         String mappings = "{"
                 + "  \"mappings\": {"

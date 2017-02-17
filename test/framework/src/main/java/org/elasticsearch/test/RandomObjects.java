@@ -21,25 +21,27 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
+import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo.Failure;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.shard.IndexShardRecoveringException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Random;
@@ -47,6 +49,8 @@ import java.util.Random;
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiOfLength;
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomUnicodeOfLengthBetween;
+import static java.util.Collections.singleton;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 
 public final class RandomObjects {
@@ -216,39 +220,96 @@ public final class RandomObjects {
     }
 
     /**
-     * Returns a random {@link ShardInfo} object with on or more {@link ShardInfo.Failure} if requested.
+     * Returns a tuple that contains a randomized {@link ShardInfo} value (left side) and its corresponding
+     * value (right side) after it has been printed out as a {@link ToXContent} and parsed back using a parsing
+     * method like {@link ShardInfo#fromXContent(XContentParser)}. The ShardInfo randomly contains shard failures.
      *
-     * @param random   Random generator
-     * @param failures If true, the {@link ShardInfo} will have random failures
-     * @return a random {@link ShardInfo}
+     * @param random Random generator
      */
-    public static ShardInfo randomShardInfo(Random random, boolean failures) {
+    public static Tuple<ShardInfo, ShardInfo> randomShardInfo(Random random) {
+        return randomShardInfo(random, random.nextBoolean());
+    }
+
+    /**
+     * Returns a tuple that contains a randomized {@link ShardInfo} value (left side) and its corresponding
+     * value (right side) after it has been printed out as a {@link ToXContent} and parsed back using a parsing
+     * method like {@link ShardInfo#fromXContent(XContentParser)}. A `withShardFailures` parameter indicates if
+     * the randomized ShardInfo must or must not contain shard failures.
+     *
+     * @param random            Random generator
+     * @param withShardFailures indicates if the generated ShardInfo must contain shard failures
+     */
+    public static Tuple<ShardInfo, ShardInfo> randomShardInfo(Random random, boolean withShardFailures) {
         int total = randomIntBetween(random, 1, 10);
-        if (failures == false) {
-            return new ShardInfo(total, total);
+        if (withShardFailures == false) {
+            return Tuple.tuple(new ShardInfo(total, total), new ShardInfo(total, total));
         }
 
-        int successful = randomIntBetween(random, 1, total);
-        return new ShardInfo(total, successful, randomShardInfoFailures(random, Math.max(1, (total - successful))));
-    }
+        int successful = randomIntBetween(random, 1, Math.max(1, (total - 1)));
+        int failures = Math.max(1, (total - successful));
 
-    public static ShardInfo.Failure[] randomShardInfoFailures(Random random, int nbFailures) {
-        List<ShardInfo.Failure> randomFailures = new ArrayList<>(nbFailures);
-        for (int i = 0; i < nbFailures; i++) {
-            randomFailures.add(randomShardInfoFailure(random));
+        Failure[] actualFailures = new Failure[failures];
+        Failure[] expectedFailures = new Failure[failures];
+
+        for (int i = 0; i < failures; i++) {
+            Tuple<Failure, Failure> failure = randomShardInfoFailure(random);
+            actualFailures[i] = failure.v1();
+            expectedFailures[i] = failure.v2();
         }
-        return randomFailures.toArray(new ShardInfo.Failure[nbFailures]);
+        return Tuple.tuple(new ShardInfo(total, successful, actualFailures), new ShardInfo(total, successful, expectedFailures));
     }
 
-    public static ShardInfo.Failure randomShardInfoFailure(Random random) {
+    /**
+     * Returns a tuple that contains a randomized {@link Failure} value (left side) and its corresponding
+     * value (right side) after it has been printed out as a {@link ToXContent} and parsed back using a parsing
+     * method like {@link ShardInfo.Failure#fromXContent(XContentParser)}.
+     *
+     * @param random Random generator
+     */
+    private static Tuple<Failure, Failure> randomShardInfoFailure(Random random) {
         String index = randomAsciiOfLength(random, 5);
         String indexUuid = randomAsciiOfLength(random, 5);
         int shardId = randomIntBetween(random, 1, 10);
+        String nodeId = randomAsciiOfLength(random, 5);
+        RestStatus status = randomFrom(random, RestStatus.values());
+        boolean primary = random.nextBoolean();
         ShardId shard = new ShardId(index, indexUuid, shardId);
-        RestStatus restStatus = randomFrom(RestStatus.values());
-        Exception exception = RandomPicks.randomFrom(random, Arrays.asList(new IndexShardRecoveringException(shard),
-                new ElasticsearchException(new IllegalArgumentException("Argument is wrong")),
-                new RoutingMissingException(index, randomAsciiOfLength(random, 5), randomAsciiOfLength(random, 5))));
-        return new ShardInfo.Failure(shard, randomAsciiOfLength(random, 3), exception, restStatus, random.nextBoolean());
+
+        Exception actualException;
+        ElasticsearchException expectedException;
+
+        int type = randomIntBetween(random, 0, 3);
+        switch (type) {
+            case 0:
+                actualException = new ClusterBlockException(singleton(DiscoverySettings.NO_MASTER_BLOCK_WRITES));
+                expectedException = new ElasticsearchException("Elasticsearch exception [type=cluster_block_exception, " +
+                        "reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]");
+                break;
+            case 1:
+                actualException = new ShardNotFoundException(shard);
+                expectedException = new ElasticsearchException("Elasticsearch exception [type=shard_not_found_exception, " +
+                        "reason=no such shard]");
+                expectedException.setShard(shard);
+                break;
+            case 2:
+                actualException = new IllegalArgumentException("Closed resource", new RuntimeException("Resource"));
+                expectedException = new ElasticsearchException("Elasticsearch exception [type=illegal_argument_exception, " +
+                        "reason=Closed resource]",
+                        new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=Resource]"));
+                break;
+            case 3:
+                actualException = new IndexShardRecoveringException(shard);
+                expectedException = new ElasticsearchException("Elasticsearch exception [type=index_shard_recovering_exception, " +
+                        "reason=CurrentState[RECOVERING] Already recovering]");
+                expectedException.setShard(shard);
+                break;
+            default:
+                throw new UnsupportedOperationException("No randomized exceptions generated for type [" + type + "]");
+        }
+
+        Failure actual = new Failure(shard, nodeId, actualException, status, primary);
+        Failure expected = new Failure(new ShardId(index, INDEX_UUID_NA_VALUE, shardId), nodeId, expectedException, status, primary);
+
+        return Tuple.tuple(actual, expected);
     }
 }

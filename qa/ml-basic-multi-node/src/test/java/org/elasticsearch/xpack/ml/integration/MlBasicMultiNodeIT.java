@@ -23,7 +23,7 @@ import static org.elasticsearch.common.xcontent.XContentType.JSON;
 public class MlBasicMultiNodeIT extends ESRestTestCase {
 
     public void testMiniFarequote() throws Exception {
-        String jobId = "foo";
+        String jobId = "foo1";
         createFarequoteJob(jobId);
 
         Response response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open");
@@ -95,7 +95,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         // Ensure all data is searchable
         client().performRequest("post", "_refresh");
 
-        String jobId = "foo";
+        String jobId = "foo2";
         createFarequoteJob(jobId);
         String datafeedId = "bar";
         createDatafeed(datafeedId, jobId);

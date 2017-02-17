@@ -660,6 +660,21 @@ public class RangeIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(0L));
     }
 
+    public void testNoRanges() throws Exception {
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(range("range")
+                .field(SINGLE_VALUED_FIELD_NAME))
+            .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(0));
+    }
+
     public void testScriptMultiValued() throws Exception {
         Script script =
             new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + MULTI_VALUED_FIELD_NAME + "'].values", Collections.emptyMap());

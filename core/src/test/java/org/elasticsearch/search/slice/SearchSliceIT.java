@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.SearchHit;
@@ -71,7 +72,7 @@ public class SearchSliceIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test")
             .setSettings("number_of_shards", numberOfShards,
                          "index.max_slices_per_scroll", 10000)
-            .addMapping("type", mapping));
+            .addMapping("type", mapping, XContentType.JSON));
         ensureGreen();
 
         if (withDocs == false) {

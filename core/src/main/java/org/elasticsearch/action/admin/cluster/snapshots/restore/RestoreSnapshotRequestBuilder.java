@@ -159,21 +159,6 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
      * See repository documentation for more information.
      *
      * @param source repository-specific snapshot settings
-     * @return this builder
-     * @deprecated use {@link #setSettings(String, XContentType)} to avoid content type detection
-     */
-    @Deprecated
-    public RestoreSnapshotRequestBuilder setSettings(String source) {
-        request.settings(source);
-        return this;
-    }
-
-    /**
-     * Sets repository-specific restore settings in JSON or YAML format
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param source repository-specific snapshot settings
      * @param xContentType the content type of the source
      * @return this builder
      */
@@ -260,19 +245,6 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
      */
     public RestoreSnapshotRequestBuilder setIndexSettings(Settings.Builder settings) {
         request.indexSettings(settings);
-        return this;
-    }
-
-    /**
-     * Sets index settings that should be added or replaced during restore
-     *
-     * @param source index settings
-     * @return this builder
-     * @deprecated use {@link #setIndexSettings(String, XContentType)} to avoid content type detection
-     */
-    @Deprecated
-    public RestoreSnapshotRequestBuilder setIndexSettings(String source) {
-        request.indexSettings(source);
         return this;
     }
 

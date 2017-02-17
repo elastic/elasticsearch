@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -48,15 +47,8 @@ public class RestClearScrollAction extends BaseRestHandler {
         String scrollIds = request.param("scroll_id");
         ClearScrollRequest clearRequest = new ClearScrollRequest();
         clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
-        request.withContentOrSourceParamParserOrNullLenient((xContentParser -> {
-            if (xContentParser == null) {
-                if (request.hasContent()) {
-                    // TODO: why do we accept this plain text value? maybe we can just use the scroll params?
-                    BytesReference body = request.content();
-                    String bodyScrollIds = body.utf8ToString();
-                    clearRequest.setScrollIds(Arrays.asList(splitScrollIds(bodyScrollIds)));
-                }
-            } else {
+        request.withContentOrSourceParamParserOrNull((xContentParser -> {
+            if (xContentParser != null) {
                 // NOTE: if rest request with xcontent body has request parameters, these parameters does not override xcontent value
                 clearRequest.setScrollIds(null);
                 try {
@@ -68,11 +60,6 @@ public class RestClearScrollAction extends BaseRestHandler {
         }));
 
         return channel -> client.clearScroll(clearRequest, new RestStatusToXContentListener<>(channel));
-    }
-
-    @Override
-    public boolean supportsPlainText() {
-        return true;
     }
 
     private static String[] splitScrollIds(String scrollIds) {

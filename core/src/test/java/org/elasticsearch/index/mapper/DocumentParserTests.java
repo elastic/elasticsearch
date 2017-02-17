@@ -38,6 +38,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.Plugin;
@@ -1273,7 +1274,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .endObject().endArray()
                 .endObject().bytes();
 
-        client().prepareIndex("idx", "type").setSource(bytes).get();
+        client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get();
 
         bytes = XContentFactory.jsonBuilder().startObject().startArray("top.")
                 .startObject().startArray("foo.")
@@ -1288,7 +1289,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .endObject().bytes();
 
         try {
-            client().prepareIndex("idx", "type").setSource(bytes).get();
+            client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get();
             fail("should have failed to dynamically introduce a double-dot field");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(),

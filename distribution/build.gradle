@@ -40,6 +40,8 @@ buildscript {
   }
 }
 
+Collection distributions = project.subprojects.findAll { it.path.contains(':tools') == false }
+
 /*****************************************************************************
  *                                Notice file                                *
  *****************************************************************************/
@@ -84,7 +86,7 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each
   // the finalizer task follow the original task immediately. To work around this,
   // we make the mustRunAfter the finalizer task itself.
   // See https://discuss.gradle.org/t/cross-project-task-dependencies-ordering-screws-up-finalizers/13190
-  project.configure(project.subprojects.findAll { it.name != 'integ-test-zip' }) { Project distribution ->
+  project.configure(distributions.findAll { it.name != 'integ-test-zip' }) { Project distribution ->
     distribution.afterEvaluate({
       // some integTest tasks will have multiple finalizers
       distribution.integTest.mustRunAfter module.tasks.find { t -> t.name.matches(".*integTest\$") }.getFinalizedBy()
@@ -118,7 +120,7 @@ task clean(type: Delete) {
   delete 'build'
 }
 
-subprojects {
+configure(distributions) {
   /*****************************************************************************
    *                            Rest test config                               *
    *****************************************************************************/
@@ -162,6 +164,8 @@ subprojects {
       into 'lib'
       from project(':core').jar
       from project(':core').configurations.runtime
+      // delay add tools using closures, since they have not yet been configured, so no jar task exists yet
+      from { project(':distribution:tools:java-version-checker').jar }
     }
 
     modulesFiles = copySpec {
@@ -217,7 +221,7 @@ subprojects {
 /*****************************************************************************
  *                         Zip and tgz configuration                         *
  *****************************************************************************/
-configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.name) }) {
+configure(distributions.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.name) }) {
   // CopySpec does not make it easy to create an empty director so we create the directory that we want, and then point CopySpec to its
   // parent to copy to the root of the distribution
   File plugins = new File(buildDir, 'plugins-hack/plugins')
@@ -286,7 +290,7 @@ configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.nam
  *    rpm -qlp --dump path/to/elasticsearch.rpm
  *    dpkg -c path/to/elasticsearch.deb
  */
-configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
+configure(distributions.findAll { ['deb', 'rpm'].contains(it.name) }) {
   integTest.enabled = Os.isFamily(Os.FAMILY_WINDOWS) == false
   File packagingFiles = new File(buildDir, 'packaging')
   project.ext.packagingFiles = packagingFiles

@@ -403,11 +403,13 @@ public class MlMetadata implements MetaData.Custom {
     public static JobState getJobState(String jobId, @Nullable PersistentTasksInProgress tasks) {
         PersistentTasksInProgress.PersistentTaskInProgress<?> task = getJobTask(jobId, tasks);
         if (task != null && task.getStatus() != null) {
-            return (JobState) task.getStatus();
-        } else {
-            // If we haven't opened a job than there will be no persistent task, which is the same as if the job was closed
-            return JobState.CLOSED;
+            JobState jobTaskState = (JobState) task.getStatus();
+            if (jobTaskState != null) {
+                return jobTaskState;
+            }
         }
+        // If we haven't opened a job than there will be no persistent task, which is the same as if the job was closed
+        return JobState.CLOSED;
     }
 
     public static DatafeedState getDatafeedState(String datafeedId, @Nullable PersistentTasksInProgress tasks) {

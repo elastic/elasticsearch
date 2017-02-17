@@ -131,7 +131,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         manager.openJob("foo", 1L, false, e -> {});
         assertEquals(1, manager.numberOfOpenJobs());
         assertTrue(manager.jobHasActiveAutodetectProcess("foo"));
-        UpdatePersistentTaskStatusAction.Request expectedRequest = new UpdatePersistentTaskStatusAction.Request(1L, JobState.OPENED);
+        UpdatePersistentTaskStatusAction.Request expectedRequest =
+                new UpdatePersistentTaskStatusAction.Request(1L, JobState.OPENED);
         verify(client).execute(eq(UpdatePersistentTaskStatusAction.INSTANCE), eq(expectedRequest), any());
     }
 

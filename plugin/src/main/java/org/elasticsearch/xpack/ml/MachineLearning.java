@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Module;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -122,6 +120,7 @@ import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 import org.elasticsearch.xpack.persistent.CompletionPersistentTaskAction;
+import org.elasticsearch.xpack.persistent.CreatePersistentTaskAction;
 import org.elasticsearch.xpack.persistent.PersistentActionCoordinator;
 import org.elasticsearch.xpack.persistent.PersistentActionRegistry;
 import org.elasticsearch.xpack.persistent.PersistentActionRequest;
@@ -129,7 +128,6 @@ import org.elasticsearch.xpack.persistent.PersistentActionService;
 import org.elasticsearch.xpack.persistent.PersistentTaskClusterService;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
-import org.elasticsearch.xpack.persistent.CreatePersistentTaskAction;
 import org.elasticsearch.xpack.persistent.StartPersistentTaskAction;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
 
@@ -157,6 +155,8 @@ public class MachineLearning extends Plugin implements ActionPlugin {
     public static final String ALLOCATION_ENABLED_ATTR = "xpack.ml.allocation_enabled";
     public static final Setting<Boolean> ALLOCATION_ENABLED = Setting.boolSetting("node.attr." + ALLOCATION_ENABLED_ATTR,
             XPackSettings.MACHINE_LEARNING_ENABLED, Setting.Property.NodeScope);
+    public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
+            Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
 
     private final Settings settings;
     private final Environment env;
@@ -179,6 +179,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
         return Collections.unmodifiableList(
                 Arrays.asList(USE_NATIVE_PROCESS_OPTION,
                         ALLOCATION_ENABLED,
+                        CONCURRENT_JOB_ALLOCATIONS,
                         ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING,
                         ProcessCtrl.MAX_ANOMALY_RECORDS_SETTING,
                         DataCountsReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING,

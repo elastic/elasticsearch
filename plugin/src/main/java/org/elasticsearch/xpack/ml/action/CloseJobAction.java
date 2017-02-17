@@ -344,11 +344,9 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         PersistentTaskInProgress<?> task = validateAndFindTask(jobId, currentState);
         PersistentTasksInProgress currentTasks = currentState.getMetaData().custom(PersistentTasksInProgress.TYPE);
         Map<Long, PersistentTaskInProgress<?>> updatedTasks = new HashMap<>(currentTasks.taskMap());
-        for (PersistentTaskInProgress<?> taskInProgress : currentTasks.tasks()) {
-            if (taskInProgress.getId() == task.getId()) {
-                updatedTasks.put(taskInProgress.getId(), new PersistentTaskInProgress<>(taskInProgress, JobState.CLOSING));
-            }
-        }
+        PersistentTaskInProgress<?> taskToUpdate = currentTasks.getTask(task.getId());
+        taskToUpdate = new PersistentTaskInProgress<>(taskToUpdate, JobState.CLOSING);
+        updatedTasks.put(taskToUpdate.getId(), taskToUpdate);
         PersistentTasksInProgress newTasks = new PersistentTasksInProgress(currentTasks.getCurrentId(), updatedTasks);
 
         MlMetadata mlMetadata = currentState.metaData().custom(MlMetadata.TYPE);

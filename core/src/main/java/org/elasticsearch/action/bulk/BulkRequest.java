@@ -432,7 +432,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                     }
                     line++;
 
-                    // order is important, we set parent after routing, so routing will be set to parent if not set explicitly
                     // we use internalAdd so we don't fork here, this allows us not to copy over the big byte array to small chunks
                     // of index request.
                     if ("index".equals(action)) {

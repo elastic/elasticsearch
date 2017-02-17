@@ -71,7 +71,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     // lock order synchronized(syncLock) -> synchronized(this)
     private final Object syncLock = new Object();
 
-    public TranslogWriter(
+    private TranslogWriter(
         final ChannelFactory channelFactory,
         final ShardId shardId,
         final Checkpoint initialCheckpoint,
@@ -85,7 +85,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.outputStream = new BufferedChannelOutputStream(java.nio.channels.Channels.newOutputStream(channel), bufferSize.bytesAsInt());
         this.lastSyncedCheckpoint = initialCheckpoint;
         this.totalOffset = initialCheckpoint.offset;
+        assert initialCheckpoint.minSeqNo == SequenceNumbersService.NO_OPS_PERFORMED;
         this.minSeqNo = initialCheckpoint.minSeqNo;
+        assert initialCheckpoint.maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED;
         this.maxSeqNo = initialCheckpoint.maxSeqNo;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
     }

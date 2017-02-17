@@ -22,6 +22,7 @@ import static org.elasticsearch.common.xcontent.XContentType.JSON;
 
 public class MlBasicMultiNodeIT extends ESRestTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/592")
     public void testMiniFarequote() throws Exception {
         String jobId = "foo1";
         createFarequoteJob(jobId);

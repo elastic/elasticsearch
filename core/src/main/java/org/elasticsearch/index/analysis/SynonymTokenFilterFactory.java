@@ -42,9 +42,9 @@ import java.util.List;
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
     protected final boolean ignoreCase;
-    private final String format;
-    private final boolean expand;
-    private final String rules;
+    protected final String format;
+    protected final boolean expand;
+    protected final String rules;
     protected SynonymMap synonymMap;
 
     public SynonymTokenFilterFactory(IndexSettings indexSettings, Environment env, AnalysisRegistry analysisRegistry,
@@ -106,12 +106,12 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         return synonymMap.fst == null ? tokenStream : new SynonymFilter(tokenStream, synonymMap, ignoreCase);
     }
 
-    public Factory createPerAnalyzerFactory(Analyzer analyzerForParseSynonym){
+    public Factory createPerAnalyzerSynonymFactory(Analyzer analyzerForParseSynonym){
         return new Factory("synonym", analyzerForParseSynonym);
     }
 
     // for backward compatibility
-    private final TokenizerFactory tokenizerFactory;
+    protected final TokenizerFactory tokenizerFactory;
 
     public class Factory implements TokenFilterFactory{
 

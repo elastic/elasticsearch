@@ -73,22 +73,28 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
 
         String[] tokenFilterNames = analyzerSettings.getAsArray("filter");
         List<TokenFilterFactory> tokenFilterList = new ArrayList<>(tokenFilterNames.length);
-        SynonymTokenFilterFactory.Factory synonymTokenFilterFactory;
-        List<TokenFilterFactory> tokenFiltersListForSynonym;
         for (String tokenFilterName : tokenFilterNames) {
             TokenFilterFactory tokenFilter = tokenFilters.get(tokenFilterName);
             if (tokenFilter == null) {
                 throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find filter under name [" + tokenFilterName + "]");
             }
-            if (tokenFilter instanceof SynonymTokenFilterFactory) {
-                tokenFiltersListForSynonym = new ArrayList<>(tokenFilterList);
-                synonymTokenFilterFactory = ((SynonymTokenFilterFactory) tokenFilter).createPerAnalyzerFactory(
+            if (tokenFilter instanceof SynonymGraphTokenFilterFactory) {
+                List<TokenFilterFactory> tokenFiltersListForSynonym = new ArrayList<>(tokenFilterList);
+                tokenFilter = ((SynonymGraphTokenFilterFactory) tokenFilter).createPerAnalyzerSynonymGraphFactory(
                     new CustomAnalyzer(tokenizer,
                         charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
                         tokenFiltersListForSynonym.toArray(new TokenFilterFactory[tokenFiltersListForSynonym.size()]),
                         positionIncrementGap,
-                        offsetGap));
-                tokenFilter = synonymTokenFilterFactory;
+                        offsetGap));;
+
+            } else if (tokenFilter instanceof SynonymTokenFilterFactory) {
+                List<TokenFilterFactory> tokenFiltersListForSynonym = new ArrayList<>(tokenFilterList);
+                tokenFilter = ((SynonymTokenFilterFactory) tokenFilter).createPerAnalyzerSynonymFactory(
+                    new CustomAnalyzer(tokenizer,
+                        charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
+                        tokenFiltersListForSynonym.toArray(new TokenFilterFactory[tokenFiltersListForSynonym.size()]),
+                        positionIncrementGap,
+                        offsetGap));;
             }
             tokenFilterList.add(tokenFilter);
         }

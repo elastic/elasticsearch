@@ -49,9 +49,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
-import org.elasticsearch.index.analysis.CustomAnalyzerProvider;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.SynonymGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.SynonymTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
@@ -568,14 +568,26 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
     private static void checkAndApplySynonymFilterCase(IndexSettings indexSettings, TokenFilterFactory[] tokenFilterFactories,
                                                        Tuple<String, TokenizerFactory> tokenizerFactory, CharFilterFactory[] charFilterFactories, int i) {
         List<TokenFilterFactory> tokenFiltersListForSynonym;
-        SynonymTokenFilterFactory.Factory synonymTokenFilterFactory;
         // TODO refactoring with CustomAnalyzerProvider
-        if (tokenFilterFactories[i] instanceof SynonymTokenFilterFactory) {
+        if (tokenFilterFactories[i] instanceof SynonymGraphTokenFilterFactory) {
             int positionIncrementGap = indexSettings.getSettings().getAsInt("position_increment_gap",
                 TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
             int offsetGap = indexSettings.getSettings().getAsInt("offset_gap", -1);
             tokenFiltersListForSynonym = new ArrayList<>(tokenFilterFactories.length);
-            synonymTokenFilterFactory = ((SynonymTokenFilterFactory) tokenFilterFactories[i]).createPerAnalyzerFactory(
+            SynonymGraphTokenFilterFactory.Factory synonymTokenFilterFactory =
+                ((SynonymGraphTokenFilterFactory) tokenFilterFactories[i]).createPerAnalyzerSynonymGraphFactory(
+                new CustomAnalyzer(tokenizerFactory.v1(), tokenizerFactory.v2(),
+                    charFilterFactories,
+                    tokenFiltersListForSynonym.toArray(new TokenFilterFactory[tokenFiltersListForSynonym.size()]),
+                    positionIncrementGap,
+                    offsetGap));
+            tokenFilterFactories[i] = synonymTokenFilterFactory;
+        } else if (tokenFilterFactories[i] instanceof SynonymTokenFilterFactory) {
+            int positionIncrementGap = indexSettings.getSettings().getAsInt("position_increment_gap",
+                TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
+            int offsetGap = indexSettings.getSettings().getAsInt("offset_gap", -1);
+            tokenFiltersListForSynonym = new ArrayList<>(tokenFilterFactories.length);
+            SynonymTokenFilterFactory.Factory synonymTokenFilterFactory = ((SynonymTokenFilterFactory) tokenFilterFactories[i]).createPerAnalyzerSynonymFactory(
                 new CustomAnalyzer(tokenizerFactory.v1(), tokenizerFactory.v2(),
                     charFilterFactories,
                     tokenFiltersListForSynonym.toArray(new TokenFilterFactory[tokenFiltersListForSynonym.size()]),

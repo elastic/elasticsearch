@@ -34,7 +34,6 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -42,6 +41,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
@@ -110,10 +110,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         for (MappedFieldType fieldType : fieldTypes) {
-            IndexFieldData<?> fieldData = fieldType.fielddataBuilder().build(indexSettings, fieldType,
-                new IndexFieldDataCache.None(), circuitBreakerService, mock(MapperService.class));
             when(queryShardContext.fieldMapper(fieldType.name())).thenReturn(fieldType);
-            when(queryShardContext.getForField(fieldType)).thenReturn(fieldData);
+            when(queryShardContext.getForField(fieldType)).then(invocation -> fieldType.fielddataBuilder().build(
+                    indexSettings, fieldType, new IndexFieldDataCache.None(), circuitBreakerService, mock(MapperService.class)));
             when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
         }
 
@@ -126,13 +125,16 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                                              Query query,
                                                                              AggregationBuilder builder,
                                                                              MappedFieldType... fieldTypes) throws IOException {
-        try (C a = createAggregator(builder, searcher, fieldTypes)) {
+        C a = createAggregator(builder, searcher, fieldTypes);
+        try {
             a.preCollection();
             searcher.search(query, a);
             a.postCollection();
             @SuppressWarnings("unchecked")
             A internalAgg = (A) a.buildAggregation(0L);
             return internalAgg;
+        } finally {
+            closeAgg(a);
         }
     }
 
@@ -190,6 +192,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     private void closeAgg(Aggregator agg) {
+        agg = DeferringBucketCollector.unwrap(agg);
         agg.close();
         for (Aggregator sub : ((AggregatorBase) agg).subAggregators) {
             closeAgg(sub);

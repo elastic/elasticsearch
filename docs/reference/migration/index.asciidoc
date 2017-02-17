@@ -1,13 +1,10 @@
 [[breaking-changes]]
-= Breaking changes and depreciations
+= Breaking changes
 
 [partintro]
 --
 This section discusses the changes that you need to be aware of when migrating
 your application from one version of Elasticsearch to another.
-
-It also helps to move away from deprecating settings and features before they will get removed
-in a next major version.
 
 As a general rule:
 

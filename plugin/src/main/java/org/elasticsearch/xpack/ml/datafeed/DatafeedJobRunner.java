@@ -276,22 +276,19 @@ public class DatafeedJobRunner extends AbstractComponent {
         }
 
         private void closeJob() {
-            logger.info("[{}] closing job", datafeed.getJobId());
             CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(datafeed.getJobId());
             client.execute(CloseJobAction.INSTANCE, closeJobRequest, new ActionListener<CloseJobAction.Response>() {
 
                 @Override
                 public void onResponse(CloseJobAction.Response response) {
-                    if (response.isClosed()) {
-                        logger.info("[{}] job closed", datafeed.getJobId());
-                    } else {
+                    if (!response.isClosed()) {
                         logger.error("[{}] job close action was not acknowledged", datafeed.getJobId());
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("[" + datafeed.getJobId() + "] failed to close job", e);
+                    logger.error("[" + datafeed.getJobId() + "] failed to  auto-close job", e);
                 }
             });
         }

@@ -287,6 +287,7 @@ public class AutodetectProcessManager extends AbstractComponent {
 
         try {
             communicator.close(errorReason);
+            logger.info("[{}] job closed", jobId);
         } catch (Exception e) {
             logger.warn("Exception closing stopped process input stream", e);
             throw ExceptionsHelper.serverError("Exception closing stopped process input stream", e);

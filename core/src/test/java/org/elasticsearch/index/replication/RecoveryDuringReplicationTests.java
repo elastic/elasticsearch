@@ -166,16 +166,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final int rollbackDocs = randomIntBetween(1, 5);
                 logger.info("--> indexing {} rollback docs", rollbackDocs);
                 for (int i = 0; i < rollbackDocs; i++) {
-<<<<<<< f306bd844dc9321b92ff470788b758502a69f552
                     final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "rollback_" + i)
                             .source("{}", XContentType.JSON);
-                    final IndexResponse indexResponse = indexOnPrimary(indexRequest, oldPrimary);
-                    indexOnReplica(indexResponse, indexRequest, replica);
-=======
-                    final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "rollback_" + i).source("{}");
                     final IndexResponse primaryResponse = indexOnPrimary(indexRequest, oldPrimary);
                     indexOnReplica(primaryResponse, indexRequest, replica);
->>>>>>> incorporate feedback
                 }
                 if (randomBoolean()) {
                     oldPrimary.flush(new FlushRequest(index.getName()));

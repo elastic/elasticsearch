@@ -82,7 +82,7 @@ public class IndexingIT extends ESRestTestCase {
             new StringEntity(Strings.toString(settings), ContentType.APPLICATION_JSON)));
     }
 
-    private int indexDocsWithId(String index, final int idStart, final int numDocs) throws IOException {
+    private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
             final int id = idStart + i;
             assertOK(client().performRequest("PUT", index + "/test/" + id, emptyMap(),
@@ -91,11 +91,23 @@ public class IndexingIT extends ESRestTestCase {
         return numDocs;
     }
 
-    private void indexDocs(String index, int numDocs) throws IOException {
-        for (int i = 0; i < numDocs; i++) {
-            assertOK(client().performRequest("POST", index + "/test", emptyMap(),
-                    new StringEntity("{\"test\": \"test_" + i + "\"}", ContentType.APPLICATION_JSON)));
+    private int indexDocWithConcurrentUpdates(String index, final int docId, int nUpdates) throws IOException, InterruptedException {
+        indexDocs(index, docId, 1);
+        Thread[] indexThreads = new Thread[nUpdates];
+        for (int i = 0; i < nUpdates; i++) {
+            indexThreads[i] = new Thread(() -> {
+                try {
+                    indexDocs(index, docId, 1);
+                } catch (IOException e) {
+                    fail("failed while indexing [" + e.getMessage() + "]");
+                }
+            });
+            indexThreads[i].start();
         }
+        for (Thread indexThread : indexThreads) {
+            indexThread.join();
+        }
+        return nUpdates + 1;
     }
 
     public void testIndexVersionPropagation() throws Exception {
@@ -108,47 +120,78 @@ public class IndexingIT extends ESRestTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
                 .put("index.routing.allocation.include._name", bwcNames);
-
-        final boolean checkGlobalCheckpoints = nodes.getMaster().getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED);
-        logger.info("master version is [{}], global checkpoints will be [{}]", nodes.getMaster().getVersion(),
-                checkGlobalCheckpoints ? "checked" : "not be checked");
-        if (checkGlobalCheckpoints) {
-            settings.put(IndexSettings.INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL.getKey(), "100ms");
-        }
         final String index = "test";
+        final int minUpdates = 5;
+        final int maxUpdates = 10;
         createIndex(index, settings.build());
         try (RestClient newNodeClient = buildClient(restClientSettings(),
                 nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
 
-            indexDocs(index, 10);
+            int nUpdates = randomIntBetween(minUpdates, maxUpdates);
+            logger.info("indexing docs with [{}] concurrent updates initially", nUpdates);
+            final int finalVersionForDoc1 = indexDocWithConcurrentUpdates(index, 1, nUpdates);
             logger.info("allowing shards on all nodes");
             updateIndexSetting(index, Settings.builder().putNull("index.routing.allocation.include._name"));
             ensureGreen();
             assertOK(client().performRequest("POST", index + "/_refresh"));
-            for (final String bwcName : bwcNamesList) {
-                assertCount(index, "_only_nodes:" + bwcName, 10);
-            }
-
-            logger.info("indexing docs after allowing shards on all nodes");
-            indexDocs(index, 10);
-            assertOK(client().performRequest("POST", index + "/_refresh"));
             List<Shard> shards = buildShards(nodes, newNodeClient);
             for (Shard shard : shards) {
-                assertCount(index, "_only_nodes:" + shard.getNode().getNodeName(), 20);
+                assertVersion(index, 1, "_only_nodes:" + shard.getNode().getNodeName(), finalVersionForDoc1);
+                assertCount(index, "_only_nodes:" + shard.getNode().getNodeName(), 1);
+            }
+
+            nUpdates = randomIntBetween(minUpdates, maxUpdates);
+            logger.info("indexing docs with [{}] concurrent updates after allowing shards on all nodes", nUpdates);
+            final int finalVersionForDoc2 = indexDocWithConcurrentUpdates(index, 2, nUpdates);
+            assertOK(client().performRequest("POST", index + "/_refresh"));
+            shards = buildShards(nodes, newNodeClient);
+            for (Shard shard : shards) {
+                assertVersion(index, 2, "_only_nodes:" + shard.getNode().getNodeName(), finalVersionForDoc2);
+                assertCount(index, "_only_nodes:" + shard.getNode().getNodeName(), 2);
             }
 
             Shard primary = buildShards(nodes, newNodeClient).stream().filter(Shard::isPrimary).findFirst().get();
             logger.info("moving primary to new node by excluding {}", primary.getNode().getNodeName());
             updateIndexSetting(index, Settings.builder().put("index.routing.allocation.exclude._name", primary.getNode().getNodeName()));
             ensureGreen();
-
-            logger.info("indexing docs after moving primary");
-            shards = buildShards(nodes, newNodeClient);
-            indexDocs(index, 10);
+            nUpdates = randomIntBetween(minUpdates, maxUpdates);
+            logger.info("indexing docs with [{}] concurrent updates after moving primary", nUpdates);
+            final int finalVersionForDoc3 = indexDocWithConcurrentUpdates(index, 3, nUpdates);
             assertOK(client().performRequest("POST", index + "/_refresh"));
+            shards = buildShards(nodes, newNodeClient);
             for (Shard shard : shards) {
-                assertCount(index, "_only_nodes:" + shard.getNode().getNodeName(), 30);
+                assertVersion(index, 3, "_only_nodes:" + shard.getNode().getNodeName(), finalVersionForDoc3);
+                assertCount(index, "_only_nodes:" + shard.getNode().getNodeName(), 3);
             }
+
+            logger.info("setting number of replicas to 0");
+            updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 0));
+            ensureGreen();
+            nUpdates = randomIntBetween(minUpdates, maxUpdates);
+            logger.info("indexing doc with [{}] concurrent updates after setting number of replicas to 0", nUpdates);
+            final int finalVersionForDoc4 = indexDocWithConcurrentUpdates(index, 4, nUpdates);
+            assertOK(client().performRequest("POST", index + "/_refresh"));
+            shards = buildShards(nodes, newNodeClient);
+            for (Shard shard : shards) {
+                assertVersion(index, 4, "_only_nodes:" + shard.getNode().getNodeName(), finalVersionForDoc4);
+                assertCount(index, "_only_nodes:" + shard.getNode().getNodeName(), 4);
+            }
+
+            logger.info("setting number of replicas to 1");
+            updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 1));
+            ensureGreen();
+            nUpdates = randomIntBetween(minUpdates, maxUpdates);
+            logger.info("indexing doc with [{}] concurrent updates after setting number of replicas to 1", nUpdates);
+            final int finalVersionForDoc5 = indexDocWithConcurrentUpdates(index, 5, nUpdates);
+            assertOK(client().performRequest("POST", index + "/_refresh"));
+            shards = buildShards(nodes, newNodeClient);
+            for (Shard shard : shards) {
+                assertVersion(index, 5, "_only_nodes:" + shard.getNode().getNodeName(), finalVersionForDoc5);
+                assertCount(index, "_only_nodes:" + shard.getNode().getNodeName(), 5);
+            }
+            // the number of documents on the primary and on the recovered replica should match the number of indexed documents
+            assertCount(index, "_primary", 5);
+            assertCount(index, "_replica", 5);
         }
     }
 
@@ -176,7 +219,7 @@ public class IndexingIT extends ESRestTestCase {
             int numDocs = 0;
             final int numberOfInitialDocs = 1 + randomInt(5);
             logger.info("indexing [{}] docs initially", numberOfInitialDocs);
-            numDocs += indexDocsWithId(index, 0, numberOfInitialDocs);
+            numDocs += indexDocs(index, 0, numberOfInitialDocs);
             assertSeqNoOnShards(nodes, checkGlobalCheckpoints, 0, newNodeClient);
             logger.info("allowing shards on all nodes");
             updateIndexSetting(index, Settings.builder().putNull("index.routing.allocation.include._name"));
@@ -187,7 +230,7 @@ public class IndexingIT extends ESRestTestCase {
             }
             final int numberOfDocsAfterAllowingShardsOnAllNodes = 1 + randomInt(5);
             logger.info("indexing [{}] docs after allowing shards on all nodes", numberOfDocsAfterAllowingShardsOnAllNodes);
-            numDocs += indexDocsWithId(index, numDocs, numberOfDocsAfterAllowingShardsOnAllNodes);
+            numDocs += indexDocs(index, numDocs, numberOfDocsAfterAllowingShardsOnAllNodes);
             assertSeqNoOnShards(nodes, checkGlobalCheckpoints, 0, newNodeClient);
             Shard primary = buildShards(nodes, newNodeClient).stream().filter(Shard::isPrimary).findFirst().get();
             logger.info("moving primary to new node by excluding {}", primary.getNode().getNodeName());
@@ -196,7 +239,7 @@ public class IndexingIT extends ESRestTestCase {
             int numDocsOnNewPrimary = 0;
             final int numberOfDocsAfterMovingPrimary = 1 + randomInt(5);
             logger.info("indexing [{}] docs after moving primary", numberOfDocsAfterMovingPrimary);
-            numDocsOnNewPrimary += indexDocsWithId(index, numDocs, numberOfDocsAfterMovingPrimary);
+            numDocsOnNewPrimary += indexDocs(index, numDocs, numberOfDocsAfterMovingPrimary);
             numDocs += numberOfDocsAfterMovingPrimary;
             assertSeqNoOnShards(nodes, checkGlobalCheckpoints, numDocsOnNewPrimary, newNodeClient);
             /*
@@ -207,7 +250,7 @@ public class IndexingIT extends ESRestTestCase {
             updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 0));
             final int numberOfDocsAfterDroppingReplicas = 1 + randomInt(5);
             logger.info("indexing [{}] docs after setting number of replicas to 0", numberOfDocsAfterDroppingReplicas);
-            numDocsOnNewPrimary += indexDocsWithId(index, numDocs, numberOfDocsAfterDroppingReplicas);
+            numDocsOnNewPrimary += indexDocs(index, numDocs, numberOfDocsAfterDroppingReplicas);
             numDocs += numberOfDocsAfterDroppingReplicas;
             logger.info("setting number of replicas to 1");
             updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 1));
@@ -225,6 +268,14 @@ public class IndexingIT extends ESRestTestCase {
         assertOK(response);
         final int actualCount = Integer.parseInt(objectPath(response).evaluate("count").toString());
         assertThat(actualCount, equalTo(expectedCount));
+    }
+
+    private void assertVersion(final String index, final int docId, final String preference, final int expectedVersion) throws IOException {
+        final Response response = client().performRequest("GET", index + "/test/" + docId,
+                Collections.singletonMap("preference", preference));
+        assertOK(response);
+        final int actualVersion = Integer.parseInt(objectPath(response).evaluate("_version").toString());
+        assertThat("version mismatch for doc [" + docId + "]", actualVersion, equalTo(expectedVersion));
     }
 
     private void assertSeqNoOnShards(Nodes nodes, boolean checkGlobalCheckpoints, int numDocs, RestClient client) throws Exception {

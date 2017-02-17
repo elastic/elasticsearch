@@ -483,6 +483,7 @@ public class InternalEngine extends Engine {
                 operation.origin() == Operation.Origin.PEER_RECOVERY ||
                 operation.origin() == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
             // ensure that replica operation has expected version type for replication
+            // ensure that versionTypeForReplicationAndRecovery is idempotent
             assert operation.versionType() == operation.versionType().versionTypeForReplicationAndRecovery()
                     : "unexpected version type in request from [" + operation.origin().name() + "] " +
                     "found [" + operation.versionType().name() + "] " +

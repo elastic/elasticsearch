@@ -679,10 +679,12 @@ of the source, such as `application/json`.
 
 The type of the content sent in a request body must be specified using
 the `Content-Type` header. The value of this header must map to one of
-the supported formats (JSON, YAML, CBOR, SMILE, and NDJSON).
+the supported formats that the API supports. Most APIs support JSON,
+YAML, CBOR, and SMILE. The bulk and multi-search APIs support NDJSON,
+JSON and SMILE; other types will result in an error response.
 
 Additionally, when using the `source` query string parameter the
-content type should be specified using the `source_content_type` query
+content type must be specified using the `source_content_type` query
 string parameter.
 
 [[url-access-control]]

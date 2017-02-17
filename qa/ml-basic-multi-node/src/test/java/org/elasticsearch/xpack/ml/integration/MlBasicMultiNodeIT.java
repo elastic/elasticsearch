@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.entity.StringEntity;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -20,9 +21,9 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentType.JSON;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/592")
 public class MlBasicMultiNodeIT extends ESRestTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/592")
     public void testMiniFarequote() throws Exception {
         String jobId = "foo1";
         createFarequoteJob(jobId);
@@ -75,7 +76,6 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/592")
     public void testMiniFarequoteWithDatafeeder() throws Exception {
         String mappings = "{"
                 + "  \"mappings\": {"

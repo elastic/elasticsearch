@@ -25,8 +25,3 @@ org.apache.lucene.util.LuceneTestCase$Nightly @ We don't run nightly tests at th
 com.carrotsearch.randomizedtesting.annotations.Nightly @ We don't run nightly tests at this point!
 
 org.junit.Test @defaultMessage Just name your test method testFooBar
-
-@defaultMessage Explicitly specify the ContentType of HTTP entities
-org.apache.http.entity.StringEntity#<init>(java.lang.String)
-org.apache.http.entity.StringEntity#<init>(java.lang.String,java.lang.String)
-org.apache.http.entity.StringEntity#<init>(java.lang.String,java.nio.charset.Charset)

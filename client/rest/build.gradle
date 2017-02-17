@@ -49,9 +49,9 @@ dependencies {
 }
 
 forbiddenApisMain {
-  //client does not depend on core, so only jdk signatures should be checked
+  //client does not depend on core, so only jdk and http signatures should be checked
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt'),
-                    project.projectDir.toPath().resolve("http-signatures.txt").toUri().toURL()]
+                    PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
 }
 
 forbiddenApisTest {
@@ -60,7 +60,7 @@ forbiddenApisTest {
   bundledSignatures += 'jdk-internal'
   //client does not depend on core, so only jdk signatures should be checked
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt'),
-                    project.projectDir.toPath().resolve("http-signatures.txt").toUri().toURL()]
+                    PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
 }
 
 dependencyLicenses {

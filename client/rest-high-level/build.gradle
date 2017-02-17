@@ -45,5 +45,5 @@ dependencyLicenses {
 forbiddenApisMain {
   // core does not depend on the httpclient for compile so we add the signatures here. We don't add them for test as they are already
   // specified
-  signaturesURLs += [project(":client:rest").file("http-signatures.txt").toURI().toURL()]
+  signaturesURLs += [PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
 }

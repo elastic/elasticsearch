@@ -108,12 +108,3 @@ twitter 0 299ms snapshot done twitter_repo snapshot_1 7 100.0% 79893 100.0%
 // TESTRESPONSE[s/7/\\d+/]
 // TESTRESPONSE[s/299/\\d+/]
 
-////
-Deleting the snapshot also allows to delete the index again when the test is done
-[source,js]
--------------
-DELETE _snapshot/twitter_repo/snapshot_1
--------------
-// CONSOLE
-// TEST[continued]
-////

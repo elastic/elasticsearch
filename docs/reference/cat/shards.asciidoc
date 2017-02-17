@@ -13,16 +13,15 @@ GET _cat/shards
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
-// TEST[s/^/PUT twitter\n{"settings": {"number_of_replicas": 0}}\n/]
 
 will show the indices with all shards
 
 [source,text]
 --------------------------------------------------
-twitter 0 p STARTED    5 3.2kb 127.0.0.1 node-0
+twitter 0 p STARTED    1 3.2kb 127.0.0.1 node-0
 --------------------------------------------------
-// TESTRESPONSE[s/3\.2kb/.*/ ]
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[s/1/\\d/ ]
+// TESTRESPONSE[s/3\.2kb/.*/ _cat]
 
 [float]
 [[index-pattern]]
@@ -37,7 +36,7 @@ some bandwidth by supplying an index pattern to the end.
 GET _cat/shards/twitt*
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST[setup:twitter]
 
 And you will only see indices matching the specified pattern
 
@@ -45,8 +44,8 @@ And you will only see indices matching the specified pattern
 --------------------------------------------------
 twitter 0 p STARTED    1 3.2kb 127.0.0.1 node-0
 --------------------------------------------------
-// TESTRESPONSE[s/3\.2kb/.*/ ]
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[s/1/\\d/ ]
+// TESTRESPONSE[s/3\.2kb/.*/ _cat]
 
 
 [float]
@@ -104,26 +103,22 @@ twitter 0 r INITIALIZING    0 14.3mb 192.168.56.30 bGG90GE
 If a shard cannot be assigned, for example you've overallocated the
 number of replicas for the number of nodes in the cluster, the shard
 will remain `UNASSIGNED` with the <<reason-unassigned,reason code>> `ALLOCATION_FAILED`.
+You can use the field `unassigned.reason` to show dhis
 
 [source,sh]
 --------------------------------------------------
-PUT twitter/_settings
-{
-  "number_of_replicas" : 1
-}
-
-GET _cat/shards
+GET _cat/shards?h=i,s,pr,state,unassigned.reason
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 [source,sh]
 --------------------------------------------------
-twitter 0 p STARTED    1 3.2kb 127.0.0.1 node-0
+twitter 0 p STARTED
 twitter 0 r UNASSIGNED ALLOCATION_FAILED
 --------------------------------------------------
 // TESTRESPONSE[s/3\.2kb/.*/ ]
 // TESTRESPONSE[_cat]
-// TEST[continued]
 
 [float]
 [[reason-unassigned]]

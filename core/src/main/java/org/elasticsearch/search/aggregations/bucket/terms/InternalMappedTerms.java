@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -109,5 +110,21 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
             bucketMap = buckets.stream().collect(Collectors.toMap(Bucket::getKeyAsString, Function.identity()));
         }
         return bucketMap.get(term);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalMappedTerms<?,?> that = (InternalMappedTerms<?,?>) obj;
+        return super.doEquals(obj)
+                && Objects.equals(buckets, that.buckets)
+                && Objects.equals(format, that.format)
+                && Objects.equals(otherDocCount, that.otherDocCount)
+                && Objects.equals(showTermDocCountError, that.showTermDocCountError)
+                && Objects.equals(shardSize, that.shardSize);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(super.doHashCode(), buckets, format, otherDocCount, showTermDocCountError, shardSize);
     }
 }

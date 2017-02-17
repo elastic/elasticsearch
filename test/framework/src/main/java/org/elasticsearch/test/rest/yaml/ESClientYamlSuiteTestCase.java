@@ -145,8 +145,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             }
             ClientYamlTestClient clientYamlTestClient =
                 new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, versionMapTuple.v2());
-            restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient);
-            adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient);
+            restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
+            adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
             String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
             for (String entry : blacklist) {
@@ -382,5 +382,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private String errorMessage(ExecutableSection executableSection, Throwable t) {
         return "Failure at [" + testCandidate.getSuitePath() + ":" + executableSection.getLocation().lineNumber + "]: " + t.getMessage();
+    }
+
+    protected boolean randomizeContentType() {
+        return true;
     }
 }

@@ -261,7 +261,21 @@ public class CastTests extends ScriptTestCase {
         assertEquals(10L, exec("def x = 5L; return (long) (x <<= 1);"));
         assertEquals(10D, exec("def x = 5L; return (double) (x <<= 1);"));
     }
-    
+
+    public void testUnboxMethodParameters() {
+        assertEquals('a', exec("'a'.charAt(Integer.valueOf(0))"));
+    }
+
+    public void testIllegalCastInMethodArgument() {
+        assertEquals('a', exec("'a'.charAt(0)"));
+        Exception e = expectScriptThrows(ClassCastException.class, () -> exec("'a'.charAt(0L)"));
+        assertEquals("Cannot cast from [long] to [int].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () -> exec("'a'.charAt(0.0f)"));
+        assertEquals("Cannot cast from [float] to [int].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () -> exec("'a'.charAt(0.0d)"));
+        assertEquals("Cannot cast from [double] to [int].", e.getMessage());
+    }
+
     /**
      * Test that without a cast, we fail when conversions would narrow.
      */

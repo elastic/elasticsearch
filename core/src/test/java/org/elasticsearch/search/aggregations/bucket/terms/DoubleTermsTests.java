@@ -49,10 +49,7 @@ public class DoubleTermsTests extends InternalTermsTestCase {
         final int numBuckets = randomInt(shardSize);
         Set<Double> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
-            double term;
-            do {
-                term = randomDouble();
-            } while (terms.add(term) == false);
+            double term = randomValueOtherThanMany(d -> terms.add(d) == false, random()::nextDouble);
             int docCount = randomIntBetween(1, 100);
             buckets.add(new DoubleTerms.Bucket(term, docCount, InternalAggregations.EMPTY,
                     showTermDocCountError, docCountError, format));

@@ -143,16 +143,6 @@ public class ExecuteWatchRequest extends MasterNodeReadRequest<ExecuteWatchReque
 
     /**
      * @param watchSource instead of using an existing watch use this non persisted watch
-     * @deprecated use {@link #setWatchSource(BytesReference, XContentType)}
-     */
-    @Deprecated
-    public void setWatchSource(BytesReference watchSource) {
-        this.watchSource = watchSource;
-        this.xContentType = XContentFactory.xContentType(watchSource);
-    }
-
-    /**
-     * @param watchSource instead of using an existing watch use this non persisted watch
      */
     public void setWatchSource(BytesReference watchSource, XContentType xContentType) {
         this.watchSource = watchSource;

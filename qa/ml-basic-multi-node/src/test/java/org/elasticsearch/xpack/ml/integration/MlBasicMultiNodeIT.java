@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Response;
@@ -47,7 +48,8 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
                 "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n" +
                 "{\"airline\":\"JZA\",\"responsetime\":\"990.4628\",\"sourcetype\":\"farequote\",\"time\":\"1403481700\"}";
         response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data",
-                Collections.emptyMap(), new StringEntity(postData));
+                Collections.emptyMap(),
+                new StringEntity(postData, randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))));
         assertEquals(202, response.getStatusLine().getStatusCode());
         Map<String, Object> responseBody = responseEntityToMap(response);
         assertEquals(2, responseBody.get("processed_record_count"));
@@ -100,11 +102,13 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
                 + "    }"
                 + "  }"
                 + "}";
-        client().performRequest("put", "airline-data", Collections.emptyMap(), new StringEntity(mappings));
+        client().performRequest("put", "airline-data", Collections.emptyMap(), new StringEntity(mappings, ContentType.APPLICATION_JSON));
         client().performRequest("put", "airline-data/response/1", Collections.emptyMap(),
-                new StringEntity("{\"time\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}"));
+                new StringEntity("{\"time\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}",
+                        ContentType.APPLICATION_JSON));
         client().performRequest("put", "airline-data/response/2", Collections.emptyMap(),
-                new StringEntity("{\"time\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}"));
+                new StringEntity("{\"time\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}",
+                        ContentType.APPLICATION_JSON));
 
         // Ensure all data is searchable
         client().performRequest("post", "_refresh");
@@ -162,7 +166,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         xContentBuilder.field("_source", true);
         xContentBuilder.endObject();
         return client().performRequest("put", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId,
-                Collections.emptyMap(), new StringEntity(xContentBuilder.string()));
+                Collections.emptyMap(), new StringEntity(xContentBuilder.string(), ContentType.APPLICATION_JSON));
     }
 
     private Response createFarequoteJob(String jobId) throws Exception {
@@ -190,7 +194,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         xContentBuilder.endObject();
 
         return client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId,
-                Collections.emptyMap(), new StringEntity(xContentBuilder.string()));
+                Collections.emptyMap(), new StringEntity(xContentBuilder.string(), ContentType.APPLICATION_JSON));
     }
 
     private static Map<String, Object> responseEntityToMap(Response response) throws IOException {

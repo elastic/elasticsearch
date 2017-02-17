@@ -12,7 +12,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
@@ -58,15 +57,6 @@ public class ChangePasswordRequestBuilder
             request.passwordHash(Hasher.BCRYPT.hash(securedString));
         }
         return this;
-    }
-
-    /**
-     * Populate the change password request from the source
-     * @deprecated use {@link #source(BytesReference, XContentType)} to avoid content type auto-detection
-     */
-    @Deprecated
-    public ChangePasswordRequestBuilder source(BytesReference source) throws IOException {
-        return source(source, XContentFactory.xContentType(source));
     }
 
     /**

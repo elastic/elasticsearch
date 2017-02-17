@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,7 +48,8 @@ public class MlPluginDisabledIT extends ESRestTestCase {
         xContentBuilder.endObject();
 
         ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest("put",
-                MachineLearning.BASE_PATH + "anomaly_detectors/foo", Collections.emptyMap(), new StringEntity(xContentBuilder.string())));
+                MachineLearning.BASE_PATH + "anomaly_detectors/foo", Collections.emptyMap(),
+                        new StringEntity(xContentBuilder.string(), ContentType.APPLICATION_JSON)));
         assertThat(exception.getMessage(), containsString("No handler found for uri [/_xpack/ml/anomaly_detectors/foo] and method [PUT]"));
     }
 }

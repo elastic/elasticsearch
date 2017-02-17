@@ -41,11 +41,6 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
         this(id, source.buildAsBytes(XContentType.JSON), XContentType.JSON);
     }
 
-    @Deprecated
-    public PutWatchRequest(String id, BytesReference source) {
-        this(id, source, source != null ? XContentFactory.xContentType(source) : null);
-    }
-
     public PutWatchRequest(String id, BytesReference source, XContentType xContentType) {
         this.id = id;
         this.source = source;
@@ -79,16 +74,6 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
      */
     public void setSource(WatchSourceBuilder source) {
         setSource(source.buildAsBytes(XContentType.JSON), XContentType.JSON);
-    }
-
-    /**
-     * Set the source of the watch
-     * @deprecated use {@link #setSource(BytesReference, XContentType)}
-     */
-    @Deprecated
-    public void setSource(BytesReference source) {
-        this.source = source;
-        this.xContentType = XContentFactory.xContentType(source);
     }
 
     /**

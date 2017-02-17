@@ -10,7 +10,6 @@ import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 
@@ -29,15 +28,6 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
 
     public PutRoleRequestBuilder(ElasticsearchClient client, PutRoleAction action) {
         super(client, action, new PutRoleRequest());
-    }
-
-    /**
-     * Populate the put role request from the source and the role's name
-     * @deprecated use {@link #source(String, BytesReference, XContentType)} to avoid content type auto-detection
-     */
-    @Deprecated
-    public PutRoleRequestBuilder source(String name, BytesReference source) throws IOException {
-        return source(name, source, XContentFactory.xContentType(source));
     }
 
     /**

@@ -569,7 +569,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         when(response.getStatusLine()).thenReturn(statusLine);
         when(statusLine.getStatusCode()).thenReturn(RestStatus.OK.getStatus());
-        when(response.getEntity()).thenReturn(new StringEntity("{}"));
+        when(response.getEntity()).thenReturn(new StringEntity("{}", ContentType.APPLICATION_JSON));
 
         when(client.performRequest(eq("GET"),
                     startsWith("/.marvel-es-1-*"),

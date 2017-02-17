@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 
 import java.io.IOException;
@@ -80,7 +81,7 @@ public class StateProcessor extends AbstractComponent {
         try {
             logger.trace("[{}] ES API CALL: bulk index", jobId);
             BulkRequest bulkRequest = new BulkRequest();
-            bulkRequest.add(bytes, null, null);
+            bulkRequest.add(bytes, null, null, XContentType.JSON);
             client.bulk(bulkRequest).actionGet();
         } catch (Exception e) {
             logger.error(new ParameterizedMessage("[{}] Error persisting bulk state", jobId), e);

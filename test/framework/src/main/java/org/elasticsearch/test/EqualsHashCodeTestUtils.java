@@ -67,8 +67,7 @@ public class EqualsHashCodeTestUtils {
      * from the input in one aspect. The output of this call is used to check that it is not equal()
      * to the input object
      */
-    public static <T> void checkEqualsAndHashCode(T original, CopyFunction<T> copyFunction,
-            MutateFunction<T> mutationFunction) {
+    public static <T> void checkEqualsAndHashCode(T original, CopyFunction<T> copyFunction, MutateFunction<T> mutationFunction) {
         try {
             String objectName = original.getClass().getSimpleName();
             assertFalse(objectName + " is equal to null", original.equals(null));

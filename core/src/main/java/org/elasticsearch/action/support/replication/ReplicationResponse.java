@@ -72,9 +72,25 @@ public class ReplicationResponse extends ActionResponse {
         this.shardInfo = shardInfo;
     }
 
+    @Override
+    public boolean equals(Object that) {
+        if (this == that) {
+            return true;
+        }
+        if (that == null || getClass() != that.getClass()) {
+            return false;
+        }
+        ReplicationResponse other = (ReplicationResponse) that;
+        return Objects.equals(shardInfo, other.shardInfo);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shardInfo);
+    }
+
     public static class ShardInfo implements Streamable, ToXContentObject {
 
-        private static final String _SHARDS = "_shards";
         private static final String TOTAL = "total";
         private static final String SUCCESSFUL = "successful";
         private static final String FAILED = "failed";
@@ -150,7 +166,7 @@ public class ReplicationResponse extends ActionResponse {
 
         @Override
         public int hashCode() {
-            return Objects.hash(total, successful, failures);
+            return Objects.hash(total, successful, Arrays.hashCode(failures));
         }
 
         @Override

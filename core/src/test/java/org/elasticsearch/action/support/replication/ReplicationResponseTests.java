@@ -20,12 +20,12 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -34,11 +34,8 @@ import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
@@ -46,90 +43,118 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class ReplicationResponseTests extends ESTestCase {
 
+    public void testEqualsAndHashcode() {
+        // Copy function for a ShardId
+        EqualsHashCodeTestUtils.CopyFunction<ShardId> copyShardId = original ->
+                new ShardId(original.getIndexName(), original.getIndex().getUUID(), original.getId());
+
+        // Mutate function for a ShardId
+        EqualsHashCodeTestUtils.MutateFunction<ShardId> mutateShardId = original -> {
+            List<Supplier<ShardId>> mutations = new ArrayList<>();
+            mutations.add(() ->
+                    new ShardId(original.getIndexName() + "_mutate", original.getIndex().getUUID(), original.getId()));
+            mutations.add(() ->
+                    new ShardId(original.getIndexName(), original.getIndex().getUUID() + "_mutate", original.getId()));
+            mutations.add(() ->
+                    new ShardId(original.getIndexName(), original.getIndex().getUUID(), original.getId() + 1));
+            return randomFrom(mutations).get();
+        };
+
+        // Copy function for a ShardInfo.Failure
+        EqualsHashCodeTestUtils.CopyFunction<ReplicationResponse.ShardInfo.Failure> copyShardInfoFailure = original ->
+                new ReplicationResponse.ShardInfo.Failure(copyShardId.copy(original.fullShardId()), original.nodeId(),
+                        (Exception) original.getCause(), original.status(), original.primary());
+
+        // Mutate function for a ShardInfo.Failure
+        EqualsHashCodeTestUtils.MutateFunction<ReplicationResponse.ShardInfo.Failure> mutateShardInfoFailure = original -> {
+            List<CheckedSupplier<ReplicationResponse.ShardInfo.Failure, IOException>> mutations = new ArrayList<>();
+            mutations.add(() ->
+                    new ReplicationResponse.ShardInfo.Failure(mutateShardId.mutate(original.fullShardId()), original.nodeId(),
+                            (Exception) original.getCause(), original.status(), original.primary()));
+            mutations.add(() ->
+                    new ReplicationResponse.ShardInfo.Failure(original.fullShardId(), original.nodeId() + "_mutate",
+                            (Exception) original.getCause(), original.status(), original.primary()));
+            mutations.add(() ->
+                    new ReplicationResponse.ShardInfo.Failure(original.fullShardId(), original.nodeId(),
+                            new NullPointerException("mutate"), original.status(), original.primary()));
+            mutations.add(() -> {
+                    RestStatus mutate = null;
+                    do {
+                        mutate = randomFrom(RestStatus.values());
+                    } while (mutate == original.status());
+                    return new ReplicationResponse.ShardInfo.Failure(original.fullShardId(), original.nodeId(),
+                            (Exception) original.getCause(), mutate, original.primary());
+            });
+            mutations.add(() ->
+                    new ReplicationResponse.ShardInfo.Failure(original.fullShardId(), original.nodeId(),
+                            (Exception) original.getCause(), original.status(), !original.primary()));
+            return randomFrom(mutations).get();
+        };
+
+        // Copy function for a ShardInfo
+        EqualsHashCodeTestUtils.CopyFunction<ReplicationResponse.ShardInfo> copyShardInfo = original -> {
+            ReplicationResponse.ShardInfo.Failure[] originalFailures = original.getFailures();
+
+            ReplicationResponse.ShardInfo.Failure[] copyFailures = new ReplicationResponse.ShardInfo.Failure[originalFailures.length];
+            for (int i = 0; i < originalFailures.length; i++) {
+                copyFailures[i] = copyShardInfoFailure.copy(originalFailures[i]);
+            }
+            return new ReplicationResponse.ShardInfo(original.getTotal(), original.getSuccessful(), copyFailures);
+        };
+
+        // Mutate function for a ShardInfo
+        EqualsHashCodeTestUtils.MutateFunction<ReplicationResponse.ShardInfo> mutateShardInfo = original -> {
+            List<CheckedSupplier<ReplicationResponse.ShardInfo, IOException>> mutations = new ArrayList<>();
+            mutations.add(() ->
+                    new ReplicationResponse.ShardInfo(original.getTotal() + 1, original.getSuccessful(), original.getFailures()));
+            mutations.add(() ->
+                    new ReplicationResponse.ShardInfo(original.getTotal(), original.getSuccessful() + 1, original.getFailures()));
+
+            int originalNbFailures = original.getFailures().length;
+            if (originalNbFailures == 0) {
+                mutations.add(() ->
+                        new ReplicationResponse.ShardInfo(original.getTotal(), original.getSuccessful(),
+                                new ReplicationResponse.ShardInfo.Failure(
+                                        new ShardId(randomAsciiOfLength(5), randomAsciiOfLength(5), randomIntBetween(0, 3)),
+                                        randomAsciiOfLength(5), null, randomFrom(RestStatus.values()), randomBoolean())));
+            } else {
+                mutations.add(() -> {
+                    ReplicationResponse.ShardInfo.Failure[] failures = new ReplicationResponse.ShardInfo.Failure[originalNbFailures];
+                    int mutate = randomIntBetween(0, originalNbFailures - 1);
+                    for (int i = 0; i < originalNbFailures; i++) {
+                        if (i == mutate) {
+                            failures[i] = mutateShardInfoFailure.mutate(original.getFailures()[i]);
+                        } else {
+                            failures[i] = copyShardInfoFailure.copy(original.getFailures()[i]);
+                        }
+                    }
+                    return new ReplicationResponse.ShardInfo(original.getTotal(), original.getSuccessful(), failures);
+                });
+            }
+            return randomFrom(mutations).get();
+        };
+
+        // Copy function for a ReplicationResponse
+        EqualsHashCodeTestUtils.CopyFunction<ReplicationResponse> copyReplicationResponse = original -> {
+            ReplicationResponse mutate = new ReplicationResponse();
+            mutate.setShardInfo(copyShardInfo.copy(original.getShardInfo()));
+            return mutate;
+        };
+
+        // Mutate function for a ReplicationResponse
+        EqualsHashCodeTestUtils.MutateFunction<ReplicationResponse> mutateReplicationResponse = original -> {
+            ReplicationResponse mutate = new ReplicationResponse();
+            mutate.setShardInfo(mutateShardInfo.mutate(original.getShardInfo()));
+            return mutate;
+        };
+        checkEqualsAndHashCode(randomReplicationResponse(), copyReplicationResponse, mutateReplicationResponse);
+    }
+
     public void testShardInfoToString() {
         final int total = 5;
         final int successful = randomIntBetween(1, total);
         final ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(total, successful);
         assertEquals(String.format(Locale.ROOT, "ShardInfo{total=5, successful=%d, failures=[]}", successful), shardInfo.toString());
-    }
-
-    public void testShardInfoEqualsAndHashcode() {
-        EqualsHashCodeTestUtils.CopyFunction<ReplicationResponse.ShardInfo> copy = shardInfo ->
-                new ReplicationResponse.ShardInfo(shardInfo.getTotal(), shardInfo.getSuccessful(), shardInfo.getFailures());
-
-        EqualsHashCodeTestUtils.MutateFunction<ReplicationResponse.ShardInfo> mutate = shardInfo -> {
-            List<Supplier<ReplicationResponse.ShardInfo>> mutations = new ArrayList<>();
-            mutations.add(() ->
-                    new ReplicationResponse.ShardInfo(shardInfo.getTotal() + 1, shardInfo.getSuccessful(), shardInfo.getFailures()));
-            mutations.add(() ->
-                    new ReplicationResponse.ShardInfo(shardInfo.getTotal(), shardInfo.getSuccessful() + 1, shardInfo.getFailures()));
-            mutations.add(() -> {
-                int nbFailures = randomIntBetween(1, 5);
-                ReplicationResponse.ShardInfo.Failure[] randomFailures = RandomObjects.randomShardInfoFailures(random(), nbFailures);
-                return new ReplicationResponse.ShardInfo(shardInfo.getTotal(), shardInfo.getSuccessful(), randomFailures);
-            });
-            return randomFrom(mutations).get();
-        };
-
-        checkEqualsAndHashCode(RandomObjects.randomShardInfo(random(), randomBoolean()), copy, mutate);
-    }
-
-    public void testFailureEqualsAndHashcode() {
-        EqualsHashCodeTestUtils.CopyFunction<ReplicationResponse.ShardInfo.Failure> copy = failure -> {
-            Index index = failure.fullShardId().getIndex();
-            ShardId shardId = new ShardId(index.getName(), index.getUUID(), failure.shardId());
-            Exception cause = (Exception) failure.getCause();
-            return new ReplicationResponse.ShardInfo.Failure(shardId, failure.nodeId(), cause, failure.status(), failure.primary());
-        };
-
-        EqualsHashCodeTestUtils.MutateFunction<ReplicationResponse.ShardInfo.Failure> mutate = failure -> {
-            List<Supplier<ReplicationResponse.ShardInfo.Failure>> mutations = new ArrayList<>();
-
-            final Index index = failure.fullShardId().getIndex();
-            final Set<String> indexNamePool = new HashSet<>(Arrays.asList(
-                    randomUnicodeOfCodepointLength(5), randomUnicodeOfCodepointLength(6)));
-            indexNamePool.remove(index.getName());
-            final ShardId randomIndex = new ShardId(randomFrom(indexNamePool), index.getUUID(), failure.shardId());
-            mutations.add(() -> new ReplicationResponse.ShardInfo.Failure(randomIndex, failure.nodeId(), (Exception) failure.getCause(),
-                    failure.status(), failure.primary()));
-
-            final Set<String> uuidPool = new HashSet<>(Arrays.asList(randomUnicodeOfCodepointLength(5), randomUnicodeOfCodepointLength(6)));
-            uuidPool.remove(index.getUUID());
-            final ShardId randomUUID = new ShardId(index.getName(), randomFrom(uuidPool), failure.shardId());
-            mutations.add(() -> new ReplicationResponse.ShardInfo.Failure(randomUUID, failure.nodeId(), (Exception) failure.getCause(),
-                    failure.status(), failure.primary()));
-
-            final ShardId randomShardId = new ShardId(index.getName(),index.getUUID(), failure.shardId() + randomIntBetween(1, 3));
-            mutations.add(() -> new ReplicationResponse.ShardInfo.Failure(randomShardId, failure.nodeId(), (Exception) failure.getCause(),
-                    failure.status(), failure.primary()));
-
-            final Set<String> nodeIdPool = new HashSet<>(Arrays.asList(randomUnicodeOfLength(3), randomUnicodeOfLength(4)));
-            nodeIdPool.remove(failure.nodeId());
-            final String randomNode = randomFrom(nodeIdPool);
-            mutations.add(() -> new ReplicationResponse.ShardInfo.Failure(failure.fullShardId(), randomNode, (Exception) failure.getCause(),
-                    failure.status(), failure.primary()));
-
-            final Set<Exception> exceptionPool = new HashSet<>(Arrays.asList(
-                    new IllegalStateException("a"), new IllegalArgumentException("b")));
-            exceptionPool.remove(failure.getCause());
-            final Exception randomException = randomFrom(exceptionPool);
-            mutations.add(() -> new ReplicationResponse.ShardInfo.Failure(failure.fullShardId(), failure.nodeId(), randomException,
-                    failure.status(), failure.primary()));
-
-            final Set<RestStatus> otherStatuses = new HashSet<>(Arrays.asList(RestStatus.values()));
-            otherStatuses.remove(failure.status());
-            final RestStatus randomStatus = randomFrom(otherStatuses);
-            mutations.add(() -> new ReplicationResponse.ShardInfo.Failure(failure.fullShardId(), failure.nodeId(),
-                    (Exception) failure.getCause(), randomStatus, failure.primary()));
-
-            final boolean randomPrimary = !failure.primary();
-            mutations.add(() -> new ReplicationResponse.ShardInfo.Failure(failure.fullShardId(), failure.nodeId(),
-                    (Exception) failure.getCause(), failure.status(), randomPrimary));
-
-            return randomFrom(mutations).get();
-        };
-
-        checkEqualsAndHashCode(RandomObjects.randomShardInfoFailure(random()), copy, mutate);
     }
 
     public void testShardInfoToXContent() throws IOException {
@@ -357,5 +382,11 @@ public class ReplicationResponseTests extends ESTestCase {
             }
         }
         assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+    }
+
+    private static ReplicationResponse randomReplicationResponse() {
+        ReplicationResponse replicationResponse = new ReplicationResponse();
+        replicationResponse.setShardInfo(RandomObjects.randomShardInfo(random(), randomBoolean()));
+        return replicationResponse;
     }
 }

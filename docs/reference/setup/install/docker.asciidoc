@@ -146,9 +146,16 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:{version}
     container_name: elasticsearch1
     environment:
-      - cluster.name=docker-cluster
-      - bootstrap.memory_lock=true
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    command:
+      - -E
+      - cluster.name=docker-cluster
+      - -E
+      - bootstrap.memory_lock=true
+      - -E
+      - discovery.zen.minimum_master_nodes=1
+      - -E
+      - transport.host=0.0.0.0
     ulimits:
       memlock:
         soft: -1
@@ -168,10 +175,18 @@ services:
   elasticsearch2:
     image: docker.elastic.co/elasticsearch/elasticsearch:{version}
     environment:
-      - cluster.name=docker-cluster
-      - bootstrap.memory_lock=true
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-      - "discovery.zen.ping.unicast.hosts=elasticsearch1"
+    command:
+      - -E
+      - cluster.name=docker-cluster
+      - -E
+      - bootstrap.memory_lock=true
+      - -E
+      - discovery.zen.ping.unicast.hosts=elasticsearch1
+      - -E
+      - discovery.zen.minimum_master_nodes=1
+      - -E
+      - transport.host=0.0.0.0
     ulimits:
       memlock:
         soft: -1

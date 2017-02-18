@@ -19,14 +19,19 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -178,6 +183,17 @@ public class ThreadContextTests extends ESTestCase {
             threadContext.addResponseHeader("foo", "bar");
         }
 
+        final String now = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("GMT")));
+        final Function<String, String> deduplicator = v -> DeprecationLogger.WARNING_HEADER_PATTERN.matcher(v).group(1);
+        final String value = "299 Elasticsearch-6.0.0-alpha1-SNAPSHOT/Unknown \"qux\" \"" + now + "\"";
+        threadContext.addResponseHeader("baz", value, deduplicator);
+        // pretend that another thread created the same response at a different time
+        if (randomBoolean()) {
+            final String later = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("GMT")));
+            final String duplicateValue = "299 Elasticsearch-6.0.0-alpha1-SNAPSHOT/Unknown \"qux\" \"" + later + "\"";
+            threadContext.addResponseHeader("baz", duplicateValue, deduplicator);
+        }
+
         threadContext.addResponseHeader("Warning", "One is the loneliest number");
         threadContext.addResponseHeader("Warning", "Two can be as bad as one");
         if (expectThird) {
@@ -186,11 +202,14 @@ public class ThreadContextTests extends ESTestCase {
 
         final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         final List<String> foo = responseHeaders.get("foo");
+        final List<String> baz = responseHeaders.get("baz");
         final List<String> warnings = responseHeaders.get("Warning");
         final int expectedWarnings = expectThird ? 3 : 2;
 
         assertThat(foo, hasSize(1));
+        assertThat(baz, hasSize(1));
         assertEquals("bar", foo.get(0));
+        assertEquals(value, baz.get(0));
         assertThat(warnings, hasSize(expectedWarnings));
         assertThat(warnings, hasItem(equalTo("One is the loneliest number")));
         assertThat(warnings, hasItem(equalTo("Two can be as bad as one")));

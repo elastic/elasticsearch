@@ -297,7 +297,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         //Check that there are no unaccounted warning headers. These should be checked with {@link #assertWarnings(String...)} in the
         //appropriate test
         try {
-            final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.WARNING_HEADER);
+            final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
             assertNull("unexpected warning headers", warnings);
         } finally {
             resetDeprecationLogger();
@@ -309,7 +309,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
         }
         try {
-            final List<String> actualWarnings = threadContext.getResponseHeaders().get(DeprecationLogger.WARNING_HEADER);
+            final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
             for (String msg : expectedWarnings) {
                 assertThat(actualWarnings, hasItem(containsString(msg)));
             }

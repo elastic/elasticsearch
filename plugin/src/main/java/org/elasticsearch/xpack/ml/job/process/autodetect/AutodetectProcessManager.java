@@ -206,7 +206,10 @@ public class AutodetectProcessManager extends AbstractComponent {
                 }
                 setJobState(taskId, JobState.FAILED, e2 -> handler.accept(e1));
             }
-        }, handler);
+        }, e1 -> {
+            logger.warn("Failed to gather information required to open job [" + jobId + "]", e1);
+            setJobState(taskId, JobState.FAILED, e2 -> handler.accept(e1));
+        });
     }
 
     // TODO: add a method on JobProvider that fetches all required info via 1 msearch call, so that we have a single lambda

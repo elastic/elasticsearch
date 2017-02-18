@@ -94,7 +94,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(jobResultsPersister.bulkPersisterBuilder(any())).thenReturn(mock(JobResultsPersister.Builder.class));
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
         normalizerFactory = mock(NormalizerFactory.class);
-        givenAllocationWithState(JobState.OPENED);
 
         when(jobManager.getJobOrThrowIfUnknown("foo")).thenReturn(createJobDetails("foo"));
         doAnswer(invocationOnMock -> {
@@ -298,7 +297,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
         when(communicator.writeToJob(any(), any())).thenReturn(new DataCounts("foo"));
         AutodetectProcessManager manager = createManager(communicator);
-        givenAllocationWithState(JobState.OPENED);
 
         InputStream inputStream = createInputStream("");
         manager.openJob("foo", 1L, false, e -> {});
@@ -331,10 +329,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         expectThrows(EsRejectedExecutionException.class,
                 () -> manager.create("my_id", 1L, dataCounts, modelSnapshot, quantiles, filters, false, e -> {}));
         verify(autodetectProcess, times(1)).close();
-    }
-
-    private void givenAllocationWithState(JobState state) {
-        when(jobManager.getJobState("foo")).thenReturn(state);
     }
 
     private AutodetectProcessManager createManager(AutodetectCommunicator communicator) {

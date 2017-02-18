@@ -116,15 +116,9 @@ public class AutodetectProcessManager extends AbstractComponent {
      * @return Count of records, fields, bytes, etc written
      */
     public DataCounts processData(String jobId, InputStream input, DataLoadParams params) {
-        JobState jobState = jobManager.getJobState(jobId);
-        if (jobState != JobState.OPENED) {
-            throw new IllegalArgumentException("job [" + jobId + "] state is [" + jobState + "], but must be ["
-                    + JobState.OPENED + "] for processing data");
-        }
-
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
         if (communicator == null) {
-            throw new IllegalStateException("job [" +  jobId + "] with state [" + jobState + "] hasn't been started");
+            throw new IllegalStateException("[" + jobId + "] Cannot process data: no active autodetect process for job");
         }
         try {
             return communicator.writeToJob(input, params);

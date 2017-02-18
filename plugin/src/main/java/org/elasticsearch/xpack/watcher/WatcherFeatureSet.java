@@ -54,6 +54,11 @@ public class WatcherFeatureSet implements XPackFeatureSet {
     }
 
     @Override
+    public Map<String, Object> nativeCodeInfo() {
+        return null;
+    }
+
+    @Override
     public XPackFeatureSet.Usage usage() {
         return new Usage(available(), enabled(), watcherService != null ? watcherService.usageStats() : Collections.emptyMap());
     }

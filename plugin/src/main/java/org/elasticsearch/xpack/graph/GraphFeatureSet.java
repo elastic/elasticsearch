@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.graph;
 
 import java.io.IOException;
+import java.util.Map;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -45,6 +46,11 @@ public class GraphFeatureSet implements XPackFeatureSet {
     @Override
     public boolean enabled() {
         return enabled;
+    }
+
+    @Override
+    public Map<String, Object> nativeCodeInfo() {
+        return null;
     }
 
     @Override

@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
+import org.elasticsearch.xpack.ml.job.process.NativeControllerHolder;
 import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -256,12 +257,17 @@ public class MachineLearning extends Plugin implements ActionPlugin {
         NormalizerProcessFactory normalizerProcessFactory;
         if (USE_NATIVE_PROCESS_OPTION.get(settings)) {
             try {
-                NativeController nativeController = new NativeController(env, new NamedPipeHelper());
-                nativeController.tailLogsInThread();
+                NativeController nativeController = NativeControllerHolder.getNativeController(settings);
+                if (nativeController == null) {
+                    // This will only only happen when path.home is not set, which is disallowed in production
+                    throw new ElasticsearchException("Failed to create native process controller for Machine Learning");
+                }
                 autodetectProcessFactory = new NativeAutodetectProcessFactory(jobProvider, env, settings, nativeController, client);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(env, settings, nativeController);
             } catch (IOException e) {
-                throw new ElasticsearchException("Failed to create native process factories", e);
+                // This also should not happen in production, as the MachineLearningFeatureSet should have
+                // hit the same error first and brought down the node with a friendlier error message
+                throw new ElasticsearchException("Failed to create native process factories for Machine Learning", e);
             }
         } else {
             autodetectProcessFactory = (jobDetails, modelSnapshot, quantiles, filters, ignoreDowntime, executorService) ->

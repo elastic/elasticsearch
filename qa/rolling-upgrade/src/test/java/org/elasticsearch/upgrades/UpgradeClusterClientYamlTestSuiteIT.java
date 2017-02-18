@@ -7,13 +7,11 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -49,7 +47,7 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
         assertBusy(() -> {
             try {
                 Response nodeDetailsResponse = client().performRequest("GET", "/_nodes");
-                ObjectPath path = objectPath(nodeDetailsResponse);
+                ObjectPath path = ObjectPath.createFromResponse(nodeDetailsResponse);
                 Map<String, Object> nodes = path.evaluate("nodes");
                 assertThat(nodes.size(), greaterThanOrEqualTo(2));
                 String masterVersion = null;
@@ -64,7 +62,7 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
                 final String masterTemplateVersion = masterVersion;
 
                 Response response = client().performRequest("GET", "/_cluster/state/metadata");
-                ObjectPath objectPath = objectPath(response);
+                ObjectPath objectPath = ObjectPath.createFromResponse(response);
                 final String mappingsPath = "metadata.templates." + SECURITY_TEMPLATE_NAME + ".mappings";
                 Map<String, Object> mappings = objectPath.evaluate(mappingsPath);
                 assertNotNull(mappings);
@@ -77,13 +75,6 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
                 throw new AssertionError("failed to get cluster state", e);
             }
         });
-    }
-
-    private ObjectPath objectPath(Response response) throws IOException {
-        String body = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
-        String contentType = response.getHeader("Content-Type");
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(contentType);
-        return ObjectPath.createFromXContent(xContentType.xContent(), body);
     }
 
     @Override

@@ -153,7 +153,7 @@ services:
       - -E
       - bootstrap.memory_lock=true
       - -E
-      - discovery.zen.minimum_master_nodes=1
+      - discovery.zen.minimum_master_nodes=2
       - -E
       - transport.host=0.0.0.0
     ulimits:
@@ -184,7 +184,7 @@ services:
       - -E
       - discovery.zen.ping.unicast.hosts=elasticsearch1
       - -E
-      - discovery.zen.minimum_master_nodes=1
+      - discovery.zen.minimum_master_nodes=2
       - -E
       - transport.host=0.0.0.0
     ulimits:

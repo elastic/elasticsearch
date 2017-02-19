@@ -113,3 +113,11 @@ indexing.
 The default is `10%` which is often plenty: for example, if you give the JVM
 10GB of memory, it will give 1GB to the index buffer, which is enough to host
 two shards that are heavily indexing.
+
+[float]
+=== Additional optimizations
+
+Many of the same strategies outlined for the reduction of total disk usage also
+provide an improvement in the speed of indexing.
+See: https://www.elastic.co/guide/en/elasticsearch/reference/current/tune-for-disk-usage.html
+

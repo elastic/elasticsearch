@@ -47,6 +47,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Order;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.FieldOptions;
@@ -288,6 +289,7 @@ public class HighlightBuilderTests extends ESTestCase {
                         mergeBeforeChek(highlightBuilder, fieldBuilder, fieldOptions);
 
                 checkSame.accept(AbstractHighlighterBuilder::boundaryChars, FieldOptions::boundaryChars);
+                checkSame.accept(AbstractHighlighterBuilder::boundaryScannerType, FieldOptions::boundaryScannerType);
                 checkSame.accept(AbstractHighlighterBuilder::boundaryMaxScan, FieldOptions::boundaryMaxScan);
                 checkSame.accept(AbstractHighlighterBuilder::fragmentSize, FieldOptions::fragmentCharSize);
                 checkSame.accept(AbstractHighlighterBuilder::fragmenter, FieldOptions::fragmenter);
@@ -558,10 +560,21 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.forceSource(randomBoolean());
         }
         if (randomBoolean()) {
+            if (randomBoolean()) {
+                highlightBuilder.boundaryScannerType(randomFrom(BoundaryScannerType.values()));
+            } else {
+                // also test the string setter
+                highlightBuilder.boundaryScannerType(randomFrom(BoundaryScannerType.values().toString()));
+            }
+        }
+        if (randomBoolean()) {
             highlightBuilder.boundaryMaxScan(randomIntBetween(0, 10));
         }
         if (randomBoolean()) {
             highlightBuilder.boundaryChars(randomAsciiOfLengthBetween(1, 10).toCharArray());
+        }
+        if (randomBoolean()) {
+            highlightBuilder.boundaryScannerLocale(randomLocale(random()).toLanguageTag());
         }
         if (randomBoolean()) {
             highlightBuilder.noMatchSize(randomIntBetween(0, 10));

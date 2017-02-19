@@ -32,10 +32,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Order;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -57,8 +59,10 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public static final ParseField NUMBER_OF_FRAGMENTS_FIELD = new ParseField("number_of_fragments");
     public static final ParseField ENCODER_FIELD = new ParseField("encoder");
     public static final ParseField REQUIRE_FIELD_MATCH_FIELD = new ParseField("require_field_match");
+    public static final ParseField BOUNDARY_SCANNER_FIELD = new ParseField("boundary_scanner");
     public static final ParseField BOUNDARY_MAX_SCAN_FIELD = new ParseField("boundary_max_scan");
     public static final ParseField BOUNDARY_CHARS_FIELD = new ParseField("boundary_chars");
+    public static final ParseField BOUNDARY_SCANNER_LOCALE_FIELD = new ParseField("boundary_scanner_locale");
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField FRAGMENTER_FIELD = new ParseField("fragmenter");
     public static final ParseField NO_MATCH_SIZE_FIELD = new ParseField("no_match_size");
@@ -88,9 +92,13 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     protected Boolean forceSource;
 
+    protected BoundaryScannerType boundaryScannerType;
+
     protected Integer boundaryMaxScan;
 
     protected char[] boundaryChars;
+
+    protected Locale boundaryScannerLocale;
 
     protected Integer noMatchSize;
 
@@ -119,10 +127,12 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         order(in.readOptionalWriteable(Order::readFromStream));
         highlightFilter(in.readOptionalBoolean());
         forceSource(in.readOptionalBoolean());
+        boundaryScannerType(in.readOptionalWriteable(BoundaryScannerType::readFromStream));
         boundaryMaxScan(in.readOptionalVInt());
         if (in.readBoolean()) {
             boundaryChars(in.readString().toCharArray());
         }
+        boundaryScannerLocale(in.readOptionalString());
         noMatchSize(in.readOptionalVInt());
         phraseLimit(in.readOptionalVInt());
         if (in.readBoolean()) {
@@ -150,11 +160,17 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         out.writeOptionalWriteable(order);
         out.writeOptionalBoolean(highlightFilter);
         out.writeOptionalBoolean(forceSource);
+        out.writeOptionalWriteable(boundaryScannerType);
         out.writeOptionalVInt(boundaryMaxScan);
         boolean hasBounaryChars = boundaryChars != null;
         out.writeBoolean(hasBounaryChars);
         if (hasBounaryChars) {
             out.writeString(String.valueOf(boundaryChars));
+        }
+        boolean hasBoundaryScannerLocale = boundaryScannerLocale != null;
+        out.writeBoolean(hasBoundaryScannerLocale);
+        if (hasBoundaryScannerLocale) {
+            out.writeString(boundaryScannerLocale.toLanguageTag());
         }
         out.writeOptionalVInt(noMatchSize);
         out.writeOptionalVInt(phraseLimit);
@@ -333,6 +349,33 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     /**
      * When using the highlighterType <tt>fvh</tt> this setting
+     * controls which scanner to use for fragment boundaries, and defaults to "simple".
+     */
+    @SuppressWarnings("unchecked")
+    public HB boundaryScannerType(String boundaryScannerType) {
+        this.boundaryScannerType = BoundaryScannerType.fromString(boundaryScannerType);
+        return (HB) this;
+    }
+
+    /**
+     * When using the highlighterType <tt>fvh</tt> this setting
+     * controls which scanner to use for fragment boundaries, and defaults to "simple".
+     */
+    @SuppressWarnings("unchecked")
+    public HB boundaryScannerType(BoundaryScannerType boundaryScannerType) {
+        this.boundaryScannerType = boundaryScannerType;
+        return (HB) this;
+    }
+
+    /**
+     * @return the value set by {@link #boundaryScannerType(String)}
+     */
+    public BoundaryScannerType boundaryScannerType() {
+        return this.boundaryScannerType;
+    }
+
+    /**
+     * When using the highlighterType <tt>fvh</tt> this setting
      * controls how far to look for boundary characters, and defaults to 20.
      */
     @SuppressWarnings("unchecked")
@@ -364,6 +407,25 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
      */
     public char[] boundaryChars() {
         return this.boundaryChars;
+    }
+
+    /**
+     * When using the highlighterType <tt>fvh</tt> and boundaryScannerType <tt>break_iterator</tt>, this setting
+     * controls the locale to use by the BreakIterator, defaults to "root".
+     */
+    @SuppressWarnings("unchecked")
+    public HB boundaryScannerLocale(String boundaryScannerLocale) {
+        if (boundaryScannerLocale != null) {
+            this.boundaryScannerLocale = Locale.forLanguageTag(boundaryScannerLocale);
+        }
+        return (HB) this;
+    }
+
+    /**
+     * @return the value set by {@link #boundaryScannerLocale(String)}
+     */
+    public Locale boundaryScannerLocale() {
+        return this.boundaryScannerLocale;
     }
 
     /**
@@ -491,11 +553,17 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (highlightFilter != null) {
             builder.field(HIGHLIGHT_FILTER_FIELD.getPreferredName(), highlightFilter);
         }
+        if (boundaryScannerType != null) {
+            builder.field(BOUNDARY_SCANNER_FIELD.getPreferredName(), boundaryScannerType.name());
+        }
         if (boundaryMaxScan != null) {
             builder.field(BOUNDARY_MAX_SCAN_FIELD.getPreferredName(), boundaryMaxScan);
         }
         if (boundaryChars != null) {
             builder.field(BOUNDARY_CHARS_FIELD.getPreferredName(), new String(boundaryChars));
+        }
+        if (boundaryScannerLocale != null && boundaryScannerLocale != Locale.ROOT) {
+            builder.field(BOUNDARY_SCANNER_LOCALE_FIELD.getPreferredName(), boundaryScannerLocale.toLanguageTag());
         }
         if (options != null && options.size() > 0) {
             builder.field(OPTIONS_FIELD.getPreferredName(), options);
@@ -523,8 +591,10 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         parser.declareInt(HB::fragmentSize, FRAGMENT_SIZE_FIELD);
         parser.declareInt(HB::numOfFragments, NUMBER_OF_FRAGMENTS_FIELD);
         parser.declareBoolean(HB::requireFieldMatch, REQUIRE_FIELD_MATCH_FIELD);
+        parser.declareString(HB::boundaryScannerType, BOUNDARY_SCANNER_FIELD);
         parser.declareInt(HB::boundaryMaxScan, BOUNDARY_MAX_SCAN_FIELD);
         parser.declareString((HB hb, String bc) -> hb.boundaryChars(bc.toCharArray()) , BOUNDARY_CHARS_FIELD);
+        parser.declareString(HB::boundaryScannerLocale, BOUNDARY_SCANNER_LOCALE_FIELD);
         parser.declareString(HB::highlighterType, TYPE_FIELD);
         parser.declareString(HB::fragmenter, FRAGMENTER_FIELD);
         parser.declareInt(HB::noMatchSize, NO_MATCH_SIZE_FIELD);
@@ -562,8 +632,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public final int hashCode() {
         return Objects.hash(getClass(), Arrays.hashCode(preTags), Arrays.hashCode(postTags), fragmentSize,
                 numOfFragments, highlighterType, fragmenter, highlightQuery, order, highlightFilter,
-                forceSource, boundaryMaxScan, Arrays.hashCode(boundaryChars), noMatchSize,
-                phraseLimit, options, requireFieldMatch, doHashCode());
+                forceSource, boundaryScannerType, boundaryMaxScan, Arrays.hashCode(boundaryChars), noMatchSize,
+                boundaryScannerLocale, phraseLimit, options, requireFieldMatch, doHashCode());
     }
 
     /**
@@ -591,8 +661,10 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
                Objects.equals(order, other.order) &&
                Objects.equals(highlightFilter, other.highlightFilter) &&
                Objects.equals(forceSource, other.forceSource) &&
+               Objects.equals(boundaryScannerType, other.boundaryScannerType) &&
                Objects.equals(boundaryMaxScan, other.boundaryMaxScan) &&
                Arrays.equals(boundaryChars, other.boundaryChars) &&
+               Objects.equals(boundaryScannerLocale, other.boundaryScannerLocale) &&
                Objects.equals(noMatchSize, other.noMatchSize) &&
                Objects.equals(phraseLimit, other.phraseLimit) &&
                Objects.equals(options, other.options) &&

@@ -31,6 +31,8 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.main.MainRequest;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -39,7 +41,6 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
@@ -119,6 +120,24 @@ public class RestHighLevelClient {
      */
     public void indexAsync(IndexRequest indexRequest, ActionListener<IndexResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(indexRequest, Request::index, IndexResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Updates a document using the Update API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
+     */
+    public UpdateResponse update(UpdateRequest updateRequest, Header... headers) throws IOException {
+        return performRequestAndParseEntity(updateRequest, Request::update, UpdateResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously updates a document using the Update API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
+     */
+    public void updateAsync(UpdateRequest updateRequest, ActionListener<UpdateResponse> listener, Header... headers) {
+        performRequestAsyncAndParseEntity(updateRequest, Request::update, UpdateResponse::fromXContent, listener, emptySet(), headers);
     }
 
     private <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request, Function<Req, Request>  requestConverter,

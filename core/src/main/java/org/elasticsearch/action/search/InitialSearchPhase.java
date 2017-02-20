@@ -229,14 +229,14 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         /**
          * Returns the number of expected results this class should collect
          */
-        public int size() {
+        public int getNumShards() {
             return results.length();
         }
 
         /**
          * A stream of all non-null (successful) shard results
          */
-        public Stream<Result> stream() {
+        public Stream<Result> getSuccessfulResults() {
             return results.asList().stream().map(e -> e.value);
         }
 

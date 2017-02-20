@@ -129,7 +129,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             onPhaseFailure(currentPhase, "all shards failed", null);
         } else {
             if (logger.isTraceEnabled()) {
-                final String resultsFrom = results.stream()
+                final String resultsFrom = results.getSuccessfulResults()
                     .map(r -> r.shardTarget().toString()).collect(Collectors.joining(","));
                 logger.trace("[{}] Moving to next phase: [{}], based on results from: {} (cluster state version: {})",
                     currentPhase.getName(), nextPhase.getName(), resultsFrom, clusterStateVersion);
@@ -206,7 +206,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @param exception the exception explaining or causing the phase failure
      */
     private void raisePhaseFailure(SearchPhaseExecutionException exception) {
-        results.stream().forEach((entry) -> {
+        results.getSuccessfulResults().forEach((entry) -> {
             try {
                 Transport.Connection connection = nodeIdToConnection.apply(entry.shardTarget().getNodeId());
                 sendReleaseSearchContext(entry.id(), connection);
@@ -241,7 +241,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final int getNumShards() {
-        return results.size();
+        return results.getNumShards();
     }
 
     @Override

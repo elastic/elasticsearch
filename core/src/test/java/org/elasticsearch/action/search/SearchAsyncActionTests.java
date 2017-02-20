@@ -117,7 +117,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 return new SearchPhase("test") {
                     @Override
                     public void run() throws IOException {
-                        for (int i = 0; i < results.size(); i++) {
+                        for (int i = 0; i < results.getNumShards(); i++) {
                             TestSearchPhaseResult result = results.results.get(i);
                             assertEquals(result.node.getId(), result.shardTarget().getNodeId());
                             sendReleaseSearchContext(result.id(), new MockConnection(result.node));

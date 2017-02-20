@@ -653,15 +653,13 @@ public class SearchPhaseController extends AbstractComponent {
          */
         private QueryPhaseResultConsumer(SearchPhaseController controller, int expectedResultSize, int bufferSize) {
             super(expectedResultSize);
-            this.controller = controller;
-            // TODO should we not allocate a buffer if there are no aggs in the search request?
             if (expectedResultSize != 1 && bufferSize < 2) {
                 throw new IllegalArgumentException("buffer size must be >= 2 if there is more than one expected result");
             }
-
             if (expectedResultSize <= bufferSize) {
                 throw new IllegalArgumentException("buffer size must be less than the expected result size");
             }
+            this.controller = controller;
             // no need to buffer anything if we have less expected results. in this case we don't consume any results ahead of time.
             this.buffer = new InternalAggregations[bufferSize];
         }

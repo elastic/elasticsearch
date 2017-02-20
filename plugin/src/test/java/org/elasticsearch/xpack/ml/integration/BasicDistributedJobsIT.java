@@ -140,11 +140,11 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
     public void testDedicatedMlNode() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         // start 2 non ml node that will never get a job allocated. (but ml apis are accessable from this node)
-        internalCluster().startNode(Settings.builder().put(MachineLearning.ALLOCATION_ENABLED.getKey(), false));
-        internalCluster().startNode(Settings.builder().put(MachineLearning.ALLOCATION_ENABLED.getKey(), false));
+        internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), false));
+        internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), false));
         // start ml node
         if (randomBoolean()) {
-            internalCluster().startNode(Settings.builder().put(MachineLearning.ALLOCATION_ENABLED.getKey(), true));
+            internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), true));
         } else {
             // the default is based on 'xpack.ml.enabled', which is enabled in base test class.
             internalCluster().startNode();
@@ -165,14 +165,13 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
             Map<String, String> expectedNodeAttr = new HashMap<>();
-            expectedNodeAttr.put(MachineLearning.ALLOCATION_ENABLED_ATTR, "true");
             expectedNodeAttr.put(MAX_RUNNING_JOBS_PER_NODE.getKey(), "10");
             assertEquals(expectedNodeAttr, node.getAttributes());
             assertEquals(JobState.OPENED, task.getStatus());
         });
 
         logger.info("stop the only running ml node");
-        internalCluster().stopRandomNode(settings -> settings.getAsBoolean(MachineLearning.ALLOCATION_ENABLED.getKey(), true));
+        internalCluster().stopRandomNode(settings -> settings.getAsBoolean(MachineLearning.ML_ENABLED.getKey(), true));
         ensureStableCluster(2);
         assertBusy(() -> {
             // job should get and remain in a failed state:
@@ -186,7 +185,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         });
 
         logger.info("start ml node");
-        internalCluster().startNode(Settings.builder().put(MachineLearning.ALLOCATION_ENABLED.getKey(), true));
+        internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), true));
         ensureStableCluster(3);
         assertBusy(() -> {
             // job should be re-opened:
@@ -197,7 +196,6 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertNotNull(task.getExecutorNode());
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
             Map<String, String> expectedNodeAttr = new HashMap<>();
-            expectedNodeAttr.put(MachineLearning.ALLOCATION_ENABLED_ATTR, "true");
             expectedNodeAttr.put(MAX_RUNNING_JOBS_PER_NODE.getKey(), "10");
             assertEquals(expectedNodeAttr, node.getAttributes());
             assertEquals(JobState.OPENED, task.getStatus());
@@ -211,12 +209,12 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         // start non ml node, but that will hold the indices
         logger.info("Start non ml node:");
         String nonMlNode = internalCluster().startNode(Settings.builder()
-                .put(MachineLearning.ALLOCATION_ENABLED.getKey(), false));
+                .put(MachineLearning.ML_ENABLED.getKey(), false));
         logger.info("Starting ml nodes");
         internalCluster().startNodes(numMlNodes, Settings.builder()
                 .put("node.data", false)
                 .put("node.master", false)
-                .put(MachineLearning.ALLOCATION_ENABLED.getKey(), true).build());
+                .put(MachineLearning.ML_ENABLED.getKey(), true).build());
         ensureStableCluster(numMlNodes + 1);
 
         int maxConcurrentJobAllocations = randomIntBetween(1, 4);
@@ -273,7 +271,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             Runnable r = () -> {
                 try {
                     internalCluster()
-                            .stopRandomNode(settings -> settings.getAsBoolean(MachineLearning.ALLOCATION_ENABLED.getKey(), false));
+                            .stopRandomNode(settings -> settings.getAsBoolean(MachineLearning.ML_ENABLED.getKey(), false));
                 } catch (IOException e) {
                     logger.error("error stopping node", e);
                 }
@@ -294,7 +292,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         internalCluster().startNodes(numMlNodes, Settings.builder()
                 .put("node.data", false)
                 .put("node.master", false)
-                .put(MachineLearning.ALLOCATION_ENABLED.getKey(), true).build());
+                .put(MachineLearning.ML_ENABLED.getKey(), true).build());
 
         ensureStableCluster(1 + numMlNodes);
         assertBusy(() -> {

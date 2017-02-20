@@ -149,9 +149,8 @@ public class MachineLearning extends Plugin implements ActionPlugin {
     public static final Setting<Boolean> USE_NATIVE_PROCESS_OPTION = Setting.boolSetting("useNativeProcess", true, Property.NodeScope,
             Property.Deprecated);
 
-    public static final String ALLOCATION_ENABLED_ATTR = "xpack.ml.allocation_enabled";
-    public static final Setting<Boolean> ALLOCATION_ENABLED = Setting.boolSetting("node.attr." + ALLOCATION_ENABLED_ATTR,
-            XPackSettings.MACHINE_LEARNING_ENABLED, Setting.Property.NodeScope);
+    public static final Setting<Boolean> ML_ENABLED =
+            Setting.boolSetting("node.ml", XPackSettings.MACHINE_LEARNING_ENABLED, Setting.Property.NodeScope);
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
             Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
 
@@ -175,7 +174,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
     public List<Setting<?>> getSettings() {
         return Collections.unmodifiableList(
                 Arrays.asList(USE_NATIVE_PROCESS_OPTION,
-                        ALLOCATION_ENABLED,
+                        ML_ENABLED,
                         CONCURRENT_JOB_ALLOCATIONS,
                         ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING,
                         ProcessCtrl.MAX_ANOMALY_RECORDS_SETTING,
@@ -186,25 +185,18 @@ public class MachineLearning extends Plugin implements ActionPlugin {
 
     @Override
     public Settings additionalSettings() {
-        Settings.Builder additionalSettings = Settings.builder();
-        Boolean allocationEnabled = settings.getAsBoolean(ALLOCATION_ENABLED.getKey(), null);
-        if (enabled == false) {
-            if (allocationEnabled != null) {
-                // if the ml plugin has been disabled the ml allocation enabled node attribute shouldn't be set,
-                // otherwise other nodes will allocate jobs to this node and that will fail, because ml hasn't been loaded.
-                throw new IllegalArgumentException("Can't specify [" + ALLOCATION_ENABLED.getKey() + "] to true when [" +
-                        XPackSettings.MACHINE_LEARNING_ENABLED.getKey() + "] has been set to false");
-            }
+        if (enabled == false || this.transportClientMode) {
             return super.additionalSettings();
         }
-        if (allocationEnabled == null) {
-            // Make sure that we explicitly set allocation enabled node attribute if it has been specified in the node
-            // settings. So we can always rely on it during assigning job tasks to nodes.
-            additionalSettings.put(ALLOCATION_ENABLED.getKey(), ALLOCATION_ENABLED.get(settings));
+
+        Settings.Builder additionalSettings = Settings.builder();
+        additionalSettings.put(super.additionalSettings());
+        Boolean allocationEnabled = ML_ENABLED.get(settings);
+        if (allocationEnabled != null && allocationEnabled) {
+            // Copy max_running_jobs setting to node attribute, so that we use this information when assigning job tasks to nodes:
+            additionalSettings.put("node.attr." + AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(),
+                    AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.get(settings));
         }
-        // Add max running job limit as node attribute so that we use this information assigning job tasks to nodes
-        additionalSettings.put("node.attr." + AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(),
-                AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.get(settings));
         return additionalSettings.build();
     }
 

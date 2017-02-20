@@ -376,8 +376,8 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         PersistentTasksInProgress persistentTasksInProgress = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
         for (DiscoveryNode node : clusterState.getNodes()) {
             Map<String, String> nodeAttributes = node.getAttributes();
-            String allocationEnabled = nodeAttributes.get(MachineLearning.ALLOCATION_ENABLED_ATTR);
-            if ("true".equals(allocationEnabled) == false) {
+            String maxNumberOfOpenJobsStr = nodeAttributes.get(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey());
+            if (maxNumberOfOpenJobsStr == null) {
                 String reason = "Not opening job [" + jobId + "] on node [" + node + "], because this node isn't a ml node.";
                 logger.debug(reason);
                 reasons.add(reason);
@@ -410,7 +410,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
                 continue;
             }
 
-            long maxNumberOfOpenJobs = Long.parseLong(node.getAttributes().get(MAX_RUNNING_JOBS_PER_NODE.getKey()));
+            long maxNumberOfOpenJobs = Long.parseLong(maxNumberOfOpenJobsStr);
             long available = maxNumberOfOpenJobs - numberOfAssignedJobs;
             if (available == 0) {
                 String reason = "Not opening job [" + jobId + "] on node [" + node + "], because this node is full. " +

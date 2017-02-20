@@ -60,7 +60,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // Testing deletion
             String docId = "id";
-            createSampleDocument(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")));
+            highLevelClient().index(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")));
             DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
             if (randomBoolean()) {
                 deleteRequest.version(1L);
@@ -74,7 +74,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // Testing version conflict
             String docId = "version_conflict";
-            createSampleDocument(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")));
+            highLevelClient().index(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")));
             DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).version(2);
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                 () -> execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync));
@@ -87,7 +87,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // Testing version type
             String docId = "version_type";
-            createSampleDocument(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar"))
+            highLevelClient().index(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar"))
                 .versionType(VersionType.EXTERNAL).version(12));
             DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).versionType(VersionType.EXTERNAL).version(13);
             DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
@@ -99,7 +99,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // Testing version type with a wrong version
             String docId = "wrong_version";
-            createSampleDocument(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar"))
+            highLevelClient().index(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar"))
                 .versionType(VersionType.EXTERNAL).version(12));
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
                 DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).versionType(VersionType.EXTERNAL).version(10);
@@ -113,7 +113,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         {
             // Testing routing
             String docId = "routing";
-            createSampleDocument(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")).routing("foo"));
+            highLevelClient().index(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")).routing("foo"));
             DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).routing("foo");
             DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
             assertEquals("index", deleteResponse.getIndex());
@@ -343,15 +343,5 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][with_create_op_type]: " +
                          "version conflict, document already exists (current version [1])]", exception.getMessage());
         }
-    }
-
-    /**
-     * Index a document
-     * @param request index request
-     * @throws IOException if something goes wrong while executing the index request
-     */
-    private void createSampleDocument(IndexRequest request) throws IOException {
-        IndexResponse indexResponse = execute(request, highLevelClient()::index, highLevelClient()::indexAsync);
-        assertEquals(RestStatus.CREATED, indexResponse.status());
     }
 }

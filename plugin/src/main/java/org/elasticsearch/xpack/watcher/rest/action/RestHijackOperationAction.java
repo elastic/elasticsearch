@@ -43,6 +43,10 @@ public class RestHijackOperationAction extends WatcherRestHandler {
             controller.registerHandler(PUT, Watch.INDEX + "/watch/_bulk", unsupportedHandler);
             controller.registerHandler(PUT, Watch.INDEX + "/_bulk", unsupportedHandler);
             controller.registerHandler(DELETE, Watch.INDEX, unsupportedHandler);
+            controller.registerHandler(POST, Watch.INDEX + "/_delete_by_query", unsupportedHandler);
+            controller.registerHandler(POST, Watch.INDEX + "/watch/_delete_by_query", unsupportedHandler);
+            controller.registerHandler(POST, Watch.INDEX + "/_update_by_query", unsupportedHandler);
+            controller.registerHandler(POST, Watch.INDEX + "/watch/_update_by_query", unsupportedHandler);
         }
     }
 

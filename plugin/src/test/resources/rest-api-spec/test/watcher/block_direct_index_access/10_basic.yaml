@@ -48,7 +48,6 @@
             -  { "index": {}}
             -  {}
 
-
   - do:
       catch: /not supported/
       bulk:
@@ -56,3 +55,29 @@
           body:
             -  { "index": {}}
             -  {}
+
+  - do:
+      catch: /not supported/
+      delete_by_query:
+          index: ".watches"
+          body: {}
+
+  - do:
+      catch: /not supported/
+      delete_by_query:
+          index: ".watches"
+          type: "watch"
+          body: {}
+
+  - do:
+      catch: /not supported/
+      update_by_query:
+          index: ".watches"
+          body: {}
+
+  - do:
+      catch: /not supported/
+      update_by_query:
+          index: ".watches"
+          type: "watch"
+          body: {}

@@ -35,7 +35,7 @@ import java.io.IOException;
  */
 public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry> {
 
-    private static final String NAME = "phrase";
+    public static final String NAME = "phrase";
     public static final int TYPE = 3;
 
     public PhraseSuggestion() {

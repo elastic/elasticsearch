@@ -41,7 +41,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
-    private static final String NAME = "term";
+    public static final String NAME = "term";
 
     public static final Comparator<Suggestion.Entry.Option> SCORE = new Score();
     public static final Comparator<Suggestion.Entry.Option> FREQUENCY = new Frequency();

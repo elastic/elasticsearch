@@ -26,6 +26,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -64,28 +65,8 @@ public class RequestTests extends ESTestCase {
 
         Map<String, String> expectedParams = new HashMap<>();
 
-        if (randomBoolean()) {
-            long version = randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED, Versions.NOT_FOUND, randomNonNegativeLong());
-            deleteRequest.version(version);
-            if (version != Versions.MATCH_ANY) {
-                expectedParams.put("version", Long.toString(version));
-            }
-        }
-        if (randomBoolean()) {
-            VersionType versionType = randomFrom(VersionType.values());
-            deleteRequest.versionType(versionType);
-            if (versionType != VersionType.INTERNAL) {
-                expectedParams.put("version_type", versionType.name().toLowerCase(Locale.ROOT));
-            }
-        }
-
-        if (randomBoolean()) {
-            String timeout = randomTimeValue();
-            deleteRequest.timeout(timeout);
-            expectedParams.put("timeout", timeout);
-        } else {
-            expectedParams.put("timeout", ReplicationRequest.DEFAULT_TIMEOUT.getStringRep());
-        }
+        enrichDocWriteRequest(deleteRequest, expectedParams);
+        enrichReplicationRequest(deleteRequest, expectedParams);
 
         if (frequently()) {
             if (randomBoolean()) {
@@ -97,14 +78,6 @@ public class RequestTests extends ESTestCase {
                 String parent = randomAsciiOfLengthBetween(3, 10);
                 deleteRequest.parent(parent);
                 expectedParams.put("parent", parent);
-            }
-
-            if (randomBoolean()) {
-                WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
-                deleteRequest.setRefreshPolicy(refreshPolicy);
-                if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
-                    expectedParams.put("refresh", refreshPolicy.getValue());
-                }
             }
         }
 
@@ -244,34 +217,8 @@ public class RequestTests extends ESTestCase {
             }
         }
 
-        // There is some logic around _create endpoint and version/version type
-        if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
-            indexRequest.version(randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED));
-            expectedParams.put("version", Long.toString(Versions.MATCH_DELETED));
-        } else {
-            if (randomBoolean()) {
-                long version = randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED, Versions.NOT_FOUND, randomNonNegativeLong());
-                indexRequest.version(version);
-                if (version != Versions.MATCH_ANY) {
-                    expectedParams.put("version", Long.toString(version));
-                }
-            }
-            if (randomBoolean()) {
-                VersionType versionType = randomFrom(VersionType.values());
-                indexRequest.versionType(versionType);
-                if (versionType != VersionType.INTERNAL) {
-                    expectedParams.put("version_type", versionType.name().toLowerCase(Locale.ROOT));
-                }
-            }
-        }
-
-        if (randomBoolean()) {
-            String timeout = randomTimeValue();
-            indexRequest.timeout(timeout);
-            expectedParams.put("timeout", timeout);
-        } else {
-            expectedParams.put("timeout", ReplicationRequest.DEFAULT_TIMEOUT.getStringRep());
-        }
+        enrichDocWriteRequest(indexRequest, expectedParams);
+        enrichReplicationRequest(indexRequest, expectedParams);
 
         if (frequently()) {
             if (randomBoolean()) {
@@ -288,14 +235,6 @@ public class RequestTests extends ESTestCase {
                 String pipeline = randomAsciiOfLengthBetween(3, 10);
                 indexRequest.setPipeline(pipeline);
                 expectedParams.put("pipeline", pipeline);
-            }
-
-            if (randomBoolean()) {
-                WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
-                indexRequest.setRefreshPolicy(refreshPolicy);
-                if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
-                    expectedParams.put("refresh", refreshPolicy.getValue());
-                }
             }
         }
 
@@ -365,5 +304,46 @@ public class RequestTests extends ESTestCase {
         assertEquals("/a/b", Request.endpoint("a", "b"));
         assertEquals("/a/b/_create", Request.endpoint("a", "b", "_create"));
         assertEquals("/a/b/c/_create", Request.endpoint("a", "b", "c", "_create"));
+    }
+
+    private void enrichReplicationRequest(ReplicatedWriteRequest request, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            String timeout = randomTimeValue();
+            request.timeout(timeout);
+            expectedParams.put("timeout", timeout);
+        } else {
+            expectedParams.put("timeout", ReplicationRequest.DEFAULT_TIMEOUT.getStringRep());
+        }
+
+        if (randomBoolean()) {
+            WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
+            request.setRefreshPolicy(refreshPolicy);
+            if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
+                expectedParams.put("refresh", refreshPolicy.getValue());
+            }
+        }
+    }
+
+    private void enrichDocWriteRequest(DocWriteRequest request, Map<String, String> expectedParams) {
+        // There is some logic around _create endpoint and version/version type
+        if (request.opType() == DocWriteRequest.OpType.CREATE) {
+            request.version(randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED));
+            expectedParams.put("version", Long.toString(Versions.MATCH_DELETED));
+        } else {
+            if (randomBoolean()) {
+                long version = randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED, Versions.NOT_FOUND, randomNonNegativeLong());
+                request.version(version);
+                if (version != Versions.MATCH_ANY) {
+                    expectedParams.put("version", Long.toString(version));
+                }
+            }
+            if (randomBoolean()) {
+                VersionType versionType = randomFrom(VersionType.values());
+                request.versionType(versionType);
+                if (versionType != VersionType.INTERNAL) {
+                    expectedParams.put("version_type", versionType.name().toLowerCase(Locale.ROOT));
+                }
+            }
+        }
     }
 }

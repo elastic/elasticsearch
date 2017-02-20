@@ -23,8 +23,10 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
@@ -46,8 +48,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class SuggestionTests extends ESTestCase {
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    private static final Class<Suggestion>[] SUGGESTION_TYPES = new Class[] {
+    @SuppressWarnings({ "unchecked" })
+    private static final Class<Suggestion<? extends Entry<? extends Option>>>[] SUGGESTION_TYPES = new Class[] {
         Suggestion.class, TermSuggestion.class, PhraseSuggestion.class, CompletionSuggestion.class
     };
 
@@ -75,11 +77,14 @@ public class SuggestionTests extends ESTestCase {
             suggestion = new CompletionSuggestion(name, size);
             entrySupplier = () -> SuggestionEntryTests.createTestItem(CompletionSuggestion.Entry.class);
         }
-        int numEntries = randomIntBetween(1, 5);
-        if (type == CompletionSuggestion.class) {
-            numEntries = 1; // CompletionSuggestion must have only one entry
-        }
-        if (rarely()) {
+        int numEntries;
+        if (frequently()) {
+            if (type == CompletionSuggestion.class) {
+                numEntries = 1; // CompletionSuggestion can have max. one entry
+            } else {
+                numEntries = randomIntBetween(1, 5);
+            }
+        } else {
             numEntries = 0; // also occasionally test zero entries
         }
         for (int i = 0; i < numEntries; i++) {
@@ -91,7 +96,7 @@ public class SuggestionTests extends ESTestCase {
     @SuppressWarnings({ "rawtypes" })
     public void testFromXContent() throws IOException {
         ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
-        for (Class<Suggestion> type : SUGGESTION_TYPES) {
+        for (Class<Suggestion<? extends Entry<? extends Option>>> type : SUGGESTION_TYPES) {
             Suggestion suggestion = createTestItem(type);
             XContentType xContentType = randomFrom(XContentType.values());
             boolean humanReadable = randomBoolean();
@@ -126,6 +131,27 @@ public class SuggestionTests extends ESTestCase {
                     "Cannot parse suggestion response without type information. "
                     + "Set [typed_keys] parameter on the request to ensure the type information "
                     + "is added to the response output", e.getMessage());
+        }
+    }
+
+    public void testUnknownSuggestionTypeThrows() throws IOException {
+        XContent xContent = JsonXContent.jsonXContent;
+        String suggestionString =
+                 "{\"unknownType#suggestionName\":"
+                    + "[{\"text\":\"entryText\","
+                    + "\"offset\":42,"
+                    + "\"length\":313,"
+                    + "\"options\":[{\"text\":\"someText\","
+                                + "\"highlighted\":\"somethingHighlighted\","
+                                + "\"score\":1.3,"
+                                + "\"collate_match\":true}]"
+                            + "}]"
+                + "}";
+        try (XContentParser parser = xContent.createParser(xContentRegistry(), suggestionString)) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+            ParsingException e = expectThrows(ParsingException.class, () -> Suggestion.fromXContent(parser));
+            assertEquals("Unknown suggestion type [unknownType]", e.getMessage());
         }
     }
 

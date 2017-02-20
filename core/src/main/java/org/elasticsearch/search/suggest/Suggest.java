@@ -401,24 +401,27 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             }
             Suggestion suggestion = null;
             Function<XContentParser, Entry> entryParser = null;
-            /// the "size" parameter and the SortBy for TermSuggestion cannot be parsed from the response, use default values
+            // the "size" parameter and the SortBy for TermSuggestion cannot be parsed from the response, use default values
+            // TODO investigate if we can use NamedXContentRegistry instead of this switch
             switch (type) {
-            case Suggestion.NAME:
-                suggestion = new Suggestion(name, -1);
-                entryParser = Suggestion.Entry::fromXContent;
-                break;
-            case PhraseSuggestion.NAME:
-                suggestion = new PhraseSuggestion(name, -1);
-                entryParser = PhraseSuggestion.Entry::fromXContent;
-                break;
-            case TermSuggestion.NAME:
-                suggestion = new TermSuggestion(name, -1, SortBy.SCORE);
-                entryParser = TermSuggestion.Entry::fromXContent;
-                break;
-            case CompletionSuggestion.NAME:
-                suggestion = new CompletionSuggestion(name, -1);
-                entryParser = CompletionSuggestion.Entry::fromXContent;
-                break;
+                case Suggestion.NAME:
+                    suggestion = new Suggestion(name, -1);
+                    entryParser = Suggestion.Entry::fromXContent;
+                    break;
+                case PhraseSuggestion.NAME:
+                    suggestion = new PhraseSuggestion(name, -1);
+                    entryParser = PhraseSuggestion.Entry::fromXContent;
+                    break;
+                case TermSuggestion.NAME:
+                    suggestion = new TermSuggestion(name, -1, SortBy.SCORE);
+                    entryParser = TermSuggestion.Entry::fromXContent;
+                    break;
+                case CompletionSuggestion.NAME:
+                    suggestion = new CompletionSuggestion(name, -1);
+                    entryParser = CompletionSuggestion.Entry::fromXContent;
+                    break;
+                default:
+                    throw new ParsingException(parser.getTokenLocation(), "Unknown suggestion type [{}]", type);
             }
             ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
             while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {

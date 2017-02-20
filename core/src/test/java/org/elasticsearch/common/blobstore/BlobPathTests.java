@@ -22,6 +22,7 @@ package org.elasticsearch.common.blobstore;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class BlobPathTests extends ESTestCase {
 
@@ -35,5 +36,10 @@ public class BlobPathTests extends ESTestCase {
         path = path.add("b").add("c");
         assertThat(path.buildAsString(), is("a/b/c/"));
 
+        path = path.add("d/");
+        assertThat(path.buildAsString(), is("a/b/c/d/"));
+
+        path = path.add("e/");
+        assertThat(path.buildAsString(), is(not("a/b/c/d/e//")));
     }
 }

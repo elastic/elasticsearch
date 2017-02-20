@@ -668,7 +668,7 @@ public class SearchPhaseController extends AbstractComponent {
         public void consumeResult(int shardIndex, QuerySearchResultProvider result) {
             super.consumeResult(shardIndex, result);
             QuerySearchResult queryResult = result.queryResult();
-            assert queryResult.hasAggs();
+            assert queryResult.hasAggs() : "this collector should only be used if aggs are requested";
             consumeInternal(queryResult);
         }
 

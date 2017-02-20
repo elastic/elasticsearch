@@ -99,8 +99,8 @@ public class BulkItemResponseTests extends ESTestCase {
 
         final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();
 
-        BulkItemResponse bulkItemResponse = new BulkItemResponse(itemId, opType, new Failure(index, type, id, (Exception)  exceptions.v1()));
-        BulkItemResponse expectedBulkItemResponse = new BulkItemResponse(itemId, opType, new Failure(index, type, id,  exceptions.v2()));
+        BulkItemResponse bulkItemResponse = new BulkItemResponse(itemId, opType, new Failure(index, type, id, (Exception) exceptions.v1()));
+        BulkItemResponse expectedBulkItemResponse = new BulkItemResponse(itemId, opType, new Failure(index, type, id, exceptions.v2()));
         BytesReference originalBytes = toXContent(bulkItemResponse, xContentType, randomBoolean());
 
         // Shuffle the XContent fields
@@ -143,6 +143,7 @@ public class BulkItemResponseTests extends ESTestCase {
             if (expected.getOpType() == DocWriteRequest.OpType.UPDATE) {
                 UpdateResponseTests.assertUpdateResponse(expected.getResponse(), actual.getResponse());
             } else {
+                // assertDocWriteResponse check the result for INDEX/CREATE and DELETE operations
                 IndexResponseTests.assertDocWriteResponse(expected.getResponse(), actual.getResponse());
             }
         }

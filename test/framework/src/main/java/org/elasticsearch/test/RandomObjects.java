@@ -271,7 +271,7 @@ public final class RandomObjects {
         String indexUuid = randomAsciiOfLength(random, 5);
         int shardId = randomIntBetween(random, 1, 10);
         String nodeId = randomAsciiOfLength(random, 5);
-        RestStatus status = randomFrom(random, RestStatus.values());
+        RestStatus status = randomFrom(random, RestStatus.INTERNAL_SERVER_ERROR, RestStatus.FORBIDDEN, RestStatus.NOT_FOUND);
         boolean primary = random.nextBoolean();
         ShardId shard = new ShardId(index, indexUuid, shardId);
 

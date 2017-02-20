@@ -27,7 +27,6 @@ import org.apache.http.HttpResponse;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
-import org.apache.http.entity.BasicHttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -144,7 +143,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         }
         {
             IllegalStateException ise = expectThrows(IllegalStateException.class,
-                    () -> RestHighLevelClient.parseEntity(new BasicHttpEntity(), null));
+                    () -> RestHighLevelClient.parseEntity(new StringEntity("", (ContentType) null), null));
             assertEquals("Elasticsearch didn't return the [Content-Type] header, unable to parse response body", ise.getMessage());
         }
         {

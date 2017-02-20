@@ -19,6 +19,9 @@ In previous versions of Elasticsearch, having a proper Content-Type for the data
 Elasticsearch 6.0.0 enforces that all requests with a body must have a supported Content-Type and this type will
 be used when parsing the data.
 
+When using the `source` query string parameter, the `source_content_type` parameter must also be specified with
+the media type of the source.
+
 ==== Boolean API parameters
 
 All REST APIs parameters (both request parameters and JSON body) support providing boolean "false" as the

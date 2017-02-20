@@ -38,7 +38,7 @@ integTest {
   cluster {
     numNodes = 4
     numBwcNodes = 2
-    bwcVersion = "5.3.0-SNAPSHOT"
+    bwcVersion = "5.4.0-SNAPSHOT"
     setting 'logger.org.elasticsearch', 'DEBUG'
   }
 }

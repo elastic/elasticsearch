@@ -45,11 +45,6 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         super();
     }
 
-    @Deprecated
-    public PutStoredScriptRequest(String id, String lang, BytesReference content) {
-        this(id, lang, content, XContentFactory.xContentType(content));
-    }
-
     public PutStoredScriptRequest(String id, String lang, BytesReference content, XContentType xContentType) {
         super();
         this.id = id;
@@ -105,15 +100,6 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
 
     public XContentType xContentType() {
         return xContentType;
-    }
-
-    /**
-     * Set the script source using bytes.
-     * @deprecated this method is deprecated as it relies on content type detection. Use {@link #content(BytesReference, XContentType)}
-     */
-    @Deprecated
-    public PutStoredScriptRequest content(BytesReference content) {
-        return content(content, XContentFactory.xContentType(content));
     }
 
     /**

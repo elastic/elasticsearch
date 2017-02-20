@@ -62,7 +62,7 @@ public class RestIndexAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
         indexRequest.routing(request.param("routing"));
-        indexRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+        indexRequest.parent(request.param("parent"));
         indexRequest.setPipeline(request.param("pipeline"));
         indexRequest.source(request.content(), request.getXContentType());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));

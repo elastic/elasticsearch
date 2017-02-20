@@ -243,7 +243,7 @@ public class BulkRequestTests extends ESTestCase {
         }
 
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(data, null, null);
+        bulkRequest.add(data, null, null, xContentType);
         assertEquals(1, bulkRequest.requests().size());
         DocWriteRequest docWriteRequest = bulkRequest.requests().get(0);
         assertEquals(DocWriteRequest.OpType.INDEX, docWriteRequest.opType());

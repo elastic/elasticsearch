@@ -35,6 +35,7 @@ import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -1064,7 +1065,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject()
                 .string();
 
-        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping).get());
+        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping, XContentType.JSON).get());
         ensureGreen();
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "strings make me happy", FIELD + "_1", "nulls make me sad")

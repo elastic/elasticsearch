@@ -291,32 +291,10 @@ public class BulkProcessor implements Closeable {
 
     /**
      * Adds the data from the bytes to be processed by the bulk processor
-     * @deprecated use {@link #add(BytesReference, String, String, XContentType)} instead to avoid content type auto-detection
-     */
-    @Deprecated
-    public BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
-        return add(data, defaultIndex, defaultType, null, null);
-    }
-
-    /**
-     * Adds the data from the bytes to be processed by the bulk processor
      */
     public BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
                              XContentType xContentType) throws Exception {
         return add(data, defaultIndex, defaultType, null, null, xContentType);
-    }
-
-    /**
-     * Adds the data from the bytes to be processed by the bulk processor
-     * @deprecated use {@link #add(BytesReference, String, String, String, Object, XContentType)} instead to avoid content type
-     * auto-detection
-     */
-    @Deprecated
-    public synchronized BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
-                                          @Nullable String defaultPipeline, @Nullable Object payload) throws Exception {
-        bulkRequest.add(data, defaultIndex, defaultType, null, null, null, defaultPipeline, payload, true);
-        executeIfNeeded();
-        return this;
     }
 
     /**

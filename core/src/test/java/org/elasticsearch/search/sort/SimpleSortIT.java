@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -243,7 +244,7 @@ public class SimpleSortIT extends ESIntegTestCase {
                     .endObject()
                 .endObject().string();
 
-        assertAcked(prepareCreate("test").addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
@@ -355,7 +356,7 @@ public class SimpleSortIT extends ESIntegTestCase {
                         .endObject()
                     .endObject()
                 .endObject().string();
-        assertAcked(prepareCreate("test").addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
         ensureGreen();
 
         client().prepareIndex("test", "type1")

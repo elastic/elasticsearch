@@ -715,7 +715,7 @@ public class SearchPhaseController extends AbstractComponent {
         return new InitialSearchPhase.SearchPhaseResults(numShards) {
             @Override
             public ReducedQueryPhase reduce() {
-                return reducedQueryPhase(results.asList(), null);
+                return reducedQueryPhase(results.asList());
             }
         };
     }

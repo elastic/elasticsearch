@@ -20,7 +20,10 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -30,10 +33,12 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.client.RandomizingClient;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
@@ -53,11 +58,42 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
     private static final String LONG_FIELD_NAME = "l_value";
     private static final String DOUBLE_FIELD_NAME = "d_value";
 
+
     public static String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(ExecutionMode.values()).toString();
     }
 
     private static int numRoutingValues;
+
+    public static Client client() {
+        Client client = ESIntegTestCase.client();
+        if (client instanceof RandomizingClient) {
+            return new FilterClient(client) {
+                /* this test doesn't work with multiple reduce phases since:
+                 * the error for a term is the sum of the errors across all aggs that need to be reduced.
+                 * if the term is in the aggregation, then we just use the associated error, but if it is not we need to use the
+                 * aggregation-level error, ie. the maximum count that a doc that is not in the top list could have.
+                 *
+                 * the problem is that the logic we have today assumes there is a single reduce. So for instance for the agg-level error
+                 * it takes the count of the last term. This is correct if the agg was produced on a shard: if it had a greater count
+                 * then it would be in the top list. However if we are on an intermediate reduce, this does not work anymore.
+                 *
+                 * Another assumption that does not hold is that right now if a term is present in an agg, we assume its count is accurate.
+                 * Again this is true if the agg was produced on a shard, but not if this is the result of an intermediate reduce.
+                 *
+                 * try with this seed and remove the setReduceUpTo below
+                 *  -Dtests.seed=B32081B1E8589AE5 -Dtests.class=org.elasticsearch.search.aggregations.bucket.TermsDocCountErrorIT
+                 *  -Dtests.method="testDoubleValueField" -Dtests.locale=lv -Dtests.timezone=WET
+                 * This must will be addressed in a followup to #23253
+                 */
+                @Override
+                public SearchRequestBuilder prepareSearch(String... indices) {
+                    return this.in.prepareSearch(indices).setReduceUpTo(512);
+                }
+            };
+        }
+        return client;
+    }
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {

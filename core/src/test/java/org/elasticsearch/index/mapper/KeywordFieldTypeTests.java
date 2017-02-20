@@ -32,6 +32,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -41,7 +42,9 @@ import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
@@ -106,18 +109,21 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
-    /*public void testTermsQuery() {
+    public void testTermsQuery() {
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
-        assertEquals(new TermInSetQuery(new Term("field", "foo"), new Term("field", "bar")),
+        List<BytesRef> terms = new ArrayList<>();
+        terms.add(new BytesRef("foo"));
+        terms.add(new BytesRef("bar"));
+        assertEquals(new TermInSetQuery("field", terms),
                 ft.termsQuery(Arrays.asList("foo", "bar"), null));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> ft.termsQuery(Arrays.asList("foo", "bar"), null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
-    }*/
+    }
 
     public void testRegexpQuery() {
         MappedFieldType ft = createDefaultFieldType();

@@ -45,7 +45,7 @@ public class BulkResponseTests extends ESTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
 
-        long took = randomNonNegativeLong();
+        long took = randomFrom(randomNonNegativeLong(), -1L);
         long ingestTook = randomFrom(randomNonNegativeLong(), NO_INGEST_TOOK);
         int nbBulkItems = randomIntBetween(1, 10);
 

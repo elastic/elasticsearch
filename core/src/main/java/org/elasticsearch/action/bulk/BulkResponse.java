@@ -183,7 +183,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
 
-        long took = 0;
+        long took = -1L;
         long ingestTook = NO_INGEST_TOOK;
         List<BulkItemResponse> items = new ArrayList<>();
 

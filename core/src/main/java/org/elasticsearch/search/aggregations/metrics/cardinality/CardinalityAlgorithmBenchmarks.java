@@ -33,8 +33,8 @@ public class CardinalityAlgorithmBenchmarks {
     }
 
     public static void main(String[] args) throws Exception {
-        for (int precision = 25; precision <= 25; precision++) {
-            File outFile = new File("/Users/colings86/dev/work/git/elasticsearch/gnuplot/hllBBenchmark" + precision + "-paper.dat");
+        for (int precision = 14; precision <= 14; precision++) {
+            File outFile = new File("/Users/colings86/dev/work/git/elasticsearch/gnuplot/hllBBenchmark" + precision + "-new.dat");
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(outFile))) {
                 HyperLogLogPlusPlus hllpp = new HyperLogLogPlusPlus(14, BigArrays.NON_RECYCLING_INSTANCE, 1);
 

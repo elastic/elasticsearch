@@ -6,14 +6,14 @@ set xlabel "Actual cardinality"
 set logscale x
 
 set ylabel "Relative error (%)"
-set yrange [0:100]
+set yrange [0:20]
 
 set title "Cardinality error"
 set grid
 
 set style data lines
 
-plot "hllBBenchmark25-paper.dat" using 1:2 title "hll++", \
+plot "hllBBenchmark14-new.dat" using 1:2 title "hll++", \
 "" using 1:3 title "hllB - old", \
 "" using 1:4 title "linear counting", \
 "" using 1:5 title "llB - new", \

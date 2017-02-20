@@ -175,6 +175,7 @@ public final class InternalBinaryRange
             Bucket bucket = (Bucket) o;
 
             if (docCount != bucket.docCount) return false;
+            // keyed and format are ignored since they are already tested on the InternalBinaryRange object
             return Objects.equals(key, bucket.key) &&
                 Objects.equals(from, bucket.from) &&
                 Objects.equals(to, bucket.to) &&
@@ -183,7 +184,7 @@ public final class InternalBinaryRange
 
         @Override
         public int hashCode() {
-            return Objects.hash(keyed, format, docCount, key, from, to, aggregations);
+            return Objects.hash(getClass(), docCount, key, from, to, aggregations);
         }
     }
 

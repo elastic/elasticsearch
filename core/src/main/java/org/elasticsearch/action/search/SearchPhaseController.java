@@ -658,30 +658,34 @@ public class SearchPhaseController extends AbstractComponent {
             return true;
         }
 
-        private synchronized void consumeInternal(QuerySearchResult querySearchResult) {
-            assert hasAggs == null || hasAggs;
-            hasAggs = Boolean.TRUE;
+        private void consumeInternal(QuerySearchResult querySearchResult) {
             if (buffer != null) {
-                InternalAggregations aggregations = (InternalAggregations) querySearchResult.consumeAggs();
-                // once the size is incremented to the length of the buffer we know all elements are added
-                // we also have happens before guarantees due to the memory barrier of the size write
-                if (index == buffer.length) {
-                    InternalAggregations reducedAggs = controller.reduceAggsOnly(Arrays.asList(buffer));
-                    Arrays.fill(buffer, null);
-                    buffer[0] = reducedAggs;
-                    index = 1;
+                synchronized (this) { // only sync if we really need to - if there is no buffering there is no need
+                    assert hasAggs == null || hasAggs;
+                    hasAggs = Boolean.TRUE;
+                    InternalAggregations aggregations = (InternalAggregations) querySearchResult.consumeAggs();
+                    // once the size is incremented to the length of the buffer we know all elements are added
+                    // we also have happens before guarantees due to the memory barrier of the size write
+                    if (index == buffer.length) {
+                        InternalAggregations reducedAggs = controller.reduceAggsOnly(Arrays.asList(buffer));
+                        Arrays.fill(buffer, null);
+                        buffer[0] = reducedAggs;
+                        index = 1;
+                    }
+                    final int i = index++;
+                    buffer[i] = aggregations;
                 }
-                final int i = index++;
-                buffer[i] = aggregations;
             }
 
         }
 
-        private synchronized List<InternalAggregations> getRemaining() {
+        private List<InternalAggregations> getRemaining() {
             if (buffer == null) {
                 return null; // we have no buffer..
             } else {
-                return Arrays.asList(buffer).subList(0, index);
+                synchronized (this) {
+                    return Arrays.asList(buffer).subList(0, index);
+                }
             }
         }
 

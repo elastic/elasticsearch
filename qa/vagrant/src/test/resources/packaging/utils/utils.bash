@@ -508,7 +508,7 @@ run_elasticsearch_tests() {
       }
     }' | grep \"count\"\ :\ 2
 
-    curl -s -XGET 'http://localhost:9200/library/book/_search/template?pretty' -d '{
+    curl -s -H "Content-Type: application/json" -XGET 'http://localhost:9200/library/book/_search/template?pretty' -d '{
       "file": "is_guide"
     }' | grep \"total\"\ :\ 1
 

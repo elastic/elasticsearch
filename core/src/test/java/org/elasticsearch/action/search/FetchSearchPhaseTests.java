@@ -47,7 +47,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testShortcutQueryAndFetchOptimization() throws IOException {
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
-        SearchPhaseController.QueryPhaseResultConsumer results = new SearchPhaseController.QueryPhaseResultConsumer(controller, 1, 1);
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
+        InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> results =
+            controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 1);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         boolean hasHits = randomBoolean();
         final int numHits;
@@ -63,7 +65,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
             numHits = 0;
         }
 
-        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
             (searchResponse) -> new SearchPhase("test") {
             @Override
@@ -83,8 +84,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
     }
 
     public void testFetchTwoDocument() throws IOException {
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
-        SearchPhaseController.QueryPhaseResultConsumer results = new SearchPhaseController.QueryPhaseResultConsumer(controller, 2, 2);
+        InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> results =
+            controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         int resultSetSize = randomIntBetween(2, 10);
         QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0));
@@ -112,7 +115,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 listener.onResponse(fetchResult);
             }
         };
-        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
         FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
             (searchResponse) -> new SearchPhase("test") {
@@ -134,8 +136,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
     }
 
     public void testFailFetchOneDoc() throws IOException {
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
-        SearchPhaseController.QueryPhaseResultConsumer results = new SearchPhaseController.QueryPhaseResultConsumer(controller, 2, 2);
+        InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> results =
+            controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         int resultSetSize = randomIntBetween(2, 10);
         QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0));
@@ -163,7 +167,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
             }
         };
-        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
         FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
             (searchResponse) -> new SearchPhase("test") {
@@ -191,8 +194,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
         // we use at least 2 hits otherwise this is subject to single shard optimization and we trip an assert...
         int numHits = randomIntBetween(2, 100); // also numshards --> 1 hit per shard
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
-        SearchPhaseController.QueryPhaseResultConsumer results = new SearchPhaseController.QueryPhaseResultConsumer(controller,
-            numHits, numHits);
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(numHits);
+        InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> results =
+            controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), numHits);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         for (int i = 0; i < numHits; i++) {
             QuerySearchResult queryResult = new QuerySearchResult(i, new SearchShardTarget("node1", new Index("test", "na"), 0));
@@ -212,7 +216,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 }).start();
             }
         };
-        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(numHits);
         mockSearchPhaseContext.searchTransport = searchTransportService;
         CountDownLatch latch = new CountDownLatch(1);
         FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
@@ -244,8 +247,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
     }
 
     public void testExceptionFailsPhase() throws IOException {
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
-        SearchPhaseController.QueryPhaseResultConsumer results = new SearchPhaseController.QueryPhaseResultConsumer(controller, 2, 2);
+        InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> results =
+            controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         int resultSetSize = randomIntBetween(2, 10);
         QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0));
@@ -276,7 +281,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 listener.onResponse(fetchResult);
             }
         };
-        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
         FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
             (searchResponse) -> new SearchPhase("test") {
@@ -294,8 +298,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
     }
 
     public void testCleanupIrrelevantContexts() throws IOException { // contexts that are not fetched should be cleaned up
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY, BigArrays.NON_RECYCLING_INSTANCE, null);
-        SearchPhaseController.QueryPhaseResultConsumer results = new SearchPhaseController.QueryPhaseResultConsumer(controller, 2, 2);
+        InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> results =
+            controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
         AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
         int resultSetSize = 1;
         QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0));
@@ -322,7 +328,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 listener.onResponse(fetchResult);
             }
         };
-        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
         FetchSearchPhase phase = new FetchSearchPhase(results, controller, mockSearchPhaseContext,
             (searchResponse) -> new SearchPhase("test") {

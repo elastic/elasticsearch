@@ -28,9 +28,12 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -55,6 +58,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class SearchPhaseControllerTests extends ESTestCase {
     private SearchPhaseController searchPhaseController;
@@ -239,8 +243,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
     public void testConsumer() {
         int bufferSize = randomIntBetween(2, 3);
-        SearchPhaseController.QueryPhaseResultConsumer consumer = new SearchPhaseController.QueryPhaseResultConsumer(searchPhaseController,
-            3, bufferSize);
+        SearchRequest request = new SearchRequest();
+        request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
+        request.setReduceUpTo(bufferSize);
+        InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> consumer = searchPhaseController.newSearchPhaseResults(request, 3);
         QuerySearchResult result = new QuerySearchResult(0, new SearchShardTarget("node", new Index("a", "b"), 0));
         result.topDocs(new TopDocs(0, new ScoreDoc[0], 0.0F), new DocValueFormat[0]);
         InternalAggregations aggs = new InternalAggregations(Arrays.asList(new InternalMax("test", 1.0D, DocValueFormat.RAW,
@@ -262,7 +268,12 @@ public class SearchPhaseControllerTests extends ESTestCase {
         result.aggregations(aggs);
         consumer.consumeResult(1, result);
 
-        assertEquals(bufferSize == 3 ? 0 : 2, consumer.getNumBuffered());
+        if (bufferSize == 2) {
+            assertThat(consumer, instanceOf(SearchPhaseController.QueryPhaseResultConsumer.class));
+            assertEquals(2, ((SearchPhaseController.QueryPhaseResultConsumer)consumer).getNumBuffered());
+        } else {
+            assertThat(consumer, not(instanceOf(SearchPhaseController.QueryPhaseResultConsumer.class)));
+        }
 
         SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
         InternalMax max = (InternalMax) reduce.aggregations.asList().get(0);
@@ -272,8 +283,12 @@ public class SearchPhaseControllerTests extends ESTestCase {
     public void testConsumerConcurrently() throws InterruptedException {
         int expectedNumResults = randomIntBetween(1, 100);
         int bufferSize = randomIntBetween(2, 200);
-        SearchPhaseController.QueryPhaseResultConsumer consumer = new SearchPhaseController.QueryPhaseResultConsumer(searchPhaseController,
-            expectedNumResults, bufferSize);
+
+        SearchRequest request = new SearchRequest();
+        request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
+        request.setReduceUpTo(bufferSize);
+        InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> consumer =
+            searchPhaseController.newSearchPhaseResults(request, expectedNumResults);
         AtomicInteger max = new AtomicInteger();
         CountDownLatch latch = new CountDownLatch(expectedNumResults);
         for (int i = 0; i < expectedNumResults; i++) {
@@ -296,5 +311,27 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
         InternalMax internalMax = (InternalMax) reduce.aggregations.asList().get(0);
         assertEquals(max.get(), internalMax.getValue(), 0.0D);
+    }
+
+    public void testNewSearchPhaseResults() {
+        for (int i = 0; i < 10; i++) {
+            int expectedNumResults = randomIntBetween(1, 10);
+            int bufferSize = randomIntBetween(2, 10);
+            SearchRequest request = new SearchRequest();
+            final boolean hasAggs;
+            if ((hasAggs = randomBoolean())) {
+                request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
+            }
+            request.setReduceUpTo(bufferSize);
+            InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> consumer
+                = searchPhaseController.newSearchPhaseResults(request, expectedNumResults);
+            if (hasAggs && expectedNumResults > bufferSize) {
+                assertThat("expectedNumResults: " + expectedNumResults + " bufferSize: " + bufferSize,
+                    consumer, instanceOf(SearchPhaseController.QueryPhaseResultConsumer.class));
+            } else {
+                assertThat("expectedNumResults: " + expectedNumResults + " bufferSize: " + bufferSize,
+                    consumer, not(instanceOf(SearchPhaseController.QueryPhaseResultConsumer.class)));
+            }
+        }
     }
 }

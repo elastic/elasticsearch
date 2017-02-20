@@ -52,8 +52,7 @@ final class DfsQueryPhase extends SearchPhase {
                   Function<InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider>, SearchPhase> nextPhaseFactory,
                   SearchPhaseContext context) {
         super("dfs_query");
-        this.queryResult = new SearchPhaseController.QueryPhaseResultConsumer(searchPhaseController, dfsSearchResults.length(),
-            context.getRequest().getReduceUpTo());
+        this.queryResult = searchPhaseController.newSearchPhaseResults(context.getRequest(), context.getNumShards());
         this.searchPhaseController = searchPhaseController;
         this.dfsSearchResults = dfsSearchResults;
         this.nextPhaseFactory = nextPhaseFactory;

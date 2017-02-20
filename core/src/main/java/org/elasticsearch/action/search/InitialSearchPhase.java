@@ -229,14 +229,14 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         /**
          * Returns the number of expected results this class should collect
          */
-        public int getNumShards() {
+        final int getNumShards() {
             return results.length();
         }
 
         /**
          * A stream of all non-null (successful) shard results
          */
-        public Stream<Result> getSuccessfulResults() {
+        final Stream<Result> getSuccessfulResults() {
             return results.asList().stream().map(e -> e.value);
         }
 
@@ -245,7 +245,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
          * @param shardIndex the shards index, this is a 0-based id that is used to establish a 1 to 1 mapping to the searched shards
          * @param result the shards result
          */
-        public void consumeResult(int shardIndex, Result result) {
+        void consumeResult(int shardIndex, Result result) {
             assert results.get(shardIndex) == null : "shardIndex: " + shardIndex + " is already set";
             results.set(shardIndex, result);
         }
@@ -253,14 +253,14 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         /**
          * Returns <code>true</code> iff a result if present for the given shard ID.
          */
-        public boolean hasResult(int shardIndex) {
+        final boolean hasResult(int shardIndex) {
             return results.get(shardIndex) != null;
         }
 
         /**
          * Reduces the collected results
          */
-        public SearchPhaseController.ReducedQueryPhase reduce() {
+        SearchPhaseController.ReducedQueryPhase reduce() {
             throw new UnsupportedOperationException("reduce is not supported");
         }
     }

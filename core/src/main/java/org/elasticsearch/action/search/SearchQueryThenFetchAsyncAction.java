@@ -44,7 +44,7 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Qu
                                     SearchTask task) {
         super("query", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, executor,
             request, listener, shardsIts, startTime, clusterStateVersion, task,
-            new SearchPhaseController.QueryPhaseResultConsumer(searchPhaseController, shardsIts.size(), request.getReduceUpTo()));
+            searchPhaseController.newSearchPhaseResults(request, shardsIts.size()));
         this.searchPhaseController = searchPhaseController;
     }
 

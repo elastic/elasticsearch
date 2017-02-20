@@ -44,6 +44,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -493,8 +494,7 @@ public class SearchPhaseController extends AbstractComponent {
         if (bufferdAggs != null) {
             consumeAggs = false;
             // we already have results from intermediate reduces and just need to perform the final reduce
-            assert firstResult.hasAggs() ^ bufferdAggs.isEmpty() : "hasAggs: " + firstResult.hasAggs()
-                + " but bufferedAggs is empty: " + bufferdAggs.isEmpty() ;
+            assert firstResult.hasAggs() : "firstResult has no aggs but we got non null buffered aggs?";
             aggregationsList = bufferdAggs;
         } else if (firstResult.hasAggs()) {
             // the number of shards was less than the buffer size so we reduce agg results directly
@@ -642,7 +642,6 @@ public class SearchPhaseController extends AbstractComponent {
         extends InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> {
         private final InternalAggregations[] buffer;
         private int index;
-        private Boolean hasAggs = null;
         private final SearchPhaseController controller;
 
         /**
@@ -652,61 +651,43 @@ public class SearchPhaseController extends AbstractComponent {
          * @param bufferSize the size of the reduce buffer. if the buffer size is smaller than the number of expected results
          *                   the buffer is used to incrementally reduce aggregation results before all shards responded.
          */
-        QueryPhaseResultConsumer(SearchPhaseController controller, int expectedResultSize, int bufferSize) {
+        private QueryPhaseResultConsumer(SearchPhaseController controller, int expectedResultSize, int bufferSize) {
             super(expectedResultSize);
             this.controller = controller;
             // TODO should we not allocate a buffer if there are no aggs in the search request?
             if (expectedResultSize != 1 && bufferSize < 2) {
                 throw new IllegalArgumentException("buffer size must be >= 2 if there is more than one expected result");
             }
+
+            if (expectedResultSize <= bufferSize) {
+                throw new IllegalArgumentException("buffer size must be less than the expected result size");
+            }
             // no need to buffer anything if we have less expected results. in this case we don't consume any results ahead of time.
-            this.buffer = expectedResultSize <= bufferSize ? null : new InternalAggregations[bufferSize];
+            this.buffer = new InternalAggregations[bufferSize];
         }
 
         @Override
         public void consumeResult(int shardIndex, QuerySearchResultProvider result) {
             super.consumeResult(shardIndex, result);
             QuerySearchResult queryResult = result.queryResult();
-            if (queryResult.hasAggs()) {
-                consumeInternal(queryResult);
-            } else {
-                assert assertNoAggs();
-            }
+            assert queryResult.hasAggs();
+            consumeInternal(queryResult);
         }
 
-        private synchronized boolean assertNoAggs() {
-            assert hasAggs == null || hasAggs == false;
-            hasAggs = Boolean.FALSE;
-            return true;
+        private synchronized void consumeInternal(QuerySearchResult querySearchResult) {
+            InternalAggregations aggregations = (InternalAggregations) querySearchResult.consumeAggs();
+            if (index == buffer.length) {
+                InternalAggregations reducedAggs = controller.reduceAggsIncrementally(Arrays.asList(buffer));
+                Arrays.fill(buffer, null);
+                buffer[0] = reducedAggs;
+                index = 1;
+            }
+            final int i = index++;
+            buffer[i] = aggregations;
         }
 
-        private void consumeInternal(QuerySearchResult querySearchResult) {
-            if (buffer != null) {
-                synchronized (this) { // only sync if we really need to - if there is no buffering there is no need
-                    assert hasAggs == null || hasAggs;
-                    hasAggs = Boolean.TRUE;
-                    InternalAggregations aggregations = (InternalAggregations) querySearchResult.consumeAggs();
-                    if (index == buffer.length) {
-                        InternalAggregations reducedAggs = controller.reduceAggsIncrementally(Arrays.asList(buffer));
-                        Arrays.fill(buffer, null);
-                        buffer[0] = reducedAggs;
-                        index = 1;
-                    }
-                    final int i = index++;
-                    buffer[i] = aggregations;
-                }
-            }
-
-        }
-
-        private List<InternalAggregations> getRemaining() {
-            if (buffer == null) {
-                return null; // we have no buffer..
-            } else {
-                synchronized (this) {
-                    return Arrays.asList(buffer).subList(0, index);
-                }
-            }
+        private synchronized  List<InternalAggregations> getRemaining() {
+            return Arrays.asList(buffer).subList(0, index);
         }
 
         @Override
@@ -720,5 +701,24 @@ public class SearchPhaseController extends AbstractComponent {
         int getNumBuffered() {
             return index;
         }
+    }
+
+    /**
+     * Returns a new SearchPhaseResults instance. This might return an instance that reduces search responses incrementally.
+     */
+    InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> newSearchPhaseResults(SearchRequest request, int numShards) {
+        SearchSourceBuilder source = request.source();
+        if (source != null && source.aggregations() != null) {
+            if (request.getReduceUpTo() < numShards) {
+                // only use this if there are aggs and if there are more shards than we should reduce at once
+                return new QueryPhaseResultConsumer(this, numShards, request.getReduceUpTo());
+            }
+        }
+        return new InitialSearchPhase.SearchPhaseResults(numShards) {
+            @Override
+            public ReducedQueryPhase reduce() {
+                return reducedQueryPhase(results.asList(), null);
+            }
+        };
     }
 }

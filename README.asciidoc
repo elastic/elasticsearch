@@ -6,7 +6,7 @@ A set of Elastic's commercial plugins:
 - Security
 - Watcher
 - Monitoring
-- Machine learning
+- Machine Learning
 
 = Setup
 You must checkout x-pack and elasticsearch with a specific directory structure. The
@@ -14,6 +14,19 @@ elasticsearch checkout will be used when building x-pack. The structure is:
 
 - /path/to/elastic/elasticsearch
 - /path/to/elastic/elasticsearch-extra/x-pack-elasticsearch
+
+== Native Code
+
+**This is mandatory as tests depend on it**
+
+Machine Learning requires platform specific binaries, build from https://github.com/elastic/machine-learning-cpp via CI servers.
+
+The native artifacts are stored in S3. To retrieve them infra's team Vault service is utilized, which 
+requires a github token. Please setup a github token as documented: 
+
+https://github.com/elastic/infra/blob/master/docs/vault.md#github-auth
+
+The github token has to be put into ~/.elastic/github.token, while the file rights must be set to 0600. 
 
 = Build
 
@@ -52,7 +65,3 @@ gradle clean assemble
 gradle clean install
 -----
 
-- If you don't work on the UI/Logstash side of x-plugins, you can force gradle to skip building kibana and/or Logstash by adding
-  `xpack.kibana.build=false`/`xpack.logstash.build=false` to your `~/.gradle/gradle.properties`. Alternatively you add `-Pxpack.kibana.build=false` or `-Pxpack.logstash.build=false`
-  on the command line if you only want to do this on individual builds (or `-Pxpack.kibana.build=true` if you need to
-  override having added this to your `gradle.properties`).

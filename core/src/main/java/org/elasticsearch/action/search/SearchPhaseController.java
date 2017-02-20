@@ -494,6 +494,7 @@ public class SearchPhaseController extends AbstractComponent {
         if (bufferdAggs != null) {
             // we already have results from intermediate reduces and just need to perform the final reduce
             assert firstResult.hasAggs();
+            aggregationsList = bufferdAggs;
         } else if (firstResult.hasAggs()) {
             // the number of shards was less than the buffer size so we reduce agg results directly
             aggregationsList = new ArrayList<>(queryResults.size());

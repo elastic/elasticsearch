@@ -7,7 +7,12 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.xpack.ml.action.PutJobAction;
+import org.elasticsearch.xpack.ml.action.UpdateJobAction;
+import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
@@ -48,6 +53,7 @@ public class AutoDetectResultProcessor {
 
     private static final Logger LOGGER = Loggers.getLogger(AutoDetectResultProcessor.class);
 
+    private final Client client;
     private final String jobId;
     private final Renormalizer renormalizer;
     private final JobResultsPersister persister;
@@ -57,11 +63,13 @@ public class AutoDetectResultProcessor {
 
     private volatile ModelSizeStats latestModelSizeStats;
 
-    public AutoDetectResultProcessor(String jobId, Renormalizer renormalizer, JobResultsPersister persister) {
-        this(jobId, renormalizer, persister, new FlushListener());
+    public AutoDetectResultProcessor(Client client, String jobId, Renormalizer renormalizer, JobResultsPersister persister) {
+        this(client, jobId, renormalizer, persister, new FlushListener());
     }
 
-    AutoDetectResultProcessor(String jobId, Renormalizer renormalizer, JobResultsPersister persister, FlushListener flushListener) {
+    AutoDetectResultProcessor(Client client,String jobId, Renormalizer renormalizer, JobResultsPersister persister,
+                              FlushListener flushListener) {
+        this.client = client;
         this.jobId = jobId;
         this.renormalizer = renormalizer;
         this.persister = persister;
@@ -144,6 +152,7 @@ public class AutoDetectResultProcessor {
         ModelSnapshot modelSnapshot = result.getModelSnapshot();
         if (modelSnapshot != null) {
             persister.persistModelSnapshot(modelSnapshot);
+            updateModelSnapshotIdOnJob(modelSnapshot);
         }
         Quantiles quantiles = result.getQuantiles();
         if (quantiles != null) {
@@ -166,6 +175,22 @@ public class AutoDetectResultProcessor {
             // deleted when the next finalized results come through
             context.deleteInterimRequired = true;
         }
+    }
+
+    protected void updateModelSnapshotIdOnJob(ModelSnapshot modelSnapshot) {
+        JobUpdate update = new JobUpdate.Builder().setModelSnapshotId(modelSnapshot.getSnapshotId()).build();
+        UpdateJobAction.Request updateRequest = new UpdateJobAction.Request(jobId, update);
+        client.execute(UpdateJobAction.INSTANCE, updateRequest, new ActionListener<PutJobAction.Response>() {
+            @Override
+            public void onResponse(PutJobAction.Response response) {
+                LOGGER.debug("[{}] Updated job with model snapshot id [{}]", jobId, modelSnapshot.getSnapshotId());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                LOGGER.error("[" + jobId + "] Failed to update job with new model snapshot id [" + modelSnapshot.getSnapshotId() + "]", e);
+            }
+        });
     }
 
     public void awaitCompletion() {

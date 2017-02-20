@@ -106,20 +106,21 @@ public class JobDataDeleter {
      * @param modelSnapshot the model snapshot to delete
      */
     public void deleteModelSnapshot(ModelSnapshot modelSnapshot) {
-        String snapshotId = modelSnapshot.getSnapshotId();
+        String snapshotDocId = ModelSnapshot.documentId(modelSnapshot);
         int docCount = modelSnapshot.getSnapshotDocCount();
         String stateIndexName = AnomalyDetectorsIndex.jobStateIndexName();
         // Deduce the document IDs of the state documents from the information
         // in the snapshot document - we cannot query the state itself as it's
-        // too big and has no mappings
-        for (int i = 0; i < docCount; ++i) {
-            String stateId = snapshotId + '_' + i;
+        // too big and has no mappings.
+        // Note: state docs are 1-based
+        for (int i = 1; i <= docCount; ++i) {
+            String stateId = snapshotDocId + '_' + i;
             bulkRequestBuilder.add(client.prepareDelete(stateIndexName, ModelState.TYPE.getPreferredName(), stateId));
             ++deletedModelStateCount;
         }
 
         bulkRequestBuilder.add(client.prepareDelete(AnomalyDetectorsIndex.jobResultsIndexName(modelSnapshot.getJobId()),
-                ModelSnapshot.TYPE.getPreferredName(), snapshotId));
+                ModelSnapshot.TYPE.getPreferredName(), snapshotDocId));
         ++deletedModelSnapshotCount;
     }
 

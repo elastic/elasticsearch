@@ -305,21 +305,16 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
                                       Consumer<Exception> errorHandler) {
             logger.info("Reverting to snapshot '" + request.getSnapshotId() + "'");
 
-            provider.modelSnapshots(request.getJobId(), 0, 1, null, null,
-                    ModelSnapshot.TIMESTAMP.getPreferredName(), true, request.getSnapshotId(), request.getDescription(),
-                    page -> {
-                        List<ModelSnapshot> revertCandidates = page.results();
-                        if (revertCandidates == null || revertCandidates.isEmpty()) {
-                            throw new ResourceNotFoundException(
-                                    Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getJobId()));
-                        }
-                        ModelSnapshot modelSnapshot = revertCandidates.get(0);
-
-                        // The quantiles can be large, and totally dominate the output -
-                        // it's clearer to remove them
-                        modelSnapshot.setQuantiles(null);
-                        handler.accept(modelSnapshot);
-                    }, errorHandler);
+            provider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), modelSnapshot -> {
+                if (modelSnapshot == null) {
+                    throw new ResourceNotFoundException(Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(),
+                            request.getJobId()));
+                }
+                // The quantiles can be large, and totally dominate the output -
+                // it's clearer to remove them as they are not necessary for the revert op
+                modelSnapshot.setQuantiles(null);
+                handler.accept(modelSnapshot);
+            }, errorHandler);
         }
 
         private ActionListener<RevertModelSnapshotAction.Response> wrapDeleteOldDataListener(

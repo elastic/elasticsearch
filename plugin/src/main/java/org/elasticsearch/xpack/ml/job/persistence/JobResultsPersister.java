@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -239,13 +240,13 @@ public class JobResultsPersister extends AbstractComponent {
      */
     public void persistModelSnapshot(ModelSnapshot modelSnapshot) {
         Persistable persistable = new Persistable(modelSnapshot.getJobId(), modelSnapshot, ModelSnapshot.TYPE.getPreferredName(),
-                modelSnapshot.documentId());
+                ModelSnapshot.documentId(modelSnapshot));
         persistable.persist(AnomalyDetectorsIndex.jobResultsIndexName(modelSnapshot.getJobId()));
     }
 
     public void updateModelSnapshot(ModelSnapshot modelSnapshot, Consumer<Boolean> handler, Consumer<Exception> errorHandler) {
         String index = AnomalyDetectorsIndex.jobResultsIndexName(modelSnapshot.getJobId());
-        IndexRequest indexRequest = new IndexRequest(index, ModelSnapshot.TYPE.getPreferredName(), modelSnapshot.documentId());
+        IndexRequest indexRequest = new IndexRequest(index, ModelSnapshot.TYPE.getPreferredName(), ModelSnapshot.documentId(modelSnapshot));
         try {
             indexRequest.source(toXContentBuilder(modelSnapshot));
         } catch (IOException e) {

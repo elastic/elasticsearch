@@ -35,9 +35,8 @@ public class JobDataDeleterTests extends ESTestCase {
     public void testDeleteResultsFromTime() {
 
         final long TOTAL_HIT_COUNT = 100L;
-        final int PER_SCROLL_SEARCH_HIT_COUNT = 20;
 
-        SearchResponse response = createSearchResponseWithHits(TOTAL_HIT_COUNT, PER_SCROLL_SEARCH_HIT_COUNT);
+        SearchResponse response = createSearchResponseWithHits(TOTAL_HIT_COUNT);
         BulkResponse bulkResponse = Mockito.mock(BulkResponse.class);
 
         Client client = new MockClientBuilder("myCluster")
@@ -94,18 +93,18 @@ public class JobDataDeleterTests extends ESTestCase {
                 .prepareDelete(eq(AnomalyDetectorsIndex.jobStateIndexName()), eq(ModelState.TYPE.getPreferredName()), anyString());
         verify(client, times(1))
                 .prepareDelete(eq(AnomalyDetectorsIndex.jobResultsIndexName(jobId)), eq(ModelSnapshot.TYPE.getPreferredName()),
-                        eq("snap-1"));
+                        eq("foo-snap-1"));
     }
 
-    private SearchResponse createSearchResponseWithHits(long totalHitCount, int hitsPerSearchResult) {
-        SearchHits hits = mockSearchHits(totalHitCount, hitsPerSearchResult);
+    private SearchResponse createSearchResponseWithHits(long totalHitCount) {
+        SearchHits hits = mockSearchHits(totalHitCount);
         SearchResponse searchResponse = Mockito.mock(SearchResponse.class);
         when(searchResponse.getHits()).thenReturn(hits);
         when(searchResponse.getScrollId()).thenReturn("scroll1");
         return searchResponse;
     }
 
-    private SearchHits mockSearchHits(long totalHitCount, int hitsPerSearchResult) {
+    private SearchHits mockSearchHits(long totalHitCount) {
 
         List<SearchHit> hitList = new ArrayList<>();
         for (int i=0; i<20; i++) {

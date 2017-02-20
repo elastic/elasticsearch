@@ -90,7 +90,6 @@ import static org.mockito.Mockito.when;
 public class JobProviderTests extends ESTestCase {
     private static final String CLUSTER_NAME = "myCluster";
     private static final String JOB_ID = "foo";
-    private static final String STATE_INDEX_NAME = ".ml-state";
 
     public void testGetQuantiles_GivenNoQuantilesForJob() throws Exception {
         GetResponse getResponse = createGetResponse(false, null);
@@ -1089,7 +1088,6 @@ public class JobProviderTests extends ESTestCase {
         Map<String, Object> recordMap1 = new HashMap<>();
         recordMap1.put("job_id", "foo");
         recordMap1.put("description", "snapshot1");
-        recordMap1.put("restore_priority", 1);
         recordMap1.put("timestamp", now.getTime());
         recordMap1.put("snapshot_doc_count", 5);
         recordMap1.put("latest_record_time_stamp", now.getTime());
@@ -1097,7 +1095,6 @@ public class JobProviderTests extends ESTestCase {
         Map<String, Object> recordMap2 = new HashMap<>();
         recordMap2.put("job_id", "foo");
         recordMap2.put("description", "snapshot2");
-        recordMap2.put("restore_priority", 999);
         recordMap2.put("timestamp", now.getTime());
         recordMap2.put("snapshot_doc_count", 6);
         recordMap2.put("latest_record_time_stamp", now.getTime());
@@ -1123,14 +1120,12 @@ public class JobProviderTests extends ESTestCase {
         assertEquals(now, snapshots.get(0).getLatestRecordTimeStamp());
         assertEquals(now, snapshots.get(0).getLatestResultTimeStamp());
         assertEquals("snapshot1", snapshots.get(0).getDescription());
-        assertEquals(1L, snapshots.get(0).getRestorePriority());
         assertEquals(5, snapshots.get(0).getSnapshotDocCount());
 
         assertEquals(now, snapshots.get(1).getTimestamp());
         assertEquals(now, snapshots.get(1).getLatestRecordTimeStamp());
         assertEquals(now, snapshots.get(1).getLatestResultTimeStamp());
         assertEquals("snapshot2", snapshots.get(1).getDescription());
-        assertEquals(999L, snapshots.get(1).getRestorePriority());
         assertEquals(6, snapshots.get(1).getSnapshotDocCount());
     }
 
@@ -1143,7 +1138,6 @@ public class JobProviderTests extends ESTestCase {
         Map<String, Object> recordMap1 = new HashMap<>();
         recordMap1.put("job_id", "foo");
         recordMap1.put("description", "snapshot1");
-        recordMap1.put("restore_priority", 1);
         recordMap1.put("timestamp", now.getTime());
         recordMap1.put("snapshot_doc_count", 5);
         recordMap1.put("latest_record_time_stamp", now.getTime());
@@ -1151,7 +1145,6 @@ public class JobProviderTests extends ESTestCase {
         Map<String, Object> recordMap2 = new HashMap<>();
         recordMap2.put("job_id", "foo");
         recordMap2.put("description", "snapshot2");
-        recordMap2.put("restore_priority", 999);
         recordMap2.put("timestamp", now.getTime());
         recordMap2.put("snapshot_doc_count", 6);
         recordMap2.put("latest_record_time_stamp", now.getTime());
@@ -1178,14 +1171,12 @@ public class JobProviderTests extends ESTestCase {
         assertEquals(now, snapshots.get(0).getLatestRecordTimeStamp());
         assertEquals(now, snapshots.get(0).getLatestResultTimeStamp());
         assertEquals("snapshot1", snapshots.get(0).getDescription());
-        assertEquals(1L, snapshots.get(0).getRestorePriority());
         assertEquals(5, snapshots.get(0).getSnapshotDocCount());
 
         assertEquals(now, snapshots.get(1).getTimestamp());
         assertEquals(now, snapshots.get(1).getLatestRecordTimeStamp());
         assertEquals(now, snapshots.get(1).getLatestResultTimeStamp());
         assertEquals("snapshot2", snapshots.get(1).getDescription());
-        assertEquals(999L, snapshots.get(1).getRestorePriority());
         assertEquals(6, snapshots.get(1).getSnapshotDocCount());
 
         String queryString = qbHolder[0].toString();

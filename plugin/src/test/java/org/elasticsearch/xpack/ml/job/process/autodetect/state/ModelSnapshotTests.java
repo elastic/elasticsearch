@@ -17,7 +17,6 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
     private static final Date DEFAULT_TIMESTAMP = new Date();
     private static final String DEFAULT_DESCRIPTION = "a snapshot";
     private static final String DEFAULT_ID = "my_id";
-    private static final long DEFAULT_PRIORITY = 1234L;
     private static final int DEFAULT_DOC_COUNT = 7;
     private static final Date DEFAULT_LATEST_RESULT_TIMESTAMP = new Date(12345678901234L);
     private static final Date DEFAULT_LATEST_RECORD_TIMESTAMP = new Date(12345678904321L);
@@ -66,17 +65,6 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
     }
-
-
-    public void testEquals_GivenDifferentRestorePriority() {
-        ModelSnapshot modelSnapshot1 = createFullyPopulated();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated();
-        modelSnapshot2.setRestorePriority(modelSnapshot2.getRestorePriority() + 1);
-
-        assertFalse(modelSnapshot1.equals(modelSnapshot2));
-        assertFalse(modelSnapshot2.equals(modelSnapshot1));
-    }
-
 
     public void testEquals_GivenDifferentId() {
         ModelSnapshot modelSnapshot1 = createFullyPopulated();
@@ -146,7 +134,6 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
         ModelSnapshot modelSnapshot = new ModelSnapshot("foo");
         modelSnapshot.setTimestamp(DEFAULT_TIMESTAMP);
         modelSnapshot.setDescription(DEFAULT_DESCRIPTION);
-        modelSnapshot.setRestorePriority(DEFAULT_PRIORITY);
         modelSnapshot.setSnapshotId(DEFAULT_ID);
         modelSnapshot.setSnapshotDocCount(DEFAULT_DOC_COUNT);
         ModelSizeStats.Builder modelSizeStatsBuilder = new ModelSizeStats.Builder("foo");
@@ -163,7 +150,6 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
         ModelSnapshot modelSnapshot = new ModelSnapshot(randomAsciiOfLengthBetween(1, 20));
         modelSnapshot.setTimestamp(new Date(TimeUtils.dateStringToEpoch(randomTimeValue())));
         modelSnapshot.setDescription(randomAsciiOfLengthBetween(1, 20));
-        modelSnapshot.setRestorePriority(randomLong());
         modelSnapshot.setSnapshotId(randomAsciiOfLengthBetween(1, 20));
         modelSnapshot.setSnapshotDocCount(randomInt());
         ModelSizeStats.Builder stats = new ModelSizeStats.Builder(randomAsciiOfLengthBetween(1, 20));
@@ -211,5 +197,18 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
     @Override
     protected ModelSnapshot parseInstance(XContentParser parser) {
         return ModelSnapshot.PARSER.apply(parser, null);
+    }
+
+    public void testDocumentId() {
+        ModelSnapshot snapshot1 = new ModelSnapshot("foo");
+        snapshot1.setSnapshotId("1");
+        ModelSnapshot snapshot2 = new ModelSnapshot("foo");
+        snapshot2.setSnapshotId("2");
+        ModelSnapshot snapshot3 = new ModelSnapshot("bar");
+        snapshot3.setSnapshotId("1");
+
+        assertEquals("foo-1", ModelSnapshot.documentId(snapshot1));
+        assertEquals("foo-2", ModelSnapshot.documentId(snapshot2));
+        assertEquals("bar-1", ModelSnapshot.documentId(snapshot3));
     }
 }

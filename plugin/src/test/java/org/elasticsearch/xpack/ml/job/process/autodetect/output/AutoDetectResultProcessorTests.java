@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.action.UpdateJobAction;
+import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
@@ -19,6 +22,7 @@ import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
+import org.junit.Before;
 import org.mockito.InOrder;
 
 import java.util.Arrays;
@@ -27,6 +31,8 @@ import java.util.Iterator;
 import java.util.List;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -39,6 +45,21 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
 
     private static final String JOB_ID = "_id";
 
+    private Client client;
+    private Renormalizer renormalizer;
+    private JobResultsPersister persister;
+    private FlushListener flushListener;
+    private AutoDetectResultProcessor processorUnderTest;
+
+    @Before
+    public void setUpMocks() {
+        client = mock(Client.class);
+        renormalizer = mock(Renormalizer.class);
+        persister = mock(JobResultsPersister.class);
+        flushListener = mock(FlushListener.class);
+        processorUnderTest = new AutoDetectResultProcessor(client, JOB_ID, renormalizer, persister, flushListener);
+    }
+
     public void testProcess() {
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
         @SuppressWarnings("unchecked")
@@ -47,28 +68,22 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         when(iterator.next()).thenReturn(autodetectResult);
         AutodetectProcess process = mock(AutodetectProcess.class);
         when(process.readAutodetectResults()).thenReturn(iterator);
-        Renormalizer renormalizer = mock(Renormalizer.class);
-        JobResultsPersister persister = mock(JobResultsPersister.class);
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister);
-        processor.process(process, randomBoolean());
+        processorUnderTest.process(process, randomBoolean());
         verify(renormalizer, times(1)).waitUntilIdle();
-        assertEquals(0, processor.completionLatch.getCount());
+        assertEquals(0, processorUnderTest.completionLatch.getCount());
     }
 
     public void testProcessResult_bucket() {
-        Renormalizer renormalizer = mock(Renormalizer.class);
-        JobResultsPersister persister = mock(JobResultsPersister.class);
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
         when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
         when(bulkBuilder.persistBucket(any(Bucket.class))).thenReturn(bulkBuilder);
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister, null);
 
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, false, bulkBuilder);
         context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
         Bucket bucket = mock(Bucket.class);
         when(result.getBucket()).thenReturn(bucket);
-        processor.processResult(context, result);
+        processorUnderTest.processResult(context, result);
 
         verify(bulkBuilder, times(1)).persistBucket(bucket);
         verify(bulkBuilder, times(1)).executeRequest();
@@ -78,19 +93,16 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
     }
 
     public void testProcessResult_bucket_deleteInterimRequired() {
-        Renormalizer renormalizer = mock(Renormalizer.class);
-        JobResultsPersister persister = mock(JobResultsPersister.class);
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
         when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
         when(bulkBuilder.persistBucket(any(Bucket.class))).thenReturn(bulkBuilder);
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister, null);
 
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, false, bulkBuilder);
         context.deleteInterimRequired = true;
         AutodetectResult result = mock(AutodetectResult.class);
         Bucket bucket = mock(Bucket.class);
         when(result.getBucket()).thenReturn(bucket);
-        processor.processResult(context, result);
+        processorUnderTest.processResult(context, result);
 
         verify(bulkBuilder, times(1)).persistBucket(bucket);
         verify(bulkBuilder, times(1)).executeRequest();
@@ -101,11 +113,8 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
     }
 
     public void testProcessResult_records() {
-        Renormalizer renormalizer = mock(Renormalizer.class);
-        JobResultsPersister persister = mock(JobResultsPersister.class);
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
         when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister, null);
 
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context("foo", false, bulkBuilder);
         context.deleteInterimRequired = false;
@@ -114,7 +123,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         AnomalyRecord record2 = new AnomalyRecord("foo", new Date(123), 123, 2);
         List<AnomalyRecord> records = Arrays.asList(record1, record2);
         when(result.getRecords()).thenReturn(records);
-        processor.processResult(context, result);
+        processorUnderTest.processResult(context, result);
 
         verify(bulkBuilder, times(1)).persistRecords(records);
         verify(bulkBuilder, never()).executeRequest();
@@ -122,11 +131,8 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
     }
 
     public void testProcessResult_records_isPerPartitionNormalization() {
-        Renormalizer renormalizer = mock(Renormalizer.class);
-        JobResultsPersister persister = mock(JobResultsPersister.class);
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
         when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister, null);
 
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context("foo", true, bulkBuilder);
         context.deleteInterimRequired = false;
@@ -137,7 +143,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         record2.setPartitionFieldValue("pValue");
         List<AnomalyRecord> records = Arrays.asList(record1, record2);
         when(result.getRecords()).thenReturn(records);
-        processor.processResult(context, result);
+        processorUnderTest.processResult(context, result);
 
         verify(bulkBuilder, times(1)).persistPerPartitionMaxProbabilities(any(PerPartitionMaxProbabilities.class));
         verify(bulkBuilder, times(1)).persistRecords(records);
@@ -146,11 +152,8 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
     }
 
     public void testProcessResult_influencers() {
-        Renormalizer renormalizer = mock(Renormalizer.class);
-        JobResultsPersister persister = mock(JobResultsPersister.class);
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
         when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister, null);
 
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, false, bulkBuilder);
         context.deleteInterimRequired = false;
@@ -159,7 +162,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         Influencer influencer2 = new Influencer(JOB_ID, "infField2", "infValue2", new Date(123), 123, 1);
         List<Influencer> influencers = Arrays.asList(influencer1, influencer2);
         when(result.getInfluencers()).thenReturn(influencers);
-        processor.processResult(context, result);
+        processorUnderTest.processResult(context, result);
 
         verify(bulkBuilder, times(1)).persistInfluencers(influencers);
         verify(bulkBuilder, never()).executeRequest();
@@ -167,18 +170,15 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
     }
 
     public void testProcessResult_categoryDefinition() {
-        Renormalizer renormalizer = mock(Renormalizer.class);
-        JobResultsPersister persister = mock(JobResultsPersister.class);
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
         when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister, null);
 
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, false, bulkBuilder);
         context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
         CategoryDefinition categoryDefinition = mock(CategoryDefinition.class);
         when(result.getCategoryDefinition()).thenReturn(categoryDefinition);
-        processor.processResult(context, result);
+        processorUnderTest.processResult(context, result);
 
         verify(bulkBuilder, never()).executeRequest();
         verify(persister, times(1)).persistCategoryDefinition(categoryDefinition);
@@ -186,12 +186,8 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
     }
 
     public void testProcessResult_flushAcknowledgement() {
-        Renormalizer renormalizer = mock(Renormalizer.class);
-        JobResultsPersister persister = mock(JobResultsPersister.class);
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
         when(persister.bulkPersisterBuilder(JOB_ID)).thenReturn(bulkBuilder);
-        FlushListener flushListener = mock(FlushListener.class);
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister, flushListener);
 
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, false, bulkBuilder);
         context.deleteInterimRequired = false;
@@ -199,7 +195,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         FlushAcknowledgement flushAcknowledgement = mock(FlushAcknowledgement.class);
         when(flushAcknowledgement.getId()).thenReturn(JOB_ID);
         when(result.getFlushAcknowledgement()).thenReturn(flushAcknowledgement);
-        processor.processResult(context, result);
+        processorUnderTest.processResult(context, result);
 
         verify(flushListener, times(1)).acknowledgeFlush(JOB_ID);
         verify(persister, times(1)).commitResultWrites(JOB_ID);
@@ -209,11 +205,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
     }
 
     public void testProcessResult_flushAcknowledgementMustBeProcessedLast() {
-        Renormalizer renormalizer = mock(Renormalizer.class);
-        JobResultsPersister persister = mock(JobResultsPersister.class);
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-        FlushListener flushListener = mock(FlushListener.class);
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister, flushListener);
 
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, false, bulkBuilder);
         context.deleteInterimRequired = false;
@@ -225,7 +217,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         when(result.getCategoryDefinition()).thenReturn(categoryDefinition);
 
         InOrder inOrder = inOrder(persister, bulkBuilder, flushListener);
-        processor.processResult(context, result);
+        processorUnderTest.processResult(context, result);
 
         inOrder.verify(persister, times(1)).persistCategoryDefinition(categoryDefinition);
         inOrder.verify(bulkBuilder, times(1)).executeRequest();
@@ -236,69 +228,62 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
     }
 
     public void testProcessResult_modelDebugOutput() {
-        Renormalizer renormalizer = mock(Renormalizer.class);
-        JobResultsPersister persister = mock(JobResultsPersister.class);
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister, null);
 
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, false, bulkBuilder);
         context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
         ModelDebugOutput modelDebugOutput = mock(ModelDebugOutput.class);
         when(result.getModelDebugOutput()).thenReturn(modelDebugOutput);
-        processor.processResult(context, result);
+        processorUnderTest.processResult(context, result);
 
         verify(persister, times(1)).persistModelDebugOutput(modelDebugOutput);
         verifyNoMoreInteractions(persister);
     }
 
     public void testProcessResult_modelSizeStats() {
-        Renormalizer renormalizer = mock(Renormalizer.class);
-        JobResultsPersister persister = mock(JobResultsPersister.class);
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister, null);
 
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, false, bulkBuilder);
         context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
         ModelSizeStats modelSizeStats = mock(ModelSizeStats.class);
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
-        processor.processResult(context, result);
+        processorUnderTest.processResult(context, result);
 
         verify(persister, times(1)).persistModelSizeStats(modelSizeStats);
         verifyNoMoreInteractions(persister);
-        assertEquals(modelSizeStats, processor.modelSizeStats());
+        assertEquals(modelSizeStats, processorUnderTest.modelSizeStats());
     }
 
     public void testProcessResult_modelSnapshot() {
-        Renormalizer renormalizer = mock(Renormalizer.class);
-        JobResultsPersister persister = mock(JobResultsPersister.class);
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister, null);
 
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, false, bulkBuilder);
         context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
-        ModelSnapshot modelSnapshot = mock(ModelSnapshot.class);
+        ModelSnapshot modelSnapshot = new ModelSnapshot(JOB_ID);
+        modelSnapshot.setSnapshotId("a_snapshot_id");
         when(result.getModelSnapshot()).thenReturn(modelSnapshot);
-        processor.processResult(context, result);
+        processorUnderTest.processResult(context, result);
 
         verify(persister, times(1)).persistModelSnapshot(modelSnapshot);
+        UpdateJobAction.Request expectedJobUpdateRequest = new UpdateJobAction.Request(JOB_ID,
+                new JobUpdate.Builder().setModelSnapshotId("a_snapshot_id").build());
+
+        verify(client).execute(same(UpdateJobAction.INSTANCE), eq(expectedJobUpdateRequest), any());
         verifyNoMoreInteractions(persister);
     }
 
     public void testProcessResult_quantiles() {
-        Renormalizer renormalizer = mock(Renormalizer.class);
-        JobResultsPersister persister = mock(JobResultsPersister.class);
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(JOB_ID, renormalizer, persister, null);
 
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, false, bulkBuilder);
         context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
         Quantiles quantiles = mock(Quantiles.class);
         when(result.getQuantiles()).thenReturn(quantiles);
-        processor.processResult(context, result);
+        processorUnderTest.processResult(context, result);
 
         verify(persister, times(1)).persistQuantiles(quantiles);
         verify(renormalizer, times(1)).renormalize(quantiles);

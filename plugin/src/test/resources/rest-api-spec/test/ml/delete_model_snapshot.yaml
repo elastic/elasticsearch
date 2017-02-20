@@ -34,7 +34,6 @@ setup:
           {
             "job_id": "foo",
             "timestamp": "2016-06-02T00:00:00Z",
-            "restore_priority": "1",
             "snapshot_id": "foo1",
             "description": "first",
             "latest_record_time_stamp": "2016-06-02T00:00:00Z",
@@ -71,7 +70,6 @@ setup:
           {
             "job_id": "foo",
             "timestamp": "2016-06-01T00:00:00Z",
-            "restore_priority": "2",
             "snapshot_id": "foo2",
             "description": "second",
             "latest_record_time_stamp": "2016-06-01T00:00:00Z",

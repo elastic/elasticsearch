@@ -76,11 +76,14 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     private Renormalizer renormalizer;
     private JobResultsPersister jobResultsPersister;
     private JobProvider jobProvider;
-
+    private List<ModelSnapshot> capturedUpdateModelSnapshotOnJobRequests;
+    private AutoDetectResultProcessor resultProcessor;
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings()).put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
+        return Settings.builder().put(super.nodeSettings())
+                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+                .build();
     }
 
     @Override
@@ -95,11 +98,17 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         Settings.Builder builder = Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
         jobProvider = new JobProvider(client(), 1, builder.build());
+        capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();
+        resultProcessor = new AutoDetectResultProcessor(client(), JOB_ID, renormalizer, jobResultsPersister) {
+            @Override
+            protected void updateModelSnapshotIdOnJob(ModelSnapshot modelSnapshot) {
+                capturedUpdateModelSnapshotOnJobRequests.add(modelSnapshot);
+            }
+        };
     }
 
     public void testProcessResults() throws Exception {
         createJob();
-        AutoDetectResultProcessor resultProcessor = new AutoDetectResultProcessor(JOB_ID, renormalizer, jobResultsPersister);
 
         ResultsBuilder builder = new ResultsBuilder();
         Bucket bucket = createBucket(false);
@@ -151,6 +160,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         QueryPage<ModelSnapshot> persistedModelSnapshot = getModelSnapshots();
         assertEquals(1, persistedModelSnapshot.count());
         assertEquals(modelSnapshot, persistedModelSnapshot.results().get(0));
+        assertEquals(Arrays.asList(modelSnapshot), capturedUpdateModelSnapshotOnJobRequests);
 
         Optional<Quantiles> persistedQuantiles = getQuantiles();
         assertTrue(persistedQuantiles.isPresent());
@@ -159,7 +169,6 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
 
     public void testDeleteInterimResults() throws Exception {
         createJob();
-        AutoDetectResultProcessor resultProcessor = new AutoDetectResultProcessor(JOB_ID, renormalizer, jobResultsPersister);
         Bucket nonInterimBucket = createBucket(false);
         Bucket interimBucket = createBucket(true);
 
@@ -189,7 +198,6 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
 
     public void testMultipleFlushesBetweenPersisting() throws Exception {
         createJob();
-        AutoDetectResultProcessor resultProcessor = new AutoDetectResultProcessor(JOB_ID, renormalizer, jobResultsPersister);
         Bucket finalBucket = createBucket(true);
         List<AnomalyRecord> finalAnomalyRecords = createRecords(true);
 
@@ -220,7 +228,6 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
 
     public void testEndOfStreamTriggersPersisting() throws Exception {
         createJob();
-        AutoDetectResultProcessor resultProcessor = new AutoDetectResultProcessor(JOB_ID, renormalizer, jobResultsPersister);
         Bucket bucket = createBucket(false);
         List<AnomalyRecord> firstSetOfRecords = createRecords(false);
         List<AnomalyRecord> secondSetOfRecords = createRecords(false);

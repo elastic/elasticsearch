@@ -61,7 +61,6 @@ import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -104,10 +103,10 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         }).when(jobProvider).dataCounts(any(), any(), any());
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            Consumer<QueryPage<ModelSnapshot>> handler = (Consumer<QueryPage<ModelSnapshot>>) invocationOnMock.getArguments()[3];
-            handler.accept(new QueryPage<>(Collections.singletonList(modelSnapshot), 1, ModelSnapshot.RESULTS_FIELD));
+            Consumer<ModelSnapshot> handler = (Consumer<ModelSnapshot>) invocationOnMock.getArguments()[2];
+            handler.accept(modelSnapshot);
             return null;
-        }).when(jobProvider).modelSnapshots(any(), anyInt(), anyInt(), any(), any());
+        }).when(jobProvider).getModelSnapshot(anyString(), anyString(), any(), any());
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             Consumer<Quantiles> handler = (Consumer<Quantiles>) invocationOnMock.getArguments()[1];

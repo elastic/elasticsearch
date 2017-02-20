@@ -194,7 +194,7 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
                         });
             }
 
-            jobManager.updateJob(request.getJobId(), request.getJobUpdate(), request, client, wrappedListener);
+            jobManager.updateJob(request.getJobId(), request.getJobUpdate(), request, wrappedListener);
         }
 
         private void updateProcess(Request request, PutJobAction.Response updateConfigResponse,

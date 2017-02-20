@@ -34,7 +34,6 @@ setup:
           {
             "job_id": "foo",
             "timestamp": "2016-06-02T00:00:00Z",
-            "restore_priority": "1",
             "snapshot_id": "foo1",
             "description": "first",
             "latest_record_time_stamp": "2016-06-02T00:00:00Z",
@@ -50,7 +49,6 @@ setup:
           {
             "job_id": "foo",
             "timestamp": "2016-06-01T00:00:00Z",
-            "restore_priority": "2",
             "snapshot_id": "foo2",
             "description": "second",
             "latest_record_time_stamp": "2016-06-01T00:00:00Z",
@@ -151,7 +149,6 @@ setup:
   - match: { acknowledged: true }
   - match: { model.job_id: "foo" }
   - match: { model.timestamp: 1464825600000 }
-  - match: { model.restore_priority: 1 }
   - match: { model.snapshot_id: "foo1" }
   - match: { model.snapshot_doc_count: 0 }
 
@@ -163,7 +160,6 @@ setup:
   - match: { acknowledged: true }
   - match: { model.job_id: "foo" }
   - match: { model.timestamp: 1464739200000 }
-  - match: { model.restore_priority: 2 }
   - match: { model.snapshot_id: "foo2" }
   - match: { model.snapshot_doc_count: 0 }
 

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -197,9 +198,39 @@ public class JobManager extends AbstractComponent {
                 });
     }
 
-    public void updateJob(String jobId, JobUpdate jobUpdate, AckedRequest request, Client client,
-                          ActionListener<PutJobAction.Response> actionListener) {
+    public void updateJob(String jobId, JobUpdate jobUpdate, AckedRequest request, ActionListener<PutJobAction.Response> actionListener) {
+        Job job = getJobOrThrowIfUnknown(jobId);
+        validate(jobUpdate, job, isValid -> {
+            if (isValid) {
+                internalJobUpdate(jobId, jobUpdate, request, actionListener);
+            } else {
+                actionListener.onFailure(new IllegalArgumentException("Invalid update to job [" + jobId + "]"));
+            }
+        }, actionListener::onFailure);
+    }
 
+    private void validate(JobUpdate jobUpdate, Job job, Consumer<Boolean> handler, Consumer<Exception> errorHandler) {
+        if (jobUpdate.getModelSnapshotId() != null) {
+            jobProvider.getModelSnapshot(job.getId(), jobUpdate.getModelSnapshotId(), newModelSnapshot -> {
+                if (newModelSnapshot == null) {
+                    throw new ResourceNotFoundException(
+                            Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, jobUpdate.getModelSnapshotId(), job.getId()));
+                }
+                jobProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), oldModelSnapshot -> {
+                    if (oldModelSnapshot != null && newModelSnapshot.getTimestamp().before(oldModelSnapshot.getTimestamp())) {
+                        throw new IllegalArgumentException("Job [" + job.getId() + "] has a more recent model snapshot ["
+                                + oldModelSnapshot.getSnapshotId() + "]");
+                    }
+                    handler.accept(true);
+                }, errorHandler);
+            }, errorHandler);
+        } else {
+            handler.accept(true);
+        }
+    }
+
+    private void internalJobUpdate(String jobId, JobUpdate jobUpdate, AckedRequest request,
+                                   ActionListener<PutJobAction.Response> actionListener) {
         clusterService.submitStateUpdateTask("update-job-" + jobId,
                 new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
                     private Job updatedJob;

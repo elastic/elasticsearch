@@ -211,8 +211,7 @@ public class AutodetectProcessManager extends AbstractComponent {
     void gatherRequiredInformation(String jobId, MultiConsumer handler, Consumer<Exception> errorHandler) {
         Job job = jobManager.getJobOrThrowIfUnknown(jobId);
         jobProvider.dataCounts(jobId, dataCounts -> {
-            jobProvider.modelSnapshots(jobId, 0, 1, page -> {
-                ModelSnapshot modelSnapshot = page.results().isEmpty() ? null : page.results().get(0);
+            jobProvider.getModelSnapshot(jobId, job.getModelSnapshotId(), modelSnapshot -> {
                 jobProvider.getQuantiles(jobId, quantiles -> {
                     Set<String> ids = job.getAnalysisConfig().extractReferencedFilters();
                     jobProvider.getFilters(filterDocument -> handler.accept(dataCounts, modelSnapshot, quantiles, filterDocument),
@@ -248,7 +247,7 @@ public class AutodetectProcessManager extends AbstractComponent {
             AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, modelSnapshot, quantiles, filters,
                     ignoreDowntime, executorService);
             boolean usePerPartitionNormalization = job.getAnalysisConfig().getUsePerPartitionNormalization();
-            AutoDetectResultProcessor processor = new AutoDetectResultProcessor(jobId, renormalizer, jobResultsPersister);
+            AutoDetectResultProcessor processor = new AutoDetectResultProcessor(client, jobId, renormalizer, jobResultsPersister);
             try {
                 executorService.submit(() -> processor.process(process, usePerPartitionNormalization));
             } catch (EsRejectedExecutionException e) {

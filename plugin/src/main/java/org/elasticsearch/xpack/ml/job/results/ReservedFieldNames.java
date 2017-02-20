@@ -137,7 +137,6 @@ public final class ReservedFieldNames {
             ModelSizeStats.LOG_TIME_FIELD.getPreferredName(),
 
             ModelSnapshot.DESCRIPTION.getPreferredName(),
-            ModelSnapshot.RESTORE_PRIORITY.getPreferredName(),
             ModelSnapshot.SNAPSHOT_ID.getPreferredName(),
             ModelSnapshot.SNAPSHOT_DOC_COUNT.getPreferredName(),
             ModelSnapshot.LATEST_RECORD_TIME.getPreferredName(),

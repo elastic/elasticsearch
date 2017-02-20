@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -60,6 +62,7 @@ import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder.BucketsQuery;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
@@ -971,7 +974,20 @@ public class JobProvider {
     }
 
     /**
-     * Get model snapshots for the job ordered by descending restore priority.
+     * Get a job's model snapshot by its id
+     */
+    public void getModelSnapshot(String jobId, @Nullable String modelSnapshotId, Consumer<ModelSnapshot> handler,
+                                 Consumer<Exception> errorHandler) {
+        if (modelSnapshotId == null) {
+            handler.accept(null);
+            return;
+        }
+        get(jobId, AnomalyDetectorsIndex.jobResultsIndexName(jobId), ModelSnapshot.TYPE.getPreferredName(),
+                ModelSnapshot.documentId(jobId, modelSnapshotId), handler, errorHandler, ModelSnapshot.PARSER, () -> null);
+    }
+
+    /**
+     * Get model snapshots for the job ordered by descending timestamp (newest first).
      *
      * @param jobId the job id
      * @param from  number of snapshots to from
@@ -979,7 +995,7 @@ public class JobProvider {
      */
     public void modelSnapshots(String jobId, int from, int size, Consumer<QueryPage<ModelSnapshot>> handler,
                                                    Consumer<Exception> errorHandler) {
-        modelSnapshots(jobId, from, size, null, false, QueryBuilders.matchAllQuery(), handler, errorHandler);
+        modelSnapshots(jobId, from, size, null, true, QueryBuilders.matchAllQuery(), handler, errorHandler);
     }
 
     /**
@@ -1036,7 +1052,7 @@ public class JobProvider {
                                 Consumer<QueryPage<ModelSnapshot>> handler,
                                 Consumer<Exception> errorHandler) {
         if (Strings.isEmpty(sortField)) {
-            sortField = ModelSnapshot.RESTORE_PRIORITY.getPreferredName();
+            sortField = ModelSnapshot.TIMESTAMP.getPreferredName();
         }
 
         FieldSortBuilder sb = new FieldSortBuilder(sortField)

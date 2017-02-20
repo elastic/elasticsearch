@@ -31,7 +31,6 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
      */
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField DESCRIPTION = new ParseField("description");
-    public static final ParseField RESTORE_PRIORITY = new ParseField("restore_priority");
     public static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
     public static final ParseField SNAPSHOT_DOC_COUNT = new ParseField("snapshot_doc_count");
     public static final ParseField LATEST_RECORD_TIME = new ParseField("latest_record_time_stamp");
@@ -59,7 +58,6 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
             throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + TIMESTAMP.getPreferredName() + "]");
         }, TIMESTAMP, ValueType.VALUE);
         PARSER.declareString(ModelSnapshot::setDescription, DESCRIPTION);
-        PARSER.declareLong(ModelSnapshot::setRestorePriority, RESTORE_PRIORITY);
         PARSER.declareString(ModelSnapshot::setSnapshotId, SNAPSHOT_ID);
         PARSER.declareInt(ModelSnapshot::setSnapshotDocCount, SNAPSHOT_DOC_COUNT);
         PARSER.declareObject(ModelSnapshot::setModelSizeStats, ModelSizeStats.PARSER, ModelSizeStats.RESULT_TYPE_FIELD);
@@ -87,7 +85,6 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
     private final String jobId;
     private Date timestamp;
     private String description;
-    private long restorePriority;
     private String snapshotId;
     private int snapshotDocCount;
     private ModelSizeStats modelSizeStats;
@@ -105,7 +102,6 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
             timestamp = new Date(in.readLong());
         }
         description = in.readOptionalString();
-        restorePriority = in.readLong();
         snapshotId = in.readOptionalString();
         snapshotDocCount = in.readInt();
         if (in.readBoolean()) {
@@ -131,7 +127,6 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
             out.writeLong(timestamp.getTime());
         }
         out.writeOptionalString(description);
-        out.writeLong(restorePriority);
         out.writeOptionalString(snapshotId);
         out.writeInt(snapshotDocCount);
         boolean hasModelSizeStats = modelSizeStats != null;
@@ -166,7 +161,6 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
-        builder.field(RESTORE_PRIORITY.getPreferredName(), restorePriority);
         if (snapshotId != null) {
             builder.field(SNAPSHOT_ID.getPreferredName(), snapshotId);
         }
@@ -191,10 +185,6 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
         return jobId;
     }
 
-    public String documentId() {
-        return jobId + "-" + snapshotId;
-    }
-
     public Date getTimestamp() {
         return timestamp;
     }
@@ -209,14 +199,6 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
 
     public void setDescription(String description) {
         this.description = description;
-    }
-
-    public long getRestorePriority() {
-        return restorePriority;
-    }
-
-    public void setRestorePriority(long restorePriority) {
-        this.restorePriority = restorePriority;
     }
 
     public String getSnapshotId() {
@@ -269,8 +251,8 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, timestamp, description, restorePriority, snapshotId, quantiles,
-                snapshotDocCount, modelSizeStats, latestRecordTimeStamp, latestResultTimeStamp);
+        return Objects.hash(jobId, timestamp, description, snapshotId, quantiles, snapshotDocCount, modelSizeStats, latestRecordTimeStamp,
+                latestResultTimeStamp);
     }
 
     /**
@@ -291,12 +273,19 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
         return Objects.equals(this.jobId, that.jobId)
                 && Objects.equals(this.timestamp, that.timestamp)
                 && Objects.equals(this.description, that.description)
-                && this.restorePriority == that.restorePriority
                 && Objects.equals(this.snapshotId, that.snapshotId)
                 && this.snapshotDocCount == that.snapshotDocCount
                 && Objects.equals(this.modelSizeStats, that.modelSizeStats)
                 && Objects.equals(this.quantiles, that.quantiles)
                 && Objects.equals(this.latestRecordTimeStamp, that.latestRecordTimeStamp)
                 && Objects.equals(this.latestResultTimeStamp, that.latestResultTimeStamp);
+    }
+
+    public static String documentId(ModelSnapshot snapshot) {
+        return documentId(snapshot.getJobId(), snapshot.getSnapshotId());
+    }
+
+    public static String documentId(String jobId, String snapshotId) {
+        return jobId + "-" + snapshotId;
     }
 }

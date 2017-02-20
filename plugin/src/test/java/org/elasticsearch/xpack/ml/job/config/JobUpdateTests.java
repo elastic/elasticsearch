@@ -70,6 +70,9 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         if (randomBoolean()) {
             update.setCustomSettings(Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10)));
         }
+        if (randomBoolean()) {
+            update.setModelSnapshotId(randomAsciiOfLength(10));
+        }
 
         return update.build();
     }
@@ -111,6 +114,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         updateBuilder.setRenormalizationWindowDays(randomNonNegativeLong());
         updateBuilder.setCategorizationFilters(categorizationFilters);
         updateBuilder.setCustomSettings(customSettings);
+        updateBuilder.setModelSnapshotId(randomAsciiOfLength(10));
         JobUpdate update = updateBuilder.build();
 
         Job.Builder jobBuilder = new Job.Builder("foo");
@@ -133,6 +137,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         assertEquals(update.getResultsRetentionDays(), updatedJob.getResultsRetentionDays());
         assertEquals(update.getCategorizationFilters(), updatedJob.getAnalysisConfig().getCategorizationFilters());
         assertEquals(update.getCustomSettings(), updatedJob.getCustomSettings());
+        assertEquals(update.getModelSnapshotId(), updatedJob.getModelSnapshotId());
         for (JobUpdate.DetectorUpdate detectorUpdate : update.getDetectorUpdates()) {
             assertNotNull(updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getIndex()).getDetectorDescription());
             assertEquals(detectorUpdate.getDescription(),

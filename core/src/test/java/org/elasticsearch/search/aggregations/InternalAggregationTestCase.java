@@ -36,14 +36,24 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
             new SearchModule(Settings.EMPTY, false, emptyList()).getNamedWriteables());
 
-    protected abstract T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
+    protected abstract T createTestInstance(String name,
+            List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData);
+
+    /** Return an instance on an unmapped field. */
+    protected T createUnmappedInstance(String name,
+            List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) {
+        // For most impls, we use the same instance in the unmapped case and in the mapped case
+        return createTestInstance(name, pipelineAggregators, metaData);
+    }
 
     public final void testReduceRandom() {
         List<T> inputs = new ArrayList<>();
         List<InternalAggregation> toReduce = new ArrayList<>();
         int toReduceSize = between(1, 200);
         for (int i = 0; i < toReduceSize; i++) {
-            T t = createTestInstance();
+            T t = randomBoolean() ? createUnmappedInstance() : createTestInstance();
             inputs.add(t);
             toReduce.add(t);
         }
@@ -74,6 +84,19 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             metaData.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
         }
         return createTestInstance(name, pipelineAggregators, metaData);
+    }
+
+    /** Return an instance on an unmapped field. */
+    protected final T createUnmappedInstance() {
+        String name = randomAsciiOfLength(5);
+        List<PipelineAggregator> pipelineAggregators = new ArrayList<>();
+        // TODO populate pipelineAggregators
+        Map<String, Object> metaData = new HashMap<>();
+        int metaDataCount = randomBoolean() ? 0 : between(1, 10);
+        while (metaData.size() < metaDataCount) {
+            metaData.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+        }
+        return createUnmappedInstance(name, pipelineAggregators, metaData);
     }
 
     @Override

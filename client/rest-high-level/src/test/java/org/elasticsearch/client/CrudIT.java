@@ -44,7 +44,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 
 public class CrudIT extends ESRestHighLevelClientTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/23196")
     public void testExists() throws IOException {
         {
             GetRequest getRequest = new GetRequest("index", "type", "id");
@@ -64,10 +63,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
         {
             GetRequest getRequest = new GetRequest("index", "type", "does_not_exist").version(1);
-            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                    () -> execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
-            assertEquals(RestStatus.BAD_REQUEST, exception.status());
-            assertThat(exception.getMessage(), containsString("/index/type/does_not_exist?version=1: HTTP/1.1 400 Bad Request"));
+            assertFalse(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
     }
 

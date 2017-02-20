@@ -100,9 +100,6 @@ simple message will be returned. Defaults to `true`
 
 |`http.pipelining.max_events` |The maximum number of events to be queued up in memory before a HTTP connection is closed, defaults to `10000`.
 
-|`http.content_type.required`|Enables or disables strict checking and usage of
-the `Content-Type` header for all requests with content, defaults to `false`.
-
 |=======================================================================
 
 It also uses the common

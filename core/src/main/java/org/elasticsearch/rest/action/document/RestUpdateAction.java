@@ -83,7 +83,7 @@ public class RestUpdateAction extends BaseRestHandler {
             IndexRequest upsertRequest = updateRequest.upsertRequest();
             if (upsertRequest != null) {
                 upsertRequest.routing(request.param("routing"));
-                upsertRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+                upsertRequest.parent(request.param("parent"));
                 upsertRequest.version(RestActions.parseVersion(request));
                 upsertRequest.versionType(VersionType.fromString(request.param("version_type"), upsertRequest.versionType()));
             }

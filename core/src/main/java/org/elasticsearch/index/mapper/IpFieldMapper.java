@@ -124,7 +124,7 @@ public class IpFieldMapper extends FieldMapper {
 
     public static final class IpFieldType extends MappedFieldType {
 
-        IpFieldType() {
+        public IpFieldType() {
             super();
             setTokenized(false);
             setHasDocValues(true);

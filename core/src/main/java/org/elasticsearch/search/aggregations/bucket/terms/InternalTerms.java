@@ -36,6 +36,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -134,6 +135,25 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             }
             InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
             return newBucket(docCount, aggs, docCountError);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            Bucket<?> that = (Bucket<?>) obj;
+            // No need to take format and showDocCountError, they are attributes
+            // of the parent terms aggregation object that are only copied here
+            // for serialization purposes
+            return Objects.equals(docCount, that.docCount)
+                    && Objects.equals(docCountError, that.docCountError)
+                    && Objects.equals(aggregations, that.aggregations);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getClass(), docCount, docCountError, aggregations);
         }
     }
 
@@ -269,4 +289,17 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
      * Create an array to hold some buckets. Used in collecting the results.
      */
     protected abstract B[] createBucketsArray(int size);
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalTerms<?,?> that = (InternalTerms<?,?>) obj;
+        return Objects.equals(minDocCount, that.minDocCount)
+                && Objects.equals(order, that.order)
+                && Objects.equals(requiredSize, that.requiredSize);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(minDocCount, order, requiredSize);
+    }
 }

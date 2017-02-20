@@ -12,20 +12,22 @@ way for shards to be loaded from disk when a node starts up.
 As an example, here is what the recovery state of a cluster may look like when there
 are no shards in transit from one node to another:
 
-[source,js]
+[source,text]
 ----------------------------------------------------------------------------
 GET _cat/recovery?v
-----------------------------------------------------------------------------
-// CONSOLE
-// TEST[setup:big_twitter]
-
-[source,js]
-----------------------------------------------------------------------------
-index shard time type stage source_host source_node target_host target_node repository snapshot files files_recovered files_percent files_total bytes bytes_recovered bytes_percent bytes_total translog_ops translog_ops_recovered translog_ops_percent
-twitter 0     18ms empty_store done  n/a         n/a         127.0.0.1   node-0      n/a        n/a      0     0               0.0%          0           0     0               0.0%          0           0            0                      100.0%
 ---------------------------------------------------------------------------
-// TESTRESPONSE[s/18ms/\\d+ms/]
-// TESTRESPONSE[s/127.0.0.1/.+/ _cat]
+// CONSOLE
+// TEST[setup:twitter]
+
+[source,text]
+---------------------------------------------------------------------------
+index   shard time type  stage source_host source_node target_host target_node repository snapshot files files_recovered files_percent files_total bytes bytes_recovered bytes_percent bytes_total translog_ops translog_ops_recovered translog_ops_percent
+twitter 0     13ms store done  n/a         n/a         127.0.0.1   node-0      n/a        n/a      0     0               100%          13          0     0               100%          9928        0            0                      100.0%
+---------------------------------------------------------------------------
+// TESTRESPONSE[s/store/empty_store/]
+// TESTRESPONSE[s/100%/0.0%/]
+// TESTRESPONSE[s/9928/0/]
+// TESTRESPONSE[s/13/\\d+/ _cat]
 
 In the above case, the source and target nodes are the same because the recovery
 type was store, i.e. they were read from local storage on node start.
@@ -34,29 +36,20 @@ Now let's see what a live recovery looks like. By increasing the replica count
 of our index and bringing another node online to host the replicas, we can see
 what a live shard recovery looks like.
 
-[source,js]
-----------------------------------------------------------------------------
-PUT twitter/_settings 
-{
-  "number_of_replicas" : 2
-}
-
-GET _cat/recovery?v&h=i,s,t,ty,st,shost,thost,f,fp,b,bp
-----------------------------------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
 [source,text]
 ----------------------------------------------------------------------------
-i       s t      ty             st   shost thost f fp     b        bp
-twitter 0 1252ms existing_store done n/a   hostA 4 100.0% 23638870 0.0%
+GET _cat/recovery?v&h=i,s,t,ty,st,shost,thost,f,fp,b,bp
+---------------------------------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+[source,text]
+---------------------------------------------------------------------------
+i       s t      ty    st    shost  thost     f     fp      b bp
+twitter 0 1252ms store done  n/a    127.0.0.1 0     100.0%  0 100.0%
 ----------------------------------------------------------------------------
-// TESTRESPONSE[s/hostA/.+/]
-// TESTRESPONSE[s/23638870/\\d+/]
-// TESTRESPONSE[s/4/0/]
-// TESTRESPONSE[s/23638870/0/]
+// TESTRESPONSE[s/store/empty_store/]
 // TESTRESPONSE[s/100.0%/0.0%/]
-// TESTRESPONSE[s/existing_store/empty_store/]
 // TESTRESPONSE[s/1252/\\d+/ _cat]
 
 We can see in the above listing that our 3 initial shards are in various stages
@@ -67,44 +60,16 @@ Finally, let's see what a snapshot recovery looks like. Assuming I have previous
 made a backup of my index, I can restore it using the <<modules-snapshots,snapshot and restore>>
 API.
 
-////
-Preparing the restore operation
-[source,js]
--------------
-PUT _snapshot/twitter_repo
-{
-  "type": "fs",
-  "settings": {
-    "location": "twitter_repo"
-  }
-}
-
-PUT _snapshot/twitter_repo/snapshot_1?wait_for_completion=true
-{
-  "indices" : "twitter"
-}
-
-DELETE twitter
--------------
-// CONSOLE
-// TEST[continued]
-////
-
-[source,js]
+[source,text]
 --------------------------------------------------------------------------------
-POST _snapshot/twitter_repo/snapshot_1/_restore?wait_for_completion=true
-
 GET _cat/recovery?v&h=i,s,t,ty,st,rep,snap,f,fp,b,bp
-----------------------------------------------------------------------------
+---------------------------------------------------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST[skip:no need to execute snapshot/restore here]
 
 [source,text]
-----------------------------------------------------------------------------
-i       s t     ty       st   rep          snap       f fp     b     bp
-twitter 0 299ms snapshot done twitter_repo snapshot_1 7 100.0% 79893 100.0%
+---------------------------------------------------------------------------
+i       s t      ty       st    rep        snap     f     fp      b     bp
+twitter 0 1978ms snapshot done  imdb       snap_1   79    8.0%    12086 9.0%
 --------------------------------------------------------------------------------
-// TESTRESPONSE[s/79893/\\d+/ _cat]
-// TESTRESPONSE[s/7/\\d+/]
-// TESTRESPONSE[s/299/\\d+/]
-
+// TESTRESPONSE[_cat]

@@ -102,12 +102,12 @@ final class Checkpoint {
         return new Checkpoint(offset, 0, generation, minSeqNo, maxSeqNo, globalCheckpoint);
     }
 
-    static Checkpoint readChecksummedV2(final DataInput in) throws IOException {
+    static Checkpoint readCheckpointV6_0_0(final DataInput in) throws IOException {
         return new Checkpoint(in.readLong(), in.readInt(), in.readLong(), in.readLong(), in.readLong(), in.readLong());
     }
 
     // reads a checksummed checkpoint introduced in ES 5.0.0
-    static Checkpoint readChecksummedV1(final DataInput in) throws IOException {
+    static Checkpoint readCheckpointV5_0_0(final DataInput in) throws IOException {
         final long minSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
         final long maxSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
         final long globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
@@ -128,17 +128,17 @@ final class Checkpoint {
 
     public static Checkpoint read(Path path) throws IOException {
         try (Directory dir = new SimpleFSDirectory(path.getParent())) {
-            try (final IndexInput indexInput = dir.openInput(path.getFileName().toString(), IOContext.DEFAULT)) {
+            try (IndexInput indexInput = dir.openInput(path.getFileName().toString(), IOContext.DEFAULT)) {
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
                 final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, INITIAL_VERSION, CURRENT_VERSION);
                 if (fileVersion == INITIAL_VERSION) {
-                    assert indexInput.length() == V1_FILE_SIZE;
-                    return Checkpoint.readChecksummedV1(indexInput);
+                    assert indexInput.length() == V1_FILE_SIZE : indexInput.length();
+                    return Checkpoint.readCheckpointV5_0_0(indexInput);
                 } else {
-                    assert fileVersion == CURRENT_VERSION;
-                    assert indexInput.length() == FILE_SIZE;
-                    return Checkpoint.readChecksummedV2(indexInput);
+                    assert fileVersion == CURRENT_VERSION : fileVersion;
+                    assert indexInput.length() == FILE_SIZE : indexInput.length();
+                    return Checkpoint.readCheckpointV6_0_0(indexInput);
                 }
             }
         }

@@ -76,10 +76,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
      * @throws IOException if any of the file operations resulted in an I/O exception
      */
     public static TranslogReader open(
-        final FileChannel channel,
-        final Path path,
-        final Checkpoint checkpoint,
-        final String translogUUID) throws IOException {
+            final FileChannel channel, final Path path, final Checkpoint checkpoint, final String translogUUID) throws IOException {
 
         try {
             InputStreamStreamInput headerStream = new InputStreamStreamInput(java.nio.channels.Channels.newInputStream(channel)); // don't close
@@ -159,7 +156,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     }
 
     @Override
-    Checkpoint getCheckpoint() {
+    final Checkpoint getCheckpoint() {
         return checkpoint;
     }
 

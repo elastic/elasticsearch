@@ -85,9 +85,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.outputStream = new BufferedChannelOutputStream(java.nio.channels.Channels.newOutputStream(channel), bufferSize.bytesAsInt());
         this.lastSyncedCheckpoint = initialCheckpoint;
         this.totalOffset = initialCheckpoint.offset;
-        assert initialCheckpoint.minSeqNo == SequenceNumbersService.NO_OPS_PERFORMED;
+        assert initialCheckpoint.minSeqNo == SequenceNumbersService.NO_OPS_PERFORMED : initialCheckpoint.minSeqNo;
         this.minSeqNo = initialCheckpoint.minSeqNo;
-        assert initialCheckpoint.maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED;
+        assert initialCheckpoint.maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED : initialCheckpoint.maxSeqNo;
         this.maxSeqNo = initialCheckpoint.maxSeqNo;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
     }
@@ -185,23 +185,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
         if (minSeqNo == SequenceNumbersService.NO_OPS_PERFORMED) {
             assert operationCounter == 0;
-            minSeqNo = seqNo;
-        } else if (minSeqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-            minSeqNo = seqNo;
-        } else {
-            assert seqNo != SequenceNumbersService.UNASSIGNED_SEQ_NO;
-            minSeqNo = Math.min(minSeqNo, seqNo);
         }
-
         if (maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED) {
             assert operationCounter == 0;
-            maxSeqNo = seqNo;
-        } else if (maxSeqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-            maxSeqNo = seqNo;
-        } else {
-            assert seqNo != SequenceNumbersService.UNASSIGNED_SEQ_NO;
-            maxSeqNo = Math.max(maxSeqNo, seqNo);
         }
+
+        minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
+        maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
 
         operationCounter++;
 

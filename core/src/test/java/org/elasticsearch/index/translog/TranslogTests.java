@@ -1033,6 +1033,7 @@ public class TranslogTests extends ESTestCase {
                 writer.add(new BytesArray(bytes), randomNonNegativeLong());
             }
             writer.sync();
+            final Checkpoint writerCheckpoint = writer.getCheckpoint();
             try (TranslogReader reader = writer.closeIntoReader()) {
                 for (int i = 0; i < numOps; i++) {
                     final ByteBuffer buffer = ByteBuffer.allocate(4);
@@ -1041,6 +1042,8 @@ public class TranslogTests extends ESTestCase {
                     final int value = buffer.getInt();
                     assertEquals(i, value);
                 }
+                final Checkpoint readerCheckpoint = reader.getCheckpoint();
+                assertThat(readerCheckpoint, equalTo(writerCheckpoint));
             }
         }
     }

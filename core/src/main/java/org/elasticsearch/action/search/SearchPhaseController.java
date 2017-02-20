@@ -459,17 +459,24 @@ public class SearchPhaseController extends AbstractComponent {
             reducedQueryPhase.maxScore);
     }
 
+    /**
+     * Reduces the given query results and consumes all aggregations and profile results.
+     * @param queryResults a list of non-null query shard results
+     */
     public final ReducedQueryPhase reducedQueryPhase(List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults) {
         return reducedQueryPhase(queryResults, null);
     }
 
     /**
      * Reduces the given query results and consumes all aggregations and profile results.
+     * @param queryResults a list of non-null query shard results
+     * @param bufferdAggs a list of pre-collected / buffered aggregations. if this list is non-null all aggregations have been consumed
+     *                    from all non-null query results.
      * @see QuerySearchResult#consumeAggs()
      * @see QuerySearchResult#consumeProfileResult()
      */
-    public final ReducedQueryPhase reducedQueryPhase(List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults,
-                                                     List<InternalAggregations> reducedAggs) {
+    private final ReducedQueryPhase reducedQueryPhase(List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults,
+                                                     List<InternalAggregations> bufferdAggs) {
         long totalHits = 0;
         long fetchHits = 0;
         float maxScore = Float.NEGATIVE_INFINITY;
@@ -480,14 +487,22 @@ public class SearchPhaseController extends AbstractComponent {
         }
         QuerySearchResult firstResult = queryResults.get(0).value.queryResult();
         final boolean hasSuggest = firstResult.suggest() != null;
-        final boolean hasAggs = firstResult.hasAggs() && reducedAggs == null;
+        final boolean hasAggs = firstResult.hasAggs() && bufferdAggs == null;
         final boolean hasProfileResults = firstResult.hasProfileResults();
+
         final List<InternalAggregations> aggregationsList;
-        if (hasAggs) {
+        if (bufferdAggs != null) {
+            // we already have results from intermediate reduces and just need to perform the final reduce
+            assert firstResult.hasAggs();
+        } else if (firstResult.hasAggs()) {
+            // the number of shards was less than the buffer size so we reduce agg results directly
             aggregationsList = new ArrayList<>(queryResults.size());
         } else {
-            aggregationsList = reducedAggs == null ? Collections.emptyList() : reducedAggs;
+            assert firstResult.hasAggs() == false;
+            // no aggregations
+            aggregationsList = Collections.emptyList();
         }
+
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         final Map<String, List<Suggestion>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
         final Map<String, ProfileShardResult> profileResults = hasProfileResults ? new HashMap<>(queryResults.size())
@@ -534,7 +549,11 @@ public class SearchPhaseController extends AbstractComponent {
     }
 
 
-    private InternalAggregations reduceAggsOnly(List<InternalAggregations> aggregationsList) {
+    /**
+     * Performs an intermediate reduce phase on the aggregations. For instance with this reduce phase never prune information
+     * that relevant for the final reduce step. For final reduce see {@link #reduceAggs(List, List, ReduceContext)}
+     */
+    private InternalAggregations reduceAggsIncrementally(List<InternalAggregations> aggregationsList) {
         ReduceContext reduceContext = new ReduceContext(bigArrays, scriptService, false);
         return aggregationsList.isEmpty() ? null : reduceAggs(aggregationsList,
             null, reduceContext);
@@ -664,10 +683,8 @@ public class SearchPhaseController extends AbstractComponent {
                     assert hasAggs == null || hasAggs;
                     hasAggs = Boolean.TRUE;
                     InternalAggregations aggregations = (InternalAggregations) querySearchResult.consumeAggs();
-                    // once the size is incremented to the length of the buffer we know all elements are added
-                    // we also have happens before guarantees due to the memory barrier of the size write
                     if (index == buffer.length) {
-                        InternalAggregations reducedAggs = controller.reduceAggsOnly(Arrays.asList(buffer));
+                        InternalAggregations reducedAggs = controller.reduceAggsIncrementally(Arrays.asList(buffer));
                         Arrays.fill(buffer, null);
                         buffer[0] = reducedAggs;
                         index = 1;

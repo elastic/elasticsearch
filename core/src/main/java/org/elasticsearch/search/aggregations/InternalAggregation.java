@@ -56,7 +56,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
         }
 
         /**
-         * Returns <code>true</code> iff the current reduce phase is the final reduce phase. This indicated if operations like
+         * Returns <code>true</code> iff the current reduce phase is the final reduce phase. This indicates if operations like
          * pipeline aggregations should be applied or if specific features like <tt>minDocCount</tt> should be taken into account.
          * Operations that are potentially loosing information can only be applied during the final reduce phase.
          */

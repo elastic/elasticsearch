@@ -58,9 +58,9 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
         }
 
         public static Type fromString(String type) {
-            if (type.equals(Type.CATEGORY.name)) {
+            if (type.equalsIgnoreCase(Type.CATEGORY.name)) {
                 return CATEGORY;
-            } else if (type.equals(Type.GEO.name)) {
+            } else if (type.equalsIgnoreCase(Type.GEO.name)) {
                 return GEO;
             } else {
                 throw new IllegalArgumentException("No context type for [" + type + "]");

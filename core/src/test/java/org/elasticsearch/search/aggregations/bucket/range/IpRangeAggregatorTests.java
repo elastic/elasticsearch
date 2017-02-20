@@ -67,6 +67,7 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
         return false;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/23272")
     public void testRanges() throws Exception {
         boolean v4 = randomBoolean();
         IpRangeAggregationBuilder builder = new IpRangeAggregationBuilder("test_agg").field("field");

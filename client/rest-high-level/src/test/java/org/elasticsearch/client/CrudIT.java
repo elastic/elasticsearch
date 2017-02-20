@@ -49,16 +49,18 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
     public void testDelete() throws IOException {
         {
             // Testing non existing document
-            DeleteRequest deleteRequest = new DeleteRequest("index", "type", "does_not_exist");
+            String docId = "does_not_exist";
+            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
             DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
             assertEquals("index", deleteResponse.getIndex());
             assertEquals("type", deleteResponse.getType());
-            assertEquals("does_not_exist", deleteResponse.getId());
+            assertEquals(docId, deleteResponse.getId());
             assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
         }
         {
             // Testing deletion
-            String docId = createSampleDocument(createSampleIndexRequest());
+            String docId = "id";
+            createSampleDocument(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")));
             DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
             if (randomBoolean()) {
                 deleteRequest.version(1L);
@@ -71,7 +73,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
         {
             // Testing version conflict
-            String docId = createSampleDocument(createSampleIndexRequest());
+            String docId = "version_conflict";
+            createSampleDocument(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")));
             DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).version(2);
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                 () -> execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync));
@@ -83,8 +86,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
         {
             // Testing version type
-            String docId = createSampleDocument(createSampleIndexRequest()
-                .id(randomAsciiOfLength(15))
+            String docId = "version_type";
+            createSampleDocument(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar"))
                 .versionType(VersionType.EXTERNAL).version(12));
             DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).versionType(VersionType.EXTERNAL).version(13);
             DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
@@ -95,8 +98,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
         {
             // Testing version type with a wrong version
-            String docId = createSampleDocument(createSampleIndexRequest()
-                .id(randomAsciiOfLength(15))
+            String docId = "wrong_version";
+            createSampleDocument(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar"))
                 .versionType(VersionType.EXTERNAL).version(12));
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
                 DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).versionType(VersionType.EXTERNAL).version(10);
@@ -109,7 +112,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
         {
             // Testing routing
-            String docId = createSampleDocument(createSampleIndexRequest().routing("foo"));
+            String docId = "routing";
+            createSampleDocument(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")).routing("foo"));
             DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).routing("foo");
             DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
             assertEquals("index", deleteResponse.getIndex());
@@ -342,25 +346,12 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
     }
 
     /**
-     * @return A sample index request
-     * @throws IOException If problem when generating the content
-     */
-    private IndexRequest createSampleIndexRequest() throws IOException {
-        final XContentType xContentType = randomFrom(XContentType.values());
-        IndexRequest indexRequest = new IndexRequest("index", "type");
-        indexRequest.source(XContentBuilder.builder(xContentType.xContent()).startObject().field("test", "test").endObject());
-        return indexRequest;
-    }
-
-    /**
-     * Executes an index request and returns the document _id
+     * Index a document
      * @param request index request
-     * @return the document _id
      * @throws IOException if something goes wrong while executing the index request
      */
-    private String createSampleDocument(IndexRequest request) throws IOException {
+    private void createSampleDocument(IndexRequest request) throws IOException {
         IndexResponse indexResponse = execute(request, highLevelClient()::index, highLevelClient()::indexAsync);
         assertEquals(RestStatus.CREATED, indexResponse.status());
-        return indexResponse.getId();
     }
 }

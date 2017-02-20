@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -249,7 +250,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         }
 
         final int size = reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size());
-        BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator(null));
+        final BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator(null));
         for (List<B> sameTermBuckets : buckets.values()) {
             final B b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
             if (b.docCountError != -1) {

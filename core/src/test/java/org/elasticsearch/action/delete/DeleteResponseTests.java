@@ -19,10 +19,10 @@
 
 package org.elasticsearch.action.delete;
 
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
@@ -30,9 +30,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.action.index.IndexResponseTests.assertDocWriteResponse;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 
 public class DeleteResponseTests extends ESTestCase {
@@ -55,11 +55,12 @@ public class DeleteResponseTests extends ESTestCase {
     }
 
     public void testToAndFromXContent() throws IOException {
-        final XContentType xContentType = randomFrom(XContentType.values());
+        final Tuple<DeleteResponse, DeleteResponse> tuple = randomDeleteResponse();
+        DeleteResponse deleteResponse = tuple.v1();
+        DeleteResponse expectedDeleteResponse = tuple.v2();
 
-        // Create a random DeleteResponse and converts it to XContent in bytes
-        DeleteResponse deleteResponse = randomDeleteResponse();
         boolean humanReadable = randomBoolean();
+        final XContentType xContentType = randomFrom(XContentType.values());
         BytesReference deleteResponseBytes = toXContent(deleteResponse, xContentType, humanReadable);
 
         // Shuffle the XContent fields
@@ -69,7 +70,7 @@ public class DeleteResponseTests extends ESTestCase {
             }
         }
 
-        // Parse the XContent bytes to obtain a parsed
+        // Parse the XContent bytes to obtain a parsed DeleteResponse
         DeleteResponse parsedDeleteResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), deleteResponseBytes)) {
             parsedDeleteResponse = DeleteResponse.fromXContent(parser);
@@ -79,35 +80,36 @@ public class DeleteResponseTests extends ESTestCase {
         // We can't use equals() to compare the original and the parsed delete response
         // because the random delete response can contain shard failures with exceptions,
         // and those exceptions are not parsed back with the same types.
-
-        // Print the parsed object out and test that the output is the same as the original output
-        BytesReference parsedDeleteResponseBytes = toXContent(parsedDeleteResponse, xContentType, humanReadable);
-        try (XContentParser parser = createParser(xContentType.xContent(), parsedDeleteResponseBytes)) {
-            assertDeleteResponse(deleteResponse, parser.map());
-        }
+        assertDocWriteResponse(expectedDeleteResponse, parsedDeleteResponse);
     }
 
-    public static void assertDeleteResponse(DeleteResponse expected, Map<String, Object> actual) {
-        assertDocWriteResponse(expected, actual);
-        if (expected.getResult() == DocWriteResponse.Result.DELETED) {
-            assertTrue((boolean) actual.get("found"));
-        } else {
-            assertFalse((boolean) actual.get("found"));
-        }
-    }
-
-    public static DeleteResponse randomDeleteResponse() {
-        ShardId shardId = new ShardId(randomAsciiOfLength(5), randomAsciiOfLength(5), randomIntBetween(0, 5));
+    /**
+     * Returns a tuple of {@link DeleteResponse}s.
+     * <p>
+     * The left element is the actual {@link DeleteResponse} to serialize while the right element is the
+     * expected {@link DeleteResponse} after parsing.
+     */
+    public static Tuple<DeleteResponse, DeleteResponse> randomDeleteResponse() {
+        String index = randomAsciiOfLength(5);
+        String indexUUid = randomAsciiOfLength(5);
+        int shardId = randomIntBetween(0, 5);
         String type = randomAsciiOfLength(5);
         String id = randomAsciiOfLength(5);
-        //long seqNo = randomFrom(SequenceNumbersService.UNASSIGNED_SEQ_NO, randomPositiveLong(), (long) randomIntBetween(0, 10000));
         long version = randomBoolean() ? randomPositiveLong() : randomIntBetween(0, 10000);
         boolean found = randomBoolean();
+        boolean forcedRefresh = randomBoolean();
 
-        DeleteResponse response = new DeleteResponse(shardId, type, id, version, found);
-        response.setForcedRefresh(randomBoolean());
-        response.setShardInfo(RandomObjects.randomShardInfo(random(), randomBoolean()));
-        return response;
+        Tuple<ReplicationResponse.ShardInfo, ReplicationResponse.ShardInfo> shardInfos = RandomObjects.randomShardInfo(random());
+
+        DeleteResponse actual = new DeleteResponse(new ShardId(index, indexUUid, shardId), type, id, version, found);
+        actual.setForcedRefresh(forcedRefresh);
+        actual.setShardInfo(shardInfos.v1());
+
+        DeleteResponse expected = new DeleteResponse(new ShardId(index, INDEX_UUID_NA_VALUE, -1), type, id, version, found);
+        expected.setForcedRefresh(forcedRefresh);
+        expected.setShardInfo(shardInfos.v2());
+
+        return Tuple.tuple(actual, expected);
     }
 
 }

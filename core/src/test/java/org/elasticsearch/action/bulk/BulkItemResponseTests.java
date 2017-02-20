@@ -21,8 +21,11 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.action.delete.DeleteResponseTests;
+import org.elasticsearch.action.index.IndexResponseTests;
+import org.elasticsearch.action.update.UpdateResponseTests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -30,16 +33,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.elasticsearch.ElasticsearchExceptionTests.randomExceptions;
-import static org.elasticsearch.action.delete.DeleteResponseTests.assertDeleteResponse;
-import static org.elasticsearch.action.delete.DeleteResponseTests.randomDeleteResponse;
-import static org.elasticsearch.action.index.IndexResponseTests.assertIndexResponse;
-import static org.elasticsearch.action.index.IndexResponseTests.randomIndexResponse;
-import static org.elasticsearch.action.update.UpdateResponseTests.assertUpdateResponse;
-import static org.elasticsearch.action.update.UpdateResponseTests.randomUpdateResponse;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.Matchers.containsString;
 
@@ -59,22 +55,21 @@ public class BulkItemResponseTests extends ESTestCase {
         for (DocWriteRequest.OpType opType : DocWriteRequest.OpType.values()) {
             int bulkItemId = randomIntBetween(0, 100);
             boolean humanReadable = randomBoolean();
-            BytesReference originalBytes = null;
-            BulkItemResponse expectedBulkItemResponse = null;
 
+            Tuple<? extends DocWriteResponse, ? extends DocWriteResponse> randomDocWriteResponses = null;
             if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
-                expectedBulkItemResponse = new BulkItemResponse(bulkItemId, opType, randomIndexResponse());
-                originalBytes = toXContent(expectedBulkItemResponse, xContentType, humanReadable);
-
+                randomDocWriteResponses = IndexResponseTests.randomIndexResponse();
             } else if (opType == DocWriteRequest.OpType.DELETE) {
-                expectedBulkItemResponse = new BulkItemResponse(bulkItemId, opType, randomDeleteResponse());
-                originalBytes = toXContent(expectedBulkItemResponse, xContentType, humanReadable);
-
+                randomDocWriteResponses = DeleteResponseTests.randomDeleteResponse();
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
-                Tuple<UpdateResponse, UpdateResponse> updates = randomUpdateResponse(xContentType);
-                expectedBulkItemResponse = new BulkItemResponse(bulkItemId, opType, updates.v2());
-                originalBytes = toXContent(new BulkItemResponse(bulkItemId, opType, updates.v1()), xContentType, humanReadable);
+                randomDocWriteResponses = UpdateResponseTests.randomUpdateResponse(xContentType);
+            } else {
+                fail("Test does not support opType [" + opType + "]");
             }
+
+            BulkItemResponse bulkItemResponse = new BulkItemResponse(bulkItemId, opType, randomDocWriteResponses.v1());
+            BulkItemResponse expectedBulkItemResponse = new BulkItemResponse(bulkItemId, opType, randomDocWriteResponses.v2());
+            BytesReference originalBytes = toXContent(bulkItemResponse, xContentType, humanReadable);
 
             // Shuffle the XContent fields
             if (randomBoolean()) {
@@ -89,50 +84,23 @@ public class BulkItemResponseTests extends ESTestCase {
                 parsedBulkItemResponse = BulkItemResponse.fromXContent(parser, bulkItemId);
                 assertNull(parser.nextToken());
             }
-
-            assertEquals(expectedBulkItemResponse.getIndex(), parsedBulkItemResponse.getIndex());
-            assertEquals(expectedBulkItemResponse.getType(), parsedBulkItemResponse.getType());
-            assertEquals(expectedBulkItemResponse.getId(), parsedBulkItemResponse.getId());
-            assertEquals(expectedBulkItemResponse.getOpType(), parsedBulkItemResponse.getOpType());
-            assertEquals(expectedBulkItemResponse.getVersion(), parsedBulkItemResponse.getVersion());
-            assertEquals(bulkItemId, parsedBulkItemResponse.getItemId());
-
-            BytesReference finalBytes = toXContent(parsedBulkItemResponse, xContentType, humanReadable);
-            try (XContentParser parser = createParser(xContentType.xContent(), finalBytes)) {
-                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-                assertEquals(opType.getLowercase(), parser.currentName());
-                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-
-                Map<String, Object> map = parser.map();
-
-                if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
-                    assertIndexResponse(expectedBulkItemResponse.getResponse(), map);
-                } else if (opType == DocWriteRequest.OpType.DELETE) {
-                    assertDeleteResponse(expectedBulkItemResponse.getResponse(), map);
-                } else if (opType == DocWriteRequest.OpType.UPDATE) {
-                    assertUpdateResponse(expectedBulkItemResponse.getResponse(), parsedBulkItemResponse.getResponse(), map);
-                } else {
-                    fail("Test does not support opType [" + opType + "]");
-                }
-            }
+            assertBulkItemResponse(expectedBulkItemResponse, parsedBulkItemResponse);
         }
     }
 
     public void testFailureToAndFromXContent() throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());
 
-        final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();
-        final Throwable cause = exceptions.v1();
-        final ElasticsearchException expectedCause = exceptions.v2();
-
-        int bulkItemId = randomIntBetween(0, 100);
+        int itemId = randomIntBetween(0, 100);
         String index = randomAsciiOfLength(5);
         String type = randomAsciiOfLength(5);
         String id = randomAsciiOfLength(5);
         DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
 
-        BulkItemResponse bulkItemResponse = new BulkItemResponse(bulkItemId, opType, new Failure(index, type, id, (Exception) cause));
+        final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();
+
+        BulkItemResponse bulkItemResponse = new BulkItemResponse(itemId, opType, new Failure(index, type, id, (Exception) exceptions.v1()));
+        BulkItemResponse expectedBulkItemResponse = new BulkItemResponse(itemId, opType, new Failure(index, type, id, exceptions.v2()));
         BytesReference originalBytes = toXContent(bulkItemResponse, xContentType, randomBoolean());
 
         // Shuffle the XContent fields
@@ -145,22 +113,39 @@ public class BulkItemResponseTests extends ESTestCase {
         BulkItemResponse parsedBulkItemResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsedBulkItemResponse = BulkItemResponse.fromXContent(parser, bulkItemId);
+            parsedBulkItemResponse = BulkItemResponse.fromXContent(parser, itemId);
             assertNull(parser.nextToken());
         }
+        assertBulkItemResponse(expectedBulkItemResponse, parsedBulkItemResponse);
+    }
 
-        assertNotNull(parsedBulkItemResponse);
-        assertEquals(index, parsedBulkItemResponse.getIndex());
-        assertEquals(type, parsedBulkItemResponse.getType());
-        assertEquals(id, parsedBulkItemResponse.getId());
-        assertEquals(opType, parsedBulkItemResponse.getOpType());
-        assertEquals(bulkItemId, parsedBulkItemResponse.getItemId());
+    public static void assertBulkItemResponse(BulkItemResponse expected, BulkItemResponse actual) {
+        assertEquals(expected.getItemId(), actual.getItemId());
+        assertEquals(expected.getIndex(), actual.getIndex());
+        assertEquals(expected.getType(), actual.getType());
+        assertEquals(expected.getId(), actual.getId());
+        assertEquals(expected.getOpType(), actual.getOpType());
+        assertEquals(expected.getVersion(), actual.getVersion());
+        assertEquals(expected.isFailed(), actual.isFailed());
 
-        Failure parsedFailure = parsedBulkItemResponse.getFailure();
-        assertEquals(index, parsedFailure.getIndex());
-        assertEquals(type, parsedFailure.getType());
-        assertEquals(id, parsedFailure.getId());
+        if (expected.isFailed()) {
+            BulkItemResponse.Failure expectedFailure = expected.getFailure();
+            BulkItemResponse.Failure actualFailure = actual.getFailure();
 
-        assertDeepEquals(expectedCause, (ElasticsearchException) parsedFailure.getCause());
+            assertEquals(expectedFailure.getIndex(), actualFailure.getIndex());
+            assertEquals(expectedFailure.getType(), actualFailure.getType());
+            assertEquals(expectedFailure.getId(), actualFailure.getId());
+            assertEquals(expectedFailure.getMessage(), actualFailure.getMessage());
+            assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
+
+            assertDeepEquals((ElasticsearchException) expectedFailure.getCause(), (ElasticsearchException) actualFailure.getCause());
+        } else {
+            if (expected.getOpType() == DocWriteRequest.OpType.UPDATE) {
+                UpdateResponseTests.assertUpdateResponse(expected.getResponse(), actual.getResponse());
+            } else {
+                // assertDocWriteResponse check the result for INDEX/CREATE and DELETE operations
+                IndexResponseTests.assertDocWriteResponse(expected.getResponse(), actual.getResponse());
+            }
+        }
     }
 }

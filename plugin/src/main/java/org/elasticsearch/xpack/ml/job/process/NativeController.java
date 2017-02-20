@@ -76,7 +76,7 @@ public class NativeController {
 
     public Map<String, Object> getNativeCodeInfo() throws TimeoutException {
         String copyrightMessage = cppLogHandler.getCppCopyright(CONTROLLER_CONNECT_TIMEOUT);
-        Matcher matcher = Pattern.compile("Version (.+) \\(Build ([0-9a-f]+)\\) Copyright ").matcher(copyrightMessage);
+        Matcher matcher = Pattern.compile("Version (.+) \\(Build ([^)]+)\\) Copyright ").matcher(copyrightMessage);
         if (matcher.find()) {
             Map<String, Object> info = new HashMap<>(2);
             info.put("version", matcher.group(1));

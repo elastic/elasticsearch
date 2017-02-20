@@ -481,12 +481,12 @@ run_elasticsearch_tests() {
     [ "$status" -eq 0 ]
     echo "$output" | grep -w "green"
 
-    curl -s -XPOST 'http://localhost:9200/library/book/1?refresh=true&pretty' -d '{
+    curl -s -H "Content-Type: application/json" -XPOST 'http://localhost:9200/library/book/1?refresh=true&pretty' -d '{
       "title": "Book #1",
       "pages": 123
     }'
 
-    curl -s -XPOST 'http://localhost:9200/library/book/2?refresh=true&pretty' -d '{
+    curl -s -H "Content-Type: application/json" -XPOST 'http://localhost:9200/library/book/2?refresh=true&pretty' -d '{
       "title": "Book #2",
       "pages": 456
     }'
@@ -494,7 +494,7 @@ run_elasticsearch_tests() {
     curl -s -XGET 'http://localhost:9200/_count?pretty' |
       grep \"count\"\ :\ 2
 
-    curl -s -XPOST 'http://localhost:9200/library/book/_count?pretty' -d '{
+    curl -s -H "Content-Type: application/json" -XPOST 'http://localhost:9200/library/book/_count?pretty' -d '{
       "query": {
         "script": {
           "script": {

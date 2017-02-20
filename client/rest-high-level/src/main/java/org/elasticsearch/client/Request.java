@@ -71,8 +71,6 @@ final class Request {
                 '}';
     }
 
-    // For developers please add your new methods in the alphabetical order
-
     static Request delete(DeleteRequest deleteRequest) {
         String endpoint = endpoint(deleteRequest.index(), deleteRequest.type(), deleteRequest.id());
 

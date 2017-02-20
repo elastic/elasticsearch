@@ -21,6 +21,21 @@ match a query:
 }
 --------------------------------------------------
 
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "author_count": {
+            "value": 19
+        }
+    }
+}
+--------------------------------------------------
+
 ==== Precision control
 
 This aggregation also supports the `precision_threshold` option:

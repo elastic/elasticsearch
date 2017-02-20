@@ -245,8 +245,12 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         Query rewrittenTermsQuery = termsQuery.rewrite(null);
         assertThat(rewrittenTermsQuery, instanceOf(ConstantScoreQuery.class));
         ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) rewrittenTermsQuery;
-        assertThat(constantScoreQuery.getQuery(), instanceOf(TermQuery.class));
-        TermQuery termQuery = (TermQuery) constantScoreQuery.getQuery();
+        assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
+        BooleanQuery booleanTermsQuery = (BooleanQuery) constantScoreQuery.getQuery();
+        assertThat(booleanTermsQuery.clauses().toString(), booleanTermsQuery.clauses().size(), equalTo(1));
+        assertThat(booleanTermsQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+        assertThat(booleanTermsQuery.clauses().get(0).getQuery(), instanceOf(TermQuery.class));
+        TermQuery termQuery = (TermQuery) booleanTermsQuery.clauses().get(0).getQuery();
         assertThat(termQuery.getTerm().field(), equalTo(UidFieldMapper.NAME));
         //we want to make sure that the inner ids query gets executed against the child type rather than the main type we initially set to the context
         BytesRef[] ids = Uid.createUidsForTypesAndIds(Collections.singletonList(type), Collections.singletonList(id));

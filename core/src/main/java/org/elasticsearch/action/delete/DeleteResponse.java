@@ -74,7 +74,7 @@ public class DeleteResponse extends DocWriteResponse {
     public static DeleteResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
 
-        DeleteResponseBuilder context = new DeleteResponseBuilder();
+        Builder context = new Builder();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             parseXContentFields(parser, context);
         }
@@ -84,7 +84,7 @@ public class DeleteResponse extends DocWriteResponse {
     /**
      * Parse the current token and update the parsing context appropriately.
      */
-    public static void parseXContentFields(XContentParser parser, DeleteResponseBuilder context) throws IOException {
+    public static void parseXContentFields(XContentParser parser, Builder context) throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = parser.currentName();
 
@@ -97,7 +97,12 @@ public class DeleteResponse extends DocWriteResponse {
         }
     }
 
-    public static class DeleteResponseBuilder extends DocWriteResponse.DocWriteResponseBuilder {
+    /**
+     * Builder class for {@link DeleteResponse}. This builder is usually used during xcontent parsing to
+     * temporally store the parsed values, then the {@link DocWriteResponse.Builder#build()} method is called to
+     * instantiate the {@link DeleteResponse}.
+     */
+    public static class Builder extends DocWriteResponse.Builder {
 
         private boolean found = false;
 

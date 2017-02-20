@@ -482,26 +482,28 @@ public class SearchPhaseController extends AbstractComponent {
         float maxScore = Float.NEGATIVE_INFINITY;
         boolean timedOut = false;
         Boolean terminatedEarly = null;
-        if (queryResults.isEmpty()) {
+        if (queryResults.isEmpty()) { // early terminate we have nothing to reduce
             return new ReducedQueryPhase(totalHits, fetchHits, maxScore, timedOut, terminatedEarly, null, null, null, null);
         }
-        QuerySearchResult firstResult = queryResults.get(0).value.queryResult();
+        final QuerySearchResult firstResult = queryResults.get(0).value.queryResult();
         final boolean hasSuggest = firstResult.suggest() != null;
-        final boolean hasAggs = firstResult.hasAggs() && bufferdAggs == null;
         final boolean hasProfileResults = firstResult.hasProfileResults();
-
+        final boolean consumeAggs;
         final List<InternalAggregations> aggregationsList;
         if (bufferdAggs != null) {
+            consumeAggs = false;
             // we already have results from intermediate reduces and just need to perform the final reduce
-            assert firstResult.hasAggs();
+            assert firstResult.hasAggs() ^ bufferdAggs.isEmpty() : "hasAggs: " + firstResult.hasAggs()
+                + " but bufferedAggs is empty: " + bufferdAggs.isEmpty() ;
             aggregationsList = bufferdAggs;
         } else if (firstResult.hasAggs()) {
             // the number of shards was less than the buffer size so we reduce agg results directly
             aggregationsList = new ArrayList<>(queryResults.size());
+            consumeAggs = true;
         } else {
-            assert firstResult.hasAggs() == false;
             // no aggregations
             aggregationsList = Collections.emptyList();
+            consumeAggs = false;
         }
 
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
@@ -532,7 +534,7 @@ public class SearchPhaseController extends AbstractComponent {
                     suggestionList.add(suggestion);
                 }
             }
-            if (hasAggs) {
+            if (consumeAggs) {
                 aggregationsList.add((InternalAggregations) result.consumeAggs());
             }
             if (hasProfileResults) {

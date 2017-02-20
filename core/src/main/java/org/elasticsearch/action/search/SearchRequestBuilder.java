@@ -46,8 +46,6 @@ import java.util.List;
  */
 public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, SearchRequestBuilder> {
 
-    private int reduceUpTo;
-
     public SearchRequestBuilder(ElasticsearchClient client, SearchAction action) {
         super(client, action, new SearchRequest());
     }

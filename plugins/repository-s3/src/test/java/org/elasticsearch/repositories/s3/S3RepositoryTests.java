@@ -125,8 +125,9 @@ public class S3RepositoryTests extends ESTestCase {
         Settings settings = Settings.builder().put(Repositories.BASE_PATH_SETTING.getKey(), "/foo/bar").build();
         s3repo = new S3Repository(metadata, settings, NamedXContentRegistry.EMPTY, new DummyS3Service());
         assertEquals("foo/bar/", s3repo.basePath().buildAsString()); // make sure leading `/` is removed and trailing is added
-        assertWarnings("S3 repository base_path" +
-                " trimming the leading `/`, and leading `/` will not be supported for the S3 repository in future releases");
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{Repositories.BASE_PATH_SETTING},
+            "S3 repository base_path trimming the leading `/`, and leading `/` will not be supported for the S3 repository in " +
+                "future releases");
     }
 
     public void testDefaultBufferSize() {

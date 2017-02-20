@@ -268,10 +268,6 @@ The following settings are supported:
     The default behaviour is to detect which access style to use based on the configured endpoint (an IP will result
     in path-style access) and the bucket being accessed (some buckets are not valid DNS names).
 
-Note that you can define S3 repository settings for all S3 repositories in `elasticsearch.yml` configuration file.
-They are all prefixed with `repositories.s3.`. For example, you can define compression for all S3 repositories
-by setting `repositories.s3.compress: true` in `elasticsearch.yml`.
-
 The S3 repositories use the same credentials as the rest of the AWS services
 provided by this plugin (`discovery`). See <<repository-s3-usage>> for details.
 

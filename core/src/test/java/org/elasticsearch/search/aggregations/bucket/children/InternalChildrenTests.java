@@ -37,7 +37,7 @@ public class InternalChildrenTests extends InternalAggregationTestCase<InternalC
     protected InternalChildren createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         // we shouldn't use the full long range here since we sum doc count on reduce, and don't want to overflow the long range there
-        long docCount = Math.abs(randomInt());
+        long docCount = randomIntBetween(0, Integer.MAX_VALUE);
         int numAggregations = randomIntBetween(0, 20);
         List<InternalAggregation> aggs = new ArrayList<>(numAggregations);
         for (int i = 0; i < numAggregations; i++) {

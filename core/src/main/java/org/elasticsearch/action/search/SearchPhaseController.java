@@ -475,7 +475,7 @@ public class SearchPhaseController extends AbstractComponent {
      * @see QuerySearchResult#consumeAggs()
      * @see QuerySearchResult#consumeProfileResult()
      */
-    private final ReducedQueryPhase reducedQueryPhase(List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults,
+    private ReducedQueryPhase reducedQueryPhase(List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults,
                                                      List<InternalAggregations> bufferdAggs) {
         long totalHits = 0;
         long fetchHits = 0;

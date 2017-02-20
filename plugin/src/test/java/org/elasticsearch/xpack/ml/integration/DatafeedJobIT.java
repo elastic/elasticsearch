@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -52,7 +53,8 @@ public class DatafeedJobIT extends ESRestTestCase {
                 + "    }"
                 + "  }"
                 + "}";
-        client().performRequest("put", "airline-data-empty", Collections.emptyMap(), new StringEntity(mappings));
+        client().performRequest("put", "airline-data-empty", Collections.emptyMap(),
+                new StringEntity(mappings, ContentType.APPLICATION_JSON));
 
         // Create index with source = enabled, doc_values = enabled, stored = false
         mappings = "{"
@@ -66,12 +68,14 @@ public class DatafeedJobIT extends ESRestTestCase {
                 + "    }"
                 + "  }"
                 + "}";
-        client().performRequest("put", "airline-data", Collections.emptyMap(), new StringEntity(mappings));
+        client().performRequest("put", "airline-data", Collections.emptyMap(), new StringEntity(mappings, ContentType.APPLICATION_JSON));
 
         client().performRequest("put", "airline-data/response/1", Collections.emptyMap(),
-                new StringEntity("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}"));
+                new StringEntity("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}",
+                        ContentType.APPLICATION_JSON));
         client().performRequest("put", "airline-data/response/2", Collections.emptyMap(),
-                new StringEntity("{\"time stamp\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}"));
+                new StringEntity("{\"time stamp\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}",
+                        ContentType.APPLICATION_JSON));
 
         // Create index with source = enabled, doc_values = disabled (except time), stored = false
         mappings = "{"
@@ -85,12 +89,15 @@ public class DatafeedJobIT extends ESRestTestCase {
                 + "    }"
                 + "  }"
                 + "}";
-        client().performRequest("put", "airline-data-disabled-doc-values", Collections.emptyMap(), new StringEntity(mappings));
+        client().performRequest("put", "airline-data-disabled-doc-values", Collections.emptyMap(),
+                new StringEntity(mappings, ContentType.APPLICATION_JSON));
 
         client().performRequest("put", "airline-data-disabled-doc-values/response/1", Collections.emptyMap(),
-                new StringEntity("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}"));
+                new StringEntity("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}",
+                        ContentType.APPLICATION_JSON));
         client().performRequest("put", "airline-data-disabled-doc-values/response/2", Collections.emptyMap(),
-                new StringEntity("{\"time stamp\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}"));
+                new StringEntity("{\"time stamp\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}",
+                        ContentType.APPLICATION_JSON));
 
         // Create index with source = disabled, doc_values = enabled (except time), stored = true
         mappings = "{"
@@ -105,12 +112,15 @@ public class DatafeedJobIT extends ESRestTestCase {
                 + "    }"
                 + "  }"
                 + "}";
-        client().performRequest("put", "airline-data-disabled-source", Collections.emptyMap(), new StringEntity(mappings));
+        client().performRequest("put", "airline-data-disabled-source", Collections.emptyMap(),
+                new StringEntity(mappings, ContentType.APPLICATION_JSON));
 
         client().performRequest("put", "airline-data-disabled-source/response/1", Collections.emptyMap(),
-                new StringEntity("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}"));
+                new StringEntity("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}",
+                        ContentType.APPLICATION_JSON));
         client().performRequest("put", "airline-data-disabled-source/response/2", Collections.emptyMap(),
-                new StringEntity("{\"time stamp\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}"));
+                new StringEntity("{\"time stamp\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}",
+                        ContentType.APPLICATION_JSON));
 
         // Create index with nested documents
         mappings = "{"
@@ -122,12 +132,14 @@ public class DatafeedJobIT extends ESRestTestCase {
                 + "    }"
                 + "  }"
                 + "}";
-        client().performRequest("put", "nested-data", Collections.emptyMap(), new StringEntity(mappings));
+        client().performRequest("put", "nested-data", Collections.emptyMap(), new StringEntity(mappings, ContentType.APPLICATION_JSON));
 
         client().performRequest("put", "nested-data/response/1", Collections.emptyMap(),
-                new StringEntity("{\"time\":\"2016-06-01T00:00:00Z\", \"responsetime\":{\"millis\":135.22}}"));
+                new StringEntity("{\"time\":\"2016-06-01T00:00:00Z\", \"responsetime\":{\"millis\":135.22}}",
+                        ContentType.APPLICATION_JSON));
         client().performRequest("put", "nested-data/response/2", Collections.emptyMap(),
-                new StringEntity("{\"time\":\"2016-06-01T01:59:00Z\",\"responsetime\":{\"millis\":222.0}}"));
+                new StringEntity("{\"time\":\"2016-06-01T01:59:00Z\",\"responsetime\":{\"millis\":222.0}}",
+                        ContentType.APPLICATION_JSON));
 
         // Create index with multiple docs per time interval for aggregation testing
         mappings = "{"
@@ -141,24 +153,33 @@ public class DatafeedJobIT extends ESRestTestCase {
                 + "    }"
                 + "  }"
                 + "}";
-        client().performRequest("put", "airline-data-aggs", Collections.emptyMap(), new StringEntity(mappings));
+        client().performRequest("put", "airline-data-aggs", Collections.emptyMap(),
+                new StringEntity(mappings, ContentType.APPLICATION_JSON));
 
         client().performRequest("put", "airline-data-aggs/response/1", Collections.emptyMap(),
-                new StringEntity("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":100.0}"));
+                new StringEntity("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":100.0}",
+                        ContentType.APPLICATION_JSON));
         client().performRequest("put", "airline-data-aggs/response/2", Collections.emptyMap(),
-                new StringEntity("{\"time stamp\":\"2016-06-01T00:01:00Z\",\"airline\":\"AAA\",\"responsetime\":200.0}"));
+                new StringEntity("{\"time stamp\":\"2016-06-01T00:01:00Z\",\"airline\":\"AAA\",\"responsetime\":200.0}",
+                        ContentType.APPLICATION_JSON));
         client().performRequest("put", "airline-data-aggs/response/3", Collections.emptyMap(),
-                new StringEntity("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"BBB\",\"responsetime\":1000.0}"));
+                new StringEntity("{\"time stamp\":\"2016-06-01T00:00:00Z\",\"airline\":\"BBB\",\"responsetime\":1000.0}",
+                        ContentType.APPLICATION_JSON));
         client().performRequest("put", "airline-data-aggs/response/4", Collections.emptyMap(),
-                new StringEntity("{\"time stamp\":\"2016-06-01T00:01:00Z\",\"airline\":\"BBB\",\"responsetime\":2000.0}"));
+                new StringEntity("{\"time stamp\":\"2016-06-01T00:01:00Z\",\"airline\":\"BBB\",\"responsetime\":2000.0}",
+                        ContentType.APPLICATION_JSON));
         client().performRequest("put", "airline-data-aggs/response/5", Collections.emptyMap(),
-                new StringEntity("{\"time stamp\":\"2016-06-01T01:00:00Z\",\"airline\":\"AAA\",\"responsetime\":300.0}"));
+                new StringEntity("{\"time stamp\":\"2016-06-01T01:00:00Z\",\"airline\":\"AAA\",\"responsetime\":300.0}",
+                        ContentType.APPLICATION_JSON));
         client().performRequest("put", "airline-data-aggs/response/6", Collections.emptyMap(),
-                new StringEntity("{\"time stamp\":\"2016-06-01T01:01:00Z\",\"airline\":\"AAA\",\"responsetime\":400.0}"));
+                new StringEntity("{\"time stamp\":\"2016-06-01T01:01:00Z\",\"airline\":\"AAA\",\"responsetime\":400.0}",
+                        ContentType.APPLICATION_JSON));
         client().performRequest("put", "airline-data-aggs/response/7", Collections.emptyMap(),
-                new StringEntity("{\"time stamp\":\"2016-06-01T01:00:00Z\",\"airline\":\"BBB\",\"responsetime\":3000.0}"));
+                new StringEntity("{\"time stamp\":\"2016-06-01T01:00:00Z\",\"airline\":\"BBB\",\"responsetime\":3000.0}",
+                        ContentType.APPLICATION_JSON));
         client().performRequest("put", "airline-data-aggs/response/8", Collections.emptyMap(),
-                new StringEntity("{\"time stamp\":\"2016-06-01T01:01:00Z\",\"airline\":\"BBB\",\"responsetime\":4000.0}"));
+                new StringEntity("{\"time stamp\":\"2016-06-01T01:01:00Z\",\"airline\":\"BBB\",\"responsetime\":4000.0}",
+                        ContentType.APPLICATION_JSON));
 
         // Ensure all data is searchable
         client().performRequest("post", "_refresh");
@@ -210,7 +231,7 @@ public class DatafeedJobIT extends ESRestTestCase {
                 + "\"data_description\" : {\"time_field\":\"time stamp\"}"
                 + "}";
         client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(),
-                new StringEntity(job));
+                new StringEntity(job, ContentType.APPLICATION_JSON));
 
         String datafeedId = "datafeed-" + jobId;
         String aggregations = "{\"time stamp\":{\"histogram\":{\"field\":\"time stamp\",\"interval\":3600000},"
@@ -235,7 +256,7 @@ public class DatafeedJobIT extends ESRestTestCase {
                 + "\"data_description\" : {\"time_field\":\"time stamp\"}"
                 + "}";
         client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(),
-                new StringEntity(job));
+                new StringEntity(job, ContentType.APPLICATION_JSON));
 
         String datafeedId = "datafeed-" + jobId;
         String aggregations = "{\"time stamp\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":\"1h\"},"
@@ -398,9 +419,8 @@ public class DatafeedJobIT extends ESRestTestCase {
                 + "    },\n" + "    \"data_description\" : {\n" + "        \"format\":\"JSON\",\n"
                 + "        \"time_field\":\"time stamp\",\n" + "        \"time_format\":\"yyyy-MM-dd'T'HH:mm:ssX\"\n" + "    }\n"
                 + "}";
-
         return client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + id,
-                Collections.emptyMap(), new StringEntity(job));
+                Collections.emptyMap(), new StringEntity(job, ContentType.APPLICATION_JSON));
     }
 
     private static String responseEntityToString(Response response) throws Exception {
@@ -419,7 +439,7 @@ public class DatafeedJobIT extends ESRestTestCase {
                 + "[{\"function\":\"mean\",\"field_name\":\"responsetime.millis\"}]}, \"data_description\" : {\"time_field\":\"time\"}"
                 + "}";
         client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(),
-                new StringEntity(job));
+                new StringEntity(job, ContentType.APPLICATION_JSON));
 
         String datafeedId = jobId + "-datafeed";
         new DatafeedBuilder(datafeedId, jobId, "nested-data", "response").setSource(source).build();
@@ -478,7 +498,7 @@ public class DatafeedJobIT extends ESRestTestCase {
                     + (aggregations == null ? "" : ",\"aggs\":" + aggregations)
                     + "}";
             return client().performRequest("put", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId, Collections.emptyMap(),
-                    new StringEntity(datafeedConfig));
+                    new StringEntity(datafeedConfig, ContentType.APPLICATION_JSON));
         }
     }
 }

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -150,7 +149,7 @@ public class JobManager extends AbstractComponent {
      * @throws org.elasticsearch.ResourceNotFoundException
      *             if there is no job with matching the given {@code jobId}
      */
-    Job getJobOrThrowIfUnknown(ClusterState clusterState, String jobId) {
+    public static Job getJobOrThrowIfUnknown(ClusterState clusterState, String jobId) {
         MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
         Job job = mlMetadata.getJobs().get(jobId);
         if (job == null) {
@@ -198,7 +197,9 @@ public class JobManager extends AbstractComponent {
                 });
     }
 
-    public void updateJob(String jobId, JobUpdate jobUpdate, AckedRequest request, ActionListener<PutJobAction.Response> actionListener) {
+    public void updateJob(String jobId, JobUpdate jobUpdate, AckedRequest request, Client client,
+                          ActionListener<PutJobAction.Response> actionListener) {
+
         clusterService.submitStateUpdateTask("update-job-" + jobId,
                 new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
                     private Job updatedJob;

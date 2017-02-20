@@ -7,16 +7,14 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,18 +23,18 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -47,54 +45,48 @@ import java.util.function.Supplier;
 public abstract class TransportJobTaskAction<OperationTask extends Task, Request extends TransportJobTaskAction.JobTaskRequest<Request>,
         Response extends BaseTasksResponse & Writeable> extends TransportTasksAction<OperationTask, Request, Response, Response> {
 
-    protected final JobManager jobManager;
     protected final AutodetectProcessManager processManager;
-    private final Function<Request, String> jobIdFromRequest;
-    private final TransportListTasksAction listTasksAction;
 
     TransportJobTaskAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
                            TransportService transportService, ActionFilters actionFilters,
                            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> requestSupplier,
-                           Supplier<Response> responseSupplier, String nodeExecutor, JobManager jobManager,
-                           AutodetectProcessManager processManager, Function<Request, String> jobIdFromRequest,
-                           TransportListTasksAction listTasksAction) {
+                           Supplier<Response> responseSupplier, String nodeExecutor, AutodetectProcessManager processManager) {
         super(settings, actionName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 requestSupplier, responseSupplier, nodeExecutor);
-        this.jobManager = jobManager;
         this.processManager = processManager;
-        this.jobIdFromRequest = jobIdFromRequest;
-        this.listTasksAction = listTasksAction;
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        // the same validation that exists in AutodetectProcessManager#processData(...) and flush(...) methods
-        // is required here too because if the job hasn't been opened yet then no task exist for it yet and then
-        // #taskOperation(...) method will not be invoked, returning an empty result to the client.
-        // This ensures that we return an understandable error:
-        String jobId = jobIdFromRequest.apply(request);
-        jobManager.getJobOrThrowIfUnknown(jobId);
-        JobState jobState = jobManager.getJobState(jobId);
-        if (jobState != JobState.OPENED) {
-            listener.onFailure( new ElasticsearchStatusException("job [" + jobId + "] state is [" + jobState +
+        String jobId = request.getJobId();
+        // We need to check whether there is at least an assigned task here, otherwise we cannot redirect to the
+        // node running the job task.
+        ClusterState state = clusterService.state();
+        JobManager.getJobOrThrowIfUnknown(state, jobId);
+        PersistentTasksInProgress tasks = clusterService.state().getMetaData().custom(PersistentTasksInProgress.TYPE);
+        PersistentTasksInProgress.PersistentTaskInProgress<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
+        if (jobTask == null || jobTask.getExecutorNode() == null) {
+            listener.onFailure( new ElasticsearchStatusException("job [" + jobId + "] state is [" + JobState.CLOSED +
                     "], but must be [" + JobState.OPENED + "] to perform requested action", RestStatus.CONFLICT));
         } else {
-            ListTasksRequest listTasksRequest = new ListTasksRequest();
-            listTasksRequest.setDetailed(true);
-            listTasksRequest.setActions(OpenJobAction.NAME + "[c]");
-            listTasksAction.execute(listTasksRequest, ActionListener.wrap(listTasksResponse -> {
-                String expectedDescription = "job-" + jobId;
-                for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
-                    if (expectedDescription.equals(taskInfo.getDescription())) {
-                        request.setTaskId(taskInfo.getTaskId());
-                        super.doExecute(task, request, listener);
-                        return;
-                    }
-                }
-                listener.onFailure(new ResourceNotFoundException("task not found for job [" + jobId + "] " + listTasksResponse));
-            }, listener::onFailure));
+            request.setNodes(jobTask.getExecutorNode());
+            super.doExecute(task, request, listener);
         }
     }
+
+    @Override
+    protected final void taskOperation(Request request, OperationTask task, ActionListener<Response> listener) {
+        PersistentTasksInProgress tasks = clusterService.state().metaData().custom(PersistentTasksInProgress.TYPE);
+        JobState jobState = MlMetadata.getJobState(request.getJobId(), tasks);
+        if (jobState == JobState.OPENED) {
+            innerTaskOperation(request, task, listener);
+        } else {
+            listener.onFailure(new ElasticsearchStatusException("job [" + request.getJobId() + "] state is [" + jobState +
+                    "], but must be [" + JobState.OPENED + "] to perform requested action", RestStatus.CONFLICT));
+        }
+    }
+
+    protected abstract void innerTaskOperation(Request request, OperationTask task, ActionListener<Response> listener);
 
     @Override
     protected Response newResponse(Request request, List<Response> tasks, List<TaskOperationFailure> taskOperationFailures,

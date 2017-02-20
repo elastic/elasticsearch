@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -230,16 +231,20 @@ public class XPackInfoResponse extends ActionResponse {
             @Nullable private final String description;
             private final boolean available;
             private final boolean enabled;
+            @Nullable private final Map<String, Object> nativeCodeInfo;
 
             public FeatureSet(StreamInput in) throws IOException {
-                this(in.readString(), in.readOptionalString(), in.readBoolean(), in.readBoolean());
+                this(in.readString(), in.readOptionalString(), in.readBoolean(), in.readBoolean(),
+                        in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED) ? in.readMap() : null);
             }
 
-            public FeatureSet(String name, @Nullable String description, boolean available, boolean enabled) {
+            public FeatureSet(String name, @Nullable String description, boolean available, boolean enabled,
+                              @Nullable Map<String, Object> nativeCodeInfo) {
                 this.name = name;
                 this.description = description;
                 this.available = available;
                 this.enabled = enabled;
+                this.nativeCodeInfo = nativeCodeInfo;
             }
 
             public String name() {
@@ -259,6 +264,11 @@ public class XPackInfoResponse extends ActionResponse {
                 return enabled;
             }
 
+            @Nullable
+            public Map<String, Object> nativeCodeInfo() {
+                return nativeCodeInfo;
+            }
+
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
                 if (description != null) {
@@ -266,6 +276,9 @@ public class XPackInfoResponse extends ActionResponse {
                 }
                 builder.field("available", available);
                 builder.field("enabled", enabled);
+                if (nativeCodeInfo != null) {
+                    builder.field("native_code_info", nativeCodeInfo);
+                }
                 return builder.endObject();
             }
 
@@ -274,6 +287,9 @@ public class XPackInfoResponse extends ActionResponse {
                 out.writeOptionalString(description);
                 out.writeBoolean(available);
                 out.writeBoolean(enabled);
+                if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+                    out.writeMap(nativeCodeInfo);
+                }
             }
         }
 

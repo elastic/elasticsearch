@@ -37,4 +37,9 @@ public class RestPostDataAction extends BaseRestHandler {
 
         return channel -> client.execute(PostDataAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
     }
+
+    @Override
+    public boolean supportsContentStream() {
+        return true;
+    }
 }

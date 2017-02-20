@@ -66,19 +66,17 @@ public class JobManagerTests extends ESTestCase {
     }
 
     public void testGetJobOrThrowIfUnknown_GivenUnknownJob() {
-        JobManager jobManager = createJobManager();
         ClusterState cs = createClusterState();
-        ESTestCase.expectThrows(ResourceNotFoundException.class, () -> jobManager.getJobOrThrowIfUnknown(cs, "foo"));
+        ESTestCase.expectThrows(ResourceNotFoundException.class, () -> JobManager.getJobOrThrowIfUnknown(cs, "foo"));
     }
 
     public void testGetJobOrThrowIfUnknown_GivenKnownJob() {
-        JobManager jobManager = createJobManager();
         Job job = buildJobBuilder("foo").build();
         MlMetadata mlMetadata = new MlMetadata.Builder().putJob(job, false).build();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata)).build();
 
-        assertEquals(job, jobManager.getJobOrThrowIfUnknown(cs, "foo"));
+        assertEquals(job, JobManager.getJobOrThrowIfUnknown(cs, "foo"));
     }
 
     public void testGetJob_GivenJobIdIsAll() {

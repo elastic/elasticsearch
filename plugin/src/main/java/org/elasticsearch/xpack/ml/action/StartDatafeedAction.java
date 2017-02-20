@@ -346,10 +346,6 @@ public class StartDatafeedAction
             throw ExceptionsHelper.missingJobException(datafeed.getJobId());
         }
         DatafeedJobValidator.validate(datafeed, job);
-        if (tasks == null) {
-            return;
-        }
-
         JobState jobState = MlMetadata.getJobState(datafeed.getJobId(), tasks);
         if (jobState != JobState.OPENED) {
             throw new ElasticsearchStatusException("cannot start datafeed, expected job state [{}], but got [{}]",

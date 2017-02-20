@@ -41,16 +41,14 @@ public class OpenJobActionTests extends ESTestCase {
                 .build();
 
         PersistentTaskInProgress<OpenJobAction.Request> task =
-                new PersistentTaskInProgress<>(1L, OpenJobAction.NAME, new OpenJobAction.Request("job_id"), false, true, "_node_id");
-        task = new PersistentTaskInProgress<>(task, randomFrom(JobState.CLOSED, JobState.FAILED));
+                createJobTask(1L, "job_id", "_node_id", randomFrom(JobState.CLOSED, JobState.FAILED));
         PersistentTasksInProgress tasks = new PersistentTasksInProgress(1L, Collections.singletonMap(1L, task));
 
         OpenJobAction.validate("job_id", mlBuilder.build(), tasks, nodes);
         OpenJobAction.validate("job_id", mlBuilder.build(), new PersistentTasksInProgress(1L, Collections.emptyMap()), nodes);
         OpenJobAction.validate("job_id", mlBuilder.build(), null, nodes);
 
-        task = new PersistentTaskInProgress<>(1L, OpenJobAction.NAME, new OpenJobAction.Request("job_id"), false, true, "_other_node_id");
-        task = new PersistentTaskInProgress<>(task, JobState.OPENED);
+        task = createJobTask(1L, "job_id", "_other_node_id", JobState.OPENED);
         tasks = new PersistentTasksInProgress(1L, Collections.singletonMap(1L, task));
         OpenJobAction.validate("job_id", mlBuilder.build(), tasks, nodes);
     }
@@ -79,19 +77,16 @@ public class OpenJobActionTests extends ESTestCase {
                         Collections.emptyMap(), Collections.emptySet(), Version.CURRENT))
                 .build();
 
-        PersistentTaskInProgress<OpenJobAction.Request> task =
-                new PersistentTaskInProgress<>(1L, OpenJobAction.NAME, new OpenJobAction.Request("job_id"), false, true, "_node_id");
         JobState jobState = randomFrom(JobState.OPENING, JobState.OPENED, JobState.CLOSING);
-        task = new PersistentTaskInProgress<>(task, jobState);
+        PersistentTaskInProgress<OpenJobAction.Request> task = createJobTask(1L, "job_id", "_node_id", jobState);
         PersistentTasksInProgress tasks1 = new PersistentTasksInProgress(1L, Collections.singletonMap(1L, task));
 
         Exception e = expectThrows(ElasticsearchStatusException.class,
                 () -> OpenJobAction.validate("job_id", mlBuilder.build(), tasks1, nodes));
         assertEquals("[job_id] expected state [closed] or [failed], but got [" + jobState +"]", e.getMessage());
 
-        task = new PersistentTaskInProgress<>(1L, OpenJobAction.NAME, new OpenJobAction.Request("job_id"), false, true, "_other_node_id");
         jobState = randomFrom(JobState.OPENING, JobState.CLOSING);
-        task = new PersistentTaskInProgress<>(task, jobState);
+        task = createJobTask(1L, "job_id", "_other_node_id", jobState);
         PersistentTasksInProgress tasks2 = new PersistentTasksInProgress(1L, Collections.singletonMap(1L, task));
 
         e = expectThrows(ElasticsearchStatusException.class,
@@ -124,7 +119,7 @@ public class OpenJobActionTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         cs.nodes(nodes);
         cs.metaData(MetaData.builder().putCustom(PersistentTasksInProgress.TYPE, tasks));
-        DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id4", cs.build(), logger);
+        DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id4", cs.build(), 2, logger);
         assertEquals("_node_id3", result.getId());
     }
 
@@ -152,7 +147,7 @@ public class OpenJobActionTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         cs.nodes(nodes);
         cs.metaData(MetaData.builder().putCustom(PersistentTasksInProgress.TYPE, tasks));
-        DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), logger);
+        DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, logger);
         assertNull(result);
     }
 
@@ -174,8 +169,71 @@ public class OpenJobActionTests extends ESTestCase {
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         cs.nodes(nodes);
         cs.metaData(MetaData.builder().putCustom(PersistentTasksInProgress.TYPE, tasks));
-        DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), logger);
+        DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, logger);
         assertNull(result);
+    }
+
+    public void testSelectLeastLoadedMlNode_maxConcurrentOpeningJobs() {
+        Map<String, String> nodeAttr = new HashMap<>();
+        nodeAttr.put(MachineLearning.ALLOCATION_ENABLED_ATTR, "true");
+        nodeAttr.put(MAX_RUNNING_JOBS_PER_NODE.getKey(), "10");
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                        nodeAttr, Collections.emptySet(), Version.CURRENT))
+                .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
+                        nodeAttr, Collections.emptySet(), Version.CURRENT))
+                .add(new DiscoveryNode("_node_name3", "_node_id3", new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
+                        nodeAttr, Collections.emptySet(), Version.CURRENT))
+                .build();
+
+        Map<Long, PersistentTaskInProgress<?>> taskMap = new HashMap<>();
+        taskMap.put(0L, createJobTask(0L, "job_id1", "_node_id1", JobState.OPENING));
+        taskMap.put(1L, createJobTask(1L, "job_id2", "_node_id1", JobState.OPENING));
+        taskMap.put(2L, createJobTask(2L, "job_id3", "_node_id2", JobState.OPENING));
+        taskMap.put(3L, createJobTask(3L, "job_id4", "_node_id2", JobState.OPENING));
+        taskMap.put(4L, createJobTask(4L, "job_id5", "_node_id3", JobState.OPENING));
+        PersistentTasksInProgress tasks = new PersistentTasksInProgress(5L, taskMap);
+
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        cs.nodes(nodes);
+        cs.metaData(MetaData.builder().putCustom(PersistentTasksInProgress.TYPE, tasks));
+        DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id6", cs.build(), 2, logger);
+        assertEquals("_node_id3", result.getId());
+
+        PersistentTaskInProgress<OpenJobAction.Request>  lastTask = createJobTask(5L, "job_id6", "_node_id3", JobState.OPENING);
+        taskMap.put(5L, lastTask);
+        tasks = new PersistentTasksInProgress(6L, taskMap);
+
+        cs = ClusterState.builder(new ClusterName("_name"));
+        cs.nodes(nodes);
+        cs.metaData(MetaData.builder().putCustom(PersistentTasksInProgress.TYPE, tasks));
+        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs.build(), 2, logger);
+        assertNull("no node selected, because OPENING state", result);
+
+        taskMap.put(5L, new PersistentTaskInProgress<>(lastTask, false, "_node_id3"));
+        tasks = new PersistentTasksInProgress(6L, taskMap);
+
+        cs = ClusterState.builder(new ClusterName("_name"));
+        cs.nodes(nodes);
+        cs.metaData(MetaData.builder().putCustom(PersistentTasksInProgress.TYPE, tasks));
+        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs.build(), 2, logger);
+        assertNull("no node selected, because stale task", result);
+
+        taskMap.put(5L, new PersistentTaskInProgress<>(lastTask, null));
+        tasks = new PersistentTasksInProgress(6L, taskMap);
+
+        cs = ClusterState.builder(new ClusterName("_name"));
+        cs.nodes(nodes);
+        cs.metaData(MetaData.builder().putCustom(PersistentTasksInProgress.TYPE, tasks));
+        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs.build(), 2, logger);
+        assertNull("no node selected, because null state", result);
+    }
+
+    public static PersistentTaskInProgress<OpenJobAction.Request> createJobTask(long id, String jobId, String nodeId, JobState jobState) {
+        PersistentTaskInProgress<OpenJobAction.Request> task =
+                new PersistentTaskInProgress<>(id, OpenJobAction.NAME, new OpenJobAction.Request(jobId), false, true, nodeId);
+        task = new PersistentTaskInProgress<>(task, jobState);
+        return task;
     }
 
 }

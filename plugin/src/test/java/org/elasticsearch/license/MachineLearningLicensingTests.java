@@ -8,6 +8,7 @@ package org.elasticsearch.license;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.Transport;
@@ -279,7 +280,9 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainListenableActionFuture<CloseJobAction.Response> listener = new PlainListenableActionFuture<>(client.threadPool());
-            new MachineLearningClient(client).closeJob(new CloseJobAction.Request("foo"), listener);
+            CloseJobAction.Request request = new CloseJobAction.Request("foo");
+            request.setTimeout(TimeValue.timeValueSeconds(30));
+            new MachineLearningClient(client).closeJob(request, listener);
             listener.actionGet();
         }
     }

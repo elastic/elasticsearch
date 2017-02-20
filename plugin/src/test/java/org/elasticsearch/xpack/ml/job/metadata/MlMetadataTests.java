@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTa
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.createJobTask;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedConfig;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedJob;
 import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
@@ -146,11 +147,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         assertThat(result.getJobs().get("1"), sameInstance(job1));
         assertThat(result.getDatafeeds().get("1"), nullValue());
 
-        PersistentTaskInProgress<OpenJobAction.Request> task =
-                new PersistentTaskInProgress<>(
-                        new PersistentTaskInProgress<>(0L, OpenJobAction.NAME, new OpenJobAction.Request("1"), false, true, null),
-                        JobState.CLOSED
-                );
+        PersistentTaskInProgress<OpenJobAction.Request> task = createJobTask(0L, "1", null, JobState.CLOSED);
         MlMetadata.Builder builder2 = new MlMetadata.Builder(result);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
                 () -> builder2.deleteJob("1", new PersistentTasksInProgress(0L, Collections.singletonMap(0L, task))));

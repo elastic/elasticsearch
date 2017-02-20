@@ -84,6 +84,11 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     }
 
     @Override
+    public Map<String, Object> nativeCodeInfo() {
+        return null;
+    }
+
+    @Override
     public XPackFeatureSet.Usage usage() {
         Map<String, Object> realmsUsage = buildRealmsUsage(realms);
         Map<String, Object> rolesStoreUsage = rolesStore == null ? Collections.emptyMap() : rolesStore.usageStats();

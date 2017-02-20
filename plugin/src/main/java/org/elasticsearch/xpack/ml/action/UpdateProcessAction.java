@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -25,7 +24,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -36,7 +34,6 @@ import java.util.Objects;
 
 public class UpdateProcessAction extends
         Action<UpdateProcessAction.Request, UpdateProcessAction.Response, UpdateProcessAction.RequestBuilder> {
-
 
     public static final UpdateProcessAction INSTANCE = new UpdateProcessAction();
     public static final String NAME = "cluster:admin/ml/job/update/process";
@@ -182,10 +179,9 @@ public class UpdateProcessAction extends
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               JobManager jobManager, AutodetectProcessManager processManager, TransportListTasksAction listTasksAction) {
+                               AutodetectProcessManager processManager) {
             super(settings, NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                    Request::new, Response::new, MachineLearning.THREAD_POOL_NAME, jobManager, processManager, Request::getJobId,
-                    listTasksAction);
+                    Request::new, Response::new, MachineLearning.THREAD_POOL_NAME, processManager);
         }
 
         @Override
@@ -196,18 +192,11 @@ public class UpdateProcessAction extends
         }
 
         @Override
-        protected void taskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener) {
+        protected void innerTaskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener) {
             threadPool.executor(MachineLearning.THREAD_POOL_NAME).execute(() -> {
                 try {
-                    if (request.getModelDebugConfig() != null) {
-                        processManager.writeUpdateModelDebugMessage(request.getJobId(), request.getModelDebugConfig());
-                    }
-                    if (request.getDetectorUpdates() != null) {
-                        for (JobUpdate.DetectorUpdate update : request.getDetectorUpdates()) {
-                            processManager.writeUpdateDetectorRulesMessage(request.getJobId(), update.getIndex(), update.getRules());
-                        }
-                    }
-
+                    processManager.writeUpdateProcessMessage(request.getJobId(), request.getDetectorUpdates(),
+                            request.getModelDebugConfig());
                     listener.onResponse(new Response());
                 } catch (Exception e) {
                     listener.onFailure(e);

@@ -72,7 +72,6 @@ public class MlRestTestStateCleaner {
             try {
                 client.performRequest("POST", "/_xpack/ml/anomaly_detectors/" + jobId + "/_close");
             } catch (Exception e) {
-                logger.info("Test clean up close");
                 if (e.getMessage().contains("cannot close job, expected job state [opened], but got [closed]")
                         || e.getMessage().contains("cannot close job, expected job state [opened], but got [closing]")) {
                     logger.debug("job [" + jobId + "] has already been closed", e);

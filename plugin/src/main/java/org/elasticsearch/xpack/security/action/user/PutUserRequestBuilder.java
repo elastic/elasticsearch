@@ -14,7 +14,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -90,15 +89,6 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
     public PutUserRequestBuilder enabled(boolean enabled) {
         request.enabled(enabled);
         return this;
-    }
-
-    /**
-     * Populate the put user request using the given source and username
-     * @deprecated use {@link #source(String, BytesReference, XContentType)} to avoid content type auto-detection
-     */
-    @Deprecated
-    public PutUserRequestBuilder source(String username, BytesReference source) throws IOException {
-        return source(username, source, XContentFactory.xContentType(source));
     }
 
     /**

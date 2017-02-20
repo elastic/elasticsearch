@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.transport.actions.put;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 
 public class PutWatchRequestBuilder extends MasterNodeOperationRequestBuilder<PutWatchRequest, PutWatchResponse, PutWatchRequestBuilder> {
@@ -31,9 +32,10 @@ public class PutWatchRequestBuilder extends MasterNodeOperationRequestBuilder<Pu
 
     /**
      * @param source the source of the watch to be created
+     * @param xContentType the content type of the source
      */
-    public PutWatchRequestBuilder setSource(BytesReference source) {
-        request.setSource(source);
+    public PutWatchRequestBuilder setSource(BytesReference source, XContentType xContentType) {
+        request.setSource(source, xContentType);
         return this;
     }
 

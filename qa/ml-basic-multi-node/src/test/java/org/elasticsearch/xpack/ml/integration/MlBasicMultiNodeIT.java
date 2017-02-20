@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.http.HttpHost;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -14,27 +16,42 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentType.JSON;
 
 public class MlBasicMultiNodeIT extends ESRestTestCase {
 
+    @SuppressWarnings("unchecked")
+    public void testMachineLearningInstalled() throws Exception {
+        Response response = client().performRequest("get", "/_xpack");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        Map<String, Object> features = (Map<String, Object>) responseEntityToMap(response).get("features");
+        Map<String, Object> ml = (Map<String, Object>) features.get("ml");
+        assertNotNull(ml);
+        assertTrue((Boolean) ml.get("available"));
+        assertTrue((Boolean) ml.get("enabled"));
+    }
+
     public void testMiniFarequote() throws Exception {
-        String jobId = "foo";
+        String jobId = "foo1";
         createFarequoteJob(jobId);
 
         Response response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open");
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals(Collections.singletonMap("opened", true), responseEntityToMap(response));
+        assertBusy(this::assertSameClusterStateOnAllNodes);
 
         String postData =
                 "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n" +
                 "{\"airline\":\"JZA\",\"responsetime\":\"990.4628\",\"sourcetype\":\"farequote\",\"time\":\"1403481700\"}";
         response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data",
-                Collections.emptyMap(), new StringEntity(postData));
+                Collections.emptyMap(),
+                new StringEntity(postData, randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))));
         assertEquals(202, response.getStatusLine().getStatusCode());
         Map<String, Object> responseBody = responseEntityToMap(response);
         assertEquals(2, responseBody.get("processed_record_count"));
@@ -86,16 +103,18 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
                 + "    }"
                 + "  }"
                 + "}";
-        client().performRequest("put", "airline-data", Collections.emptyMap(), new StringEntity(mappings));
+        client().performRequest("put", "airline-data", Collections.emptyMap(), new StringEntity(mappings, ContentType.APPLICATION_JSON));
         client().performRequest("put", "airline-data/response/1", Collections.emptyMap(),
-                new StringEntity("{\"time\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}"));
+                new StringEntity("{\"time\":\"2016-06-01T00:00:00Z\",\"airline\":\"AAA\",\"responsetime\":135.22}",
+                        ContentType.APPLICATION_JSON));
         client().performRequest("put", "airline-data/response/2", Collections.emptyMap(),
-                new StringEntity("{\"time\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}"));
+                new StringEntity("{\"time\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}",
+                        ContentType.APPLICATION_JSON));
 
         // Ensure all data is searchable
         client().performRequest("post", "_refresh");
 
-        String jobId = "foo";
+        String jobId = "foo2";
         createFarequoteJob(jobId);
         String datafeedId = "bar";
         createDatafeed(datafeedId, jobId);
@@ -148,7 +167,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         xContentBuilder.field("_source", true);
         xContentBuilder.endObject();
         return client().performRequest("put", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId,
-                Collections.emptyMap(), new StringEntity(xContentBuilder.string()));
+                Collections.emptyMap(), new StringEntity(xContentBuilder.string(), ContentType.APPLICATION_JSON));
     }
 
     private Response createFarequoteJob(String jobId) throws Exception {
@@ -176,11 +195,35 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         xContentBuilder.endObject();
 
         return client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId,
-                Collections.emptyMap(), new StringEntity(xContentBuilder.string()));
+                Collections.emptyMap(), new StringEntity(xContentBuilder.string(), ContentType.APPLICATION_JSON));
     }
 
     private static Map<String, Object> responseEntityToMap(Response response) throws IOException {
         return XContentHelper.convertToMap(JSON.xContent(), response.getEntity().getContent(), false);
+    }
+
+    // When open job api returns the cluster state on nodes other than master node or node that acted as coordinating node,
+    // may not have had the latest update with job state set to opened. This may fail subsequent post data, flush, or
+    // close calls until that node that is running the job task has applied the cluster state where job state has been set to opened.
+    // this method waits until all nodes in the cluster have the same cluster state version, so that such failures can be
+    // avoided in tests. Note that the job has been started on the node running the job task (autodetect process is running),
+    // this is just a workaround for inconsistency in cluster states that may happen for a small amount of time.
+    private void assertSameClusterStateOnAllNodes(){
+        assert getClusterHosts().size() > 1;
+        Set<Integer> versions = new HashSet<>();
+        for (HttpHost host : getClusterHosts()) {
+            try {
+                // Client round robins between cluster hosts:
+                Response response = client().performRequest("get", "/_cluster/state/version", Collections.singletonMap("local", "true"));
+                assertEquals(200, response.getStatusLine().getStatusCode());
+                int version = (Integer) responseEntityToMap(response).get("version");
+                logger.info("Sampled version [{}]", version);
+                versions.add(version);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        assertEquals(1, versions.size());
     }
 
 }

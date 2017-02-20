@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -93,7 +94,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(jobResultsPersister.bulkPersisterBuilder(any())).thenReturn(mock(JobResultsPersister.Builder.class));
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
         normalizerFactory = mock(NormalizerFactory.class);
-        givenAllocationWithState(JobState.OPENED);
 
         when(jobManager.getJobOrThrowIfUnknown("foo")).thenReturn(createJobDetails("foo"));
         doAnswer(invocationOnMock -> {
@@ -131,7 +131,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         manager.openJob("foo", 1L, false, e -> {});
         assertEquals(1, manager.numberOfOpenJobs());
         assertTrue(manager.jobHasActiveAutodetectProcess("foo"));
-        UpdatePersistentTaskStatusAction.Request expectedRequest = new UpdatePersistentTaskStatusAction.Request(1L, JobState.OPENED);
+        UpdatePersistentTaskStatusAction.Request expectedRequest =
+                new UpdatePersistentTaskStatusAction.Request(1L, JobState.OPENED);
         verify(client).execute(eq(UpdatePersistentTaskStatusAction.INSTANCE), eq(expectedRequest), any());
     }
 
@@ -270,19 +271,14 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertEquals("[foo] exception while flushing job", e.getMessage());
     }
 
-    public void testWriteUpdateModelDebugMessage() throws IOException {
+    public void testwriteUpdateProcessMessage() throws IOException {
         AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
         AutodetectProcessManager manager = createManagerAndCallProcessData(communicator, "foo");
         ModelDebugConfig debugConfig = mock(ModelDebugConfig.class);
-        manager.writeUpdateModelDebugMessage("foo", debugConfig);
-        verify(communicator).writeUpdateModelDebugMessage(debugConfig);
-    }
-
-    public void testWriteUpdateDetectorRulesMessage() throws IOException {
-        AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
-        AutodetectProcessManager manager = createManagerAndCallProcessData(communicator, "foo");
         List<DetectionRule> rules = Collections.singletonList(mock(DetectionRule.class));
-        manager.writeUpdateDetectorRulesMessage("foo", 2, rules);
+        List<JobUpdate.DetectorUpdate> detectorUpdates = Collections.singletonList(new JobUpdate.DetectorUpdate(2, null, rules));
+        manager.writeUpdateProcessMessage("foo", detectorUpdates, debugConfig);
+        verify(communicator).writeUpdateModelDebugMessage(debugConfig);
         verify(communicator).writeUpdateDetectorRulesMessage(2, rules);
     }
 
@@ -302,7 +298,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
         when(communicator.writeToJob(any(), any())).thenReturn(new DataCounts("foo"));
         AutodetectProcessManager manager = createManager(communicator);
-        givenAllocationWithState(JobState.OPENED);
 
         InputStream inputStream = createInputStream("");
         manager.openJob("foo", 1L, false, e -> {});
@@ -335,10 +330,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         expectThrows(EsRejectedExecutionException.class,
                 () -> manager.create("my_id", 1L, dataCounts, modelSnapshot, quantiles, filters, false, e -> {}));
         verify(autodetectProcess, times(1)).close();
-    }
-
-    private void givenAllocationWithState(JobState state) {
-        when(jobManager.getJobState("foo")).thenReturn(state);
     }
 
     private AutodetectProcessManager createManager(AutodetectCommunicator communicator) {

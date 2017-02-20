@@ -57,4 +57,5 @@ public class PersistentTask extends CancellableTask {
     public void setPersistentTaskId(long persistentTaskId) {
         this.persistentTaskId = persistentTaskId;
     }
+
 }

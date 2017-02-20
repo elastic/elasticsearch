@@ -69,19 +69,19 @@ public class WatchRequestValidationTests extends ESTestCase {
     }
 
     public void testPutWatchInvalidWatchId() {
-        ActionRequestValidationException e = new PutWatchRequest("id with whitespaces", BytesArray.EMPTY).validate();
+        ActionRequestValidationException e = new PutWatchRequest("id with whitespaces", BytesArray.EMPTY, XContentType.JSON).validate();
         assertThat(e, is(notNullValue()));
         assertThat(e.validationErrors(), hasItem("watch id contains whitespace"));
     }
 
     public void testPutWatchNullId() {
-        ActionRequestValidationException e = new PutWatchRequest(null, BytesArray.EMPTY).validate();
+        ActionRequestValidationException e = new PutWatchRequest(null, BytesArray.EMPTY, XContentType.JSON).validate();
         assertThat(e, is(notNullValue()));
         assertThat(e.validationErrors(), hasItem("watch id is missing"));
     }
 
     public void testPutWatchSourceNull() {
-        ActionRequestValidationException e = new PutWatchRequest("foo", (BytesReference) null).validate();
+        ActionRequestValidationException e = new PutWatchRequest("foo", (BytesReference) null, XContentType.JSON).validate();
         assertThat(e, is(notNullValue()));
         assertThat(e.validationErrors(), hasItem("watch source is missing"));
     }

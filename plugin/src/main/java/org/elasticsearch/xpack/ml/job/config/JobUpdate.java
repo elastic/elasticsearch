@@ -23,25 +23,19 @@ import java.util.Objects;
 public class JobUpdate implements Writeable, ToXContent {
     public static final ParseField DETECTORS = new ParseField("detectors");
 
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<JobUpdate, Void> PARSER =
-            new ConstructingObjectParser<>("job_update", a -> new JobUpdate((String) a[0], (List<DetectorUpdate>) a[1],
-                    (ModelDebugConfig) a[2], (AnalysisLimits) a[3], (Long) a[4], (Long) a[5], (Long) a[6], (Long) a[7],
-                    (List<String>) a[8], (Map<String, Object>) a[9]));
-
+    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("job_udpate", Builder::new);
 
     static {
-        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), Job.DESCRIPTION);
-        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), DetectorUpdate.PARSER, DETECTORS);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelDebugConfig.PARSER, Job.MODEL_DEBUG_CONFIG);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), AnalysisLimits.PARSER, Job.ANALYSIS_LIMITS);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), Job.BACKGROUND_PERSIST_INTERVAL);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), Job.RENORMALIZATION_WINDOW_DAYS);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), Job.RESULTS_RETENTION_DAYS);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), Job.MODEL_SNAPSHOT_RETENTION_DAYS);
-        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), AnalysisConfig.CATEGORIZATION_FILTERS);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), Job.CUSTOM_SETTINGS,
-                ObjectParser.ValueType.OBJECT);
+        PARSER.declareStringOrNull(Builder::setDescription, Job.DESCRIPTION);
+        PARSER.declareObjectArray(Builder::setDetectorUpdates, DetectorUpdate.PARSER, DETECTORS);
+        PARSER.declareObject(Builder::setModelDebugConfig, ModelDebugConfig.PARSER, Job.MODEL_DEBUG_CONFIG);
+        PARSER.declareObject(Builder::setAnalysisLimits, AnalysisLimits.PARSER, Job.ANALYSIS_LIMITS);
+        PARSER.declareLong(Builder::setBackgroundPersistInterval, Job.BACKGROUND_PERSIST_INTERVAL);
+        PARSER.declareLong(Builder::setRenormalizationWindowDays, Job.RENORMALIZATION_WINDOW_DAYS);
+        PARSER.declareLong(Builder::setResultsRetentionDays, Job.RESULTS_RETENTION_DAYS);
+        PARSER.declareLong(Builder::setModelSnapshotRetentionDays, Job.MODEL_SNAPSHOT_RETENTION_DAYS);
+        PARSER.declareStringArray(Builder::setCategorizationFilters, AnalysisConfig.CATEGORIZATION_FILTERS);
+        PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS,  ObjectParser.ValueType.OBJECT);
     }
 
     private final String description;
@@ -55,11 +49,11 @@ public class JobUpdate implements Writeable, ToXContent {
     private final List<String> categorizationFilters;
     private final Map<String, Object> customSettings;
 
-    public JobUpdate(@Nullable String description, @Nullable List<DetectorUpdate> detectorUpdates,
-                     @Nullable ModelDebugConfig modelDebugConfig, @Nullable AnalysisLimits analysisLimits,
-                     @Nullable Long backgroundPersistInterval, @Nullable Long renormalizationWindowDays,
-                     @Nullable Long resultsRetentionDays, @Nullable Long modelSnapshotRetentionDays,
-                     @Nullable List<String> categorisationFilters, @Nullable  Map<String, Object> customSettings) {
+    private JobUpdate(@Nullable String description, @Nullable List<DetectorUpdate> detectorUpdates,
+                      @Nullable ModelDebugConfig modelDebugConfig, @Nullable AnalysisLimits analysisLimits,
+                      @Nullable Long backgroundPersistInterval, @Nullable Long renormalizationWindowDays,
+                      @Nullable Long resultsRetentionDays, @Nullable Long modelSnapshotRetentionDays,
+                      @Nullable List<String> categorisationFilters, @Nullable  Map<String, Object> customSettings) {
         this.description = description;
         this.detectorUpdates = detectorUpdates;
         this.modelDebugConfig = modelDebugConfig;
@@ -375,6 +369,76 @@ public class JobUpdate implements Writeable, ToXContent {
             DetectorUpdate that = (DetectorUpdate) other;
             return this.index == that.index && Objects.equals(this.description, that.description)
                     && Objects.equals(this.rules, that.rules);
+        }
+    }
+
+    public static class Builder {
+        private String description;
+        private List<DetectorUpdate> detectorUpdates;
+        private ModelDebugConfig modelDebugConfig;
+        private AnalysisLimits analysisLimits;
+        private Long renormalizationWindowDays;
+        private Long backgroundPersistInterval;
+        private Long modelSnapshotRetentionDays;
+        private Long resultsRetentionDays;
+        private List<String> categorizationFilters;
+        private Map<String, Object> customSettings;
+
+        public Builder() {}
+
+        public Builder setDescription(String description) {
+            this.description = description;
+            return this;
+        }
+
+        public Builder setDetectorUpdates(List<DetectorUpdate> detectorUpdates) {
+            this.detectorUpdates = detectorUpdates;
+            return this;
+        }
+
+        public Builder setModelDebugConfig(ModelDebugConfig modelDebugConfig) {
+            this.modelDebugConfig = modelDebugConfig;
+            return this;
+        }
+
+        public Builder setAnalysisLimits(AnalysisLimits analysisLimits) {
+            this.analysisLimits = analysisLimits;
+            return this;
+        }
+
+        public Builder setRenormalizationWindowDays(Long renormalizationWindowDays) {
+            this.renormalizationWindowDays = renormalizationWindowDays;
+            return this;
+        }
+
+        public Builder setBackgroundPersistInterval(Long backgroundPersistInterval) {
+            this.backgroundPersistInterval = backgroundPersistInterval;
+            return this;
+        }
+
+        public Builder setModelSnapshotRetentionDays(Long modelSnapshotRetentionDays) {
+            this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
+            return this;
+        }
+
+        public Builder setResultsRetentionDays(Long resultsRetentionDays) {
+            this.resultsRetentionDays = resultsRetentionDays;
+            return this;
+        }
+
+        public Builder setCategorizationFilters(List<String> categorizationFilters) {
+            this.categorizationFilters = categorizationFilters;
+            return this;
+        }
+
+        public Builder setCustomSettings(Map<String, Object> customSettings) {
+            this.customSettings = customSettings;
+            return this;
+        }
+
+        public JobUpdate build() {
+            return new JobUpdate(description, detectorUpdates, modelDebugConfig, analysisLimits, backgroundPersistInterval,
+                    renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays, categorizationFilters, customSettings);
         }
     }
 }

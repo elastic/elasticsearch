@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -27,7 +26,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -223,11 +221,10 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
-                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager,
-                AutodetectProcessManager processManager, TransportListTasksAction listTasksAction) {
+                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                               AutodetectProcessManager processManager) {
             super(settings, PostDataAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                    Request::new, Response::new, MachineLearning.THREAD_POOL_NAME, jobManager, processManager, Request::getJobId,
-                    listTasksAction);
+                    Request::new, Response::new, MachineLearning.THREAD_POOL_NAME, processManager);
         }
 
         @Override
@@ -238,7 +235,7 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
         }
 
         @Override
-        protected void taskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener) {
+        protected void innerTaskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener) {
             TimeRange timeRange = TimeRange.builder().startTime(request.getResetStart()).endTime(request.getResetEnd()).build();
             DataLoadParams params = new DataLoadParams(timeRange, Optional.ofNullable(request.getDataDescription()));
             try {

@@ -162,7 +162,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         watchSource.endObject();
         try {
             watcherClient.preparePutWatch("_name")
-                    .setSource(watchSource.bytes())
+                    .setSource(watchSource.bytes(), watchSource.contentType())
                     .get();
             fail();
         } catch (ElasticsearchParseException e) {

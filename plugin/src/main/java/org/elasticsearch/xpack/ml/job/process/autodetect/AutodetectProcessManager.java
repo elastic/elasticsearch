@@ -19,9 +19,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -116,15 +116,9 @@ public class AutodetectProcessManager extends AbstractComponent {
      * @return Count of records, fields, bytes, etc written
      */
     public DataCounts processData(String jobId, InputStream input, DataLoadParams params) {
-        JobState jobState = jobManager.getJobState(jobId);
-        if (jobState != JobState.OPENED) {
-            throw new IllegalArgumentException("job [" + jobId + "] state is [" + jobState + "], but must be ["
-                    + JobState.OPENED + "] for processing data");
-        }
-
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
         if (communicator == null) {
-            throw new IllegalStateException("job [" +  jobId + "] with state [" + jobState + "] hasn't been started");
+            throw new IllegalStateException("[" + jobId + "] Cannot process data: no active autodetect process for job");
         }
         try {
             return communicator.writeToJob(input, params);
@@ -168,23 +162,25 @@ public class AutodetectProcessManager extends AbstractComponent {
         }
     }
 
-    public void writeUpdateModelDebugMessage(String jobId, ModelDebugConfig config) throws IOException {
+    public void writeUpdateProcessMessage(String jobId, List<JobUpdate.DetectorUpdate> updates, ModelDebugConfig config)
+            throws IOException {
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
         if (communicator == null) {
             logger.debug("Cannot update model debug config: no active autodetect process for job {}", jobId);
             return;
         }
-        communicator.writeUpdateModelDebugMessage(config);
-        // TODO check for errors from autodetects
-    }
 
-    public void writeUpdateDetectorRulesMessage(String jobId, int detectorIndex, List<DetectionRule> rules) throws IOException {
-        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
-        if (communicator == null) {
-            logger.debug("Cannot update model debug config: no active autodetect process for job {}", jobId);
-            return;
+        if (config != null) {
+            communicator.writeUpdateModelDebugMessage(config);
         }
-        communicator.writeUpdateDetectorRulesMessage(detectorIndex, rules);
+
+        if (updates != null) {
+            for (JobUpdate.DetectorUpdate update : updates) {
+                if (update.getRules() != null) {
+                    communicator.writeUpdateDetectorRulesMessage(update.getIndex(), update.getRules());
+                }
+            }
+        }
         // TODO check for errors from autodetects
     }
 
@@ -204,7 +200,10 @@ public class AutodetectProcessManager extends AbstractComponent {
                 }
                 setJobState(taskId, JobState.FAILED, e2 -> handler.accept(e1));
             }
-        }, handler);
+        }, e1 -> {
+            logger.warn("Failed to gather information required to open job [" + jobId + "]", e1);
+            setJobState(taskId, JobState.FAILED, e2 -> handler.accept(e1));
+        });
     }
 
     // TODO: add a method on JobProvider that fetches all required info via 1 msearch call, so that we have a single lambda

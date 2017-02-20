@@ -80,16 +80,6 @@ public class ExecuteWatchRequestBuilder extends MasterNodeOperationRequestBuilde
 
     /**
      * @param watchSource instead of using an existing watch use this non persisted watch
-     * @deprecated use {@link #setWatchSource(BytesReference, XContentType)}
-     */
-    @Deprecated
-    public ExecuteWatchRequestBuilder setWatchSource(BytesReference watchSource) {
-        request.setWatchSource(watchSource);
-        return this;
-    }
-
-    /**
-     * @param watchSource instead of using an existing watch use this non persisted watch
      */
     public ExecuteWatchRequestBuilder setWatchSource(BytesReference watchSource, XContentType xContentType) {
         request.setWatchSource(watchSource, xContentType);

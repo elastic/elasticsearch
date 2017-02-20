@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTa
 
 import java.util.Collections;
 
+import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.createJobTask;
 import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
 
 public class CloseJobActionTests extends ESTestCase {
@@ -26,9 +27,7 @@ public class CloseJobActionTests extends ESTestCase {
         MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         mlBuilder.putJob(buildJobBuilder("job_id").build(), false);
         PersistentTaskInProgress<OpenJobAction.Request> task =
-                new PersistentTaskInProgress<>(1L, OpenJobAction.NAME, new OpenJobAction.Request("job_id"), false, true, null);
-        task = new PersistentTaskInProgress<>(task, randomFrom(JobState.OPENED, JobState.FAILED));
-
+                createJobTask(1L, "job_id", null, randomFrom(JobState.OPENED, JobState.FAILED));
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
                         .putCustom(PersistentTasksInProgress.TYPE, new PersistentTasksInProgress(1L, Collections.singletonMap(1L, task))));
@@ -52,10 +51,7 @@ public class CloseJobActionTests extends ESTestCase {
     public void testMoveJobToClosingState_unexpectedJobState() {
         MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         mlBuilder.putJob(buildJobBuilder("job_id").build(), false);
-        PersistentTaskInProgress<OpenJobAction.Request> task =
-                new PersistentTaskInProgress<>(1L, OpenJobAction.NAME, new OpenJobAction.Request("job_id"), false, true, null);
-        task = new PersistentTaskInProgress<>(task, JobState.OPENING);
-
+        PersistentTaskInProgress<OpenJobAction.Request> task = createJobTask(1L, "job_id", null, JobState.OPENING);
         ClusterState.Builder csBuilder1 = ClusterState.builder(new ClusterName("_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
                         .putCustom(PersistentTasksInProgress.TYPE, new PersistentTasksInProgress(1L, Collections.singletonMap(1L, task))));

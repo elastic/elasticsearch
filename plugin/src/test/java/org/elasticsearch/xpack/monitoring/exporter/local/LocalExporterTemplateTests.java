@@ -60,9 +60,9 @@ public class LocalExporterTemplateTests extends MonitoringIntegTestCase {
 
         request.settings(Settings.builder().put("index.mapper.dynamic", false).build());
         // notably absent are: kibana, logstash, and beats
-        request.mapping("cluster_info", "{\"enabled\": false}");
-        request.mapping("node", "{\"enabled\": false}");
-        request.mapping("fake", "{\"enabled\": false}");
+        request.mapping("cluster_info", "{\"enabled\": false}", XContentType.JSON);
+        request.mapping("node", "{\"enabled\": false}", XContentType.JSON);
+        request.mapping("fake", "{\"enabled\": false}", XContentType.JSON);
 
         client().admin().indices().create(request).actionGet();
 

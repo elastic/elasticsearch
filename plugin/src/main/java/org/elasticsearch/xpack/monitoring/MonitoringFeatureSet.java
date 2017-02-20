@@ -55,6 +55,11 @@ public class MonitoringFeatureSet implements XPackFeatureSet {
     }
 
     @Override
+    public Map<String, Object> nativeCodeInfo() {
+        return null;
+    }
+
+    @Override
     public XPackFeatureSet.Usage usage() {
         return new Usage(available(), enabled(), exportersUsage(exporters));
     }

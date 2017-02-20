@@ -47,6 +47,7 @@ public class CppLogMessageHandler implements Closeable {
     private final int errorStoreSize;
     private final Deque<String> errorStore;
     private final CountDownLatch pidLatch;
+    private final CountDownLatch cppCopyrightLatch;
     private volatile boolean hasLogStreamEnded;
     private volatile boolean seenFatalError;
     private volatile long pid;
@@ -70,6 +71,7 @@ public class CppLogMessageHandler implements Closeable {
         this.errorStoreSize = errorStoreSize;
         errorStore = ConcurrentCollections.newDeque();
         pidLatch = new CountDownLatch(1);
+        cppCopyrightLatch = new CountDownLatch(1);
         hasLogStreamEnded = false;
     }
 
@@ -133,7 +135,23 @@ public class CppLogMessageHandler implements Closeable {
         return pid;
     }
 
-    public String getCppCopyright() {
+    /**
+     * Get the process ID of the C++ process whose log messages are being read.  This will
+     * arrive in the first log message logged by the C++ process.  They all log a copyright
+     * message immediately on startup so it should not take long to arrive, but will not be
+     * available instantly after the process starts.
+     */
+    public String getCppCopyright(Duration timeout) throws TimeoutException {
+        if (cppCopyright == null) {
+            try {
+                cppCopyrightLatch.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            if (cppCopyright == null) {
+                throw new TimeoutException("Timed out waiting for C++ process copyright");
+            }
+        }
         return cppCopyright;
     }
 
@@ -193,6 +211,7 @@ public class CppLogMessageHandler implements Closeable {
             String latestMessage = msg.getMessage();
             if (cppCopyright == null && latestMessage.contains("Copyright")) {
                 cppCopyright = latestMessage;
+                cppCopyrightLatch.countDown();
             }
             // TODO: Is there a way to preserve the original timestamp when re-logging?
             if (jobId != null) {

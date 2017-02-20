@@ -36,10 +36,10 @@ public class GetJobsActionResponseTests extends AbstractStreamableTestCase<GetJo
             Date finishedTime = randomBoolean() ? new Date(randomNonNegativeLong()) : null;
             Date lastDataTime = randomBoolean() ? new Date(randomNonNegativeLong()) : null;
             long timeout = randomNonNegativeLong();
-            AnalysisConfig analysisConfig = new AnalysisConfig.Builder(
-                    Collections.singletonList(new Detector.Builder("metric", "some_field").build())).build();
+            AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
+                    Collections.singletonList(new Detector.Builder("metric", "some_field").build()));
             AnalysisLimits analysisLimits = new AnalysisLimits(randomNonNegativeLong(), randomNonNegativeLong());
-            DataDescription dataDescription = randomBoolean() ? new DataDescription.Builder().build() : null;
+            DataDescription.Builder dataDescription = new DataDescription.Builder();
             ModelDebugConfig modelDebugConfig = randomBoolean() ? new ModelDebugConfig(randomDouble(), randomAsciiOfLength(10)) : null;
             Long normalizationWindowDays = randomBoolean() ? Long.valueOf(randomIntBetween(0, 365)) : null;
             Long backgroundPersistInterval = randomBoolean() ? Long.valueOf(randomIntBetween(3600, 86400)) : null;
@@ -48,11 +48,26 @@ public class GetJobsActionResponseTests extends AbstractStreamableTestCase<GetJo
             Map<String, Object> customConfig = randomBoolean() ? Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10))
                     : null;
             String modelSnapshotId = randomBoolean() ? randomAsciiOfLength(10) : null;
-            String indexName = randomBoolean() ? "index" + j : null;
-            Job job = new Job(jobId, description, createTime, finishedTime, lastDataTime,
-                    analysisConfig, analysisLimits, dataDescription,
-                    modelDebugConfig, normalizationWindowDays, backgroundPersistInterval,
-                    modelSnapshotRetentionDays, resultsRetentionDays, customConfig, modelSnapshotId, indexName, randomBoolean());
+            String indexName =  "index" + j;
+            Job.Builder builder = new Job.Builder();
+            builder.setId(jobId);
+            builder.setDescription(description);
+            builder.setCreateTime(createTime);
+            builder.setFinishedTime(finishedTime);
+            builder.setLastDataTime(lastDataTime);
+            builder.setAnalysisConfig(analysisConfig);
+            builder.setAnalysisLimits(analysisLimits);
+            builder.setDataDescription(dataDescription);
+            builder.setModelDebugConfig(modelDebugConfig);
+            builder.setRenormalizationWindowDays(normalizationWindowDays);
+            builder.setBackgroundPersistInterval(backgroundPersistInterval);
+            builder.setModelSnapshotRetentionDays(modelSnapshotRetentionDays);
+            builder.setResultsRetentionDays(resultsRetentionDays);
+            builder.setCustomSettings(customConfig);
+            builder.setModelSnapshotId(modelSnapshotId);
+            builder.setResultsIndexName(indexName);
+            builder.setDeleted(randomBoolean());
+            Job job = builder.build();
 
             jobList.add(job);
         }

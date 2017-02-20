@@ -42,9 +42,11 @@ public class CppLogMessageHandlerTests extends ESTestCase {
                 handler.tailStream();
 
                 assertTrue(handler.hasLogStreamEnded());
-                assertEquals(10211L, handler.getPid(Duration.ofMillis(1)));
+                // Since this is all being done in one thread and we know the stream has
+                // been completely consumed at this point the wait duration can be zero
+                assertEquals(10211L, handler.getPid(Duration.ZERO));
                 assertEquals("controller (64 bit): Version based on 6.0.0-alpha1 (Build b0d6ef8819418c) "
-                        + "Copyright (c) 2017 Elasticsearch BV", handler.getCppCopyright());
+                        + "Copyright (c) 2017 Elasticsearch BV", handler.getCppCopyright(Duration.ZERO));
                 assertEquals("Did not understand verb 'a'\n", handler.getErrors());
                 assertFalse(handler.seenFatalError());
             }

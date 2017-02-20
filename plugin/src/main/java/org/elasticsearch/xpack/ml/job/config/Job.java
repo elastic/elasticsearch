@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.MlStrings;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
@@ -134,32 +135,11 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     private final String resultsIndexName;
     private final boolean deleted;
 
-    public Job(String jobId, String description, Date createTime, Date finishedTime, Date lastDataTime,
+    private Job(String jobId, String description, Date createTime, Date finishedTime, Date lastDataTime,
                AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
                ModelDebugConfig modelDebugConfig, Long renormalizationWindowDays, Long backgroundPersistInterval,
                Long modelSnapshotRetentionDays, Long resultsRetentionDays, Map<String, Object> customSettings,
                String modelSnapshotId, String resultsIndexName, boolean deleted) {
-        if (analysisConfig == null) {
-            throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MISSING_ANALYSISCONFIG));
-        }
-
-        checkValueNotLessThan(0, "renormalizationWindowDays", renormalizationWindowDays);
-        checkValueNotLessThan(MIN_BACKGROUND_PERSIST_INTERVAL, "backgroundPersistInterval", backgroundPersistInterval);
-        checkValueNotLessThan(0, "modelSnapshotRetentionDays", modelSnapshotRetentionDays);
-        checkValueNotLessThan(0, "resultsRetentionDays", resultsRetentionDays);
-
-        if (!MlStrings.isValidId(jobId)) {
-            throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), jobId));
-        }
-        if (jobId.length() > MAX_JOB_ID_LENGTH) {
-            throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MAX_JOB_ID_LENGTH));
-        }
-
-        if (Strings.isNullOrEmpty(resultsIndexName)) {
-            resultsIndexName = jobId;
-        } else if (!MlStrings.isValidId(resultsIndexName)) {
-            throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, RESULTS_INDEX_NAME.getPreferredName()));
-        }
 
         this.jobId = jobId;
         this.description = description;
@@ -564,7 +544,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         }
 
         public void setAnalysisConfig(AnalysisConfig.Builder configBuilder) {
-            analysisConfig = configBuilder.build();
+            analysisConfig = ExceptionsHelper.requireNonNull(configBuilder, ANALYSIS_CONFIG.getPreferredName()).build();
         }
 
         public void setAnalysisLimits(AnalysisLimits analysisLimits) {
@@ -597,7 +577,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         }
 
         public void setDataDescription(DataDescription.Builder description) {
-            dataDescription = description.build();
+            dataDescription = ExceptionsHelper.requireNonNull(description, DATA_DESCRIPTION.getPreferredName()).build();
         }
 
         public void setModelDebugConfig(ModelDebugConfig modelDebugConfig) {
@@ -657,6 +637,28 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 finishedTime = this.finishedTime;
                 lastDataTime = this.lastDataTime;
                 modelSnapshotId = this.modelSnapshotId;
+            }
+
+            if (analysisConfig == null) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MISSING_ANALYSISCONFIG));
+            }
+
+            checkValueNotLessThan(0, "renormalizationWindowDays", renormalizationWindowDays);
+            checkValueNotLessThan(MIN_BACKGROUND_PERSIST_INTERVAL, "backgroundPersistInterval", backgroundPersistInterval);
+            checkValueNotLessThan(0, "modelSnapshotRetentionDays", modelSnapshotRetentionDays);
+            checkValueNotLessThan(0, "resultsRetentionDays", resultsRetentionDays);
+
+            if (!MlStrings.isValidId(id)) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), id));
+            }
+            if (id.length() > MAX_JOB_ID_LENGTH) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MAX_JOB_ID_LENGTH));
+            }
+
+            if (Strings.isNullOrEmpty(resultsIndexName)) {
+                resultsIndexName = id;
+            } else if (!MlStrings.isValidId(resultsIndexName)) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, RESULTS_INDEX_NAME.getPreferredName()));
             }
 
             return new Job(

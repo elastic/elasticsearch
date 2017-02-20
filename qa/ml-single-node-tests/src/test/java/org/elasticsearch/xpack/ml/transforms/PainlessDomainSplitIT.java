@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.transforms;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
@@ -188,13 +189,13 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
     private void createIndex(String name, Settings settings) throws IOException {
         assertOK(client().performRequest("PUT", name, Collections.emptyMap(),
-                new StringEntity("{ \"settings\": " + Strings.toString(settings) + " }")));
+                new StringEntity("{ \"settings\": " + Strings.toString(settings) + " }", ContentType.APPLICATION_JSON)));
     }
 
     private void createIndex(String name, Settings settings, String mapping) throws IOException {
         assertOK(client().performRequest("PUT", name, Collections.emptyMap(),
                 new StringEntity("{ \"settings\": " + Strings.toString(settings)
-                        + ", \"mappings\" : {" + mapping + "} }")));
+                        + ", \"mappings\" : {" + mapping + "} }", ContentType.APPLICATION_JSON)));
     }
 
     public void testIsolated() throws Exception {
@@ -205,7 +206,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
         createIndex("painless", settings.build());
         client().performRequest("PUT", "painless/test/1", Collections.emptyMap(),
-                new StringEntity("{\"test\": \"test\"}"));
+                new StringEntity("{\"test\": \"test\"}", ContentType.APPLICATION_JSON));
         client().performRequest("POST", "painless/_refresh");
 
         Pattern pattern = Pattern.compile("domain_split\":\\[(.*?),(.*?)\\]");
@@ -230,7 +231,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                     "            }\n" +
                     "        }\n" +
                     "    }\n" +
-                    "}");
+                    "}", ContentType.APPLICATION_JSON);
 
             Response response = client().performRequest("GET", "painless/test/_search", Collections.emptyMap(), body);
             String responseBody = EntityUtils.toString(response.getEntity());
@@ -275,7 +276,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 "  }";
 
         client().performRequest("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/painless", Collections.emptyMap(),
-                new StringEntity(job));
+                new StringEntity(job, ContentType.APPLICATION_JSON));
         client().performRequest("POST", MachineLearning.BASE_PATH + "anomaly_detectors/painless/_open");
 
         // Create index to hold data
@@ -304,14 +305,14 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                     client().performRequest("PUT", "painless/test/" + time.toDateTimeISO() + "_" + j,
                             Collections.emptyMap(),
                             new StringEntity("{\"domain\": \"" + "bar.bar.com\", \"time\": \"" + time.toDateTimeISO()
-                                    + "\"}"));
+                                    + "\"}", ContentType.APPLICATION_JSON));
                 }
             } else {
                 // Non-anomalous values will be what's seen when the anomaly is reported
                 client().performRequest("PUT", "painless/test/" + time.toDateTimeISO(),
                         Collections.emptyMap(),
                         new StringEntity("{\"domain\": \"" + test.hostName + "\", \"time\": \"" + time.toDateTimeISO()
-                                + "\"}"));
+                                + "\"}", ContentType.APPLICATION_JSON));
             }
         }
 
@@ -330,9 +331,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 "      }";
 
         client().performRequest("PUT", MachineLearning.BASE_PATH + "datafeeds/painless", Collections.emptyMap(),
-                new StringEntity(body));
+                new StringEntity(body, ContentType.APPLICATION_JSON));
         client().performRequest("POST", MachineLearning.BASE_PATH + "datafeeds/painless/_start");
-
 
         boolean passed = awaitBusy(() -> {
             try {

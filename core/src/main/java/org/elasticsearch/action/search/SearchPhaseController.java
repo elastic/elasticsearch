@@ -638,7 +638,7 @@ public class SearchPhaseController extends AbstractComponent {
      * This implementation can be configured to batch up a certain amount of results and only reduce them
      * iff the buffer is exhausted.
      */
-    static class QueryPhaseResultConsumer
+    final static class QueryPhaseResultConsumer
         extends InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> {
         private final InternalAggregations[] buffer;
         private int index;

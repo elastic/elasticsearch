@@ -25,6 +25,7 @@ import java.util.function.Function;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
+import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.InstanceProfileCredentialsProvider;
@@ -68,8 +69,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
 
         AWSCredentialsProvider credentials = buildCredentials(logger, deprecationLogger, settings, repositorySettings, clientName);
 
-        String awsAccessKeyId = SocketAccess.doPrivileged(() -> credentials.getCredentials().getAWSAccessKeyId());
-        Tuple<String, String> clientDescriptor = new Tuple<>(foundEndpoint, awsAccessKeyId);
+        Tuple<String, String> clientDescriptor = new Tuple<>(foundEndpoint, credentials.getCredentials().getAWSAccessKeyId());
         AmazonS3Client client = clients.get(clientDescriptor);
         if (client != null) {
             return client;
@@ -158,7 +158,17 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
             }
         }
 
-        return credentials;
+        return new AWSCredentialsProvider() {
+            @Override
+            public AWSCredentials getCredentials() {
+                return SocketAccess.doPrivileged(credentials::getCredentials);
+            }
+
+            @Override
+            public void refresh() {
+                SocketAccess.doPrivilegedVoid(credentials::refresh);
+            }
+        };
     }
 
     // pkg private for tests

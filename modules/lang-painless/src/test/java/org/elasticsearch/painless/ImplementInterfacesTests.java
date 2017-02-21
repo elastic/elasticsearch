@@ -168,7 +168,6 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         scriptEngine.compile(ReturnsVoid.class, null, "map.remove('a')", emptyMap()).execute(map);
         assertEquals(emptyMap(), map);
         String debug = Debugger.toString(ReturnsVoid.class, "map.remove('a')", new CompilerSettings());
-        System.err.print(debug);
         assertThat(debug, not(containsString("ACONST_NULL")));
         assertThat(debug, containsString("RETURN"));
     }
@@ -177,7 +176,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         String[] ARGUMENTS = new String[] {};
         int execute();
     }
-    public void testReturnsPrimitive() {
+    public void testReturnsPrimitiveInt() {
         assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1", emptyMap()).execute());
         assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "(int) 1L", emptyMap()).execute());
         assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "(int) 1.1d", emptyMap()).execute());
@@ -192,18 +191,28 @@ public class ImplementInterfacesTests extends ScriptTestCase {
 
         assertEquals(2, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1 + 1", emptyMap()).execute());
 
-        expectScriptThrows(ClassCastException.class, () ->
-                scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1L", emptyMap()).execute());
-        expectScriptThrows(ClassCastException.class, () ->
-                scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1.1f", emptyMap()).execute());
-        expectScriptThrows(ClassCastException.class, () ->
-                scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1.1d", emptyMap()).execute());
-
         String debug = Debugger.toString(ReturnsPrimitiveInt.class, "1", new CompilerSettings());
         assertThat(debug, containsString("ICONST_1"));
+        // The important thing here is that we have the bytecode for returning an integer instead of an object
         assertThat(debug, containsString("IRETURN"));
 
-        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+        Exception e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1L", emptyMap()).execute());
+        assertEquals("Cannot cast from [long] to [int].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1.1f", emptyMap()).execute());
+        assertEquals("Cannot cast from [float] to [int].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1.1d", emptyMap()).execute());
+        assertEquals("Cannot cast from [double] to [int].", e.getMessage());
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = 1L; i", emptyMap()).execute());
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = 1.1f; i", emptyMap()).execute());
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = 1.1d; i", emptyMap()).execute());
+
+        e = expectScriptThrows(IllegalArgumentException.class, () ->
             scriptEngine.compile(ReturnsPrimitiveInt.class, null, "int i = 0", emptyMap()));
         assertEquals("Expected all paths to [return] but not all did or end in an expression to return but "
                 + "some path ends is missing a return and ends in a statement.", e.getMessage());

@@ -165,8 +165,8 @@ class ClusterFormationTasks {
         setup = configureStopTask(taskName(task, node, 'stopPrevious'), project, setup, node)
         setup = configureExtractTask(taskName(task, node, 'extract'), project, setup, node, configuration)
         setup = configureWriteConfigTask(taskName(task, node, 'configure'), project, setup, node, seedNode)
-        setup = configureCreateKeyStoreTask(taskName(task, node, 'createKeyStore'), project, setup, node)
-        setup = configureAddKeyStoreTasks(task, project, setup, node)
+        setup = configureCreateKeystoreTask(taskName(task, node, 'createKeystore'), project, setup, node)
+        setup = configureAddKeystoreSettingTasks(task, project, setup, node)
         if (node.config.plugins.isEmpty() == false) {
             if (node.nodeVersion == VersionProperties.elasticsearch) {
                 setup = configureCopyPluginsTask(taskName(task, node, 'copyPlugins'), project, setup, node)
@@ -310,23 +310,24 @@ class ClusterFormationTasks {
     }
 
     /** Adds a task to create keystore */
-    static Task configureCreateKeyStoreTask(String name, Project project, Task setup, NodeInfo node) {
-        File esKeyStoreUtil = Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
-        Task createKeyStore = project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) {
-            commandLine esKeyStoreUtil, 'create'
+    static Task configureCreateKeystoreTask(String name, Project project, Task setup, NodeInfo node) {
+        if (node.config.keystoreSettings.isEmpty()) {
+            return setup
+        } else {
+            File esKeystoreUtil = Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
+            return configureExecTask(name, project, setup, node, esKeystoreUtil, 'create')
         }
     }
 
-    /** Adds tasks to add to keystore */
-    static Task configureAddKeyStoreTasks(Task parent, Project project, Task setup, NodeInfo node) {
-        Map kvs = node.config.keyStoreSetting
-        File esKeyStoreUtil = Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
+    /** Adds tasks to add settings to the keystore */
+    static Task configureAddKeystoreSettingTasks(Task parent, Project project, Task setup, NodeInfo node) {
+        Map kvs = node.config.keystoreSettings
+        File esKeystoreUtil = Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
         Task parentTask = setup
         for (Map.Entry<String, String> entry in kvs) {
             String key = entry.getKey()
-            Task t = project.tasks.create(name: taskName(parent, node, 'addToKeyStore#' + key), type: LoggedExec, dependsOn: parentTask) {
-                commandLine esKeyStoreUtil, 'add', key, '-x'
-            }
+            String name = taskName(parent, node, 'addToKeystore#' + key)
+            Task t = configureExecTask(name, project, parentTask, node, esKeystoreUtil, 'add', key, '-x')
             t.doFirst {
                 standardInput = new ByteArrayInputStream(entry.getValue().getBytes(StandardCharsets.UTF_8))
             }

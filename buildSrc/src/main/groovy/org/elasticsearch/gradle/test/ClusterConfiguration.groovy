@@ -125,7 +125,7 @@ class ClusterConfiguration {
 
     Map<String, Object> settings = new HashMap<>()
 
-    Map<String, String> keyStoreSetting = new HashMap<>()
+    Map<String, String> keystoreSettings = new HashMap<>()
 
     // map from destination path, to source file
     Map<String, Object> extraConfigFiles = new HashMap<>()
@@ -147,8 +147,8 @@ class ClusterConfiguration {
     }
 
     @Input
-    void keyStoreSetting(String name, String value) {
-        keyStoreSetting.put(name, value)
+    void keystoreSetting(String name, String value) {
+        keystoreSettings.put(name, value)
     }
 
     @Input

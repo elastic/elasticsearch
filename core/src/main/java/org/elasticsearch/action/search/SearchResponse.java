@@ -179,13 +179,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         return internalResponse.profile();
     }
 
-    static final class Fields {
-        static final String _SCROLL_ID = "_scroll_id";
-        static final String TOOK = "took";
-        static final String TIMED_OUT = "timed_out";
-        static final String TERMINATED_EARLY = "terminated_early";
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -196,12 +189,12 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (scrollId != null) {
-            builder.field(Fields._SCROLL_ID, scrollId);
+            builder.field("_scroll_id", scrollId);
         }
-        builder.field(Fields.TOOK, tookInMillis);
-        builder.field(Fields.TIMED_OUT, isTimedOut());
+        builder.field("took", tookInMillis);
+        builder.field("timed_out", isTimedOut());
         if (isTerminatedEarly() != null) {
-            builder.field(Fields.TERMINATED_EARLY, isTerminatedEarly());
+            builder.field("terminated_early", isTerminatedEarly());
         }
         if (getNumReducePhases() != 1) {
             builder.field("num_reduce_phases", getNumReducePhases());

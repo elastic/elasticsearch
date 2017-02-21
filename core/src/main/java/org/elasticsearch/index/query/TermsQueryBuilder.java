@@ -20,10 +20,10 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -260,7 +260,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     if (o instanceof BytesRef) {
                         b = (BytesRef) o;
                     } else {
-                        builder.copyChars(o.toString()); 
+                        builder.copyChars(o.toString());
                         b = builder.get();
                     }
                     bytesOut.writeBytes(b.bytes, b.offset, b.length);
@@ -441,7 +441,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 for (int i = 0; i < filterValues.length; i++) {
                     filterValues[i] = BytesRefs.toBytesRef(terms.get(i));
                 }
-                query = new TermsQuery(indexFieldName, filterValues);
+                query = new TermInSetQuery(indexFieldName, filterValues);
             }
         } else {
             BooleanQuery.Builder bq = new BooleanQuery.Builder();

@@ -20,9 +20,9 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -67,7 +67,7 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
     @Override
     protected void doAssertLuceneQuery(Builder queryBuilder, Query query, SearchContext context) throws IOException {
         if (queryBuilder.neighbors()) {
-            assertThat(query, instanceOf(TermsQuery.class));
+            assertThat(query, instanceOf(TermInSetQuery.class));
         } else {
             assertThat(query, instanceOf(TermQuery.class));
             TermQuery termQuery = (TermQuery) query;

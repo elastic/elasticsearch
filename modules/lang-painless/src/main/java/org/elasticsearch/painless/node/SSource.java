@@ -192,15 +192,6 @@ public final class SSource extends AStatement {
             methodEscape = statement.methodEscape;
             allEscape = statement.allEscape;
         }
-
-        if (!methodEscape) {
-            if (scriptInterface.getExecuteMethodReturnType().equals(Definition.DEF_TYPE)) {
-                // TODO this should fail too but it can't to keep compatibility with Elasticsearch scripts
-            } else if (false == scriptInterface.getExecuteMethodReturnType().equals(Definition.VOID_TYPE)) {
-                throw new IllegalArgumentException("Expected all paths to [return] but not all did or end in an expression to return but "
-                        + "some path ends is missing a return and ends in a statement.");
-            }
-        }
     }
 
     public void write() {
@@ -322,13 +313,8 @@ public final class SSource extends AStatement {
         }
 
         if (!methodEscape) {
-            if (scriptInterface.getExecuteMethodReturnType().equals(Definition.DEF_TYPE)) {
-                // TODO this should fail too but it can't to keep compatibility with Elasticsearch scripts
-                writer.visitInsn(Opcodes.ACONST_NULL);
-            } else if (false == scriptInterface.getExecuteMethodReturnType().equals(Definition.VOID_TYPE)) {
-                assert false : "this should have failed during the analyze phase";
-                throw new IllegalArgumentException("Expected all paths to [return] but not all did or end in an expression to return but "
-                        + "some path ends is missing a return and ends in a statement.");
+            if (false == scriptInterface.getExecuteMethod().getReturnType().equals(Definition.VOID_TYPE.type)) {
+                writer.writeDefaultValue(scriptInterface.getExecuteMethod().getReturnType());
             }
             writer.returnValue();
         }

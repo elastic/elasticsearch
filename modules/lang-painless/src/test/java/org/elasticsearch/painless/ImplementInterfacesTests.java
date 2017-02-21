@@ -218,10 +218,36 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         expectScriptThrows(ClassCastException.class, () ->
                 scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = 1.1d; i", emptyMap()).execute());
 
-        e = expectScriptThrows(IllegalArgumentException.class, () ->
-            scriptEngine.compile(ReturnsPrimitiveInt.class, null, "int i = 0", emptyMap()));
-        assertEquals("Expected all paths to [return] but not all did or end in an expression to return but "
-                + "some path ends is missing a return and ends in a statement.", e.getMessage());
+        assertEquals(0, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "int i = 0", emptyMap()).execute());
+    }
+
+    public interface ReturnsPrimitiveFloat {
+        String[] ARGUMENTS = new String[] {};
+        float execute();
+    }
+    public void testReturnsPrimitiveFloat() {
+        assertEquals(1.1f, scriptEngine.compile(ReturnsPrimitiveFloat.class, null, "1.1f", emptyMap()).execute(), 0);
+        assertEquals(1.1f, scriptEngine.compile(ReturnsPrimitiveFloat.class, null, "(float) 1.1d", emptyMap()).execute(), 0);
+        assertEquals(1.1f, scriptEngine.compile(ReturnsPrimitiveFloat.class, null, "def d = 1.1f; d", emptyMap()).execute(), 0);
+        assertEquals(1.1f,
+                scriptEngine.compile(ReturnsPrimitiveFloat.class, null, "def d = Float.valueOf(1.1f); d", emptyMap()).execute(), 0);
+
+        assertEquals(1.1f + 6.7f, scriptEngine.compile(ReturnsPrimitiveFloat.class, null, "1.1f + 6.7f", emptyMap()).execute(), 0);
+
+        Exception e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveFloat.class, null, "1.1d", emptyMap()).execute());
+        assertEquals("Cannot cast from [double] to [float].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveFloat.class, null, "def d = 1.1d; d", emptyMap()).execute());
+        e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveFloat.class, null, "def d = Double.valueOf(1.1); d", emptyMap()).execute());
+
+        String debug = Debugger.toString(ReturnsPrimitiveFloat.class, "1f", new CompilerSettings());
+        assertThat(debug, containsString("FCONST_1"));
+        // The important thing here is that we have the bytecode for returning a float instead of an object
+        assertThat(debug, containsString("FRETURN"));
+
+        assertEquals(0.0f, scriptEngine.compile(ReturnsPrimitiveFloat.class, null, "int i = 0", emptyMap()).execute(), 0);
     }
 
     public interface ReturnsPrimitiveDouble {
@@ -253,10 +279,7 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         // The important thing here is that we have the bytecode for returning a double instead of an object
         assertThat(debug, containsString("DRETURN"));
 
-        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
-            scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "int i = 0", emptyMap()));
-        assertEquals("Expected all paths to [return] but not all did or end in an expression to return but "
-                + "some path ends is missing a return and ends in a statement.", e.getMessage());
+        assertEquals(0.0, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "int i = 0", emptyMap()).execute(), 0);
     }
 
     public interface NoArgumentsConstant {

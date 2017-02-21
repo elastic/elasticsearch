@@ -5,14 +5,18 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
@@ -172,14 +176,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         internalCluster().stopRandomNode(settings -> settings.getAsBoolean(MachineLearning.ML_ENABLED.getKey(), true));
         ensureStableCluster(2);
         assertBusy(() -> {
-            // job should get and remain in a failed state:
-            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksInProgress tasks = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
-            PersistentTaskInProgress task = tasks.taskMap().values().iterator().next();
-
-            assertNull(task.getExecutorNode());
-            // The status remains to be opened as from ml we didn't had the chance to set the status to failed:
-            assertEquals(JobState.OPENED, task.getStatus());
+            // job should get and remain in a failed state and
+            // the status remains to be opened as from ml we didn't had the chance to set the status to failed:
+            assertJobTask("job_id", JobState.OPENED, false);
         });
 
         logger.info("start ml node");
@@ -187,16 +186,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         ensureStableCluster(3);
         assertBusy(() -> {
             // job should be re-opened:
-            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksInProgress tasks = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
-            PersistentTaskInProgress task = tasks.taskMap().values().iterator().next();
-
-            assertNotNull(task.getExecutorNode());
-            DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
-            Map<String, String> expectedNodeAttr = new HashMap<>();
-            expectedNodeAttr.put(MAX_RUNNING_JOBS_PER_NODE.getKey(), "10");
-            assertEquals(expectedNodeAttr, node.getAttributes());
-            assertEquals(JobState.OPENED, task.getStatus());
+            assertJobTask("job_id", JobState.OPENED, true);
         });
     }
 
@@ -305,5 +295,80 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         assertEquals("Expected no violations, but got [" + violations + "]", 0, violations.size());
     }
 
+    public void testMlIndicesNotAvailable() throws Exception {
+        internalCluster().ensureAtMostNumDataNodes(0);
+        // start non ml node, but that will hold the indices
+        logger.info("Start non ml node:");
+        internalCluster().startNode(Settings.builder()
+                .put("node.data", true)
+                .put(MachineLearning.ML_ENABLED.getKey(), false));
+        ensureStableCluster(1);
+        logger.info("Starting ml node");
+        internalCluster().startNode(Settings.builder()
+                .put("node.data", false)
+                .put(MachineLearning.ML_ENABLED.getKey(), true));
+        ensureStableCluster(2);
+
+        Job.Builder job = createFareQuoteJob("job_id");
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build());
+        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
+        assertTrue(putJobResponse.isAcknowledged());
+
+        OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
+        client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
+
+        PostDataAction.Request postDataRequest = new PostDataAction.Request("job_id");
+        postDataRequest.setContent(new BytesArray(
+            "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n" +
+            "{\"airline\":\"JZA\",\"responsetime\":\"990.4628\",\"sourcetype\":\"farequote\",\"time\":\"1403481700\"}"
+        ));
+        PostDataAction.Response response = client().execute(PostDataAction.INSTANCE, postDataRequest).actionGet();
+        assertEquals(2, response.getDataCounts().getProcessedRecordCount());
+
+        CloseJobAction.Request closeJobRequest = new CloseJobAction.Request("job_id");
+        client().execute(CloseJobAction.INSTANCE, closeJobRequest);
+        assertBusy(() -> {
+            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            PersistentTasksInProgress tasks = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
+            assertEquals(0, tasks.taskMap().size());
+        });
+        logger.info("Stop data node");
+        internalCluster().stopRandomNode(settings -> settings.getAsBoolean("node.data", true));
+        ensureStableCluster(1);
+
+        Exception e = expectThrows(ElasticsearchStatusException.class,
+                () -> client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet());
+        assertEquals("no nodes available to open job [job_id]", e.getMessage());
+
+        logger.info("Start data node");
+        internalCluster().startNode(Settings.builder()
+                .put("node.data", true)
+                .put(MachineLearning.ML_ENABLED.getKey(), false));
+        ensureStableCluster(2);
+        client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
+        assertBusy(() -> assertJobTask("job_id", JobState.OPENED, true));
+    }
+
+    private void assertJobTask(String jobId, JobState expectedState, boolean hasExecutorNode) {
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        PersistentTasksInProgress tasks = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
+        assertEquals(1, tasks.taskMap().size());
+        PersistentTaskInProgress<?> task = tasks.findTasks(OpenJobAction.NAME, p -> {
+            return p.getRequest() instanceof OpenJobAction.Request &&
+                    jobId.equals(((OpenJobAction.Request) p.getRequest()).getJobId());
+        }).iterator().next();
+        assertNotNull(task);
+
+        if (hasExecutorNode) {
+            assertNotNull(task.getExecutorNode());
+            DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
+            Map<String, String> expectedNodeAttr = new HashMap<>();
+            expectedNodeAttr.put(MAX_RUNNING_JOBS_PER_NODE.getKey(), "10");
+            assertEquals(expectedNodeAttr, node.getAttributes());
+        } else {
+            assertNull(task.getExecutorNode());
+        }
+        assertEquals(expectedState, task.getStatus());
+    }
 
 }

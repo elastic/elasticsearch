@@ -10,20 +10,36 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.MlMetadata;
+import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
 
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
@@ -115,8 +131,13 @@ public class OpenJobActionTests extends ESTestCase {
         PersistentTasksInProgress tasks = new PersistentTasksInProgress(3L, taskMap);
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        addJobAndIndices(metaData, routingTable, "job_id1", "job_id2", "job_id3", "job_id4");
         cs.nodes(nodes);
-        cs.metaData(MetaData.builder().putCustom(PersistentTasksInProgress.TYPE, tasks));
+        metaData.putCustom(PersistentTasksInProgress.TYPE, tasks);
+        cs.metaData(metaData);
+        cs.routingTable(routingTable.build());
         DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id4", cs.build(), 2, logger);
         assertEquals("_node_id3", result.getId());
     }
@@ -142,8 +163,13 @@ public class OpenJobActionTests extends ESTestCase {
         PersistentTasksInProgress tasks = new PersistentTasksInProgress(numNodes * maxRunningJobsPerNode, taskMap);
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        addJobAndIndices(metaData, routingTable, "job_id1", "job_id2");
         cs.nodes(nodes);
-        cs.metaData(MetaData.builder().putCustom(PersistentTasksInProgress.TYPE, tasks));
+        metaData.putCustom(PersistentTasksInProgress.TYPE, tasks);
+        cs.metaData(metaData);
+        cs.routingTable(routingTable.build());
         DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, logger);
         assertNull(result);
     }
@@ -161,8 +187,13 @@ public class OpenJobActionTests extends ESTestCase {
         PersistentTasksInProgress tasks = new PersistentTasksInProgress(1L, Collections.singletonMap(1L, task));
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        addJobAndIndices(metaData, routingTable, "job_id1", "job_id2");
         cs.nodes(nodes);
-        cs.metaData(MetaData.builder().putCustom(PersistentTasksInProgress.TYPE, tasks));
+        metaData.putCustom(PersistentTasksInProgress.TYPE, tasks);
+        cs.metaData(metaData);
+        cs.routingTable(routingTable.build());
         DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, logger);
         assertNull(result);
     }
@@ -187,39 +218,79 @@ public class OpenJobActionTests extends ESTestCase {
         taskMap.put(4L, createJobTask(4L, "job_id5", "_node_id3", JobState.OPENING));
         PersistentTasksInProgress tasks = new PersistentTasksInProgress(5L, taskMap);
 
-        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
-        cs.nodes(nodes);
-        cs.metaData(MetaData.builder().putCustom(PersistentTasksInProgress.TYPE, tasks));
-        DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id6", cs.build(), 2, logger);
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
+        csBuilder.nodes(nodes);
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        addJobAndIndices(metaData, routingTable, "job_id1", "job_id2", "job_id3", "job_id4", "job_id5", "job_id6", "job_id7");
+        csBuilder.routingTable(routingTable.build());
+        metaData.putCustom(PersistentTasksInProgress.TYPE, tasks);
+        csBuilder.metaData(metaData);
+
+        ClusterState cs = csBuilder.build();
+        DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id6", cs, 2, logger);
         assertEquals("_node_id3", result.getId());
 
         PersistentTaskInProgress<OpenJobAction.Request>  lastTask = createJobTask(5L, "job_id6", "_node_id3", JobState.OPENING);
         taskMap.put(5L, lastTask);
         tasks = new PersistentTasksInProgress(6L, taskMap);
 
-        cs = ClusterState.builder(new ClusterName("_name"));
-        cs.nodes(nodes);
-        cs.metaData(MetaData.builder().putCustom(PersistentTasksInProgress.TYPE, tasks));
-        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs.build(), 2, logger);
+        csBuilder = ClusterState.builder(cs);
+        csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksInProgress.TYPE, tasks));
+        cs = csBuilder.build();
+        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, logger);
         assertNull("no node selected, because OPENING state", result);
 
         taskMap.put(5L, new PersistentTaskInProgress<>(lastTask, false, "_node_id3"));
         tasks = new PersistentTasksInProgress(6L, taskMap);
 
-        cs = ClusterState.builder(new ClusterName("_name"));
-        cs.nodes(nodes);
-        cs.metaData(MetaData.builder().putCustom(PersistentTasksInProgress.TYPE, tasks));
-        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs.build(), 2, logger);
+        csBuilder = ClusterState.builder(cs);
+        csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksInProgress.TYPE, tasks));
+        cs = csBuilder.build();
+        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, logger);
         assertNull("no node selected, because stale task", result);
 
         taskMap.put(5L, new PersistentTaskInProgress<>(lastTask, null));
         tasks = new PersistentTasksInProgress(6L, taskMap);
 
-        cs = ClusterState.builder(new ClusterName("_name"));
-        cs.nodes(nodes);
-        cs.metaData(MetaData.builder().putCustom(PersistentTasksInProgress.TYPE, tasks));
-        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs.build(), 2, logger);
+        csBuilder = ClusterState.builder(cs);
+        csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksInProgress.TYPE, tasks));
+        cs = csBuilder.build();
+        result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, logger);
         assertNull("no node selected, because null state", result);
+    }
+
+    public void testVerifyIndicesExistAndPrimaryShardsAreActive() {
+        MetaData.Builder metaData = MetaData.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        addJobAndIndices(metaData, routingTable, "job_id");
+
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
+        csBuilder.routingTable(routingTable.build());
+        csBuilder.metaData(metaData);
+
+        ClusterState cs = csBuilder.build();
+        assertTrue(OpenJobAction.verifyIndicesExistAndPrimaryShardsAreActive(logger, "job_id", cs));
+
+        metaData = new MetaData.Builder(cs.metaData());
+        routingTable = new RoutingTable.Builder(cs.routingTable());
+        String indexToRemove = randomFrom(cs.metaData().getConcreteAllIndices());
+        if (randomBoolean()) {
+            routingTable.remove(indexToRemove);
+        } else if (randomBoolean()) {
+            Index index = new Index(indexToRemove, "_uuid");
+            ShardId shardId = new ShardId(index, 0);
+            ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE,
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
+            shardRouting = shardRouting.initialize("node_id", null, 0L);
+            routingTable.add(IndexRoutingTable.builder(index)
+                    .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
+        } else {
+            metaData.remove(indexToRemove);
+        }
+        csBuilder.routingTable(routingTable.build());
+        csBuilder.metaData(metaData);
+        assertFalse(OpenJobAction.verifyIndicesExistAndPrimaryShardsAreActive(logger, "job_id", csBuilder.build()));
     }
 
     public static PersistentTaskInProgress<OpenJobAction.Request> createJobTask(long id, String jobId, String nodeId, JobState jobState) {
@@ -227,6 +298,40 @@ public class OpenJobActionTests extends ESTestCase {
                 new PersistentTaskInProgress<>(id, OpenJobAction.NAME, new OpenJobAction.Request(jobId), false, true, nodeId);
         task = new PersistentTaskInProgress<>(task, jobState);
         return task;
+    }
+
+    private void addJobAndIndices(MetaData.Builder metaData, RoutingTable.Builder routingTable, String... jobIds) {
+        List<String> indices = new ArrayList<>();
+        indices.add(AnomalyDetectorsIndex.jobStateIndexName());
+        indices.add(JobProvider.ML_META_INDEX);
+        indices.add(Auditor.NOTIFICATIONS_INDEX);
+        for (String jobId : jobIds) {
+            indices.add(AnomalyDetectorsIndex.jobResultsIndexName(jobId));
+        }
+        for (String indexName : indices) {
+            IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
+            indexMetaData.settings(Settings.builder()
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            );
+            metaData.put(indexMetaData);
+            Index index = new Index(indexName, "_uuid");
+            ShardId shardId = new ShardId(index, 0);
+            ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE,
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
+            shardRouting = shardRouting.initialize("node_id", null, 0L);
+            shardRouting = shardRouting.moveToStarted();
+            routingTable.add(IndexRoutingTable.builder(index)
+                    .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
+        }
+
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        for (String jobId : jobIds) {
+            Job job = BaseMlIntegTestCase.createFareQuoteJob(jobId).build();
+            mlMetadata.putJob(job, false);
+        }
+        metaData.putCustom(MlMetadata.TYPE, mlMetadata.build());
     }
 
 }

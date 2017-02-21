@@ -93,6 +93,26 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
         return builder;
     }
 
+    public static Job.Builder createFareQuoteJob(String id) {
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setFormat(DataDescription.DataFormat.JSON);
+        dataDescription.setTimeFormat(DataDescription.EPOCH);
+        dataDescription.setTimeField("time");
+
+        Detector.Builder d = new Detector.Builder("metric", "responsetime");
+        d.setByFieldName("by_field_name");
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
+        analysisConfig.setBucketSpan(3600L);
+
+        Job.Builder builder = new Job.Builder();
+        builder.setId(id);
+        builder.setCreateTime(new Date());
+
+        builder.setAnalysisConfig(analysisConfig);
+        builder.setDataDescription(dataDescription);
+        return builder;
+    }
+
     public static Job.Builder createScheduledJob(String jobId) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataDescription.DataFormat.JSON);

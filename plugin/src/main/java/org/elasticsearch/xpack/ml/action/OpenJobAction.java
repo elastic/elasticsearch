@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -43,7 +44,10 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.JobStateObserver;
 import org.elasticsearch.xpack.persistent.PersistentActionRegistry;
@@ -277,6 +281,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
                 // If we already know that we can't find an ml node because all ml nodes are running at capacity or
                 // simply because there are no ml nodes in the cluster then we fail quickly here:
                 ClusterState clusterState = clusterService.state();
+                validate(request, clusterState);
                 if (selectLeastLoadedMlNode(request.getJobId(), clusterState, maxConcurrentJobAllocations, logger) == null) {
                     throw new ElasticsearchStatusException("no nodes available to open job [" + request.getJobId() + "]",
                             RestStatus.TOO_MANY_REQUESTS);
@@ -374,6 +379,10 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
 
     static DiscoveryNode selectLeastLoadedMlNode(String jobId, ClusterState clusterState, int maxConcurrentJobAllocations,
                                                  Logger logger) {
+        if (verifyIndicesExistAndPrimaryShardsAreActive(logger, jobId, clusterState) == false) {
+            return null;
+        }
+
         long maxAvailable = Long.MIN_VALUE;
         List<String> reasons = new LinkedList<>();
         DiscoveryNode minLoadedNode = null;
@@ -433,8 +442,28 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         if (minLoadedNode != null) {
             logger.info("selected node [{}] for job [{}]", minLoadedNode, jobId);
         } else {
-            logger.info("no node selected for job [{}], reasons [{}]", jobId, String.join(",\n", reasons));
+            logger.warn("no node selected for job [{}], reasons [{}]", jobId, String.join(",", reasons));
         }
         return minLoadedNode;
+    }
+
+    static boolean verifyIndicesExistAndPrimaryShardsAreActive(Logger logger, String jobId, ClusterState clusterState) {
+        MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
+        Job job = mlMetadata.getJobs().get(jobId);
+        String jobResultIndex = AnomalyDetectorsIndex.jobResultsIndexName(job.getResultsIndexName());
+        String[] indices = new String[]{AnomalyDetectorsIndex.jobStateIndexName(), jobResultIndex, JobProvider.ML_META_INDEX,
+                Auditor.NOTIFICATIONS_INDEX};
+        for (String index : indices) {
+            if (clusterState.metaData().hasIndex(index) == false) {
+                logger.warn("Not opening job [{}], because [{}] index is missing.", jobId, index);
+                return false;
+            }
+            IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
+            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+                logger.warn("Not opening job [{}], because not all primary shards are active for the [{}] index.", jobId, index);
+                return false;
+            }
+        }
+        return true;
     }
 }

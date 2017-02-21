@@ -42,7 +42,7 @@ Vagrant.configure(2) do |config|
   # debian and it works fine.
   config.vm.define "debian-8" do |config|
     config.vm.box = "elastic/debian-8-x86_64"
-    deb_common config, 'echo deb http://cloudfront.debian.net/debian jessie-backports main > /etc/apt/sources.list.d/backports.list', 'backports'
+    deb_common config
   end
   config.vm.define "centos-6" do |config|
     config.vm.box = "elastic/centos-6-x86_64"
@@ -114,10 +114,10 @@ SOURCE_PROMPT
 end
 
 def ubuntu_common(config, extra: '')
-  deb_common config, 'apt-add-repository -y ppa:openjdk-r/ppa > /dev/null 2>&1', 'openjdk-r-*', extra: extra
+  deb_common config, extra: extra
 end
 
-def deb_common(config, add_openjdk_repository_command, openjdk_list, extra: '')
+def deb_common(config, extra: '')
   # http://foo-o-rama.com/vagrant--stdin-is-not-a-tty--fix.html
   config.vm.provision "fix-no-tty", type: "shell" do |s|
       s.privileged = false
@@ -127,24 +127,14 @@ def deb_common(config, add_openjdk_repository_command, openjdk_list, extra: '')
     update_command: "apt-get update",
     update_tracking_file: "/var/cache/apt/archives/last_update",
     install_command: "apt-get install -y",
-    java_package: "openjdk-8-jdk",
-    extra: <<-SHELL
-      export DEBIAN_FRONTEND=noninteractive
-      ls /etc/apt/sources.list.d/#{openjdk_list}.list > /dev/null 2>&1 ||
-        (echo "==> Importing java-8 ppa" &&
-          #{add_openjdk_repository_command} &&
-          apt-get update)
-      #{extra}
-SHELL
-  )
+    extra: extra)
 end
 
 def rpm_common(config)
   provision(config,
     update_command: "yum check-update",
     update_tracking_file: "/var/cache/yum/last_update",
-    install_command: "yum install -y",
-    java_package: "java-1.8.0-openjdk-devel")
+    install_command: "yum install -y")
 end
 
 def dnf_common(config)
@@ -152,8 +142,7 @@ def dnf_common(config)
     update_command: "dnf check-update",
     update_tracking_file: "/var/cache/dnf/last_update",
     install_command: "dnf install -y",
-    install_command_retries: 5,
-    java_package: "java-1.8.0-openjdk-devel")
+    install_command_retries: 5)
   if Vagrant.has_plugin?("vagrant-cachier")
     # Autodetect doesn't work....
     config.cache.auto_detect = false
@@ -170,7 +159,6 @@ def suse_common(config, extra)
     update_command: "zypper --non-interactive list-updates",
     update_tracking_file: "/var/cache/zypp/packages/last_update",
     install_command: "zypper --non-interactive --quiet install --no-recommends",
-    java_package: "java-1_8_0-openjdk-devel",
     extra: extra)
 end
 
@@ -193,7 +181,6 @@ end
 #   is cached by vagrant-cachier.
 # @param install_command [String] The command used to install a package.
 #   Required. Think `apt-get install #{package}`.
-# @param java_package [String] The name of the java package. Required.
 # @param extra [String] Extra provisioning commands run before anything else.
 #   Optional. Used for things like setting up the ppa for Java 8.
 def provision(config,
@@ -201,13 +188,11 @@ def provision(config,
     update_tracking_file: 'required',
     install_command: 'required',
     install_command_retries: 0,
-    java_package: 'required',
     extra: '')
   # Vagrant run ruby 2.0.0 which doesn't have required named parameters....
   raise ArgumentError.new('update_command is required') if update_command == 'required'
   raise ArgumentError.new('update_tracking_file is required') if update_tracking_file == 'required'
   raise ArgumentError.new('install_command is required') if install_command == 'required'
-  raise ArgumentError.new('java_package is required') if java_package == 'required'
   config.vm.provision "bats dependencies", type: "shell", inline: <<-SHELL
     set -e
     set -o pipefail
@@ -254,7 +239,10 @@ def provision(config,
 
     #{extra}
 
-    installed java || install #{java_package}
+    installed java || {
+      echo "==> Java is not installed on vagrant box ${config.vm.box}"
+      return 1
+    }
     ensure tar
     ensure curl
     ensure unzip

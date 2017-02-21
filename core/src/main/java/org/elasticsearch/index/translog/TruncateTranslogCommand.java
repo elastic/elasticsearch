@@ -168,7 +168,8 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
 
     /** Write a checkpoint file to the given location with the given generation */
     public static void writeEmptyCheckpoint(Path filename, int translogLength, long translogGeneration) throws IOException {
-        Checkpoint emptyCheckpoint = new Checkpoint(translogLength, 0, translogGeneration, SequenceNumbersService.UNASSIGNED_SEQ_NO);
+        Checkpoint emptyCheckpoint =
+                Checkpoint.emptyTranslogCheckpoint(translogLength, translogGeneration, SequenceNumbersService.UNASSIGNED_SEQ_NO);
         Checkpoint.write(FileChannel::open, filename, emptyCheckpoint,
             StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
         // fsync with metadata here to make sure.

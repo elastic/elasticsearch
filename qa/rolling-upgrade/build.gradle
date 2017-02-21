@@ -30,6 +30,7 @@ task oldClusterTest(type: RestIntegTestTask) {
     numNodes = 2
     clusterName = 'rolling-upgrade'
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+    setting 'http.content_type.required', 'true'
   }
   systemProperty 'tests.rest.suite', 'old_cluster'
 }

@@ -64,7 +64,7 @@ import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
  */
 public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestion.Entry> {
 
-    private static final String NAME = "completion";
+    public static final String NAME = "completion";
 
     public static final int TYPE = 4;
 
@@ -194,13 +194,24 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             super(text, offset, length);
         }
 
-        protected Entry() {
-            super();
+        Entry() {
         }
 
         @Override
         protected Option newOption() {
             return new Option();
+        }
+
+        private static ObjectParser<Entry, Void> PARSER = new ObjectParser<>("CompletionSuggestionEntryParser", true,
+                Entry::new);
+
+        static {
+            declareCommonFields(PARSER);
+            PARSER.declareObjectArray(Entry::addOptions, (p,c) -> Option.fromXContent(p), new ParseField(OPTIONS));
+        }
+
+        public static Entry fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
 
         public static class Option extends Suggest.Suggestion.Entry.Option {

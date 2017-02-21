@@ -588,7 +588,7 @@ You can download the sample dataset (accounts.json) from https://github.com/elas
 
 [source,sh]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/account/_bulk?pretty&refresh' --data-binary "@accounts.json"
+curl -H "Content-Type: application/json" -XPOST 'localhost:9200/bank/account/_bulk?pretty&refresh' --data-binary "@accounts.json"
 curl 'localhost:9200/_cat/indices?v'
 --------------------------------------------------
 // NOTCONSOLE

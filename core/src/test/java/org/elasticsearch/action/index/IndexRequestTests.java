@@ -209,11 +209,11 @@ public class IndexRequestTests extends ESTestCase {
         IndexRequest request = new IndexRequest("index", "type");
 
         String source = "{\"name\":\"value\"}";
-        request.source(source);
+        request.source(source, XContentType.JSON);
         assertEquals("index {[index][type][null], source[" + source + "]}", request.toString());
 
         source = "{\"name\":\"" + randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING) + "\"}";
-        request.source(source);
+        request.source(source, XContentType.JSON);
         int actualBytes = source.getBytes("UTF-8").length;
         assertEquals("index {[index][type][null], source[n/a, actual length: [" + new ByteSizeValue(actualBytes).toString() +
                 "], max length: " + new ByteSizeValue(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString() + "]}", request.toString());

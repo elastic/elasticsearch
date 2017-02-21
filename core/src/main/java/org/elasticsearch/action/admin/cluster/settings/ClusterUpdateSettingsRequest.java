@@ -83,16 +83,6 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
 
     /**
      * Sets the source containing the transient settings to be updated. They will not survive a full cluster restart
-     * @deprecated use {@link #transientSettings(String, XContentType)} to avoid content type detection
-     */
-    @Deprecated
-    public ClusterUpdateSettingsRequest transientSettings(String source) {
-        this.transientSettings = Settings.builder().loadFromSource(source).build();
-        return this;
-    }
-
-    /**
-     * Sets the source containing the transient settings to be updated. They will not survive a full cluster restart
      */
     public ClusterUpdateSettingsRequest transientSettings(String source, XContentType xContentType) {
         this.transientSettings = Settings.builder().loadFromSource(source, xContentType).build();
@@ -127,16 +117,6 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
      */
     public ClusterUpdateSettingsRequest persistentSettings(Settings.Builder settings) {
         this.persistentSettings = settings.build();
-        return this;
-    }
-
-    /**
-     * Sets the source containing the persistent settings to be updated. They will get applied cross restarts
-     * @deprecated use {@link #persistentSettings(String, XContentType)} to avoid content type detection
-     */
-    @Deprecated
-    public ClusterUpdateSettingsRequest persistentSettings(String source) {
-        this.persistentSettings = Settings.builder().loadFromSource(source).build();
         return this;
     }
 

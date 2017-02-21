@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -58,30 +57,15 @@ public class RestSearchScrollAction extends BaseRestHandler {
         }
 
         request.withContentOrSourceParamParserOrNull(xContentParser -> {
-            if (xContentParser == null) {
-                if (request.hasContent()) {
-                    // TODO: why do we accept this plain text value? maybe we can just use the scroll params?
-                    BytesReference body = request.getContentOrSourceParamOnly();
-                    if (scrollId == null) {
-                        String bodyScrollId = body.utf8ToString();
-                        searchScrollRequest.scrollId(bodyScrollId);
-                    }
-                }
-            } else {
+            if (xContentParser != null) {
                 // NOTE: if rest request with xcontent body has request parameters, these parameters override xcontent values
                 try {
                     buildFromContent(xContentParser, searchScrollRequest);
                 } catch (IOException e) {
                     throw new IllegalArgumentException("Failed to parse request body", e);
                 }
-            }
-        });
+            }});
         return channel -> client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<>(channel));
-    }
-
-    @Override
-    public boolean supportsPlainText() {
-        return true;
     }
 
     public static void buildFromContent(XContentParser parser, SearchScrollRequest searchScrollRequest) throws IOException {

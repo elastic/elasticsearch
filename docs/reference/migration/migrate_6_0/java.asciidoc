@@ -1,0 +1,9 @@
+[[breaking_60_java_changes]]
+=== Java API changes
+
+==== `setSource` methods require XContentType
+
+Previously the `setSource` methods and other methods that accepted byte/string representations of
+an object source did not require the XContentType to be specified. The auto-detection of the content
+type is no longer used, so these methods now require the XContentType as an additional argument when
+providing the source in bytes or as a string.

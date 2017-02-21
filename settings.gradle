@@ -19,6 +19,7 @@ List projects = [
   'distribution:tar',
   'distribution:deb',
   'distribution:rpm',
+  'distribution:tools:java-version-checker',
   'test:framework',
   'test:fixtures:example-fixture',
   'test:fixtures:hdfs-fixture',

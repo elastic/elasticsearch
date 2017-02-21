@@ -114,4 +114,5 @@ interface SearchPhaseContext extends ActionListener<SearchResponse>, Executor {
      * a response is returned to the user indicating that all shards have failed.
      */
     void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase);
+
 }

@@ -21,7 +21,7 @@ package org.elasticsearch.painless;
 
 /** Tests for explicit casts */
 public class CastTests extends ScriptTestCase {
-    
+
     /**
      * Unary operator with explicit cast
      */
@@ -34,7 +34,7 @@ public class CastTests extends ScriptTestCase {
         assertEquals(5L, exec("long x = 5L; return (long) (+x);"));
         assertEquals(5D, exec("long x = 5L; return (double) (+x);"));
     }
-    
+
     /**
      * Binary operators with explicit cast
      */
@@ -73,7 +73,7 @@ public class CastTests extends ScriptTestCase {
         assertEquals(6L, exec("long x = 5L; return (long) (++x);"));
         assertEquals(6D, exec("long x = 5L; return (double) (++x);"));
     }
-    
+
     /**
      * Binary compound postifx with explicit cast
      */
@@ -86,7 +86,7 @@ public class CastTests extends ScriptTestCase {
         assertEquals(5L, exec("long x = 5L; return (long) (x++);"));
         assertEquals(5D, exec("long x = 5L; return (double) (x++);"));
     }
-    
+
     /**
      * Shift operators with explicit cast
      */
@@ -99,7 +99,7 @@ public class CastTests extends ScriptTestCase {
         assertEquals(10L, exec("long x = 5L; return (long) (x << 1);"));
         assertEquals(10D, exec("long x = 5L; return (double) (x << 1);"));
     }
-    
+
     /**
      * Shift compound assignment with explicit cast
      */
@@ -112,7 +112,7 @@ public class CastTests extends ScriptTestCase {
         assertEquals(10L, exec("long x = 5L; return (long) (x <<= 1);"));
         assertEquals(10D, exec("long x = 5L; return (double) (x <<= 1);"));
     }
-    
+
     /**
      * Test that without a cast, we fail when conversions would narrow.
      */
@@ -136,7 +136,7 @@ public class CastTests extends ScriptTestCase {
             exec("long x = 5L; boolean y = (x + x); return y");
         });
     }
-    
+
     /**
      * Test that even with a cast, some things aren't allowed.
      */
@@ -161,7 +161,7 @@ public class CastTests extends ScriptTestCase {
     public void testMethodCallDef() {
         assertEquals(5, exec("def x = 5; return (int)x.longValue();"));
     }
-    
+
     /**
      * Currently these do not adopt the argument value, we issue a separate cast!
      */
@@ -170,7 +170,7 @@ public class CastTests extends ScriptTestCase {
         assertEquals(6, exec("def x = 5; def y = 1L; return x + (int)y"));
         assertEquals('b', exec("def x = 'abcdeg'; def y = 1L; x.charAt((int)y)"));
     }
-    
+
     /**
      * Unary operators adopt the return value
      */
@@ -183,7 +183,7 @@ public class CastTests extends ScriptTestCase {
         assertEquals(5L, exec("def x = 5L; return (long) (+x);"));
         assertEquals(5D, exec("def x = 5L; return (double) (+x);"));
     }
-    
+
     /**
      * Binary operators adopt the return value
      */
@@ -196,7 +196,7 @@ public class CastTests extends ScriptTestCase {
         assertEquals(6L, exec("def x = 5L; return (long) (x + 1);"));
         assertEquals(6D, exec("def x = 5L; return (double) (x + 1);"));
     }
-    
+
     /**
      * Binary operators don't yet adopt the return value with compound assignment
      */
@@ -209,7 +209,7 @@ public class CastTests extends ScriptTestCase {
         assertEquals(6L, exec("def x = 5L; return (long) (x += 1);"));
         assertEquals(6D, exec("def x = 5L; return (double) (x += 1);"));
     }
-    
+
     /**
      * Binary operators don't yet adopt the return value with compound assignment
      */
@@ -222,7 +222,7 @@ public class CastTests extends ScriptTestCase {
         assertEquals(6L, exec("def x = 5L; return (long) (++x);"));
         assertEquals(6D, exec("def x = 5L; return (double) (++x);"));
     }
-    
+
     /**
      * Binary operators don't yet adopt the return value with compound assignment
      */
@@ -235,7 +235,7 @@ public class CastTests extends ScriptTestCase {
         assertEquals(5L, exec("def x = 5L; return (long) (x++);"));
         assertEquals(5D, exec("def x = 5L; return (double) (x++);"));
     }
-    
+
     /**
      * Shift operators adopt the return value
      */
@@ -248,7 +248,7 @@ public class CastTests extends ScriptTestCase {
         assertEquals(10L, exec("def x = 5L; return (long) (x << 1);"));
         assertEquals(10D, exec("def x = 5L; return (double) (x << 1);"));
     }
-    
+
     /**
      * Shift operators don't yet adopt the return value with compound assignment
      */
@@ -261,7 +261,7 @@ public class CastTests extends ScriptTestCase {
         assertEquals(10L, exec("def x = 5L; return (long) (x <<= 1);"));
         assertEquals(10D, exec("def x = 5L; return (double) (x <<= 1);"));
     }
-    
+
     /**
      * Test that without a cast, we fail when conversions would narrow.
      */
@@ -285,7 +285,21 @@ public class CastTests extends ScriptTestCase {
             exec("def x = 5L; boolean y = (x + x); return y");
         });
     }
-    
+
+    public void testUnboxMethodParameters() {
+        assertEquals('a', exec("'a'.charAt(Integer.valueOf(0))"));
+    }
+
+    public void testIllegalCastInMethodArgument() {
+        assertEquals('a', exec("'a'.charAt(0)"));
+        Exception e = expectScriptThrows(ClassCastException.class, () -> exec("'a'.charAt(0L)"));
+        assertEquals("Cannot cast from [long] to [int].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () -> exec("'a'.charAt(0.0f)"));
+        assertEquals("Cannot cast from [float] to [int].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () -> exec("'a'.charAt(0.0d)"));
+        assertEquals("Cannot cast from [double] to [int].", e.getMessage());
+    }
+
     /**
      * Test that even with a cast, some things aren't allowed.
      * (stuff that methodhandles explicitCastArguments would otherwise allow)

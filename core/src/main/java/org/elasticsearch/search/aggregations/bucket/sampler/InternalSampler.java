@@ -29,7 +29,9 @@ import java.util.Map;
 
 public class InternalSampler extends InternalSingleBucketAggregation implements Sampler {
     public static final String NAME = "mapped_sampler";
-    InternalSampler(String name, long docCount, InternalAggregations subAggregations, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+
+    InternalSampler(String name, long docCount, InternalAggregations subAggregations, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) {
         super(name, docCount, subAggregations, pipelineAggregators, metaData);
     }
 

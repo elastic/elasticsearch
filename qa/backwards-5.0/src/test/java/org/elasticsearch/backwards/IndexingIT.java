@@ -28,9 +28,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -38,7 +36,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -82,7 +79,7 @@ public class IndexingIT extends ESRestTestCase {
     }
     private void updateIndexSetting(String name, Settings settings) throws IOException {
         assertOK(client().performRequest("PUT", name + "/_settings", Collections.emptyMap(),
-            new StringEntity(Strings.toString(settings))));
+            new StringEntity(Strings.toString(settings), ContentType.APPLICATION_JSON)));
     }
 
     protected int indexDocs(String index, final int idStart, final int numDocs) throws IOException {

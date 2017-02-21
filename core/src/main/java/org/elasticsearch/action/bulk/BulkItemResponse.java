@@ -101,21 +101,21 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         final OpType opType = OpType.fromString(currentFieldName);
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
 
-        DocWriteResponse.DocWriteResponseBuilder builder = null;
+        DocWriteResponse.Builder builder = null;
         CheckedConsumer<XContentParser, IOException> itemParser = null;
 
         if (opType == OpType.INDEX || opType == OpType.CREATE) {
-            final IndexResponse.IndexResponseBuilder indexResponseBuilder = new IndexResponse.IndexResponseBuilder();
+            final IndexResponse.Builder indexResponseBuilder = new IndexResponse.Builder();
             builder = indexResponseBuilder;
             itemParser = (indexParser) -> IndexResponse.parseXContentFields(indexParser, indexResponseBuilder);
 
         } else if (opType == OpType.UPDATE) {
-            final UpdateResponse.UpdateResponseBuilder updateResponseBuilder = new UpdateResponse.UpdateResponseBuilder();
+            final UpdateResponse.Builder updateResponseBuilder = new UpdateResponse.Builder();
             builder = updateResponseBuilder;
             itemParser = (updateParser) -> UpdateResponse.parseXContentFields(updateParser, updateResponseBuilder);
 
         } else if (opType == OpType.DELETE) {
-            final DeleteResponse.DeleteResponseBuilder deleteResponseBuilder = new DeleteResponse.DeleteResponseBuilder();
+            final DeleteResponse.Builder deleteResponseBuilder = new DeleteResponse.Builder();
             builder = deleteResponseBuilder;
             itemParser = (deleteParser) -> DeleteResponse.parseXContentFields(deleteParser, deleteResponseBuilder);
         } else {

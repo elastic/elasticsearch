@@ -280,7 +280,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
      * {@link DocWriteResponse} objects. It always parses the current token, updates the given parsing context accordingly
      * if needed and then immediately returns.
      */
-    protected static void parseInnerToXContent(XContentParser parser, DocWriteResponseBuilder context) throws IOException {
+    protected static void parseInnerToXContent(XContentParser parser, Builder context) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
 
@@ -322,9 +322,11 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     /**
-     * {@link DocWriteResponseBuilder} is used to build {@link DocWriteResponse} objects during XContent parsing.
+     * Base class of all {@link DocWriteResponse} builders. These {@link DocWriteResponse.Builder} are used during
+     * xcontent parsing to temporarily store the parsed values, then the {@link Builder#build()} method is called to
+     * instantiate the appropriate {@link DocWriteResponse} with the parsed values.
      */
-    public abstract static class DocWriteResponseBuilder {
+    public abstract static class Builder {
 
         protected ShardId shardId = null;
         protected String type = null;

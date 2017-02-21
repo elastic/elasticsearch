@@ -524,8 +524,12 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return request.source();
     }
 
-    public SearchRequestBuilder setReduceUpTo(int reduceUpTo) {
-        this.request.setReduceUpTo(reduceUpTo);
+    /**
+     * Sets the number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection
+     * mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
+     */
+    public SearchRequestBuilder setBatchedReduceSize(int batchedReduceSize) {
+        this.request.setBatchedReduceSize(batchedReduceSize);
         return this;
     }
 }

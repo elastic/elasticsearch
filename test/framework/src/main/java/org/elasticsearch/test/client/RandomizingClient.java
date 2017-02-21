@@ -60,7 +60,7 @@ public class RandomizingClient extends FilterClient {
 
     @Override
     public SearchRequestBuilder prepareSearch(String... indices) {
-        return in.prepareSearch(indices).setSearchType(defaultSearchType).setPreference(defaultPreference).setReduceUpTo(reduceUpTo);
+        return in.prepareSearch(indices).setSearchType(defaultSearchType).setPreference(defaultPreference).setBatchedReduceSize(reduceUpTo);
     }
 
     @Override

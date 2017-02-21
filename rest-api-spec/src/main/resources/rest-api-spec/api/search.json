@@ -158,6 +158,10 @@
         "request_cache": {
           "type" : "boolean",
           "description" : "Specify if request cache should be used for this request or not, defaults to index level setting"
+        },
+        "batched_reduce_size" : {
+          "type" : "number",
+          "description" : "The number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large."
         }
       }
     },

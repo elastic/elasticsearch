@@ -707,9 +707,9 @@ public class SearchPhaseController extends AbstractComponent {
     InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> newSearchPhaseResults(SearchRequest request, int numShards) {
         SearchSourceBuilder source = request.source();
         if (source != null && source.aggregations() != null) {
-            if (request.getReduceUpTo() < numShards) {
+            if (request.getBatchedReduceSize() < numShards) {
                 // only use this if there are aggs and if there are more shards than we should reduce at once
-                return new QueryPhaseResultConsumer(this, numShards, request.getReduceUpTo());
+                return new QueryPhaseResultConsumer(this, numShards, request.getBatchedReduceSize());
             }
         }
         return new InitialSearchPhase.SearchPhaseResults(numShards) {

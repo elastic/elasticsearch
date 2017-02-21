@@ -32,8 +32,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -53,7 +56,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  */
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
-        implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest> {
+        implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest>, ToXContentObject {
 
     private String type;
     private String id;
@@ -913,4 +916,42 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeBoolean(scriptedUpsert);
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        if (docAsUpsert) {
+            builder.field("doc_as_upsert", docAsUpsert);
+        }
+        if (doc != null) {
+            XContentType xContentType = doc.getContentType();
+            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, doc.source(), xContentType)) {
+                builder.field("doc");
+                builder.copyCurrentStructure(parser);
+            }
+        }
+        if (script != null) {
+            builder.field("script", script);
+        }
+        if (upsertRequest != null) {
+            XContentType xContentType = upsertRequest.getContentType();
+            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, upsertRequest.source(), xContentType)) {
+                builder.field("upsert");
+                builder.copyCurrentStructure(parser);
+            }
+        }
+        if (scriptedUpsert) {
+            builder.field("scripted_upsert", scriptedUpsert);
+        }
+        if (detectNoop == false) {
+            builder.field("detect_noop", detectNoop);
+        }
+        if (fields != null) {
+            builder.array("fields", fields);
+        }
+        if (fetchSourceContext != null) {
+            builder.field("_source", fetchSourceContext);
+        }
+        builder.endObject();
+        return builder;
+    }
 }

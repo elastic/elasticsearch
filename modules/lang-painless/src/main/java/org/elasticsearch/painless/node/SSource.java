@@ -317,7 +317,8 @@ public final class SSource extends AStatement {
                 // TODO this should fail too but it can't to keep compatibility with Elasticsearch scripts
                 writer.visitInsn(Opcodes.ACONST_NULL);
             } else if (false == scriptInterface.getExecuteMethodReturnType().equals(Definition.VOID_TYPE)) {
-                throw new IllegalArgumentException("Expected all paths to [return] but not all did."); // TODO better error message
+                throw new IllegalArgumentException("Expected all paths to [return] but not all did or end in an expression to return but "
+                        + "some path ends is missing a return and ends in a statement.");
             }
             writer.returnValue();
         }

@@ -149,7 +149,7 @@ public class ScriptInterface {
                 + componentType.getName() + ". Painless interfaces can only accept arguments that are of whitelisted types.");
         return new MethodArgument(defType, argName);
     }
-    
+
     private static Definition.Type definitionTypeForClass(Class<?> type, Function<Class<?>, String> unknownErrorMessageSource) {
         int dimensions = 0;
         Class<?> componentType = type;

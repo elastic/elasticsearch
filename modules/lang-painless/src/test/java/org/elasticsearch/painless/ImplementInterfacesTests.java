@@ -173,36 +173,40 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertThat(debug, containsString("RETURN"));
     }
 
-    public interface ReturnsPrimitive {
+    public interface ReturnsPrimitiveInt {
         String[] ARGUMENTS = new String[] {};
         int execute();
     }
     public void testReturnsPrimitive() {
-//        assertEquals(1, scriptEngine.compile(ReturnsPrimitive.class, null, "1", emptyMap()).execute());
-//        assertEquals(1, scriptEngine.compile(ReturnsPrimitive.class, null, "def i = 1; i", emptyMap()).execute());
-//        assertEquals(1, scriptEngine.compile(ReturnsPrimitive.class, null, "(int) 1L", emptyMap()).execute());
-//        assertEquals(1, scriptEngine.compile(ReturnsPrimitive.class, null, "(int) 1.1d", emptyMap()).execute());
-//        assertEquals(1, scriptEngine.compile(ReturnsPrimitive.class, null, "(int) 1.1f", emptyMap()).execute());
-//        NOCOMMIT def or all of the funny types
-//
-//        assertEquals(2, scriptEngine.compile(ReturnsPrimitive.class, null, "1 + 1", emptyMap()).execute());
-//
-//        expectScriptThrows(ClassCastException.class, () ->
-//                scriptEngine.compile(ReturnsPrimitive.class, null, "1L", emptyMap()).execute());
-//        expectScriptThrows(ClassCastException.class, () ->
-//                scriptEngine.compile(ReturnsPrimitive.class, null, "1.1f", emptyMap()).execute());
-//        expectScriptThrows(ClassCastException.class, () ->
-//                scriptEngine.compile(ReturnsPrimitive.class, null, "1.1d", emptyMap()).execute());
-        expectScriptThrows(ClassCastException.class, () ->
-                scriptEngine.compile(ReturnsPrimitive.class, null, "Integer.valueOf(1)", emptyMap()).execute());
+        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1", emptyMap()).execute());
+        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "(int) 1L", emptyMap()).execute());
+        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "(int) 1.1d", emptyMap()).execute());
+        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "(int) 1.1f", emptyMap()).execute());
+        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "Integer.valueOf(1)", emptyMap()).execute());
 
-        String debug = Debugger.toString(ReturnsPrimitive.class, "1", new CompilerSettings());
+        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = 1; i", emptyMap()).execute());
+        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = (int) 1L; i", emptyMap()).execute());
+        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = (int) 1.1d; i", emptyMap()).execute());
+        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = (int) 1.1f; i", emptyMap()).execute());
+        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = Integer.valueOf(1); i", emptyMap()).execute());
+
+        assertEquals(2, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1 + 1", emptyMap()).execute());
+
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1L", emptyMap()).execute());
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1.1f", emptyMap()).execute());
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1.1d", emptyMap()).execute());
+
+        String debug = Debugger.toString(ReturnsPrimitiveInt.class, "1", new CompilerSettings());
         assertThat(debug, containsString("ICONST_1"));
         assertThat(debug, containsString("IRETURN"));
 
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
-            scriptEngine.compile(ReturnsPrimitive.class, null, "int i = 0", emptyMap()));
-        assertEquals("Expected all paths to [return] but not all did.", e.getMessage());
+            scriptEngine.compile(ReturnsPrimitiveInt.class, null, "int i = 0", emptyMap()));
+        assertEquals("Expected all paths to [return] but not all did or end in an expression to return but "
+                + "some path ends is missing a return and ends in a statement.", e.getMessage());
     }
 
     public interface NoArgumentsConstant {

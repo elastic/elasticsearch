@@ -34,7 +34,13 @@ import java.util.BitSet;
 import java.util.Deque;
 import java.util.List;
 
-import static org.elasticsearch.painless.Definition.*;
+import static org.elasticsearch.painless.Definition.BOOLEAN_TYPE;
+import static org.elasticsearch.painless.Definition.BYTE_TYPE;
+import static org.elasticsearch.painless.Definition.DOUBLE_TYPE;
+import static org.elasticsearch.painless.Definition.FLOAT_TYPE;
+import static org.elasticsearch.painless.Definition.INT_TYPE;
+import static org.elasticsearch.painless.Definition.LONG_TYPE;
+import static org.elasticsearch.painless.Definition.SHORT_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CHAR_TO_STRING;
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_BOOLEAN;

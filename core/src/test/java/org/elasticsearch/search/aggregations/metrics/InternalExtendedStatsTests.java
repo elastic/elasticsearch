@@ -30,7 +30,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class InternalExtendedStatsTests  extends InternalAggregationTestCase<InternalExtendedStats> {
+public class InternalExtendedStatsTests extends InternalAggregationTestCase<InternalExtendedStats> {
     private double sigma;
 
     @Before

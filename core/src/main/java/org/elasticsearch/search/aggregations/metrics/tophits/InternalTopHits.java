@@ -173,7 +173,7 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
             ScoreDoc thisDoc = topDocs.scoreDocs[d];
             ScoreDoc otherDoc = other.topDocs.scoreDocs[d];
             if (thisDoc.doc != otherDoc.doc) return false;
-            if (thisDoc.score != otherDoc.score) return false;
+            if (Double.compare(thisDoc.score, otherDoc.score) != 0) return false;
             if (thisDoc.shardIndex != otherDoc.shardIndex) return false;
             if (thisDoc instanceof FieldDoc) {
                 if (false == (otherDoc instanceof FieldDoc)) return false;

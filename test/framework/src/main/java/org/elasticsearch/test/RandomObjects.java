@@ -152,7 +152,15 @@ public final class RandomObjects {
      */
     public static BytesReference randomSource(Random random) {
         //the source can be stored in any format and eventually converted when retrieved depending on the format of the response
-        XContentType xContentType = RandomPicks.randomFrom(random, XContentType.values());
+        return randomSource(random, RandomPicks.randomFrom(random, XContentType.values()));
+    }
+
+    /**
+     * Returns a random source in a given XContentType containing a random number of fields, objects and array, with maximum depth 5.
+     *
+     * @param random Random generator
+     */
+    public static BytesReference randomSource(Random random, XContentType xContentType) {
         try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
             builder.startObject();
             addFields(random, builder, 0);

@@ -500,7 +500,6 @@ public class SearchPhaseController extends AbstractComponent {
         final List<InternalAggregations> aggregationsList;
         if (bufferdAggs != null) {
             consumeAggs = false;
-            assert numReducePhases > 1 : "num reduce phases must be > 1 but was: " + numReducePhases;
             // we already have results from intermediate reduces and just need to perform the final reduce
             assert firstResult.hasAggs() : "firstResult has no aggs but we got non null buffered aggs?";
             aggregationsList = bufferdAggs;

@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalExtendedStats extends InternalStats implements ExtendedStats {
     enum Metrics {
@@ -189,5 +190,18 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
         }
         return builder;
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(super.doHashCode(), sumOfSqrs, sigma);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalExtendedStats other = (InternalExtendedStats) obj;
+        return super.doEquals(obj) &&
+            Double.compare(sumOfSqrs, other.sumOfSqrs) == 0 &&
+            Double.compare(sigma, other.sigma) == 0;
     }
 }

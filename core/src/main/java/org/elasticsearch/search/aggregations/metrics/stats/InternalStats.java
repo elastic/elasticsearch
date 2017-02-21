@@ -200,7 +200,6 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         return builder;
     }
 
-
     @Override
     protected int doHashCode() {
         return Objects.hash(count, min, max, sum);
@@ -208,9 +207,10 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
 
     @Override
     protected boolean doEquals(Object obj) {
-        return count == count &&
-            min == min &&
-            max == max &&
-            sum == sum;
+        InternalStats other = (InternalStats) obj;
+        return count == other.count &&
+            min == other.min &&
+            max == other.max &&
+            Double.compare(count, other.count) == 0;
     }
 }

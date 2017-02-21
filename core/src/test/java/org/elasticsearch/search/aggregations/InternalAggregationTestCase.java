@@ -57,8 +57,18 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             inputs.add(t);
             toReduce.add(t);
         }
+        if (randomBoolean()) {
+            // we leave at least one in the list
+            List<InternalAggregation> internalAggregations = randomSubsetOf(randomIntBetween(1, toReduceSize), toReduce);
+            InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(null, null, false);
+            @SuppressWarnings("unchecked")
+            T reduced = (T) inputs.get(0).reduce(internalAggregations, context);
+            toReduce.removeAll(internalAggregations);
+            toReduce.add(reduced);
+        }
+        InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(null, null, true);
         @SuppressWarnings("unchecked")
-        T reduced = (T) inputs.get(0).reduce(toReduce, null);
+        T reduced = (T) inputs.get(0).reduce(toReduce, context);
         assertReduced(reduced, inputs);
     }
 

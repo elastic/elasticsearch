@@ -58,13 +58,13 @@ setup() {
 }
 
 @test "[UPGRADE] index some documents into a few indexes" {
-    curl -s -XPOST localhost:9200/library/book/1?pretty -d '{
+    curl -s -H "Content-Type: application/json" -XPOST localhost:9200/library/book/1?pretty -d '{
       "title": "Elasticsearch - The Definitive Guide"
     }'
-    curl -s -XPOST localhost:9200/library/book/2?pretty -d '{
+    curl -s -H "Content-Type: application/json" -XPOST localhost:9200/library/book/2?pretty -d '{
       "title": "Brave New World"
     }'
-    curl -s -XPOST localhost:9200/library2/book/1?pretty -d '{
+    curl -s -H "Content-Type: application/json" -XPOST localhost:9200/library2/book/1?pretty -d '{
       "title": "The Left Hand of Darkness"
     }'
 }

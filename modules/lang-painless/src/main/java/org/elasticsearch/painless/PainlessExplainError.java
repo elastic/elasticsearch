@@ -46,7 +46,7 @@ public class PainlessExplainError extends Error {
     /**
      * Headers to be added to the {@link ScriptException} for structured rendering.
      */
-    Map<String, List<String>> getHeaders() {
+    public Map<String, List<String>> getHeaders() {
         Map<String, List<String>> headers = new TreeMap<>();
         String toString = "null";
         String javaClassName = null;

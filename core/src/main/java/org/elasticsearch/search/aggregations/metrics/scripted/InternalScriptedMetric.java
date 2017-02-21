@@ -39,9 +39,14 @@ import java.util.Map;
 
 public class InternalScriptedMetric extends InternalMetricsAggregation implements ScriptedMetric {
     private final Script reduceScript;
-    private final Object aggregation;
+    private final List<Object> aggregation;
 
     public InternalScriptedMetric(String name, Object aggregation, Script reduceScript, List<PipelineAggregator> pipelineAggregators,
+                                  Map<String, Object> metaData) {
+        this(name, Collections.singletonList(aggregation), reduceScript, pipelineAggregators, metaData);
+    }
+
+    private InternalScriptedMetric(String name, List<Object> aggregation, Script reduceScript, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.aggregation = aggregation;
@@ -54,13 +59,13 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
     public InternalScriptedMetric(StreamInput in) throws IOException {
         super(in);
         reduceScript = in.readOptionalWriteable(Script::new);
-        aggregation = in.readGenericValue();
+        aggregation = Collections.singletonList(in.readGenericValue());
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(reduceScript);
-        out.writeGenericValue(aggregation);
+        out.writeGenericValue(aggregation());
     }
 
     @Override
@@ -70,7 +75,10 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
 
     @Override
     public Object aggregation() {
-        return aggregation;
+        if (aggregation.size() != 1) {
+            throw new IllegalStateException("aggregation was not reduced");
+        }
+        return aggregation.get(0);
     }
 
     @Override
@@ -78,11 +86,11 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
         List<Object> aggregationObjects = new ArrayList<>();
         for (InternalAggregation aggregation : aggregations) {
             InternalScriptedMetric mapReduceAggregation = (InternalScriptedMetric) aggregation;
-            aggregationObjects.add(mapReduceAggregation.aggregation());
+            aggregationObjects.addAll(mapReduceAggregation.aggregation);
         }
         InternalScriptedMetric firstAggregation = ((InternalScriptedMetric) aggregations.get(0));
-        Object aggregation;
-        if (firstAggregation.reduceScript != null) {
+        List<Object> aggregation;
+        if (firstAggregation.reduceScript != null && reduceContext.isFinalReduce()) {
             Map<String, Object> vars = new HashMap<>();
             vars.put("_aggs", aggregationObjects);
             if (firstAggregation.reduceScript.getParams() != null) {
@@ -91,13 +99,16 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
             CompiledScript compiledScript = reduceContext.scriptService().compile(
                 firstAggregation.reduceScript, ScriptContext.Standard.AGGS);
             ExecutableScript script = reduceContext.scriptService().executable(compiledScript, vars);
-            aggregation = script.run();
+            aggregation = Collections.singletonList(script.run());
+        } else if (reduceContext.isFinalReduce())  {
+            aggregation = Collections.singletonList(aggregationObjects);
         } else {
+            // if we are not an final reduce we have to maintain all the aggs from all the incoming one
+            // until we hit the final reduce phase.
             aggregation = aggregationObjects;
         }
         return new InternalScriptedMetric(firstAggregation.getName(), aggregation, firstAggregation.reduceScript, pipelineAggregators(),
                 getMetaData());
-
     }
 
     @Override
@@ -105,7 +116,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
         if (path.isEmpty()) {
             return this;
         } else if (path.size() == 1 && "value".equals(path.get(0))) {
-            return aggregation;
+            return aggregation();
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
@@ -113,7 +124,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return builder.field("value", aggregation);
+        return builder.field("value", aggregation());
     }
 
 }

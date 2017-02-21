@@ -23,12 +23,11 @@ import org.elasticsearch.common.io.Channels;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
-import java.nio.file.Path;
 
 final class TranslogSnapshot extends BaseTranslogReader implements Translog.Snapshot {
 
     private final int totalOperations;
+    private final Checkpoint checkpoint;
     protected final long length;
 
     private final ByteBuffer reusableBuffer;
@@ -37,13 +36,13 @@ final class TranslogSnapshot extends BaseTranslogReader implements Translog.Snap
     private BufferedChecksumStreamInput reuse;
 
     /**
-     * Create a snapshot of translog file channel. The length parameter should be consistent with totalOperations and point
-     * at the end of the last operation in this snapshot.
+     * Create a snapshot of translog file channel.
      */
-    TranslogSnapshot(long generation, FileChannel channel, Path path, long firstOperationOffset, long length, int totalOperations) {
-        super(generation, channel, path, firstOperationOffset);
+    TranslogSnapshot(final BaseTranslogReader reader, final long length) {
+        super(reader.generation, reader.channel, reader.path, reader.firstOperationOffset);
         this.length = length;
-        this.totalOperations = totalOperations;
+        this.totalOperations = reader.totalOperations();
+        this.checkpoint = reader.getCheckpoint();
         this.reusableBuffer = ByteBuffer.allocate(1024);
         readOperations = 0;
         position = firstOperationOffset;
@@ -53,6 +52,11 @@ final class TranslogSnapshot extends BaseTranslogReader implements Translog.Snap
     @Override
     public int totalOperations() {
         return totalOperations;
+    }
+
+    @Override
+    Checkpoint getCheckpoint() {
+        return checkpoint;
     }
 
     @Override

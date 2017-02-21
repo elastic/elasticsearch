@@ -35,6 +35,7 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.S3ClientOptions;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cloud.aws.util.SocketAccess;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -67,7 +68,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
 
         AWSCredentialsProvider credentials = buildCredentials(logger, deprecationLogger, settings, repositorySettings, clientName);
 
-        Tuple<String, String> clientDescriptor = new Tuple<>(foundEndpoint, credentials.getCredentials().getAWSAccessKeyId());
+        String awsAccessKeyId = SocketAccess.doPrivileged(() -> credentials.getCredentials().getAWSAccessKeyId());
+        Tuple<String, String> clientDescriptor = new Tuple<>(foundEndpoint, awsAccessKeyId);
         AmazonS3Client client = clients.get(clientDescriptor);
         if (client != null) {
             return client;

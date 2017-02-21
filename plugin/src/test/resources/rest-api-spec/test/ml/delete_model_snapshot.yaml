@@ -29,12 +29,12 @@ setup:
       index:
         index:  .ml-anomalies-foo
         type:   model_snapshot
-        id:     "foo1"
+        id:     "foo-inactive-snapshot"
         body: >
           {
             "job_id": "foo",
             "timestamp": "2016-06-02T00:00:00Z",
-            "snapshot_id": "foo1",
+            "snapshot_id": "inactive-snapshot",
             "description": "first",
             "latest_record_time_stamp": "2016-06-02T00:00:00Z",
             "latest_result_time_stamp": "2016-06-02T00:00:00Z",
@@ -45,32 +45,32 @@ setup:
       index:
         index:  .ml-state
         type:   model_state
-        id:     "foo1_0"
+        id:     "foo-inactive-snapshot_1"
         body: >
           {
-            "state": "foo"
+            "state": "a"
           }
 
   - do:
       index:
         index:  .ml-state
         type:   model_state
-        id:     "foo1_1"
+        id:     "foo-inactive-snapshot_2"
         body: >
           {
-            "state": "foo"
+            "state": "b"
           }
 
   - do:
       index:
         index:  .ml-anomalies-foo
         type:   model_snapshot
-        id:     "foo2"
+        id:     "foo-active-snapshot"
         body: >
           {
             "job_id": "foo",
             "timestamp": "2016-06-01T00:00:00Z",
-            "snapshot_id": "foo2",
+            "snapshot_id": "active-snapshot",
             "description": "second",
             "latest_record_time_stamp": "2016-06-01T00:00:00Z",
             "latest_result_time_stamp": "2016-06-01T00:00:00Z"
@@ -84,6 +84,14 @@ setup:
       indices.refresh:
         index: .ml-anomalies-foo
 
+  - do:
+      xpack.ml.update_job:
+        job_id: foo
+        body:  >
+          {
+            "model_snapshot_id": "active-snapshot"
+          }
+
 ---
 "Test delete snapshot missing snapshotId":
   - do:
@@ -96,7 +104,7 @@ setup:
   - do:
       catch: param
       xpack.ml.delete_model_snapshot:
-        snapshot_id: "foo"
+        snapshot_id: "inactive-snapshot"
 
 ---
 "Test valid delete snapshot":
@@ -115,7 +123,7 @@ setup:
   - do:
       xpack.ml.delete_model_snapshot:
         job_id: "foo"
-        snapshot_id: "foo1"
+        snapshot_id: "inactive-snapshot"
   - match: { acknowledged: true }
 
   - do:
@@ -130,7 +138,7 @@ setup:
       xpack.ml.get_model_snapshots:
         job_id: "foo"
   - match: { count: 1 }
-  - match: { model_snapshots.0.snapshot_id: "foo2"}
+  - match: { model_snapshots.0.snapshot_id: "active-snapshot"}
 
   - do:
       count:
@@ -141,13 +149,9 @@ setup:
 
 ---
 "Test delete with in-use model":
-  - do:
-      xpack.ml.revert_model_snapshot:
-        job_id: "foo"
-        snapshot_id: "foo2"
 
   - do:
       catch: request
       xpack.ml.delete_model_snapshot:
         job_id: "foo"
-        snapshot_id: "foo2"
+        snapshot_id: "active-snapshot"

@@ -34,7 +34,8 @@ setup:
         job_id: "foo"
 
   - match: { count: 2 }
-  - match: { model_snapshots.0.timestamp: 1464739200000 }
+  - match: { model_snapshots.0.timestamp: 1464825600000 }
+  - match: { model_snapshots.1.timestamp: 1464739200000 }
 
 ---
 "Test get model snapshots API with _all":
@@ -44,7 +45,8 @@ setup:
         snapshot_id: "_all"
 
   - match: { count: 2 }
-  - match: { model_snapshots.0.timestamp: 1464739200000 }
+  - match: { model_snapshots.0.timestamp: 1464825600000 }
+  - match: { model_snapshots.1.timestamp: 1464739200000 }
 
 ---
 "Test get specific model snapshot":
@@ -65,7 +67,8 @@ setup:
         end: "2016-07-01T00:00:00Z"
 
   - match: { count: 2 }
-  - match: { model_snapshots.0.timestamp: 1464739200000 }
+  - match: { model_snapshots.0.timestamp: 1464825600000 }
+  - match: { model_snapshots.1.timestamp: 1464739200000 }
 
 ---
 "Test get model snapshots API with ascending":
@@ -75,7 +78,8 @@ setup:
         desc: false
 
   - match: { count: 2 }
-  - match: { model_snapshots.0.timestamp: 1464825600000 }
+  - match: { model_snapshots.0.timestamp: 1464739200000 }
+  - match: { model_snapshots.1.timestamp: 1464825600000 }
 
 ---
 "Test get model snapshots API with size":
@@ -85,7 +89,7 @@ setup:
         size: 1
 
   - match: { count: 2 }
-  - match: { model_snapshots.0.timestamp: 1464739200000 }
+  - match: { model_snapshots.0.timestamp: 1464825600000 }
   - length: { model_snapshots: 1 }
 
 ---
@@ -96,5 +100,5 @@ setup:
         from: 1
 
   - match: { count: 2 }
-  - match: { model_snapshots.0.timestamp: 1464825600000 }
+  - match: { model_snapshots.0.timestamp: 1464739200000 }
   - length: { model_snapshots: 1 }

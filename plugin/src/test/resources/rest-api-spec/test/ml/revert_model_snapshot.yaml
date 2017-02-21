@@ -29,13 +29,13 @@ setup:
       index:
         index:  .ml-anomalies-foo
         type:   model_snapshot
-        id:     "1"
+        id:     "foo-first"
         body: >
           {
             "job_id": "foo",
             "timestamp": "2016-06-02T00:00:00Z",
-            "snapshot_id": "foo1",
-            "description": "first",
+            "snapshot_id": "first",
+            "description": "first snapshot",
             "latest_record_time_stamp": "2016-06-02T00:00:00Z",
             "latest_result_time_stamp": "2016-06-02T00:00:00Z"
           }
@@ -44,13 +44,13 @@ setup:
       index:
         index:  .ml-anomalies-foo
         type:   model_snapshot
-        id:     "2"
+        id:     "foo-second"
         body: >
           {
             "job_id": "foo",
             "timestamp": "2016-06-01T00:00:00Z",
-            "snapshot_id": "foo2",
-            "description": "second",
+            "snapshot_id": "second",
+            "description": "second snapshot",
             "latest_record_time_stamp": "2016-06-01T00:00:00Z",
             "latest_result_time_stamp": "2016-06-01T00:00:00Z"
           }
@@ -144,23 +144,23 @@ setup:
   - do:
       xpack.ml.revert_model_snapshot:
         job_id: "foo"
-        snapshot_id: "foo1"
+        snapshot_id: "first"
 
   - match: { acknowledged: true }
   - match: { model.job_id: "foo" }
   - match: { model.timestamp: 1464825600000 }
-  - match: { model.snapshot_id: "foo1" }
+  - match: { model.snapshot_id: "first" }
   - match: { model.snapshot_doc_count: 0 }
 
   - do:
       xpack.ml.revert_model_snapshot:
         job_id: "foo"
-        snapshot_id: "foo2"
+        snapshot_id: "second"
 
   - match: { acknowledged: true }
   - match: { model.job_id: "foo" }
   - match: { model.timestamp: 1464739200000 }
-  - match: { model.snapshot_id: "foo2" }
+  - match: { model.snapshot_id: "second" }
   - match: { model.snapshot_doc_count: 0 }
 
 ---
@@ -176,7 +176,7 @@ setup:
   - do:
       xpack.ml.revert_model_snapshot:
         job_id: "foo"
-        snapshot_id: "foo2"
+        snapshot_id: "second"
         delete_intervening_results: true
 
   - do:

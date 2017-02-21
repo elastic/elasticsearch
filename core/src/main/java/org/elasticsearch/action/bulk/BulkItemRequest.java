@@ -80,7 +80,10 @@ public class BulkItemRequest implements Streamable {
             primaryResponse = BulkItemResponse.readBulkItem(in);
         }
         if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO remove once backported
-            in.readBoolean();
+            boolean ignoreOnReplica = in.readBoolean();
+            if (ignoreOnReplica == false && primaryResponse != null) {
+                assert primaryResponse.isFailed() == false : "expected no failure on the primary response";
+            }
         }
     }
 

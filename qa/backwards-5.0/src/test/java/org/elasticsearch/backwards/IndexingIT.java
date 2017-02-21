@@ -91,6 +91,12 @@ public class IndexingIT extends ESRestTestCase {
         return numDocs;
     }
 
+    /**
+     * Indexes a document in <code>index</code> with <code>docId</code> then concurrently updates the same document
+     * <code>nUpdates</code> times
+     *
+     * @return the document version after updates
+     */
     private int indexDocWithConcurrentUpdates(String index, final int docId, int nUpdates) throws IOException, InterruptedException {
         indexDocs(index, docId, 1);
         Thread[] indexThreads = new Thread[nUpdates];
@@ -99,7 +105,7 @@ public class IndexingIT extends ESRestTestCase {
                 try {
                     indexDocs(index, docId, 1);
                 } catch (IOException e) {
-                    fail("failed while indexing [" + e.getMessage() + "]");
+                    throw new AssertionError("failed while indexing [" + e.getMessage() + "]");
                 }
             });
             indexThreads[i].start();
@@ -275,7 +281,7 @@ public class IndexingIT extends ESRestTestCase {
                 Collections.singletonMap("preference", preference));
         assertOK(response);
         final int actualVersion = Integer.parseInt(objectPath(response).evaluate("_version").toString());
-        assertThat("version mismatch for doc [" + docId + "]", actualVersion, equalTo(expectedVersion));
+        assertThat("version mismatch for doc [" + docId + "] preference [" + preference + "]", actualVersion, equalTo(expectedVersion));
     }
 
     private void assertSeqNoOnShards(Nodes nodes, boolean checkGlobalCheckpoints, int numDocs, RestClient client) throws Exception {

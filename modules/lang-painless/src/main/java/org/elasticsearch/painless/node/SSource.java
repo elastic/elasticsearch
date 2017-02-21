@@ -312,7 +312,17 @@ public final class SSource extends AStatement {
         }
 
         if (!methodEscape) {
-            writer.visitInsn(Opcodes.ACONST_NULL);
+            switch (scriptInterface.getExecuteMethod().getReturnType().getSort()) {
+            case org.objectweb.asm.Type.VOID:    break;
+            case org.objectweb.asm.Type.BOOLEAN: writer.push(false); break;
+            case org.objectweb.asm.Type.BYTE:    writer.push(0); break;
+            case org.objectweb.asm.Type.SHORT:   writer.push(0); break;
+            case org.objectweb.asm.Type.INT:     writer.push(0); break;
+            case org.objectweb.asm.Type.LONG:    writer.push(0L); break;
+            case org.objectweb.asm.Type.FLOAT:   writer.push(0f); break;
+            case org.objectweb.asm.Type.DOUBLE:  writer.push(0d); break;
+            default:                             writer.visitInsn(Opcodes.ACONST_NULL);
+            }
             writer.returnValue();
         }
 

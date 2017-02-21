@@ -162,8 +162,10 @@ public final class MethodWriter extends GeneratorAdapter {
                         else throw new IllegalStateException("Illegal tree structure.");
                     }
                 } else {
-                    unbox(from.type);
-                    writeCast(from, to);
+                    // TODO it'd be nice not to have to look this up here but it'd create a static initialization loop. I think.
+                    Definition.Type unboxed = Definition.getType(from.sort.unboxed.getName());
+                    unbox(unboxed.type);
+                    writeCast(unboxed, to);
                 }
             } else if (cast.unboxTo) {
                 writeCast(from, to);

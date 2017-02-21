@@ -37,7 +37,7 @@ public class ScriptInterface {
     private final Class<?> iface;
     private final org.objectweb.asm.commons.Method executeMethod;
     private final Definition.Type executeMethodReturnType;
-    private final List<MethodArgument> arguments;
+    private final List<MethodArgument> executeArguments;
     private final List<org.objectweb.asm.commons.Method> usesMethods;
 
     public ScriptInterface(Class<?> iface) {
@@ -94,7 +94,7 @@ public class ScriptInterface {
             arguments.add(methodArgument(types[arg], argumentNamesConstant[arg]));
             argumentNames.add(argumentNamesConstant[arg]);
         }
-        this.arguments = unmodifiableList(arguments);
+        this.executeArguments = unmodifiableList(arguments);
 
         // Validate that the uses$argName methods reference argument names
         for (org.objectweb.asm.commons.Method usesMethod : usesMethods) {
@@ -132,8 +132,8 @@ public class ScriptInterface {
      * Painless {@link Definition.Type}s and names of the arguments to the {@code execute} method. The names are exposed to the Painless
      * script.
      */
-    public List<MethodArgument> getArguments() {
-        return arguments;
+    public List<MethodArgument> getExecuteArguments() {
+        return executeArguments;
     }
 
     /**

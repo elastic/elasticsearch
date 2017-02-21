@@ -97,7 +97,7 @@ public final class Locals {
         locals.defineVariable(null, Definition.getType("Object"), THIS, true);
 
         // Method arguments
-        for (MethodArgument arg : scriptInterface.getArguments()) {
+        for (MethodArgument arg : scriptInterface.getExecuteArguments()) {
             locals.defineVariable(null, arg.getType(), arg.getName(), true);
         }
 

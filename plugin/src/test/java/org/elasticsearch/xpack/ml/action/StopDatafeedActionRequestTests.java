@@ -9,7 +9,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction.Request;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedConfig;

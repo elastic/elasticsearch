@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.JobStateObserver;

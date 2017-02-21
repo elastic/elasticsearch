@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.metadata;
+package org.elasticsearch.xpack.ml;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.notifications.Auditor;

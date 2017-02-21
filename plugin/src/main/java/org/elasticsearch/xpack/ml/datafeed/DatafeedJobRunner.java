@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.DefaultFrequency;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;

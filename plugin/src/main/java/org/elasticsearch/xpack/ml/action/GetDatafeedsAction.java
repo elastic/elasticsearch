@@ -30,7 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;

@@ -15,7 +15,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 
 import java.util.function.Consumer;

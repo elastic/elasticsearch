@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.ml.MlMetadata;
 
 /**
  * Methods for handling index naming related functions

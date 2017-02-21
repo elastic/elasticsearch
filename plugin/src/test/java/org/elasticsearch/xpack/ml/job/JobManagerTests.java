@@ -15,7 +15,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.notifications.Auditor;

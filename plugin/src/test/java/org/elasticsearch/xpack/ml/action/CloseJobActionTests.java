@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
 

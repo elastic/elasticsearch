@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentActionRegistry;

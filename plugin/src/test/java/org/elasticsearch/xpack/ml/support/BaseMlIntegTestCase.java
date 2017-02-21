@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
 
 import java.util.Collections;

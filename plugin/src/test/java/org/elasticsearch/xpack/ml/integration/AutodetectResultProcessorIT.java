@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;

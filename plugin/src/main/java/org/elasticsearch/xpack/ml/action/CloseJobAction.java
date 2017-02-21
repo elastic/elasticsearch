@@ -45,7 +45,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.JobStateObserver;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;

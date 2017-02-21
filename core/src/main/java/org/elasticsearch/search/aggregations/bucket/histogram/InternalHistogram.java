@@ -272,7 +272,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 if (top.current.key != key) {
                     // the key changes, reduce what we already buffered and reset the buffer for current buckets
                     final Bucket reduced = currentBuckets.get(0).reduce(currentBuckets, reduceContext);
-                    if (reduced.getDocCount() >= minDocCount) {
+                    if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
                         reducedBuckets.add(reduced);
                     }
                     currentBuckets.clear();
@@ -293,7 +293,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
             if (currentBuckets.isEmpty() == false) {
                 final Bucket reduced = currentBuckets.get(0).reduce(currentBuckets, reduceContext);
-                if (reduced.getDocCount() >= minDocCount) {
+                if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
                     reducedBuckets.add(reduced);
                 }
             }
@@ -364,7 +364,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             addEmptyBuckets(reducedBuckets, reduceContext);
         }
 
-        if (order == InternalOrder.KEY_ASC) {
+        if (order == InternalOrder.KEY_ASC || reduceContext.isFinalReduce() == false) {
             // nothing to do, data are already sorted since shards return
             // sorted buckets and the merge-sort performed by reduceBuckets
             // maintains order

@@ -19,7 +19,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -30,17 +29,13 @@ import org.elasticsearch.search.SearchShardTarget;
  * where the given index is used to set the result on the array.
  */
 final class CountedCollector<R extends SearchPhaseResult> {
-    private final AtomicArray<R> resultArray;
+    private final ResultConsumer<R> resultConsumer;
     private final CountDown counter;
     private final Runnable onFinish;
     private final SearchPhaseContext context;
 
-    CountedCollector(AtomicArray<R> resultArray, int expectedOps, Runnable onFinish, SearchPhaseContext context) {
-        if (expectedOps > resultArray.length()) {
-            throw new IllegalStateException("unexpected number of operations. got: " + expectedOps + " but array size is: "
-                + resultArray.length());
-        }
-        this.resultArray = resultArray;
+    CountedCollector(ResultConsumer<R> resultConsumer, int expectedOps, Runnable onFinish, SearchPhaseContext context) {
+        this.resultConsumer = resultConsumer;
         this.counter = new CountDown(expectedOps);
         this.onFinish = onFinish;
         this.context = context;
@@ -63,7 +58,7 @@ final class CountedCollector<R extends SearchPhaseResult> {
     void onResult(int index, R result, SearchShardTarget target) {
         try {
             result.shardTarget(target);
-            resultArray.set(index, result);
+            resultConsumer.consume(index, result);
         } finally {
             countDown();
         }
@@ -79,5 +74,13 @@ final class CountedCollector<R extends SearchPhaseResult> {
         } finally {
             countDown();
         }
+    }
+
+    /**
+     * A functional interface to plug in shard result consumers to this collector
+     */
+    @FunctionalInterface
+    public interface ResultConsumer<R extends SearchPhaseResult> {
+        void consume(int shardIndex, R result);
     }
 }

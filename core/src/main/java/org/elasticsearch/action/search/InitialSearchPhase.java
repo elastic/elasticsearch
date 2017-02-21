@@ -28,12 +28,14 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.transport.ConnectTransportException;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 /**
  * This is an abstract base class that encapsulates the logic to fan out to all shards in provided {@link GroupShardsIterator}
@@ -213,4 +215,53 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
      * @param listener the listener to notify on response
      */
     protected abstract void executePhaseOnShard(ShardIterator shardIt, ShardRouting shard, ActionListener<FirstResult> listener);
+
+    /**
+     * This class acts as a basic result collection that can be extended to do on-the-fly reduction or result processing
+     */
+    static class SearchPhaseResults<Result extends SearchPhaseResult> {
+        final AtomicArray<Result> results;
+
+        SearchPhaseResults(int size) {
+            results = new AtomicArray<>(size);
+        }
+
+        /**
+         * Returns the number of expected results this class should collect
+         */
+        final int getNumShards() {
+            return results.length();
+        }
+
+        /**
+         * A stream of all non-null (successful) shard results
+         */
+        final Stream<Result> getSuccessfulResults() {
+            return results.asList().stream().map(e -> e.value);
+        }
+
+        /**
+         * Consumes a single shard result
+         * @param shardIndex the shards index, this is a 0-based id that is used to establish a 1 to 1 mapping to the searched shards
+         * @param result the shards result
+         */
+        void consumeResult(int shardIndex, Result result) {
+            assert results.get(shardIndex) == null : "shardIndex: " + shardIndex + " is already set";
+            results.set(shardIndex, result);
+        }
+
+        /**
+         * Returns <code>true</code> iff a result if present for the given shard ID.
+         */
+        final boolean hasResult(int shardIndex) {
+            return results.get(shardIndex) != null;
+        }
+
+        /**
+         * Reduces the collected results
+         */
+        SearchPhaseController.ReducedQueryPhase reduce() {
+            throw new UnsupportedOperationException("reduce is not supported");
+        }
+    }
 }

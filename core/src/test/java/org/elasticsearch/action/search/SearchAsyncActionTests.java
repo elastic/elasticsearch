@@ -39,7 +39,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
@@ -54,7 +53,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -97,7 +95,8 @@ public class SearchAsyncActionTests extends ESTestCase {
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         AbstractSearchAsyncAction asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>("test", logger, transportService,
-            lookup::get, aliasFilters, Collections.emptyMap(), null, request, responseListener, shardsIter, 0, 0, null) {
+            lookup::get, aliasFilters, Collections.emptyMap(), null, request, responseListener, shardsIter, 0, 0, null,
+            new InitialSearchPhase.SearchPhaseResults<>(shardsIter.size())) {
             TestSearchResponse response = new TestSearchResponse();
 
             @Override
@@ -116,12 +115,12 @@ public class SearchAsyncActionTests extends ESTestCase {
             }
 
             @Override
-            protected SearchPhase getNextPhase(AtomicArray<TestSearchPhaseResult> results, SearchPhaseContext context) {
+            protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
                 return new SearchPhase("test") {
                     @Override
                     public void run() throws IOException {
-                        for (int i = 0; i < results.length(); i++) {
-                            TestSearchPhaseResult result = results.get(i);
+                        for (int i = 0; i < results.getNumShards(); i++) {
+                            TestSearchPhaseResult result = results.results.get(i);
                             assertEquals(result.node.getId(), result.shardTarget().getNodeId());
                             sendReleaseSearchContext(result.id(), new MockConnection(result.node));
                         }

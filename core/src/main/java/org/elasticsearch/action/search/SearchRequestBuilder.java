@@ -523,4 +523,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         }
         return request.source();
     }
+
+    public SearchRequestBuilder setReduceUpTo(int reduceUpTo) {
+        this.request.setReduceUpTo(reduceUpTo);
+        return this;
+    }
 }

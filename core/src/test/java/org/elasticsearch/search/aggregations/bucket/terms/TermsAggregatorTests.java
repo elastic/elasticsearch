@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
+
 public class TermsAggregatorTests extends AggregatorTestCase {
 
     public void testTermsAggregator() throws Exception {

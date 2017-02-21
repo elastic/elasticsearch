@@ -46,10 +46,21 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
 
         private final BigArrays bigArrays;
         private final ScriptService scriptService;
+        private final boolean isFinalReduce;
 
-        public ReduceContext(BigArrays bigArrays, ScriptService scriptService) {
+        public ReduceContext(BigArrays bigArrays, ScriptService scriptService, boolean isFinalReduce) {
             this.bigArrays = bigArrays;
             this.scriptService = scriptService;
+            this.isFinalReduce = isFinalReduce;
+        }
+
+        /**
+         * Returns <code>true</code> iff the current reduce phase is the final reduce phase. This indicates if operations like
+         * pipeline aggregations should be applied or if specific features like <tt>minDocCount</tt> should be taken into account.
+         * Operations that are potentially loosing information can only be applied during the final reduce phase.
+         */
+        public boolean isFinalReduce() {
+            return isFinalReduce;
         }
 
         public BigArrays bigArrays() {
@@ -110,8 +121,10 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
      */
     public final InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         InternalAggregation aggResult = doReduce(aggregations, reduceContext);
-        for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
-            aggResult = pipelineAggregator.reduce(aggResult, reduceContext);
+        if (reduceContext.isFinalReduce()) {
+            for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
+                aggResult = pipelineAggregator.reduce(aggResult, reduceContext);
+            }
         }
         return aggResult;
     }

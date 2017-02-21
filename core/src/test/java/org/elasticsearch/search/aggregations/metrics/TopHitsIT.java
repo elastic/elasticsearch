@@ -423,8 +423,8 @@ public class TopHitsIT extends ESIntegTestCase {
             assertThat(hits.totalHits(), equalTo(10L));
             assertThat(hits.getHits().length, equalTo(3));
 
-            assertThat(hits.getAt(0).sourceAsMap().size(), equalTo(4));
-            id --;
+            assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(4));
+            id--;
         }
     }
 
@@ -455,7 +455,8 @@ public class TopHitsIT extends ESIntegTestCase {
                                 .executionHint(randomExecutionHint())
                                 .field(TERMS_AGGS_FIELD)
                                 .subAggregation(
-                                        topHits("hits").sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                                        topHits("hits")
+                                            .sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
                                                 .from(from)
                                                 .size(size)
                                 )
@@ -486,9 +487,10 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(hits.totalHits(), equalTo(controlHits.totalHits()));
         assertThat(hits.getHits().length, equalTo(controlHits.getHits().length));
         for (int i = 0; i < hits.getHits().length; i++) {
-            logger.info("{}: top_hits: [{}][{}] control: [{}][{}]", i, hits.getAt(i).id(), hits.getAt(i).sortValues()[0], controlHits.getAt(i).id(), controlHits.getAt(i).sortValues()[0]);
-            assertThat(hits.getAt(i).id(), equalTo(controlHits.getAt(i).id()));
-            assertThat(hits.getAt(i).sortValues()[0], equalTo(controlHits.getAt(i).sortValues()[0]));
+            logger.info("{}: top_hits: [{}][{}] control: [{}][{}]", i, hits.getAt(i).getId(), hits.getAt(i).getSortValues()[0],
+                controlHits.getAt(i).getId(), controlHits.getAt(i).getSortValues()[0]);
+            assertThat(hits.getAt(i).getId(), equalTo(controlHits.getAt(i).getId()));
+            assertThat(hits.getAt(i).getSortValues()[0], equalTo(controlHits.getAt(i).getSortValues()[0]));
         }
     }
 
@@ -1003,51 +1005,55 @@ public class TopHitsIT extends ESIntegTestCase {
      * not using a script does get cached.
      */
     public void testDontCacheScripts() throws Exception {
-        assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
+        try {
+            assertAcked(prepareCreate("cache_test_idx").addMapping("type", "d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
                 .get());
-        indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
+            indexRandom(true, client().prepareIndex("cache_test_idx", "type", "1").setSource("s", 1),
                 client().prepareIndex("cache_test_idx", "type", "2").setSource("s", 2));
 
-        // Make sure we are starting with a clear cache
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+            // Make sure we are starting with a clear cache
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // Test that a request using a script field does not get cached
-        SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0)
+            // Test that a request using a script field does not get cached
+            SearchResponse r = client().prepareSearch("cache_test_idx").setSize(0)
                 .addAggregation(topHits("foo").scriptField("bar",
                     new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "5", Collections.emptyMap()))).get();
-        assertSearchResponse(r);
+            assertSearchResponse(r);
 
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // Test that a request using a script sort does not get cached
-        r = client().prepareSearch("cache_test_idx").setSize(0)
+            // Test that a request using a script sort does not get cached
+            r = client().prepareSearch("cache_test_idx").setSize(0)
                 .addAggregation(topHits("foo").sort(
-                        SortBuilders.scriptSort(
-                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "5", Collections.emptyMap()), ScriptSortType.STRING)))
+                    SortBuilders.scriptSort(
+                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "5", Collections.emptyMap()), ScriptSortType.STRING)))
                 .get();
-        assertSearchResponse(r);
+            assertSearchResponse(r);
 
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
 
-        // To make sure that the cache is working test that a request not using
-        // a script is cached
-        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(topHits("foo")).get();
-        assertSearchResponse(r);
+            // To make sure that the cache is working test that a request not using
+            // a script is cached
+            r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(topHits("foo")).get();
+            assertSearchResponse(r);
 
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getHitCount(), equalTo(0L));
-        assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
+            assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(1L));
+        } finally {
+            assertAcked(client().admin().indices().prepareDelete("cache_test_idx")); // delete this - if we use tests.iters it would fail
+        }
     }
 
     public void testWithRescore() {

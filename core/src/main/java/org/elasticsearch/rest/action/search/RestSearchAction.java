@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -96,6 +95,9 @@ public class RestSearchAction extends BaseRestHandler {
             QueryParseContext context = new QueryParseContext(requestContentParser);
             searchRequest.source().parseXContent(context);
         }
+
+        final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());
+        searchRequest.setBatchedReduceSize(batchedReduceSize);
 
         // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types
         // from the REST layer. these modes are an internal optimization and should

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -43,7 +44,7 @@ import static org.elasticsearch.search.SearchHits.readSearchHits;
 public class InternalSearchResponse implements Streamable, ToXContent {
 
     public static InternalSearchResponse empty() {
-        return new InternalSearchResponse(SearchHits.empty(), null, null, null, false, null);
+        return new InternalSearchResponse(SearchHits.empty(), null, null, null, false, null, 1);
     }
 
     private SearchHits hits;
@@ -58,17 +59,21 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     private Boolean terminatedEarly = null;
 
+    private int numReducePhases = 1;
+
     private InternalSearchResponse() {
     }
 
     public InternalSearchResponse(SearchHits hits, InternalAggregations aggregations, Suggest suggest,
-                                  SearchProfileShardResults profileResults, boolean timedOut, Boolean terminatedEarly) {
+                                  SearchProfileShardResults profileResults, boolean timedOut, Boolean terminatedEarly,
+                                  int numReducePhases) {
         this.hits = hits;
         this.aggregations = aggregations;
         this.suggest = suggest;
         this.profileResults = profileResults;
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
+        this.numReducePhases = numReducePhases;
     }
 
     public boolean timedOut() {
@@ -89,6 +94,13 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     public Suggest suggest() {
         return suggest;
+    }
+
+    /**
+     * Returns the number of reduce phases applied to obtain this search response
+     */
+    public int getNumReducePhases() {
+        return numReducePhases;
     }
 
     /**
@@ -137,6 +149,11 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         timedOut = in.readBoolean();
         terminatedEarly = in.readOptionalBoolean();
         profileResults = in.readOptionalWriteable(SearchProfileShardResults::new);
+        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+            numReducePhases = in.readVInt();
+        } else {
+            numReducePhases = 1;
+        }
     }
 
     @Override
@@ -157,5 +174,8 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         out.writeBoolean(timedOut);
         out.writeOptionalBoolean(terminatedEarly);
         out.writeOptionalWriteable(profileResults);
+        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+            out.writeVInt(numReducePhases);
+        }
     }
 }

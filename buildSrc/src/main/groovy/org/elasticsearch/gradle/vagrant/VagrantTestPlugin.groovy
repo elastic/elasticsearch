@@ -71,7 +71,7 @@ class VagrantTestPlugin implements Plugin<Project> {
         createVagrantBoxesTasks(project)
     }
 
-    private List<String> listVagrantBoxes(Project project) {
+    private static List<String> listVagrantBoxes(Project project) {
         String vagrantBoxes = project.getProperties().get('vagrant.boxes', 'sample')
         if (vagrantBoxes == 'sample') {
             return SAMPLE
@@ -363,6 +363,8 @@ class VagrantTestPlugin implements Plugin<Project> {
     }
 
     private static void createVagrantBoxesTasks(Project project) {
+        File batsDir = new File("${project.buildDir}/${BATS}")
+
         assert project.extensions.esvagrant.boxes != null
 
         assert project.tasks.stop != null
@@ -392,6 +394,9 @@ class VagrantTestPlugin implements Plugin<Project> {
                 'VAGRANT_VAGRANTFILE'   : 'Vagrantfile',
                 'VAGRANT_PROJECT_DIR'   : "${project.projectDir.absolutePath}"
         ]
+
+        // one single repo test task to test all configured boxes
+        Task vagrantRepositoryTestTask = project.tasks.create('vagrantRepositoryTest')
 
         // Each box gets it own set of tasks
         for (String box : BOXES) {
@@ -453,6 +458,36 @@ class VagrantTestPlugin implements Plugin<Project> {
                 command BATS_TEST_COMMAND
             }
             packagingTest.dependsOn(packaging)
+
+            String expectedRepoVersion = project.getProperties().get('repo.version')
+            String url = project.getProperties().get('repo.url')
+
+            Task createUrlFileTask = project.tasks.create("vagrant${boxTask}#createUrlFileTask", FileContentsTask) {
+                file "${batsDir}/archives/repo_url"
+                contents url
+            }
+
+            Task createRepoVersionFileTask = project.tasks.create("vagrant${boxTask}#createRepoVersionFileTask", FileContentsTask) {
+                file "${batsDir}/archives/repo_expected_version"
+                contents expectedRepoVersion
+            }
+
+            String task = "vagrant${boxTask}#repositoryTest"
+            Task repotest = project.tasks.create(task, BatsOverVagrantTask) {
+                boxName box
+                environmentVars vagrantEnvVars
+                dependsOn up
+                finalizedBy halt
+                command "cd \$BATS_ARCHIVES && sudo bats --tap \$BATS_TESTS/99_upgrade_repos.$BATS"
+                doFirst {
+                    if (!expectedRepoVersion || !url) {
+                        throw new IllegalArgumentException("Task $task requires repo.version and repo.url properties")
+                    }
+                }
+            }
+
+            repotest.dependsOn 'vagrantSetUp', createUrlFileTask, createRepoVersionFileTask
+            vagrantRepositoryTestTask.dependsOn "vagrant${boxTask}#repositoryTest"
         }
     }
 }

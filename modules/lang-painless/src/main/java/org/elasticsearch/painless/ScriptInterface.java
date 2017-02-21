@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.painless.WriterConstants.USES_PARAMETER_METHOD_TYPE;
@@ -35,7 +36,8 @@ import static org.elasticsearch.painless.WriterConstants.USES_PARAMETER_METHOD_T
 public class ScriptInterface {
     private final Class<?> iface;
     private final org.objectweb.asm.commons.Method executeMethod;
-    private final List<MethodArgument> arguments;
+    private final Definition.Type executeMethodReturnType;
+    private final List<MethodArgument> executeArguments;
     private final List<org.objectweb.asm.commons.Method> usesMethods;
 
     public ScriptInterface(Class<?> iface) {
@@ -75,6 +77,9 @@ public class ScriptInterface {
         }
         MethodType methodType = MethodType.methodType(executeMethod.getReturnType(), executeMethod.getParameterTypes());
         this.executeMethod = new org.objectweb.asm.commons.Method(executeMethod.getName(), methodType.toMethodDescriptorString());
+        executeMethodReturnType = definitionTypeForClass(executeMethod.getReturnType(),
+                componentType -> "Painless can only implement execute methods returning a whitelisted type but [" + iface.getName()
+                        + "#execute] returns [" + componentType.getName() + "] which isn't whitelisted.");
 
         // Look up the argument names
         Set<String> argumentNames = new LinkedHashSet<>();
@@ -86,10 +91,10 @@ public class ScriptInterface {
                     + iface.getName() + "#execute] takes [1] argument.");
         }
         for (int arg = 0; arg < types.length; arg++) {
-            arguments.add(new MethodArgument(argType(argumentNamesConstant[arg], types[arg]), argumentNamesConstant[arg]));
+            arguments.add(methodArgument(types[arg], argumentNamesConstant[arg]));
             argumentNames.add(argumentNamesConstant[arg]);
         }
-        this.arguments = unmodifiableList(arguments);
+        this.executeArguments = unmodifiableList(arguments);
 
         // Validate that the uses$argName methods reference argument names
         for (org.objectweb.asm.commons.Method usesMethod : usesMethods) {
@@ -101,22 +106,46 @@ public class ScriptInterface {
         this.usesMethods = unmodifiableList(usesMethods);
     }
 
+    /**
+     * The interface that the Painless script should implement.
+     */
     public Class<?> getInterface() {
         return iface;
     }
 
+    /**
+     * An asm method descriptor for the {@code execute} method.
+     */
     public org.objectweb.asm.commons.Method getExecuteMethod() {
         return executeMethod;
     }
 
-    public List<MethodArgument> getArguments() {
-        return arguments;
+    /**
+     * The Painless {@link Definition.Type} or the return type of the {@code execute} method. This is used to generate the appropriate
+     * return bytecode.
+     */
+    public Definition.Type getExecuteMethodReturnType() {
+        return executeMethodReturnType;
     }
 
+    /**
+     * Painless {@link Definition.Type}s and names of the arguments to the {@code execute} method. The names are exposed to the Painless
+     * script.
+     */
+    public List<MethodArgument> getExecuteArguments() {
+        return executeArguments;
+    }
+
+    /**
+     * The {@code uses$varName} methods that must be implemented by Painless to complete implementing the interface.
+     */
     public List<org.objectweb.asm.commons.Method> getUsesMethods() {
         return usesMethods;
     }
 
+    /**
+     * Painless {@link Definition.Type}s and name of the argument to the {@code execute} method.
+     */
     public static class MethodArgument {
         private final Definition.Type type;
         private final String name;
@@ -135,20 +164,26 @@ public class ScriptInterface {
         }
     }
 
-    private static Definition.Type argType(String argName, Class<?> type) {
+    private static MethodArgument methodArgument(Class<?> type, String argName) {
+        Definition.Type defType = definitionTypeForClass(type, componentType -> "[" + argName + "] is of unknown type ["
+                + componentType.getName() + ". Painless interfaces can only accept arguments that are of whitelisted types.");
+        return new MethodArgument(defType, argName);
+    }
+
+    private static Definition.Type definitionTypeForClass(Class<?> type, Function<Class<?>, String> unknownErrorMessageSource) {
         int dimensions = 0;
-        while (type.isArray()) {
+        Class<?> componentType = type;
+        while (componentType.isArray()) {
             dimensions++;
-            type = type.getComponentType();
+            componentType = componentType.getComponentType();
         }
         Definition.Struct struct;
-        if (type.equals(Object.class)) {
+        if (componentType.equals(Object.class)) {
             struct = Definition.DEF_TYPE.struct;
         } else {
-            Definition.RuntimeClass runtimeClass = Definition.getRuntimeClass(type);
+            Definition.RuntimeClass runtimeClass = Definition.getRuntimeClass(componentType);
             if (runtimeClass == null) {
-                throw new IllegalArgumentException("[" + argName + "] is of unknown type [" + type.getName()
-                        + ". Painless interfaces can only accept arguments that are of whitelisted types.");
+                throw new IllegalArgumentException(unknownErrorMessageSource.apply(componentType));
             }
             struct = runtimeClass.getStruct();
         }

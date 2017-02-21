@@ -24,6 +24,8 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -45,6 +47,12 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         e = expectScriptThrows(IllegalArgumentException.class, () ->
             scriptEngine.compile(NoArgs.class, null, "_score", emptyMap()));
         assertEquals("Variable [_score] is not defined.", e.getMessage());
+
+        String debug = Debugger.toString(NoArgs.class, "int i = 0", new CompilerSettings());
+        /* Elasticsearch requires that scripts that return nothing return null. We hack that together by returning null from scripts that
+         * return Object if they don't return anything. */
+        assertThat(debug, containsString("ACONST_NULL"));
+        assertThat(debug, containsString("ARETURN"));
     }
 
     public interface OneArg {
@@ -165,6 +173,152 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertEquals(singletonMap("a", "foo"), map);
         scriptEngine.compile(ReturnsVoid.class, null, "map.remove('a')", emptyMap()).execute(map);
         assertEquals(emptyMap(), map);
+
+        String debug = Debugger.toString(ReturnsVoid.class, "int i = 0", new CompilerSettings());
+        // The important thing is that this contains the opcode for returning void
+        assertThat(debug, containsString(" RETURN"));
+        // We shouldn't contain any weird "default to null" logic
+        assertThat(debug, not(containsString("ACONST_NULL")));
+    }
+
+    public interface ReturnsPrimitiveBoolean {
+        String[] ARGUMENTS = new String[] {};
+        boolean execute();
+    }
+    public void testReturnsPrimitiveBoolean() {
+        assertEquals(true, scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "true", emptyMap()).execute());
+        assertEquals(false, scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "false", emptyMap()).execute());
+        assertEquals(true, scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "Boolean.TRUE", emptyMap()).execute());
+        assertEquals(false, scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "Boolean.FALSE", emptyMap()).execute());
+
+        assertEquals(true, scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "def i = true; i", emptyMap()).execute());
+        assertEquals(true, scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "def i = Boolean.TRUE; i", emptyMap()).execute());
+
+        assertEquals(true, scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "true || false", emptyMap()).execute());
+
+        String debug = Debugger.toString(ReturnsPrimitiveBoolean.class, "false", new CompilerSettings());
+        assertThat(debug, containsString("ICONST_0"));
+        // The important thing here is that we have the bytecode for returning an integer instead of an object. booleans are integers.
+        assertThat(debug, containsString("IRETURN"));
+
+        Exception e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "1L", emptyMap()).execute());
+        assertEquals("Cannot cast from [long] to [boolean].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "1.1f", emptyMap()).execute());
+        assertEquals("Cannot cast from [float] to [boolean].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "1.1d", emptyMap()).execute());
+        assertEquals("Cannot cast from [double] to [boolean].", e.getMessage());
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "def i = 1L; i", emptyMap()).execute());
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "def i = 1.1f; i", emptyMap()).execute());
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "def i = 1.1d; i", emptyMap()).execute());
+
+        assertEquals(false, scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "int i = 0", emptyMap()).execute());
+    }
+
+    public interface ReturnsPrimitiveInt {
+        String[] ARGUMENTS = new String[] {};
+        int execute();
+    }
+    public void testReturnsPrimitiveInt() {
+        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1", emptyMap()).execute());
+        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "(int) 1L", emptyMap()).execute());
+        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "(int) 1.1d", emptyMap()).execute());
+        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "(int) 1.1f", emptyMap()).execute());
+        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "Integer.valueOf(1)", emptyMap()).execute());
+
+        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = 1; i", emptyMap()).execute());
+        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = Integer.valueOf(1); i", emptyMap()).execute());
+
+        assertEquals(2, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1 + 1", emptyMap()).execute());
+
+        String debug = Debugger.toString(ReturnsPrimitiveInt.class, "1", new CompilerSettings());
+        assertThat(debug, containsString("ICONST_1"));
+        // The important thing here is that we have the bytecode for returning an integer instead of an object
+        assertThat(debug, containsString("IRETURN"));
+
+        Exception e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1L", emptyMap()).execute());
+        assertEquals("Cannot cast from [long] to [int].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1.1f", emptyMap()).execute());
+        assertEquals("Cannot cast from [float] to [int].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1.1d", emptyMap()).execute());
+        assertEquals("Cannot cast from [double] to [int].", e.getMessage());
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = 1L; i", emptyMap()).execute());
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = 1.1f; i", emptyMap()).execute());
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = 1.1d; i", emptyMap()).execute());
+
+        assertEquals(0, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "int i = 0", emptyMap()).execute());
+    }
+
+    public interface ReturnsPrimitiveFloat {
+        String[] ARGUMENTS = new String[] {};
+        float execute();
+    }
+    public void testReturnsPrimitiveFloat() {
+        assertEquals(1.1f, scriptEngine.compile(ReturnsPrimitiveFloat.class, null, "1.1f", emptyMap()).execute(), 0);
+        assertEquals(1.1f, scriptEngine.compile(ReturnsPrimitiveFloat.class, null, "(float) 1.1d", emptyMap()).execute(), 0);
+        assertEquals(1.1f, scriptEngine.compile(ReturnsPrimitiveFloat.class, null, "def d = 1.1f; d", emptyMap()).execute(), 0);
+        assertEquals(1.1f,
+                scriptEngine.compile(ReturnsPrimitiveFloat.class, null, "def d = Float.valueOf(1.1f); d", emptyMap()).execute(), 0);
+
+        assertEquals(1.1f + 6.7f, scriptEngine.compile(ReturnsPrimitiveFloat.class, null, "1.1f + 6.7f", emptyMap()).execute(), 0);
+
+        Exception e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveFloat.class, null, "1.1d", emptyMap()).execute());
+        assertEquals("Cannot cast from [double] to [float].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveFloat.class, null, "def d = 1.1d; d", emptyMap()).execute());
+        e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveFloat.class, null, "def d = Double.valueOf(1.1); d", emptyMap()).execute());
+
+        String debug = Debugger.toString(ReturnsPrimitiveFloat.class, "1f", new CompilerSettings());
+        assertThat(debug, containsString("FCONST_1"));
+        // The important thing here is that we have the bytecode for returning a float instead of an object
+        assertThat(debug, containsString("FRETURN"));
+
+        assertEquals(0.0f, scriptEngine.compile(ReturnsPrimitiveFloat.class, null, "int i = 0", emptyMap()).execute(), 0);
+    }
+
+    public interface ReturnsPrimitiveDouble {
+        String[] ARGUMENTS = new String[] {};
+        double execute();
+    }
+    public void testReturnsPrimitiveDouble() {
+        assertEquals(1.0, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "1", emptyMap()).execute(), 0);
+        assertEquals(1.0, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "1L", emptyMap()).execute(), 0);
+        assertEquals(1.1, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "1.1d", emptyMap()).execute(), 0);
+        assertEquals((double) 1.1f, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "1.1f", emptyMap()).execute(), 0);
+        assertEquals(1.1, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "Double.valueOf(1.1)", emptyMap()).execute(), 0);
+        assertEquals((double) 1.1f,
+                    scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "Float.valueOf(1.1f)", emptyMap()).execute(), 0);
+
+        assertEquals(1.0, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "def d = 1; d", emptyMap()).execute(), 0);
+        assertEquals(1.0, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "def d = 1L; d", emptyMap()).execute(), 0);
+        assertEquals(1.1, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "def d = 1.1d; d", emptyMap()).execute(), 0);
+        assertEquals((double) 1.1f, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "def d = 1.1f; d", emptyMap()).execute(), 0);
+        assertEquals(1.1,
+                scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "def d = Double.valueOf(1.1); d", emptyMap()).execute(), 0);
+        assertEquals((double) 1.1f,
+                scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "def d = Float.valueOf(1.1f); d", emptyMap()).execute(), 0);
+
+        assertEquals(1.1 + 6.7, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "1.1 + 6.7", emptyMap()).execute(), 0);
+
+        String debug = Debugger.toString(ReturnsPrimitiveDouble.class, "1", new CompilerSettings());
+        assertThat(debug, containsString("DCONST_1"));
+        // The important thing here is that we have the bytecode for returning a double instead of an object
+        assertThat(debug, containsString("DRETURN"));
+
+        assertEquals(0.0, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "int i = 0", emptyMap()).execute(), 0);
     }
 
     public interface NoArgumentsConstant {
@@ -208,6 +362,17 @@ public class ImplementInterfacesTests extends ScriptTestCase {
             scriptEngine.compile(UnknownArgType.class, null, "1", emptyMap()));
         assertEquals("[foo] is of unknown type [" + UnknownArgType.class.getName() + ". Painless interfaces can only accept arguments "
                 + "that are of whitelisted types.", e.getMessage());
+    }
+
+    public interface UnknownReturnType {
+        String[] ARGUMENTS = new String[] {"foo"};
+        UnknownReturnType execute(String foo);
+    }
+    public void testUnknownReturnType() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+            scriptEngine.compile(UnknownReturnType.class, null, "1", emptyMap()));
+        assertEquals("Painless can only implement execute methods returning a whitelisted type but [" + UnknownReturnType.class.getName()
+                + "#execute] returns [" + UnknownReturnType.class.getName() + "] which isn't whitelisted.", e.getMessage());
     }
 
     public interface UnknownArgTypeInArray {

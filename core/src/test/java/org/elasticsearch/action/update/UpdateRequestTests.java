@@ -349,6 +349,13 @@ public class UpdateRequestTests extends ESTestCase {
             updateRequest.upsert(new IndexRequest().source(source, xContentType));
         }
         if (randomBoolean()) {
+            String[] fields = new String[randomIntBetween(0, 5)];
+            for (int i = 0; i < fields.length; i++) {
+                fields[i] = randomAsciiOfLength(5);
+            }
+            updateRequest.fields(fields);
+        }
+        if (randomBoolean()) {
             if (randomBoolean()) {
                 updateRequest.fetchSource(randomBoolean());
             } else {
@@ -387,6 +394,7 @@ public class UpdateRequestTests extends ESTestCase {
         assertEquals(updateRequest.docAsUpsert(), parsedUpdateRequest.docAsUpsert());
         assertEquals(updateRequest.script(), parsedUpdateRequest.script());
         assertEquals(updateRequest.scriptedUpsert(), parsedUpdateRequest.scriptedUpsert());
+        assertArrayEquals(updateRequest.fields(), parsedUpdateRequest.fields());
         assertEquals(updateRequest.fetchSource(), parsedUpdateRequest.fetchSource());
 
         BytesReference finalBytes = toXContent(parsedUpdateRequest, xContentType, humanReadable);

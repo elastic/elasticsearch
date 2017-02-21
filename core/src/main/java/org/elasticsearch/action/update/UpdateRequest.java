@@ -878,6 +878,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         if (detectNoop == false) {
             builder.field("detect_noop", detectNoop);
         }
+        if (fields != null) {
+            builder.array("fields", fields);
+        }
         if (fetchSourceContext != null) {
             builder.field("_source", fetchSourceContext);
         }

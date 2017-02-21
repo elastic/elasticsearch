@@ -72,7 +72,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
 
     private final UpdateHelper updateHelper;
-    private final boolean allowIdGeneration;
     private final MappingUpdatedAction mappingUpdatedAction;
 
     @Inject
@@ -83,7 +82,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             indexNameExpressionResolver, BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.BULK);
         this.updateHelper = updateHelper;
-        this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
         this.mappingUpdatedAction = mappingUpdatedAction;
     }
 
@@ -281,7 +279,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 case UPDATED:
                     IndexRequest indexRequest = translate.action();
                     MappingMetaData mappingMd = metaData.mappingOrDefault(indexRequest.type());
-                    indexRequest.process(mappingMd, allowIdGeneration, request.index());
+                    indexRequest.process(mappingMd, request.index());
                     updateOperationResult = executeIndexRequestOnPrimary(indexRequest, primary, mappingUpdatedAction);
                     if (updateOperationResult.hasFailure() == false) {
                         // update the version on request so it will happen on the replicas
@@ -328,7 +326,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         if ((updateRequest.fetchSource() != null && updateRequest.fetchSource().fetchSource()) ||
                             (updateRequest.fields() != null && updateRequest.fields().length > 0)) {
                             Tuple<XContentType, Map<String, Object>> sourceAndContent =
-                                XContentHelper.convertToMap(indexSourceAsBytes, true);
+                                XContentHelper.convertToMap(indexSourceAsBytes, true, updateIndexRequest.getContentType());
                             updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, request.index(),
                                 indexResponse.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
                         }
@@ -371,6 +369,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             BulkItemRequest item = request.items()[i];
             if (item.isIgnoreOnReplica() == false) {
                 DocWriteRequest docWriteRequest = item.request();
+                // ensure request version is updated for replica operation during request execution in the primary
+                assert docWriteRequest.versionType() == docWriteRequest.versionType().versionTypeForReplicationAndRecovery()
+                        : "unexpected version in replica " + docWriteRequest.version();
                 final Engine.Result operationResult;
                 try {
                     switch (docWriteRequest.opType()) {
@@ -427,8 +428,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      */
     public static Engine.IndexResult executeIndexRequestOnReplica(IndexRequest request, IndexShard replica) throws IOException {
         final ShardId shardId = replica.shardId();
-        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, shardId.getIndexName(), request.type(), request.id(), request.source())
-                .routing(request.routing()).parent(request.parent());
+        SourceToParse sourceToParse =
+            SourceToParse.source(SourceToParse.Origin.REPLICA, shardId.getIndexName(), request.type(), request.id(), request.source(),
+                request.getContentType()).routing(request.routing()).parent(request.parent());
 
         final Engine.Index operation;
         try {
@@ -445,8 +447,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     /** Utility method to prepare an index operation on primary shards */
     static Engine.Index prepareIndexOperationOnPrimary(IndexRequest request, IndexShard primary) {
-        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, request.index(), request.type(), request.id(), request.source())
-                .routing(request.routing()).parent(request.parent());
+        SourceToParse sourceToParse =
+            SourceToParse.source(SourceToParse.Origin.PRIMARY, request.index(), request.type(), request.id(), request.source(),
+                request.getContentType()).routing(request.routing()).parent(request.parent());
         return primary.prepareIndexOnPrimary(sourceToParse, request.version(), request.versionType(), request.getAutoGeneratedTimestamp(), request.isRetry());
     }
 

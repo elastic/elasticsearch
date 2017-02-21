@@ -670,7 +670,22 @@ The response looks like:
 
 For libraries that don't accept a request body for non-POST requests,
 you can pass the request body as the `source` query string parameter
-instead.
+instead. When using this method, the `source_content_type` parameter
+should also be passed with a media type value that indicates the format
+of the source, such as `application/json`.
+
+[float]
+=== Content-Type Requirements
+
+The type of the content sent in a request body must be specified using
+the `Content-Type` header. The value of this header must map to one of
+the supported formats that the API supports. Most APIs support JSON,
+YAML, CBOR, and SMILE. The bulk and multi-search APIs support NDJSON,
+JSON and SMILE; other types will result in an error response.
+
+Additionally, when using the `source` query string parameter the
+content type must be specified using the `source_content_type` query
+string parameter.
 
 [[url-access-control]]
 == URL-based access control
@@ -682,7 +697,7 @@ the choice of specifying an index in the URL and on each individual request
 within the request body. This can make URL-based access control challenging.
 
 To prevent the user from overriding the index which has been specified in the
-URL, add this setting to the `config.yml` file:
+URL, add this setting to the `elasticsearch.yml` file:
 
     rest.action.multi.allow_explicit_index: false
 

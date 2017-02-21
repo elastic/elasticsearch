@@ -44,6 +44,6 @@ public abstract  class AbstractAzureFsTestCase extends ESIntegTestCase {
         }
         refresh();
         SearchResponse response = client().prepareSearch("test").get();
-        assertThat(response.getHits().totalHits(), is(nbDocs));
+        assertThat(response.getHits().getTotalHits(), is(nbDocs));
     }
 }

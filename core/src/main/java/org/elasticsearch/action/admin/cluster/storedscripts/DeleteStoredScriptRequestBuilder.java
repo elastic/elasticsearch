@@ -29,13 +29,15 @@ public class DeleteStoredScriptRequestBuilder extends AcknowledgedRequestBuilder
         super(client, action, new DeleteStoredScriptRequest());
     }
 
-    public DeleteStoredScriptRequestBuilder setScriptLang(String scriptLang) {
-        request.scriptLang(scriptLang);
+    public DeleteStoredScriptRequestBuilder setLang(String lang) {
+        request.lang(lang);
+
         return this;
     }
 
     public DeleteStoredScriptRequestBuilder setId(String id) {
         request.id(id);
+
         return this;
     }
 

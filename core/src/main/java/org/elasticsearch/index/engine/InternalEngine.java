@@ -87,7 +87,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 public class InternalEngine extends Engine {
 
@@ -671,7 +670,7 @@ public class InternalEngine extends Engine {
                 throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists in version map (version " + versionValue + ")");
             }
         } else {
-            try (final Searcher searcher = acquireSearcher("assert doc doesn't exist")) {
+            try (Searcher searcher = acquireSearcher("assert doc doesn't exist")) {
                 final long docsWithId = searcher.searcher().count(new TermQuery(index.uid()));
                 if (docsWithId > 0) {
                     throw new AssertionError("doc [" + index.type() + "][" + index.id() + "] exists [" + docsWithId + "] times in index");
@@ -797,7 +796,7 @@ public class InternalEngine extends Engine {
     @Override
     public NoOpResult noOp(final NoOp noOp) {
         NoOpResult noOpResult;
-        try (final ReleasableLock ignored = readLock.acquire()) {
+        try (ReleasableLock ignored = readLock.acquire()) {
             noOpResult = innerNoOp(noOp);
         } catch (final Exception e) {
             noOpResult = new NoOpResult(noOp.seqNo(), e);
@@ -1286,40 +1285,49 @@ public class InternalEngine extends Engine {
 
     private long loadCurrentVersionFromIndex(Term uid) throws IOException {
         assert incrementIndexVersionLookup();
-        try (final Searcher searcher = acquireSearcher("load_version")) {
+        try (Searcher searcher = acquireSearcher("load_version")) {
             return Versions.loadVersion(searcher.reader(), uid);
         }
     }
 
-    // pkg-private for testing
-    IndexWriter createWriter(boolean create) throws IOException {
+    private IndexWriter createWriter(boolean create) throws IOException {
         try {
-            final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
-            iwc.setCommitOnClose(false); // we by default don't commit on close
-            iwc.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
-            iwc.setIndexDeletionPolicy(deletionPolicy);
-            // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
-            boolean verbose = false;
-            try {
-                verbose = Boolean.parseBoolean(System.getProperty("tests.verbose"));
-            } catch (Exception ignore) {
-            }
-            iwc.setInfoStream(verbose ? InfoStream.getDefault() : new LoggerInfoStream(logger));
-            iwc.setMergeScheduler(mergeScheduler);
-            MergePolicy mergePolicy = config().getMergePolicy();
-            // Give us the opportunity to upgrade old segments while performing
-            // background merges
-            mergePolicy = new ElasticsearchMergePolicy(mergePolicy);
-            iwc.setMergePolicy(mergePolicy);
-            iwc.setSimilarity(engineConfig.getSimilarity());
-            iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
-            iwc.setCodec(engineConfig.getCodec());
-            iwc.setUseCompoundFile(true); // always use compound on flush - reduces # of file-handles on refresh
-            return new IndexWriter(store.directory(), iwc);
+            final IndexWriterConfig iwc = getIndexWriterConfig(create);
+            return createWriter(store.directory(), iwc);
         } catch (LockObtainFailedException ex) {
             logger.warn("could not lock IndexWriter", ex);
             throw ex;
         }
+    }
+
+    // pkg-private for testing
+    IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
+        return new IndexWriter(directory, iwc);
+    }
+
+    private IndexWriterConfig getIndexWriterConfig(boolean create) {
+        final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
+        iwc.setCommitOnClose(false); // we by default don't commit on close
+        iwc.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
+        iwc.setIndexDeletionPolicy(deletionPolicy);
+        // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
+        boolean verbose = false;
+        try {
+            verbose = Boolean.parseBoolean(System.getProperty("tests.verbose"));
+        } catch (Exception ignore) {
+        }
+        iwc.setInfoStream(verbose ? InfoStream.getDefault() : new LoggerInfoStream(logger));
+        iwc.setMergeScheduler(mergeScheduler);
+        MergePolicy mergePolicy = config().getMergePolicy();
+        // Give us the opportunity to upgrade old segments while performing
+        // background merges
+        mergePolicy = new ElasticsearchMergePolicy(mergePolicy);
+        iwc.setMergePolicy(mergePolicy);
+        iwc.setSimilarity(engineConfig.getSimilarity());
+        iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
+        iwc.setCodec(engineConfig.getCodec());
+        iwc.setUseCompoundFile(true); // always use compound on flush - reduces # of file-handles on refresh
+        return iwc;
     }
 
     /** Extended SearcherFactory that warms the segments if needed when acquiring a new searcher */

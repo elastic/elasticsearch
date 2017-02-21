@@ -47,7 +47,7 @@ public interface ActionFilter {
      * filter chain. This base class should serve any action filter implementations that doesn't require
      * to apply async filtering logic.
      */
-    public abstract static class Simple extends AbstractComponent implements ActionFilter {
+    abstract class Simple extends AbstractComponent implements ActionFilter {
 
         protected Simple(Settings settings) {
             super(settings);

@@ -43,7 +43,7 @@ class AssistedConstructor<T> {
     private final List<Parameter> allParameters;
 
     @SuppressWarnings("unchecked")
-    public AssistedConstructor(Constructor<T> constructor, List<TypeLiteral<?>> parameterTypes) {
+    AssistedConstructor(Constructor<T> constructor, List<TypeLiteral<?>> parameterTypes) {
         this.constructor = constructor;
 
         Annotation[][] annotations = constructor.getParameterAnnotations();

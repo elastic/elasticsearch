@@ -75,7 +75,7 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
             try {
                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
                 builder.map(definition);
-                this.definition = Settings.builder().loadFromSource(builder.string()).build();
+                this.definition = Settings.builder().loadFromSource(builder.string(), builder.contentType()).build();
             } catch (IOException e) {
                 throw new IllegalArgumentException("Failed to parse [" + definition + "]", e);
             }

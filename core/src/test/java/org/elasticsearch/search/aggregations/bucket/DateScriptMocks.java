@@ -84,7 +84,7 @@ public class DateScriptMocks {
 
         @Override
         public ExecutableScript newScript(Map<String, Object> params) {
-            return new PlusOneMonthScript((String) params.get("fieldname"));
+            return new PlusOneMonthScript();
         }
 
         @Override
@@ -104,13 +104,8 @@ public class DateScriptMocks {
     public static class PlusOneMonthScript extends AbstractSearchScript {
 
         public static final String NAME = "date_plus_1_month";
-        private String fieldname;
 
         private Map<String, Object> vars = new HashMap<>();
-
-        public PlusOneMonthScript(String fieldname) {
-            this.fieldname  = fieldname;
-        }
 
         @Override
         public void setNextVar(String name, Object value) {

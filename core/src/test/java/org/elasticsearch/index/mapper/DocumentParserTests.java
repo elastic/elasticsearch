@@ -38,6 +38,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.Plugin;
@@ -47,6 +48,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -1261,5 +1263,37 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         Mapper dateMapper = update.root().getMapper("foo");
         assertNotNull(dateMapper);
         assertThat(dateMapper, instanceOf(DateFieldMapper.class));
+    }
+
+    public void testDynamicFieldsStartingAndEndingWithDot() throws Exception {
+        BytesReference bytes = XContentFactory.jsonBuilder().startObject().startArray("top.")
+                .startObject().startArray("foo.")
+                .startObject()
+                .field("thing", "bah")
+                .endObject().endArray()
+                .endObject().endArray()
+                .endObject().bytes();
+
+        client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get();
+
+        bytes = XContentFactory.jsonBuilder().startObject().startArray("top.")
+                .startObject().startArray("foo.")
+                .startObject()
+                .startObject("bar.")
+                .startObject("aoeu")
+                .field("a", 1).field("b", 2)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endArray().endObject().endArray()
+                .endObject().bytes();
+
+        try {
+            client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get();
+            fail("should have failed to dynamically introduce a double-dot field");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(),
+                    containsString("object field starting or ending with a [.] makes object resolution ambiguous: [top..foo..bar]"));
+        }
     }
 }

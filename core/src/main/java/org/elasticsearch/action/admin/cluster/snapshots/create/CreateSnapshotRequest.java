@@ -288,15 +288,16 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     }
 
     /**
-     * Sets repository-specific snapshot settings in JSON, YAML or properties format
+     * Sets repository-specific snapshot settings in JSON or YAML format
      * <p>
      * See repository documentation for more information.
      *
      * @param source repository-specific snapshot settings
+     * @param xContentType the content type of the source
      * @return this request
      */
-    public CreateSnapshotRequest settings(String source) {
-        this.settings = Settings.builder().loadFromSource(source).build();
+    public CreateSnapshotRequest settings(String source, XContentType xContentType) {
+        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 
@@ -312,7 +313,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            settings(builder.string());
+            settings(builder.string(), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }

@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Result of the {@link TermsAggregator} when the field is some kind of decimal number like a float, double, or distance.
@@ -40,7 +41,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
     static class Bucket extends InternalTerms.Bucket<Bucket> {
         private final double term;
 
-        public Bucket(double term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
+        Bucket(double term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
                 DocValueFormat format) {
             super(docCount, aggregations, showDocCountError, docCountError, format);
             this.term = term;
@@ -49,7 +50,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         /**
          * Read from a stream.
          */
-        public Bucket(StreamInput in, DocValueFormat format, boolean showDocCountError) throws IOException {
+        Bucket(StreamInput in, DocValueFormat format, boolean showDocCountError) throws IOException {
             super(in, format, showDocCountError);
             term = in.readDouble();
         }
@@ -98,6 +99,16 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return super.equals(obj) && Objects.equals(term, ((Bucket) obj).term);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), term);
         }
     }
 

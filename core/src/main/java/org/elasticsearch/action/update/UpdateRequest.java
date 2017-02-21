@@ -29,8 +29,6 @@ import org.elasticsearch.action.support.single.instance.InstanceShardOperationRe
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -52,8 +50,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest> {
-    private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(Loggers.getLogger(UpdateRequest.class));
 
     private String type;
     private String id;
@@ -427,7 +423,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
-     * Explicitely set the fetch source context for this request
+     * Explicitly set the fetch source context for this request
      */
     public UpdateRequest fetchSource(FetchSourceContext context) {
         this.fetchSourceContext = context;
@@ -560,24 +556,24 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest doc(String source) {
-        safeDoc().source(source);
+    public UpdateRequest doc(String source, XContentType xContentType) {
+        safeDoc().source(source, xContentType);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest doc(byte[] source) {
-        safeDoc().source(source);
+    public UpdateRequest doc(byte[] source, XContentType xContentType) {
+        safeDoc().source(source, xContentType);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest doc(byte[] source, int offset, int length) {
-        safeDoc().source(source, offset, length);
+    public UpdateRequest doc(byte[] source, int offset, int length, XContentType xContentType) {
+        safeDoc().source(source, offset, length, xContentType);
         return this;
     }
 
@@ -591,10 +587,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
-     * Sets the doc to use for updates when a script is not specified.
+     * Sets the doc to use for updates when a script is not specified, the doc provided
+     * is a field and value pairs.
      */
-    public UpdateRequest doc(String field, Object value) {
-        safeDoc().source(field, value);
+    public UpdateRequest doc(XContentType xContentType, Object... source) {
+        safeDoc().source(xContentType, source);
         return this;
     }
 
@@ -645,24 +642,24 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest upsert(String source) {
-        safeUpsertRequest().source(source);
+    public UpdateRequest upsert(String source, XContentType xContentType) {
+        safeUpsertRequest().source(source, xContentType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest upsert(byte[] source) {
-        safeUpsertRequest().source(source);
+    public UpdateRequest upsert(byte[] source, XContentType xContentType) {
+        safeUpsertRequest().source(source, xContentType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest upsert(byte[] source, int offset, int length) {
-        safeUpsertRequest().source(source, offset, length);
+    public UpdateRequest upsert(byte[] source, int offset, int length, XContentType xContentType) {
+        safeUpsertRequest().source(source, offset, length, xContentType);
         return this;
     }
 
@@ -672,6 +669,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     public UpdateRequest upsert(Object... source) {
         safeUpsertRequest().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists. The doc
+     * includes field and value pairs.
+     */
+    public UpdateRequest upsert(XContentType xContentType, Object... source) {
+        safeUpsertRequest().source(xContentType, source);
         return this;
     }
 

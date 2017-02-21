@@ -226,7 +226,7 @@ public class CollectionUtils {
         private final List<T> in;
         private final int distance;
 
-        public RotatedList(List<T> list, int distance) {
+        RotatedList(List<T> list, int distance) {
             if (distance < 0 || distance >= list.size()) {
                 throw new IllegalArgumentException();
             }

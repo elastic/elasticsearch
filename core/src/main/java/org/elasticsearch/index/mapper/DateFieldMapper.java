@@ -28,6 +28,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.fieldstats.FieldStats;
@@ -285,7 +286,12 @@ public class DateFieldMapper extends FieldMapper {
                     --u;
                 }
             }
-            return LongPoint.newRangeQuery(name(), l, u);
+            Query query = LongPoint.newRangeQuery(name(), l, u);
+            if (hasDocValues()) {
+                Query dvQuery = SortedNumericDocValuesField.newRangeQuery(name(), l, u);
+                query = new IndexOrDocValuesQuery(query, dvQuery);
+            }
+            return query;
         }
 
         public long parseToMilliseconds(Object value, boolean roundUp,
@@ -376,7 +382,7 @@ public class DateFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
+            return new DocValuesIndexFieldData.Builder().numericType(NumericType.DATE);
         }
 
         @Override

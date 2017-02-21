@@ -102,7 +102,7 @@ public class Retry {
         private volatile BulkRequest currentBulkRequest;
         private volatile ScheduledFuture<?> scheduledRequestFuture;
 
-        public AbstractRetryHandler(Class<? extends Throwable> retryOnThrowable, BackoffPolicy backoffPolicy, Client client, ActionListener<BulkResponse> listener) {
+        AbstractRetryHandler(Class<? extends Throwable> retryOnThrowable, BackoffPolicy backoffPolicy, Client client, ActionListener<BulkResponse> listener) {
             this.retryOnThrowable = retryOnThrowable;
             this.backoff = backoffPolicy.iterator();
             this.client = client;
@@ -213,7 +213,7 @@ public class Retry {
     }
 
     static class AsyncRetryHandler extends AbstractRetryHandler {
-        public AsyncRetryHandler(Class<? extends Throwable> retryOnThrowable, BackoffPolicy backoffPolicy, Client client, ActionListener<BulkResponse> listener) {
+        AsyncRetryHandler(Class<? extends Throwable> retryOnThrowable, BackoffPolicy backoffPolicy, Client client, ActionListener<BulkResponse> listener) {
             super(retryOnThrowable, backoffPolicy, client, listener);
         }
     }
@@ -226,7 +226,7 @@ public class Retry {
             return new SyncRetryHandler(retryOnThrowable, backoffPolicy, client, actionFuture);
         }
 
-        public SyncRetryHandler(Class<? extends Throwable> retryOnThrowable, BackoffPolicy backoffPolicy, Client client, PlainActionFuture<BulkResponse> actionFuture) {
+        SyncRetryHandler(Class<? extends Throwable> retryOnThrowable, BackoffPolicy backoffPolicy, Client client, PlainActionFuture<BulkResponse> actionFuture) {
             super(retryOnThrowable, backoffPolicy, client, actionFuture);
             this.actionFuture = actionFuture;
         }

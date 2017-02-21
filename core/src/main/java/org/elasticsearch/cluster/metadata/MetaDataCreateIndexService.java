@@ -265,11 +265,13 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             for (IndexTemplateMetaData template : templates) {
                                 templateNames.add(template.getName());
                                 for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
+                                    String mappingString = cursor.value.string();
                                     if (mappings.containsKey(cursor.key)) {
                                         XContentHelper.mergeDefaults(mappings.get(cursor.key),
-                                                MapperService.parseMapping(xContentRegistry, cursor.value.string()));
+                                                MapperService.parseMapping(xContentRegistry, mappingString));
                                     } else {
-                                        mappings.put(cursor.key, MapperService.parseMapping(xContentRegistry, cursor.value.string()));
+                                        mappings.put(cursor.key,
+                                            MapperService.parseMapping(xContentRegistry, mappingString));
                                     }
                                 }
                                 // handle custom

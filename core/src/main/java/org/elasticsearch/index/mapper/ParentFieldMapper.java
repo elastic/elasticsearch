@@ -152,7 +152,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
         final String documentType;
 
-        public ParentFieldType() {
+        ParentFieldType() {
             documentType = null;
             setEagerGlobalOrdinals(true);
         }

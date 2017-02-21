@@ -56,7 +56,7 @@ abstract class CollapsingDocValuesSource<T> {
         private NumericDocValues values;
         private Bits docsWithField;
 
-        public Numeric(String field) throws IOException {
+        Numeric(String field) throws IOException {
             super(field);
         }
 
@@ -122,7 +122,7 @@ abstract class CollapsingDocValuesSource<T> {
         private Bits docsWithField;
         private SortedDocValues values;
 
-        public Keyword(String field) throws IOException {
+        Keyword(String field) throws IOException {
             super(field);
         }
 

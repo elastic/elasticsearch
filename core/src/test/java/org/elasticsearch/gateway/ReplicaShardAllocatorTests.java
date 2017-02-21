@@ -339,7 +339,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         private Map<DiscoveryNode, TransportNodesListShardStoreMetaData.StoreFilesMetaData> data = null;
         private AtomicBoolean fetchDataCalled = new AtomicBoolean(false);
 
-        public TestAllocator() {
+        TestAllocator() {
             super(Settings.EMPTY);
         }
 

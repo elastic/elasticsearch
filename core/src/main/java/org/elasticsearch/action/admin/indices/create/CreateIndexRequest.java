@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -43,10 +44,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -169,10 +171,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     /**
-     * The settings to create the index with (either json/yaml/properties format)
+     * The settings to create the index with (either json or yaml format)
      */
-    public CreateIndexRequest settings(String source) {
-        this.settings = Settings.builder().loadFromSource(source).build();
+    public CreateIndexRequest settings(String source, XContentType xContentType) {
+        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 
@@ -181,7 +183,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public CreateIndexRequest settings(XContentBuilder builder) {
         try {
-            settings(builder.string());
+            settings(builder.string(), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate json settings from builder", e);
         }
@@ -196,7 +198,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            settings(builder.string());
+            settings(builder.string(), XContentType.JSON);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -208,13 +210,30 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      *
      * @param type   The mapping type
      * @param source The mapping source
+     * @param xContentType The content type of the source
      */
-    public CreateIndexRequest mapping(String type, String source) {
+    public CreateIndexRequest mapping(String type, String source, XContentType xContentType) {
+        return mapping(type, new BytesArray(source), xContentType);
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param type   The mapping type
+     * @param source The mapping source
+     * @param xContentType the content type of the mapping source
+     */
+    private CreateIndexRequest mapping(String type, BytesReference source, XContentType xContentType) {
         if (mappings.containsKey(type)) {
             throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
         }
-        mappings.put(type, source);
-        return this;
+        Objects.requireNonNull(xContentType);
+        try {
+            mappings.put(type, XContentHelper.convertToJson(source, false, false, xContentType));
+            return this;
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to convert to json", e);
+        }
     }
 
     /**
@@ -232,15 +251,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param source The mapping source
      */
     public CreateIndexRequest mapping(String type, XContentBuilder source) {
-        if (mappings.containsKey(type)) {
-            throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
-        }
-        try {
-            mappings.put(type, source.string());
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to build json for mapping request", e);
-        }
-        return this;
+        return mapping(type, source.bytes(), source.contentType());
     }
 
     /**
@@ -261,7 +272,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            return mapping(type, builder.string());
+            return mapping(type, builder);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -332,41 +343,37 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * Sets the settings and mappings as a single source.
      */
-    public CreateIndexRequest source(String source) {
-        return source(source.getBytes(StandardCharsets.UTF_8));
+    public CreateIndexRequest source(String source, XContentType xContentType) {
+        return source(new BytesArray(source), xContentType);
     }
 
     /**
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequest source(XContentBuilder source) {
-        return source(source.bytes());
+        return source(source.bytes(), source.contentType());
     }
 
     /**
      * Sets the settings and mappings as a single source.
      */
-    public CreateIndexRequest source(byte[] source) {
-        return source(source, 0, source.length);
+    public CreateIndexRequest source(byte[] source, XContentType xContentType) {
+        return source(source, 0, source.length, xContentType);
     }
 
     /**
      * Sets the settings and mappings as a single source.
      */
-    public CreateIndexRequest source(byte[] source, int offset, int length) {
-        return source(new BytesArray(source, offset, length));
+    public CreateIndexRequest source(byte[] source, int offset, int length, XContentType xContentType) {
+        return source(new BytesArray(source, offset, length), xContentType);
     }
 
     /**
      * Sets the settings and mappings as a single source.
      */
-    public CreateIndexRequest source(BytesReference source) {
-        XContentType xContentType = XContentFactory.xContentType(source);
-        if (xContentType != null) {
-            source(XContentHelper.convertToMap(source, false).v2());
-        } else {
-            settings(source.utf8ToString());
-        }
+    public CreateIndexRequest source(BytesReference source, XContentType xContentType) {
+        Objects.requireNonNull(xContentType);
+        source(XContentHelper.convertToMap(source, false, xContentType).v2());
         return this;
     }
 
@@ -483,7 +490,13 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         readTimeout(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            mappings.put(in.readString(), in.readString());
+            final String type = in.readString();
+            String source = in.readString();
+            if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO change to 5.3.0 after backport
+                // we do not know the content type that comes from earlier versions so we autodetect and convert
+                source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
+            }
+            mappings.put(type, source);
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {

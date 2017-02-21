@@ -580,15 +580,19 @@ public class IndexLookupIT extends ESIntegTestCase {
                     .addScriptField("tvtest", script)
                     .get();
 
-            assertThat(numPrimaries, greaterThan(1));
+            // (partial) success when at least one shard succeeds
+            assertThat(numPrimaries, greaterThan(response.getShardFailures().length));
             assertThat(response.getFailedShards(), greaterThanOrEqualTo(1));
 
             for (ShardSearchFailure failure : response.getShardFailures()) {
                 assertThat(failure.reason(), containsString(expectedError));
             }
         } catch (SearchPhaseExecutionException e) {
-            assertThat(numPrimaries, equalTo(1));
-            assertThat(e.toString(), containsString(expectedError));
+            // Exception thrown when *all* shards fail
+            assertThat(numPrimaries, equalTo(e.shardFailures().length));
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertThat(failure.reason(), containsString(expectedError));
+            }
         }
 
         // Should not throw an exception this way round
@@ -606,7 +610,7 @@ public class IndexLookupIT extends ESIntegTestCase {
         assertHitCount(sr, numExpectedDocs);
         for (SearchHit hit : sr.getHits().getHits()) {
             assertThat("for doc " + hit.getId(), ((Float) expectedScore.get(hit.getId())).doubleValue(),
-                    Matchers.closeTo(hit.score(), 1.e-4));
+                    Matchers.closeTo(hit.getScore(), 1.e-4));
         }
     }
 
@@ -967,7 +971,7 @@ public class IndexLookupIT extends ESIntegTestCase {
         try {
             SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
                     .execute().actionGet();
-            assertThat(sr.getHits().hits().length, equalTo(0));
+            assertThat(sr.getHits().getHits().length, equalTo(0));
             ShardSearchFailure[] shardFails = sr.getShardFailures();
             for (ShardSearchFailure fail : shardFails) {
                 assertThat(fail.reason().indexOf("Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitly."),
@@ -992,7 +996,7 @@ public class IndexLookupIT extends ESIntegTestCase {
             Object expectedResult = expectedFieldVals.get(hit.getId());
             assertThat("for doc " + hit.getId(), result, equalTo(expectedResult));
             assertThat("for doc " + hit.getId(), ((Float) expectedScore.get(hit.getId())).doubleValue(),
-                    Matchers.closeTo(hit.score(), 1.e-4));
+                    Matchers.closeTo(hit.getScore(), 1.e-4));
         }
     }
 

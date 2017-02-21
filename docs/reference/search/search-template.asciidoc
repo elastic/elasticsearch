@@ -6,20 +6,21 @@ before they are executed and fill existing templates with template parameters.
 
 [source,js]
 ------------------------------------------
-GET /_search/template
+GET _search/template
 {
     "inline" : {
       "query": { "match" : { "{{my_field}}" : "{{my_value}}" } },
       "size" : "{{my_size}}"
     },
     "params" : {
-        "my_field" : "foo",
-        "my_value" : "bar",
+        "my_field" : "message",
+        "my_value" : "some message",
         "my_size" : 5
     }
 }
 ------------------------------------------
-
+// CONSOLE
+// TEST[setup:twitter]
 
 For more information on how Mustache templating and what kind of templating you
 can do with it check out the http://mustache.github.io/mustache.5.html[online
@@ -38,12 +39,12 @@ disable scripts per language, source and operation as described in
 
 [source,js]
 ------------------------------------------
-GET /_search/template
+GET _search/template
 {
     "inline": {
         "query": {
-            "match": {
-                "title": "{{query_string}}"
+            "term": {
+                "message": "{{query_string}}"
             }
         }
     },
@@ -52,6 +53,8 @@ GET /_search/template
     }
 }
 ------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 [float]
 ===== Converting parameters to JSON
@@ -61,14 +64,17 @@ like maps and array to their JSON representation:
 
 [source,js]
 ------------------------------------------
-GET /_search/template
+GET _search/template
 {
-  "inline": "{ \"query\": { \"terms\": { \"status\": {{#toJson}}status{{/toJson}} }}}",
+  "inline": "{ \"query\": { \"terms\": {{#toJson}}statuses{{/toJson}} }}",
   "params": {
-    "status": [ "pending", "published" ]
+    "statuses" : {
+        "status": [ "pending", "published" ]
+    }
   }
 }
 ------------------------------------------
+// CONSOLE
 
 which is rendered as:
 
@@ -85,21 +91,24 @@ which is rendered as:
   }
 }
 ------------------------------------------
+// NOTCONSOLE
 
 A more complex example substitutes an array of JSON objects:
 
 [source,js]
 ------------------------------------------
+GET _search/template
 {
     "inline": "{\"query\":{\"bool\":{\"must\": {{#toJson}}clauses{{/toJson}} }}}",
     "params": {
         "clauses": [
-            { "term": "foo" },
-            { "term": "bar" }
+            { "term": { "user" : "foo" } },
+            { "term": { "user" : "bar" } }
         ]
    }
 }
 ------------------------------------------
+// CONSOLE
 
 which is rendered as:
 
@@ -110,17 +119,21 @@ which is rendered as:
       "bool" : {
         "must" : [
           {
-            "term" : "foo"
+            "term" : {
+                "user" : "foo"
+            }
           },
           {
-            "term" : "bar"
+            "term" : {
+                "user" : "bar"
+            }
           }
         ]
       }
     }
 }
 ------------------------------------------
-
+// NOTCONSOLE
 
 [float]
 ===== Concatenating array of values
@@ -130,7 +143,7 @@ values of an array as a comma delimited string:
 
 [source,js]
 ------------------------------------------
-GET /_search/template
+GET _search/template
 {
   "inline": {
     "query": {
@@ -144,6 +157,7 @@ GET /_search/template
   }
 }
 ------------------------------------------
+// CONSOLE
 
 which is rendered as:
 
@@ -157,12 +171,13 @@ which is rendered as:
     }
 }
 ------------------------------------------
+// NOTCONSOLE
 
 The function also accepts a custom delimiter:
 
 [source,js]
 ------------------------------------------
-GET /_search/template
+GET _search/template
 {
   "inline": {
     "query": {
@@ -184,6 +199,7 @@ GET /_search/template
   }
 }
 ------------------------------------------
+// CONSOLE
 
 which is rendered as:
 
@@ -202,7 +218,7 @@ which is rendered as:
 }
 
 ------------------------------------------
-
+// NOTCONSOLE
 
 [float]
 ===== Default values
@@ -225,6 +241,7 @@ A default value is written as `{{var}}{{^var}}default{{/var}}` for instance:
   "params": { ... }
 }
 ------------------------------------------
+// NOTCONSOLE
 
 When `params` is `{ "start": 10, "end": 15 }` this query would be rendered as:
 
@@ -239,6 +256,7 @@ When `params` is `{ "start": 10, "end": 15 }` this query would be rendered as:
   }
 }
 ------------------------------------------
+// NOTCONSOLE
 
 But when `params` is `{ "start": 10 }` this query would use the default value
 for `end`:
@@ -254,7 +272,7 @@ for `end`:
     }
 }
 ------------------------------------------
-
+// NOTCONSOLE
 
 [float]
 ===== Conditional clauses
@@ -277,6 +295,7 @@ The `params` would look like:
     }
 }
 ------------------------------------------
+// NOTCONSOLE
 <1> All three of these elements are optional.
 
 We could write the query as:
@@ -310,6 +329,7 @@ We could write the query as:
   }
 }
 ------------------------------------------
+// NOTCONSOLE
 <1> Fill in the value of param `text`
 <2> Include the `range` filter only if `line_no` is specified
 <3> Include the `gte` clause only if `line_no.start` is specified
@@ -330,7 +350,7 @@ via the REST API, should be written as a string:
 --------------------
 "inline": "{\"query\":{\"bool\":{\"must\":{\"match\":{\"line\":\"{{text}}\"}},\"filter\":{{{#line_no}}\"range\":{\"line_no\":{{{#start}}\"gte\":\"{{start}}\"{{#end}},{{/end}}{{/start}}{{#end}}\"lte\":\"{{end}}\"{{/end}}}}{{/line_no}}}}}}"
 --------------------
-
+// NOTCONSOLE
 ==================================
 
 
@@ -344,7 +364,7 @@ As an example, it is useful to encode a URL:
 
 [source,js]
 ------------------------------------------
-GET /_render/template
+GET _render/template
 {
     "inline" : {
         "query" : {
@@ -388,7 +408,7 @@ In order to execute the stored template, reference it by it's name under the `te
 
 [source,js]
 ------------------------------------------
-GET /_search/template
+GET _search/template
 {
     "file": "storedTemplate", <1>
     "params": {
@@ -396,6 +416,8 @@ GET /_search/template
     }
 }
 ------------------------------------------
+// CONSOLE
+// TEST[catch:request]
 
 <1> Name of the query template in `config/scripts/`, i.e., `storedTemplate.mustache`.
 
@@ -404,7 +426,7 @@ There are REST APIs to manage these indexed templates.
 
 [source,js]
 ------------------------------------------
-POST /_search/template/<templatename>
+POST _search/template/<templatename>
 {
     "template": {
         "query": {
@@ -415,49 +437,84 @@ POST /_search/template/<templatename>
     }
 }
 ------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+//////////////////////////
+
+We want to be sure that the template has been created,
+because we'll use it later.
+
+[source,js]
+--------------------------------------------------
+{
+    "acknowledged" : true
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+//////////////////////////
 
 This template can be retrieved by
 
 [source,js]
 ------------------------------------------
-GET /_search/template/<templatename>
+GET _search/template/<templatename>
 ------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 which is rendered as:
 
 [source,js]
 ------------------------------------------
 {
-    "template": {
-        "query": {
-            "match": {
-                "title": "{{query_string}}"
-            }
-        }
-    }
+    "_id" : "<templatename>",
+    "lang" : "mustache",
+    "found" : true,
+    "template" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}"
 }
 ------------------------------------------
+// TESTRESPONSE
 
 This template can be deleted by
 
 [source,js]
 ------------------------------------------
-DELETE /_search/template/<templatename>
+DELETE _search/template/<templatename>
 ------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+//////////////////////////
+
+We want to be sure that the template has been created,
+because we'll use it later.
+
+[source,js]
+--------------------------------------------------
+{
+    "acknowledged" : true
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+//////////////////////////
 
 To use an indexed template at search time use:
 
-
 [source,js]
 ------------------------------------------
-GET /_search/template
+GET _search/template
 {
-    "id": "templateName", <1>
+    "id": "<templateName>", <1>
     "params": {
         "query_string": "search for these words"
     }
 }
 ------------------------------------------
+// CONSOLE
+// TEST[catch:missing]
 <1> Name of the query template stored in the `.scripts` index.
 
 [float]
@@ -467,24 +524,17 @@ A template can be rendered in a response with given parameters using
 
 [source,js]
 ------------------------------------------
-GET /_render/template
+GET _render/template
 {
-  "inline": {
-    "query": {
-      "terms": {
-        "status": [
-          "{{#status}}",
-          "{{.}}",
-          "{{/status}}"
-        ]
-      }
-    }
-  },
+  "inline": "{ \"query\": { \"terms\": {{#toJson}}statuses{{/toJson}} }}",
   "params": {
-    "status": [ "pending", "published" ]
+    "statuses" : {
+        "status": [ "pending", "published" ]
+    }
   }
 }
 ------------------------------------------
+// CONSOLE
 
 This call will return the rendered template:
 
@@ -503,6 +553,7 @@ This call will return the rendered template:
   }
 }
 ------------------------------------------
+// TESTRESPONSE
 <1> `status` array has been populated with values from the `params` object.
 
 File and indexed templates can also be rendered by replacing `inline` with
@@ -510,7 +561,7 @@ File and indexed templates can also be rendered by replacing `inline` with
 
 [source,js]
 ------------------------------------------
-GET /_render/template
+GET _render/template
 {
   "file": "my_template",
   "params": {
@@ -518,18 +569,21 @@ GET /_render/template
   }
 }
 ------------------------------------------
+// CONSOLE
+// TEST[catch:request]
 
 Pre-registered templates can also be rendered using
 
 [source,js]
 ------------------------------------------
-GET /_render/template/<template_name>
+GET _render/template/<template_name>
 {
   "params": {
     "..."
   }
 }
 ------------------------------------------
+// NOTCONSOLE
 
 [float]
 ===== Explain
@@ -538,7 +592,7 @@ You can use `explain` parameter when running a template:
 
 [source,js]
 ------------------------------------------
-GET /_search/template
+GET _search/template
 {
   "file": "my_template",
   "params": {
@@ -547,7 +601,8 @@ GET /_search/template
   "explain": true
 }
 ------------------------------------------
-
+// CONSOLE
+// TEST[catch:request]
 
 [float]
 ===== Profiling
@@ -556,7 +611,7 @@ You can use `profile` parameter when running a template:
 
 [source,js]
 ------------------------------------------
-GET /_search/template
+GET _search/template
 {
   "file": "my_template",
   "params": {
@@ -565,7 +620,8 @@ GET /_search/template
   "profile": true
 }
 ------------------------------------------
-
+// CONSOLE
+// TEST[catch:request]
 
 [[multi-search-template]]
 == Multi Search Template
@@ -583,6 +639,7 @@ body\n
 header\n
 body\n
 --------------------------------------------------
+// NOTCONSOLE
 
 The header part supports the same `index`, `types`, `search_type`,
 `preference`, and `routing` options as the usual Multi Search API.
@@ -602,8 +659,10 @@ $ cat requests
 {"types": "users"}
 {"file": "template_2", "params": {"field_name": "fullname", "field_value": "john smith" }} <3>
 
-$ curl -XGET localhost:9200/_msearch/template --data-binary "@requests"; echo
+$ curl -H "Content-Type: application/x-ndjson" -XGET localhost:9200/_msearch/template --data-binary "@requests"; echo
 --------------------------------------------------
+// NOTCONSOLE
+// Not converting to console because this shows how curl works
 <1> Inline search template request
 
 <2> Search template request based on a stored template

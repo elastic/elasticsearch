@@ -30,6 +30,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
@@ -125,6 +126,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             validateSpec(restSpec);
             List<HttpHost> hosts = getClusterHosts();
             RestClient restClient = client();
+            Version infoVersion = readVersionsFromInfo(restClient, hosts.size());
             Version esVersion;
             try {
                 Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(restClient);
@@ -135,13 +137,14 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             } catch (ResponseException ex) {
                 if (ex.getResponse().getStatusLine().getStatusCode() == 403) {
                     logger.warn("Fallback to simple info '/' request, _cat/nodes is not authorized");
-                    esVersion = readVersionsFromInfo(restClient, hosts.size());
+                    esVersion = infoVersion;
                     logger.info("initializing yaml client, minimum es version: [{}] hosts: {}", esVersion, hosts);
                 } else {
                     throw ex;
                 }
             }
-            ClientYamlTestClient clientYamlTestClient = new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
+            ClientYamlTestClient clientYamlTestClient =
+                new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient);
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient);
             String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
@@ -247,7 +250,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 // its checkWritable was incorrect and it won't work without write permissions.
                 // if we add the permission, it will open jars r/w, which is too scary! so copy to a safe r-w location.
                 Path tmp = Files.createTempFile(null, ".jar");
-                try (InputStream in = codeLocation.openStream()) {
+                try (InputStream in = FileSystemUtils.openFileURLStream(codeLocation)) {
                     Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
                 }
                 return FileSystems.newFileSystem(new URI("jar:" + tmp.toUri()), Collections.emptyMap());

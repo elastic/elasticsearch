@@ -21,16 +21,19 @@ package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.GraphQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 
@@ -38,6 +41,29 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 public class Queries {
+
+    private static final Automaton NON_NESTED_TYPE_AUTOMATON;
+    static {
+        Automaton nestedTypeAutomaton = Operations.concatenate(
+                Automata.makeString("__"),
+                Automata.makeAnyString());
+        NON_NESTED_TYPE_AUTOMATON = Operations.complement(nestedTypeAutomaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+    }
+
+    // We use a custom class rather than AutomatonQuery directly in order to
+    // have a better toString
+    private static class NonNestedQuery extends AutomatonQuery {
+
+        NonNestedQuery() {
+            super(new Term(TypeFieldMapper.NAME), NON_NESTED_TYPE_AUTOMATON);
+        }
+
+        @Override
+        public String toString(String field) {
+            return "_type:[^_].*";
+        }
+
+    }
 
     public static Query newMatchAllQuery() {
         return new MatchAllDocsQuery();
@@ -53,7 +79,9 @@ public class Queries {
     }
 
     public static Query newNonNestedFilter() {
-        return not(newNestedFilter());
+        // we use this automaton query rather than a negation of newNestedFilter
+        // since purely negative queries against high-cardinality clauses are costly
+        return new NonNestedQuery();
     }
 
     public static BooleanQuery filtered(@Nullable Query query, @Nullable Query filter) {
@@ -149,18 +177,7 @@ public class Queries {
             return applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         } else if (query instanceof ExtendedCommonTermsQuery) {
             ((ExtendedCommonTermsQuery)query).setLowFreqMinimumNumberShouldMatch(minimumShouldMatch);
-        } else if (query instanceof GraphQuery && ((GraphQuery) query).hasBoolean()) {
-            // we have a graph query that has at least one boolean sub-query
-            // re-build and set minimum should match value on all boolean queries
-            List<Query> oldQueries = ((GraphQuery) query).getQueries();
-            Query[] queries = new Query[oldQueries.size()];
-            for (int i = 0; i < queries.length; i++) {
-                queries[i] = maybeApplyMinimumShouldMatch(oldQueries.get(i), minimumShouldMatch);
-            }
-
-            return new GraphQuery(queries);
         }
-
         return query;
     }
 

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
@@ -44,6 +45,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.Transport;
@@ -148,7 +150,9 @@ public class UnicastZenPingTests extends ESTestCase {
             networkService,
             v) {
             @Override
-            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) {
+            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+                throws ConnectTransportException {
                 throw new AssertionError("zen pings should never connect to node (got [" + node + "])");
             }
         };
@@ -773,7 +777,7 @@ public class UnicastZenPingTests extends ESTestCase {
         public final DiscoveryNode node;
         public final ConcurrentMap<TransportAddress, AtomicInteger> counters;
 
-        public NetworkHandle(
+        NetworkHandle(
             final TransportAddress address,
             final TransportService transportService,
             final DiscoveryNode discoveryNode,
@@ -787,7 +791,7 @@ public class UnicastZenPingTests extends ESTestCase {
 
     private static class TestUnicastZenPing extends UnicastZenPing {
 
-        public TestUnicastZenPing(Settings settings, ThreadPool threadPool, NetworkHandle networkHandle,
+        TestUnicastZenPing(Settings settings, ThreadPool threadPool, NetworkHandle networkHandle,
                                   UnicastHostsProvider unicastHostsProvider) {
             super(Settings.builder().put("node.name", networkHandle.node.getName()).put(settings).build(),
                 threadPool, networkHandle.transportService, unicastHostsProvider);

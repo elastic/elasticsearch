@@ -32,7 +32,6 @@ import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
@@ -87,21 +86,18 @@ public final class AllTermQuery extends Query {
         if (rewritten != this) {
             return rewritten;
         }
-        boolean fieldExists = false;
         boolean hasPayloads = false;
         for (LeafReaderContext context : reader.leaves()) {
             final Terms terms = context.reader().terms(term.field());
             if (terms != null) {
-                fieldExists = true;
                 if (terms.hasPayloads()) {
                     hasPayloads = true;
                     break;
                 }
             }
         }
-        if (fieldExists == false) {
-            return new MatchNoDocsQuery();
-        }
+        // if the terms does not exist we could return a MatchNoDocsQuery but this would break the unified highlighter
+        // which rewrites query with an empty reader.
         if (hasPayloads == false) {
             return new TermQuery(term);
         }

@@ -28,6 +28,7 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
@@ -43,7 +44,6 @@ import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.transport.netty4.channel.PrivilegedNioSocketChannel;
 
 import java.io.Closeable;
 import java.net.SocketAddress;
@@ -82,7 +82,7 @@ class Netty4HttpClient implements Closeable {
     private final Bootstrap clientBootstrap;
 
     Netty4HttpClient() {
-        clientBootstrap = new Bootstrap().channel(PrivilegedNioSocketChannel.class).group(new NioEventLoopGroup());
+        clientBootstrap = new Bootstrap().channel(NioSocketChannel.class).group(new NioEventLoopGroup());
     }
 
     public Collection<FullHttpResponse> get(SocketAddress remoteAddress, String... uris) throws InterruptedException {
@@ -122,6 +122,7 @@ class Netty4HttpClient implements Closeable {
             HttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, method, uriAndBody.v1(), content);
             request.headers().add(HttpHeaderNames.HOST, "localhost");
             request.headers().add(HttpHeaderNames.CONTENT_LENGTH, content.readableBytes());
+            request.headers().add(HttpHeaderNames.CONTENT_TYPE, "application/json");
             requests.add(request);
         }
         return sendRequests(remoteAddress, requests);

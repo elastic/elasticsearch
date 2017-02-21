@@ -96,7 +96,7 @@ wiki1 2 r UNASSIGNED ALLOCATION_FAILED
 [[reason-unassigned]]
 === Reasons for unassigned shard
 
-These are the possible reasons for a shard be in a unassigned state:
+These are the possible reasons for a shard to be in a unassigned state:
 
 [horizontal]
 `INDEX_CREATED`::           Unassigned as a result of an API creation of an index.

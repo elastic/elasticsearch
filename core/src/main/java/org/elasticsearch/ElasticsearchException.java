@@ -402,10 +402,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static ElasticsearchException fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-        return innerFromXContent(parser);
+        return innerFromXContent(parser, false);
     }
 
-    private static ElasticsearchException innerFromXContent(XContentParser parser) throws IOException {
+    private static ElasticsearchException innerFromXContent(XContentParser parser, boolean parseRootCauses) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
 
@@ -413,6 +413,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         ElasticsearchException cause = null;
         Map<String, List<String>> metadata = new HashMap<>();
         Map<String, List<String>> headers = new HashMap<>();
+        List<ElasticsearchException> rootCauses = new ArrayList<>();
 
         for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
             String currentFieldName = parser.currentName();
@@ -460,21 +461,27 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                     parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                // Parse the array and add each item to the corresponding list of metadata.
-                // Arrays of objects are not supported yet and just ignored and skipped.
-                List<String> values = new ArrayList<>();
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    if (token == XContentParser.Token.VALUE_STRING) {
-                        values.add(parser.text());
-                    } else {
-                        parser.skipChildren();
+                if (parseRootCauses && ROOT_CAUSE.equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        rootCauses.add(fromXContent(parser));
                     }
-                }
-                if (values.size() > 0) {
-                    if (metadata.containsKey(currentFieldName)) {
-                        values.addAll(metadata.get(currentFieldName));
+                } else {
+                    // Parse the array and add each item to the corresponding list of metadata.
+                    // Arrays of objects are not supported yet and just ignored and skipped.
+                    List<String> values = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token == XContentParser.Token.VALUE_STRING) {
+                            values.add(parser.text());
+                        } else {
+                            parser.skipChildren();
+                        }
                     }
-                    metadata.put(currentFieldName, values);
+                    if (values.size() > 0) {
+                        if (metadata.containsKey(currentFieldName)) {
+                            values.addAll(metadata.get(currentFieldName));
+                        }
+                        metadata.put(currentFieldName, values);
+                    }
                 }
             }
         }
@@ -491,6 +498,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
         for (Map.Entry<String, List<String>> header : headers.entrySet()) {
             e.addHeader(header.getKey(), header.getValue());
+        }
+
+        // Adds root causes as suppressed exception. This way they are not lost
+        // after parsing and can be retrieved using getSuppressed() method.
+        for (ElasticsearchException rootCause : rootCauses) {
+            e.addSuppressed(rootCause);
         }
         return e;
     }
@@ -565,7 +578,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * Parses the output of {@link #generateFailureXContent(XContentBuilder, Params, Exception, boolean)}
      */
     public static ElasticsearchException failureFromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.nextToken();
+        XContentParser.Token token = parser.currentToken();
         ensureFieldName(parser, token, ERROR);
 
         token = parser.nextToken();
@@ -573,13 +586,11 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             return new ElasticsearchException(buildMessage("exception", parser.text(), null));
         }
 
-        ensureExpectedToken(token, XContentParser.Token.START_OBJECT, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
         token = parser.nextToken();
 
-        // TODO Root causes are ignored for now. They will be skipped by innerFromXContent() because
-        // it ignores metadata arrays of objects. If we decide to parse root causes, we'll have to
-        // change innerFromXContent() so that it does not parse root causes on its own.
-        return innerFromXContent(parser);
+        // Root causes are parsed in the innerFromXContent() and are added as suppressed exceptions.
+        return innerFromXContent(parser, true);
     }
 
     /**

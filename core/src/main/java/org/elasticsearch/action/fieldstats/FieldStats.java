@@ -132,7 +132,7 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
     }
 
     /**
-     * @return true if min/max informations are available for this field
+     * @return true if min/max information is available for this field
      */
     public boolean hasMinMax() {
         return hasMinMax;

@@ -140,7 +140,7 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
          * @param template the compiled template object wrapper
          * @param vars the parameters to fill above object with
          **/
-        public MustacheExecutableScript(CompiledScript template, Map<String, Object> vars) {
+        MustacheExecutableScript(CompiledScript template, Map<String, Object> vars) {
             this.template = template;
             this.vars = vars == null ? Collections.<String, Object>emptyMap() : vars;
         }

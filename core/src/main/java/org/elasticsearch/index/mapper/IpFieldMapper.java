@@ -46,9 +46,7 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.AbstractList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -126,7 +124,7 @@ public class IpFieldMapper extends FieldMapper {
 
     public static final class IpFieldType extends MappedFieldType {
 
-        IpFieldType() {
+        public IpFieldType() {
             super();
             setTokenized(false);
             setHasDocValues(true);
@@ -233,11 +231,11 @@ public class IpFieldMapper extends FieldMapper {
                 InetAddressPoint.decode(min), InetAddressPoint.decode(max));
         }
 
-        public static final class IpScriptDocValues extends AbstractList<String> implements ScriptDocValues<String> {
+        public static final class IpScriptDocValues extends ScriptDocValues<String> {
 
             private final RandomAccessOrds values;
 
-            IpScriptDocValues(RandomAccessOrds values) {
+            public IpScriptDocValues(RandomAccessOrds values) {
                 this.values = values;
             }
 
@@ -252,11 +250,6 @@ public class IpFieldMapper extends FieldMapper {
                 } else {
                     return get(0);
                 }
-            }
-
-            @Override
-            public List<String> getValues() {
-                return Collections.unmodifiableList(this);
             }
 
             @Override

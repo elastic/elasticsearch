@@ -90,7 +90,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
      * Simple implementation of update-by-query using scrolling and bulk.
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest> {
-        public AsyncIndexBySearchAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+        AsyncIndexBySearchAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                 ThreadPool threadPool, UpdateByQueryRequest request, ScriptService scriptService, ClusterState clusterState,
                 ActionListener<BulkByScrollResponse> listener) {
             super(task, logger, client, threadPool, request, scriptService, clusterState, listener);
@@ -120,7 +120,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             index.index(doc.getIndex());
             index.type(doc.getType());
             index.id(doc.getId());
-            index.source(doc.getSource());
+            index.source(doc.getSource(), doc.getXContentType());
             index.versionType(VersionType.INTERNAL);
             index.version(doc.getVersion());
             index.setPipeline(mainRequest.getPipeline());

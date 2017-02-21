@@ -73,13 +73,18 @@
 
 ---
 "Test script processor with stored script":
+  - skip:
+      features: warnings
+
   - do:
       put_script:
-        id: "sum_bytes"
-        lang: "painless"
+        lang: "sum_bytes"
         body: >
           {
-            "script" : "ctx.bytes_total = ctx.bytes_in + ctx.bytes_out"
+            "script": {
+              "lang": "painless",
+              "code" : "ctx.bytes_total = ctx.bytes_in + ctx.bytes_out"
+            }
           }
   - match: { acknowledged: true }
 

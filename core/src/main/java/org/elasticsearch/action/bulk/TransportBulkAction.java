@@ -82,7 +82,6 @@ import java.util.stream.Collectors;
 public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
 
     private final AutoCreateIndex autoCreateIndex;
-    private final boolean allowIdGeneration;
     private final ClusterService clusterService;
     private final IngestService ingestService;
     private final TransportShardBulkAction shardBulkAction;
@@ -115,7 +114,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.shardBulkAction = shardBulkAction;
         this.createIndexAction = createIndexAction;
         this.autoCreateIndex = autoCreateIndex;
-        this.allowIdGeneration = this.settings.getAsBoolean("action.bulk.action.allow_id_generation", true);
         this.relativeTimeProvider = relativeTimeProvider;
         this.ingestForwarder = new IngestActionForwarder(transportService);
         clusterService.addStateApplier(this.ingestForwarder);
@@ -267,7 +265,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                 mappingMd = indexMetaData.mappingOrDefault(indexRequest.type());
                             }
                             indexRequest.resolveRouting(metaData);
-                            indexRequest.process(mappingMd, allowIdGeneration, concreteIndex.getName());
+                            indexRequest.process(mappingMd, concreteIndex.getName());
                             break;
                         case UPDATE:
                             TransportUpdateAction.resolveAndValidateRouting(metaData, concreteIndex.getName(), (UpdateRequest) docWriteRequest);

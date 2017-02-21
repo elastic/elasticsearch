@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.blobstore.url;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
@@ -29,6 +30,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.NoSuchFileException;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Map;
 
 /**
@@ -102,7 +106,7 @@ public class URLBlobContainer extends AbstractBlobContainer {
     @Override
     public InputStream readBlob(String name) throws IOException {
         try {
-            return new BufferedInputStream(new URL(path, name).openStream(), blobStore.bufferSizeInBytes());
+            return new BufferedInputStream(getInputStream(new URL(path, name)), blobStore.bufferSizeInBytes());
         } catch (FileNotFoundException fnfe) {
             throw new NoSuchFileException("[" + name + "] blob not found");
         }
@@ -111,6 +115,15 @@ public class URLBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
+    }
+
+    @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
+    private static InputStream getInputStream(URL url) throws IOException {
+        try {
+            return AccessController.doPrivileged((PrivilegedExceptionAction<InputStream>) url::openStream);
+        } catch (PrivilegedActionException e) {
+            throw (IOException) e.getCause();
+        }
     }
 
 }

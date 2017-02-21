@@ -19,6 +19,7 @@
 package org.elasticsearch.backwards;
 
 import org.apache.http.HttpHost;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
@@ -70,7 +71,7 @@ public class IndexingIT extends ESRestTestCase {
 
     private void createIndex(String name, Settings settings) throws IOException {
         assertOK(client().performRequest("PUT", name, Collections.emptyMap(),
-            new StringEntity("{ \"settings\": " + Strings.toString(settings) + " }")));
+            new StringEntity("{ \"settings\": " + Strings.toString(settings) + " }", ContentType.APPLICATION_JSON)));
     }
 
     private void updateIndexSetting(String name, Settings.Builder settings) throws IOException {
@@ -78,22 +79,24 @@ public class IndexingIT extends ESRestTestCase {
     }
     private void updateIndexSetting(String name, Settings settings) throws IOException {
         assertOK(client().performRequest("PUT", name + "/_settings", Collections.emptyMap(),
-            new StringEntity(Strings.toString(settings))));
+            new StringEntity(Strings.toString(settings), ContentType.APPLICATION_JSON)));
     }
 
     protected int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
             final int id = idStart + i;
             assertOK(client().performRequest("PUT", index + "/test/" + id, emptyMap(),
-                new StringEntity("{\"test\": \"test_" + id + "\"}")));
+                new StringEntity("{\"test\": \"test_" + id + "\"}", ContentType.APPLICATION_JSON)));
         }
         return numDocs;
     }
 
     public void testSeqNoCheckpoints() throws Exception {
         Nodes nodes = buildNodeAndVersions();
+        assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
         logger.info("cluster discovered: {}", nodes.toString());
-        final String bwcNames = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.joining(","));
+        final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.toList());
+        final String bwcNames = bwcNamesList.stream().collect(Collectors.joining(","));
         Settings.Builder settings = Settings.builder()
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
@@ -109,24 +112,58 @@ public class IndexingIT extends ESRestTestCase {
         createIndex(index, settings.build());
         try (RestClient newNodeClient = buildClient(restClientSettings(),
             nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
-            int numDocs = indexDocs(index, 0, randomInt(5));
+            int numDocs = 0;
+            final int numberOfInitialDocs = 1 + randomInt(5);
+            logger.info("indexing [{}] docs initially", numberOfInitialDocs);
+            numDocs += indexDocs(index, 0, numberOfInitialDocs);
             assertSeqNoOnShards(nodes, checkGlobalCheckpoints, 0, newNodeClient);
-
             logger.info("allowing shards on all nodes");
             updateIndexSetting(index, Settings.builder().putNull("index.routing.allocation.include._name"));
             ensureGreen();
-            logger.info("indexing some more docs");
-            numDocs += indexDocs(index, numDocs, randomInt(5));
+            assertOK(client().performRequest("POST", index + "/_refresh"));
+            for (final String bwcName : bwcNamesList) {
+                assertCount(index, "_only_nodes:" + bwcName, numDocs);
+            }
+            final int numberOfDocsAfterAllowingShardsOnAllNodes = 1 + randomInt(5);
+            logger.info("indexing [{}] docs after allowing shards on all nodes", numberOfDocsAfterAllowingShardsOnAllNodes);
+            numDocs += indexDocs(index, numDocs, numberOfDocsAfterAllowingShardsOnAllNodes);
             assertSeqNoOnShards(nodes, checkGlobalCheckpoints, 0, newNodeClient);
-            logger.info("moving primary to new node");
             Shard primary = buildShards(nodes, newNodeClient).stream().filter(Shard::isPrimary).findFirst().get();
+            logger.info("moving primary to new node by excluding {}", primary.getNode().getNodeName());
             updateIndexSetting(index, Settings.builder().put("index.routing.allocation.exclude._name", primary.getNode().getNodeName()));
             ensureGreen();
-            logger.info("indexing some more docs");
-            int numDocsOnNewPrimary = indexDocs(index, numDocs, randomInt(5));
-            numDocs += numDocsOnNewPrimary;
+            int numDocsOnNewPrimary = 0;
+            final int numberOfDocsAfterMovingPrimary = 1 + randomInt(5);
+            logger.info("indexing [{}] docs after moving primary", numberOfDocsAfterMovingPrimary);
+            numDocsOnNewPrimary += indexDocs(index, numDocs, numberOfDocsAfterMovingPrimary);
+            numDocs += numberOfDocsAfterMovingPrimary;
+            assertSeqNoOnShards(nodes, checkGlobalCheckpoints, numDocsOnNewPrimary, newNodeClient);
+            /*
+             * Dropping the number of replicas to zero, and then increasing it to one triggers a recovery thus exercising any BWC-logic in
+             * the recovery code.
+             */
+            logger.info("setting number of replicas to 0");
+            updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 0));
+            final int numberOfDocsAfterDroppingReplicas = 1 + randomInt(5);
+            logger.info("indexing [{}] docs after setting number of replicas to 0", numberOfDocsAfterDroppingReplicas);
+            numDocsOnNewPrimary += indexDocs(index, numDocs, numberOfDocsAfterDroppingReplicas);
+            numDocs += numberOfDocsAfterDroppingReplicas;
+            logger.info("setting number of replicas to 1");
+            updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 1));
+            ensureGreen();
+            assertOK(client().performRequest("POST", index + "/_refresh"));
+            // the number of documents on the primary and on the recovered replica should match the number of indexed documents
+            assertCount(index, "_primary", numDocs);
+            assertCount(index, "_replica", numDocs);
             assertSeqNoOnShards(nodes, checkGlobalCheckpoints, numDocsOnNewPrimary, newNodeClient);
         }
+    }
+
+    private void assertCount(final String index, final String preference, final int expectedCount) throws IOException {
+        final Response response = client().performRequest("GET", index + "/_count", Collections.singletonMap("preference", preference));
+        assertOK(response);
+        final int actualCount = Integer.parseInt(objectPath(response).evaluate("count").toString());
+        assertThat(actualCount, equalTo(expectedCount));
     }
 
     private void assertSeqNoOnShards(Nodes nodes, boolean checkGlobalCheckpoints, int numDocs, RestClient client) throws Exception {

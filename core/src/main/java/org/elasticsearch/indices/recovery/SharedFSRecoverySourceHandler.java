@@ -19,9 +19,8 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 
@@ -39,8 +38,8 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
 
     SharedFSRecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, StartRecoveryRequest request,
                                   Supplier<Long> currentClusterStateVersionSupplier,
-                                  Function<String, Releasable> delayNewRecoveries, Logger logger) {
-        super(shard, recoveryTarget, request, currentClusterStateVersionSupplier, delayNewRecoveries, -1, logger);
+                                  Function<String, Releasable> delayNewRecoveries, Settings nodeSettings) {
+        super(shard, recoveryTarget, request, currentClusterStateVersionSupplier, delayNewRecoveries, -1, nodeSettings);
         this.shard = shard;
         this.request = request;
     }
@@ -49,7 +48,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
     public RecoveryResponse recoverToTarget() throws IOException {
         boolean engineClosed = false;
         try {
-            logger.trace("{} recovery [phase1] to {}: skipping phase1 for shared filesystem", request.shardId(), request.targetNode());
+            logger.trace("recovery [phase1]: skipping phase1 for shared filesystem");
             final long maxUnsafeAutoIdTimestamp = shard.segmentStats(false).getMaxUnsafeAutoIdTimestamp();
             if (request.isPrimaryRelocation()) {
                 logger.debug("[phase1] closing engine on primary for shared filesystem recovery");
@@ -84,7 +83,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
 
     @Override
     protected int sendSnapshot(final long startingSeqNo, final Translog.Snapshot snapshot) {
-        logger.trace("{} skipping recovery of translog snapshot on shared filesystem to: {}", shard.shardId(), request.targetNode());
+        logger.trace("skipping recovery of translog snapshot on shared filesystem");
         return 0;
     }
 

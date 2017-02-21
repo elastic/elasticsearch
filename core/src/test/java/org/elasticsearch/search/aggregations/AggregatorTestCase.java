@@ -199,7 +199,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private static class ShardSearcher extends IndexSearcher {
         private final List<LeafReaderContext> ctx;
 
-        public ShardSearcher(LeafReaderContext ctx, IndexReaderContext parent) {
+        ShardSearcher(LeafReaderContext ctx, IndexReaderContext parent) {
             super(parent);
             this.ctx = Collections.singletonList(ctx);
         }

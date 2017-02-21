@@ -125,8 +125,8 @@ public class SamplerAggregator extends SingleBucketAggregator {
             this.parseField = parseField;
         }
 
-        abstract Aggregator create(String name, AggregatorFactories factories, int shardSize, int maxDocsPerValue, ValuesSource valuesSource,
-                SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+        abstract Aggregator create(String name, AggregatorFactories factories, int shardSize, int maxDocsPerValue,
+                ValuesSource valuesSource, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) throws IOException;
 
         abstract boolean needsGlobalOrdinals();

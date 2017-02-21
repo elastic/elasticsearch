@@ -28,6 +28,7 @@ import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
@@ -219,7 +220,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
     public void testPreemptiveAuthEnabled() throws IOException  {
         final String[] methods = { "POST", "PUT", "GET", "DELETE" };
 
-        try (final RestClient restClient = createRestClient(true, true)) {
+        try (RestClient restClient = createRestClient(true, true)) {
             for (final String method : methods) {
                 final Response response = bodyTest(restClient, method);
 
@@ -234,7 +235,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
     public void testPreemptiveAuthDisabled() throws IOException  {
         final String[] methods = { "POST", "PUT", "GET", "DELETE" };
 
-        try (final RestClient restClient = createRestClient(true, false)) {
+        try (RestClient restClient = createRestClient(true, false)) {
             for (final String method : methods) {
                 final Response response = bodyTest(restClient, method);
 
@@ -249,7 +250,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
     private Response bodyTest(final RestClient restClient, final String method) throws IOException {
         String requestBody = "{ \"field\": \"value\" }";
-        StringEntity entity = new StringEntity(requestBody);
+        StringEntity entity = new StringEntity(requestBody, ContentType.APPLICATION_JSON);
         int statusCode = randomStatusCode(getRandom());
         Response esResponse;
         try {

@@ -27,6 +27,10 @@ if (GradleVersion.current() < GradleVersion.version('2.13')) {
   throw new GradleException('Gradle 2.13+ is required to build elasticsearch')
 }
 
+if (JavaVersion.current() < JavaVersion.VERSION_1_8) {
+  throw new GradleException('Java 1.8 is required to build elasticsearch gradle tools')
+}
+
 if (project == rootProject) {
   // change the build dir used during build init, so that doing a clean
   // won't wipe out the buildscript jar
@@ -88,7 +92,7 @@ dependencies {
   compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
   compile 'org.eclipse.jgit:org.eclipse.jgit:3.2.0.201312181205-r'
   compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
-  compile 'de.thetaphi:forbiddenapis:2.2'
+  compile 'de.thetaphi:forbiddenapis:2.3'
   compile 'org.apache.rat:apache-rat:0.11'
 }
 
@@ -118,6 +122,9 @@ if (GradleVersion.current() == GradleVersion.version("2.13")) {
 if (project == rootProject) {
 
   repositories {
+    if (System.getProperty("repos.mavenLocal") != null) {
+      mavenLocal()
+    }
     mavenCentral()
   }
   test.exclude 'org/elasticsearch/test/NamingConventionsCheckBadClasses*'

@@ -147,6 +147,10 @@
           "type" : "boolean",
           "description": "Whether to calculate and return scores even if they are not used for sorting"
         },
+        "typed_keys": {
+          "type" : "boolean",
+          "description" : "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
+        },
         "version": {
           "type" : "boolean",
           "description" : "Specify whether to return document version as part of a hit"

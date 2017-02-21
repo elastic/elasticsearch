@@ -85,6 +85,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
@@ -237,6 +238,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HttpTransportSettings.SETTING_CORS_ALLOW_METHODS,
                     HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS,
                     HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
+                    HttpTransportSettings.SETTING_HTTP_CONTENT_TYPE_REQUIRED,
                     HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH,
                     HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE,
                     HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE,
@@ -257,6 +259,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER,
                     RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
                     RemoteClusterService.REMOTE_NODE_ATTRIBUTE,
+                    RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
                     TransportService.TRACE_LOG_EXCLUDE_SETTING,
                     TransportService.TRACE_LOG_INCLUDE_SETTING,
                     TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
@@ -295,7 +298,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     NetworkService.TcpSettings.TCP_CONNECT_TIMEOUT,
                     IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
                     IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
-                    PrimaryShardAllocator.NODE_INITIAL_SHARDS_SETTING,
                     ScriptService.SCRIPT_CACHE_SIZE_SETTING,
                     ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
                     ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING,
@@ -399,6 +401,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ResourceWatcherService.RELOAD_INTERVAL_LOW,
                     SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
                     ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
+                    FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
                     Node.BREAKER_TYPE_KEY
             )));
 }

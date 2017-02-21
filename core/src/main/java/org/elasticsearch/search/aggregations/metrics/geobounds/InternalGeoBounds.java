@@ -30,19 +30,20 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalGeoBounds extends InternalMetricsAggregation implements GeoBounds {
-    private final double top;
-    private final double bottom;
-    private final double posLeft;
-    private final double posRight;
-    private final double negLeft;
-    private final double negRight;
-    private final boolean wrapLongitude;
+    final double top;
+    final double bottom;
+    final double posLeft;
+    final double posRight;
+    final double negLeft;
+    final double negRight;
+    final boolean wrapLongitude;
 
     InternalGeoBounds(String name, double top, double bottom, double posLeft, double posRight,
-            double negLeft, double negRight, boolean wrapLongitude,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+                      double negLeft, double negRight, boolean wrapLongitude,
+                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.top = top;
         this.bottom = bottom;
@@ -82,7 +83,7 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
     public String getWriteableName() {
         return GeoBoundsAggregationBuilder.NAME;
     }
-    
+
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double top = Double.NEGATIVE_INFINITY;
@@ -187,21 +188,21 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
     private static class BoundingBox {
         private final GeoPoint topLeft;
         private final GeoPoint bottomRight;
-        
-        public BoundingBox(GeoPoint topLeft, GeoPoint bottomRight) {
+
+        BoundingBox(GeoPoint topLeft, GeoPoint bottomRight) {
             this.topLeft = topLeft;
             this.bottomRight = bottomRight;
         }
-        
+
         public GeoPoint topLeft() {
             return topLeft;
         }
-        
+
         public GeoPoint bottomRight() {
             return bottomRight;
         }
     }
-    
+
     private BoundingBox resolveBoundingBox() {
         if (Double.isInfinite(top)) {
             return null;
@@ -242,4 +243,19 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
         }
     }
 
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalGeoBounds other = (InternalGeoBounds) obj;
+        return bottom == other.bottom &&
+            posLeft == other.posLeft &&
+            posRight == other.posRight &&
+            negLeft == other.negLeft &&
+            negRight == other.negRight &&
+            wrapLongitude == other.wrapLongitude;
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(bottom, posLeft, posRight, negLeft, negRight, wrapLongitude);
+    }
 }

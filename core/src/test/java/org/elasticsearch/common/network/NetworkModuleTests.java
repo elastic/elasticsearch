@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -70,7 +71,7 @@ public class NetworkModuleTests extends ModuleTestCase {
     }
 
     static class FakeHttpTransport extends AbstractLifecycleComponent implements HttpServerTransport {
-        public FakeHttpTransport() {
+        FakeHttpTransport() {
             super(null);
         }
         @Override
@@ -95,7 +96,7 @@ public class NetworkModuleTests extends ModuleTestCase {
 
 
     static class FakeRestHandler extends BaseRestHandler {
-        public FakeRestHandler() {
+        FakeRestHandler() {
             super(null);
         }
         @Override
@@ -103,7 +104,7 @@ public class NetworkModuleTests extends ModuleTestCase {
     }
 
     static class FakeCatRestHandler extends AbstractCatAction {
-        public FakeCatRestHandler() {
+        FakeCatRestHandler() {
             super(null);
         }
         @Override
@@ -298,6 +299,6 @@ public class NetworkModuleTests extends ModuleTestCase {
 
     private NetworkModule newNetworkModule(Settings settings, boolean transportClient, NetworkPlugin... plugins) {
         return new NetworkModule(settings, transportClient, Arrays.asList(plugins), threadPool, null, null, null, xContentRegistry(), null,
-            (a, b, c) -> {});
+            new NullDispatcher());
     }
 }

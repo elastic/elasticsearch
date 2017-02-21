@@ -142,11 +142,12 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
     /**
      * Sets the repository settings.
      *
-     * @param source repository settings in json, yaml or properties format
+     * @param source repository settings in json or yaml format
+     * @param xContentType the content type of the source
      * @return this request
      */
-    public PutRepositoryRequest settings(String source) {
-        this.settings = Settings.builder().loadFromSource(source).build();
+    public PutRepositoryRequest settings(String source, XContentType xContentType) {
+        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 
@@ -160,7 +161,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            settings(builder.string());
+            settings(builder.string(), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }

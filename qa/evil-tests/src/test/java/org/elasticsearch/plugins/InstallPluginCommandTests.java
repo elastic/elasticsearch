@@ -29,6 +29,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
@@ -108,7 +109,7 @@ public class InstallPluginCommandTests extends ESTestCase {
             private final FileSystem fileSystem;
             private final Function<String, Path> temp;
 
-            public Parameter(FileSystem fileSystem, String root) {
+            Parameter(FileSystem fileSystem, String root) {
                 this(fileSystem, s -> {
                     try {
                         return Files.createTempDirectory(fileSystem.getPath(root), s);
@@ -118,7 +119,7 @@ public class InstallPluginCommandTests extends ESTestCase {
                 });
             }
 
-            public Parameter(FileSystem fileSystem, Function<String, Path> temp) {
+            Parameter(FileSystem fileSystem, Function<String, Path> temp) {
                 this.fileSystem = fileSystem;
                 this.temp = temp;
             }
@@ -324,7 +325,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Path pluginDir = createPluginDir(temp);
         String pluginZip = createPlugin("fake", pluginDir);
         Path pluginZipWithSpaces = createTempFile("foo bar", ".zip");
-        try (InputStream in = new URL(pluginZip).openStream()) {
+        try (InputStream in = FileSystemUtils.openFileURLStream(new URL(pluginZip))) {
             Files.copy(in, pluginZipWithSpaces, StandardCopyOption.REPLACE_EXISTING);
         }
         installPlugin(pluginZipWithSpaces.toUri().toURL().toString(), env.v1());

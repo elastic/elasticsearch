@@ -79,14 +79,14 @@ public abstract class SecureSetting<T> extends Setting<T> {
     @Override
     public boolean exists(Settings settings) {
         final SecureSettings secureSettings = settings.getSecureSettings();
-        return secureSettings != null && secureSettings.hasSetting(getKey());
+        return secureSettings != null && secureSettings.getSettingNames().contains(getKey());
     }
 
     @Override
     public T get(Settings settings) {
         checkDeprecation(settings);
         final SecureSettings secureSettings = settings.getSecureSettings();
-        if (secureSettings == null || secureSettings.hasSetting(getKey()) == false) {
+        if (secureSettings == null || secureSettings.getSettingNames().contains(getKey()) == false) {
             return getFallback(settings);
         }
         try {

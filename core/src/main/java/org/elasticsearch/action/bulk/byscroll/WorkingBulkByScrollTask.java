@@ -306,7 +306,7 @@ public class WorkingBulkByScrollTask extends BulkByScrollTask implements Success
         private final AtomicBoolean hasRun = new AtomicBoolean(false);
         private final AbstractRunnable delegate;
 
-        public RunOnce(AbstractRunnable delegate) {
+        RunOnce(AbstractRunnable delegate) {
             this.delegate = delegate;
         }
 

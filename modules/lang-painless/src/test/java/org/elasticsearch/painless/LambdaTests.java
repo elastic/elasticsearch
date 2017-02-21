@@ -19,8 +19,11 @@
 
 package org.elasticsearch.painless;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class LambdaTests extends ScriptTestCase {
 
@@ -230,5 +233,26 @@ public class LambdaTests extends ScriptTestCase {
             "else { return params['key'] } }, 'value')", params, true));
         assertEquals(false, exec(compare + "compare(() -> { if (params['number'] == 1) { return params['number'] }" +
             "else { return params['key'] } }, 2)", params, true));
+    }
+
+    public void testReturnVoid() {
+        Throwable expected = expectScriptThrows(ClassCastException.class, () -> {
+            exec("StringBuilder b = new StringBuilder(); List l = [1, 2]; l.stream().mapToLong(i -> b.setLength(i))");
+        });
+        assertThat(expected.getMessage(), containsString("Cannot cast from [void] to [long]."));
+    }
+
+    public void testReturnVoidDef() {
+        // If we can catch the error at compile time we do
+        Exception expected = expectScriptThrows(ClassCastException.class, () -> {
+            exec("StringBuilder b = new StringBuilder(); def l = [1, 2]; l.stream().mapToLong(i -> b.setLength(i))");
+        });
+        assertThat(expected.getMessage(), containsString("Cannot cast from [void] to [def]."));
+
+        // Otherwise we convert the void into a null
+        assertEquals(Arrays.asList(null, null),
+                exec("def b = new StringBuilder(); def l = [1, 2]; l.stream().map(i -> b.setLength(i)).collect(Collectors.toList())"));
+        assertEquals(Arrays.asList(null, null),
+                exec("def b = new StringBuilder(); List l = [1, 2]; l.stream().map(i -> b.setLength(i)).collect(Collectors.toList())"));
     }
 }

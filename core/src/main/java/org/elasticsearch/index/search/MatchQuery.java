@@ -53,7 +53,7 @@ import java.util.List;
 
 public class MatchQuery {
 
-    public static enum Type implements Writeable {
+    public enum Type implements Writeable {
         /**
          * The text is analyzed and terms are added to a boolean query.
          */
@@ -69,7 +69,7 @@ public class MatchQuery {
 
         private final int ordinal;
 
-        private Type(int ordinal) {
+        Type(int ordinal) {
             this.ordinal = ordinal;
         }
 
@@ -89,13 +89,13 @@ public class MatchQuery {
         }
     }
 
-    public static enum ZeroTermsQuery implements Writeable {
+    public enum ZeroTermsQuery implements Writeable {
         NONE(0),
         ALL(1);
 
         private final int ordinal;
 
-        private ZeroTermsQuery(int ordinal) {
+        ZeroTermsQuery(int ordinal) {
             this.ordinal = ordinal;
         }
 
@@ -301,7 +301,7 @@ public class MatchQuery {
         /**
          * Creates a new QueryBuilder using the given analyzer.
          */
-        public MatchQueryBuilder(Analyzer analyzer, @Nullable MappedFieldType mapper) {
+        MatchQueryBuilder(Analyzer analyzer, @Nullable MappedFieldType mapper) {
             super(analyzer);
             this.mapper = mapper;
         }
@@ -375,23 +375,7 @@ public class MatchQuery {
             if (booleanQuery != null && booleanQuery instanceof BooleanQuery) {
                 BooleanQuery bq = (BooleanQuery) booleanQuery;
                 return boolToExtendedCommonTermsQuery(bq, highFreqOccur, lowFreqOccur, maxTermFrequency, fieldType);
-            } else if (booleanQuery != null && booleanQuery instanceof GraphQuery && ((GraphQuery) booleanQuery).hasBoolean()) {
-                // we have a graph query that has at least one boolean sub-query
-                // re-build and use extended common terms
-                List<Query> oldQueries = ((GraphQuery) booleanQuery).getQueries();
-                Query[] queries = new Query[oldQueries.size()];
-                for (int i = 0; i < queries.length; i++) {
-                    Query oldQuery = oldQueries.get(i);
-                    if (oldQuery instanceof BooleanQuery) {
-                        queries[i] = boolToExtendedCommonTermsQuery((BooleanQuery) oldQuery, highFreqOccur, lowFreqOccur, maxTermFrequency, fieldType);
-                    } else {
-                        queries[i] = oldQuery;
-                    }
-                }
-
-                return new GraphQuery(queries);
             }
-
             return booleanQuery;
         }
 

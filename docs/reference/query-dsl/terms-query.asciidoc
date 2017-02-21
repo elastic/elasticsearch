@@ -61,7 +61,7 @@ possible, reducing the need for networking.
 [float]
 ===== Terms lookup twitter example
 At first we index the information for user with id 2, specifically, its
-followers, than index a tweet from user with id 1. Finally we search on
+followers, then index a tweet from user with id 1. Finally we search on
 all the tweets that match the followers of user 2.
 
 [source,js]
@@ -97,7 +97,8 @@ inner objects, for example:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/users/user/2 -d '{
+PUT /users/user/2
+{
  "followers" : [
    {
      "id" : "1"
@@ -106,7 +107,8 @@ curl -XPUT localhost:9200/users/user/2 -d '{
      "id" : "2"
    }
  ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 In which case, the lookup path will be `followers.id`.

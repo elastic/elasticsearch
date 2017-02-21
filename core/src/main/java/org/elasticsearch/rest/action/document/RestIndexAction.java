@@ -31,7 +31,6 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -63,9 +62,9 @@ public class RestIndexAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
         indexRequest.routing(request.param("routing"));
-        indexRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+        indexRequest.parent(request.param("parent"));
         indexRequest.setPipeline(request.param("pipeline"));
-        indexRequest.source(request.content());
+        indexRequest.source(request.content(), request.getXContentType());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.setRefreshPolicy(request.param("refresh"));
         indexRequest.version(RestActions.parseVersion(request));
@@ -80,14 +79,7 @@ public class RestIndexAction extends BaseRestHandler {
         }
 
         return channel ->
-            client.index(indexRequest, new RestStatusToXContentListener<>(channel, r -> {
-                try {
-                    return r.getLocation(indexRequest.routing());
-                } catch (URISyntaxException ex) {
-                    logger.warn("Location string is not a valid URI.", ex);
-                    return null;
-                }
-            }));
+                client.index(indexRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing())));
     }
 
 }

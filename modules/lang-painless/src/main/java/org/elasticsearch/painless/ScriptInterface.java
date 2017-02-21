@@ -106,26 +106,46 @@ public class ScriptInterface {
         this.usesMethods = unmodifiableList(usesMethods);
     }
 
+    /**
+     * The interface that the Painless script should implement.
+     */
     public Class<?> getInterface() {
         return iface;
     }
 
+    /**
+     * An asm method descriptor for the {@code execute} method.
+     */
     public org.objectweb.asm.commons.Method getExecuteMethod() {
         return executeMethod;
     }
 
+    /**
+     * The Painless {@link Definition.Type} or the return type of the {@code execute} method. This is used to generate the appropriate
+     * return bytecode.
+     */
     public Definition.Type getExecuteMethodReturnType() {
         return executeMethodReturnType;
     }
 
+    /**
+     * Painless {@link Definition.Type}s and names of the arguments to the {@code execute} method. The names are exposed to the Painless
+     * script.
+     */
     public List<MethodArgument> getArguments() {
         return arguments;
     }
 
+    /**
+     * The {@code uses$varName} methods that must be implemented by Painless to complete implementing the interface.
+     */
     public List<org.objectweb.asm.commons.Method> getUsesMethods() {
         return usesMethods;
     }
 
+    /**
+     * Painless {@link Definition.Type}s and name of the argument to the {@code execute} method.
+     */
     public static class MethodArgument {
         private final Definition.Type type;
         private final String name;

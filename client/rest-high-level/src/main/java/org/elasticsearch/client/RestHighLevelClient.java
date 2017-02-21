@@ -43,7 +43,6 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
@@ -140,14 +139,17 @@ public class RestHighLevelClient {
         performRequestAsyncAndParseEntity(updateRequest, Request::update, UpdateResponse::fromXContent, listener, emptySet(), headers);
     }
 
-    private <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request, Function<Req, Request>  requestConverter,
-            CheckedFunction<XContentParser, Resp, IOException> entityParser, Set<Integer> ignores, Header... headers) throws IOException {
+    private <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
+                                                                            CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                            CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                            Set<Integer> ignores, Header... headers) throws IOException {
         return performRequest(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser), ignores, headers);
     }
 
-    <Req extends ActionRequest, Resp> Resp performRequest(Req request, Function<Req, Request> requestConverter,
-            CheckedFunction<Response, Resp, IOException> responseConverter, Set<Integer> ignores, Header... headers) throws IOException {
-
+    <Req extends ActionRequest, Resp> Resp performRequest(Req request,
+                                                          CheckedFunction<Req, Request, IOException> requestConverter,
+                                                          CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                          Set<Integer> ignores, Header... headers) throws IOException {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             throw validationException;
@@ -173,22 +175,29 @@ public class RestHighLevelClient {
         }
     }
 
-    private <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request, Function<Req, Request> requestConverter,
-            CheckedFunction<XContentParser, Resp, IOException> entityParser, ActionListener<Resp> listener,
-            Set<Integer> ignores, Header... headers) {
+    private <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
+                                                                 CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                 CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                 ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {
         performRequestAsync(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser),
                 listener, ignores, headers);
     }
 
-    <Req extends ActionRequest, Resp> void performRequestAsync(Req request, Function<Req, Request> requestConverter,
-            CheckedFunction<Response, Resp, IOException> responseConverter, ActionListener<Resp> listener,
-            Set<Integer> ignores, Header... headers) {
+    <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
+                                                               CheckedFunction<Req, Request, IOException> requestConverter,
+                                                               CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                               ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             listener.onFailure(validationException);
             return;
         }
-        Request req = requestConverter.apply(request);
+        Request req = null;
+        try {
+            req = requestConverter.apply(request);
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
         client.performRequestAsync(req.method, req.endpoint, req.params, req.entity, responseListener, headers);
     }

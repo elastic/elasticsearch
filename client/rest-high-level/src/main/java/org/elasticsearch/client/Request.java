@@ -36,12 +36,9 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -50,8 +47,6 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
-
-import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
 
 final class Request {
 
@@ -127,7 +122,7 @@ final class Request {
         return new Request(method, endpoint, parameters.getParams(), entity);
     }
 
-    static Request update(UpdateRequest updateRequest) {
+    static Request update(UpdateRequest updateRequest) throws IOException {
         String endpoint = endpoint(updateRequest.index(), updateRequest.type(), updateRequest.id(), "_update");
 
         Params parameters = Params.builder();
@@ -142,57 +137,31 @@ final class Request {
         parameters.withVersion(updateRequest.version());
         parameters.withVersionType(updateRequest.versionType());
 
+        // The Java API allows update requests with different content types
+        // set for the partial document and the upsert document. This client
+        // only accepts update requests that have the same content types set
+        // for both doc and upsert.
         XContentType xContentType = null;
         if (updateRequest.doc() != null) {
             xContentType = updateRequest.doc().getContentType();
-        } else if (updateRequest.upsertRequest() != null) {
-            xContentType = updateRequest.upsertRequest().getContentType();
-        } else {
+        }
+        if (updateRequest.upsertRequest() != null) {
+            XContentType upsertContentType = updateRequest.upsertRequest().getContentType();
+            if ((xContentType != null) && (xContentType != upsertContentType)) {
+                throw new IllegalStateException("Update request cannot have different content types for doc [" + xContentType + "]" +
+                        " and upsert [" + upsertContentType + "] documents");
+            } else {
+                xContentType = upsertContentType;
+            }
+        }
+        if (xContentType == null) {
             xContentType = Requests.INDEX_CONTENT_TYPE;
         }
 
-        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), toHttpEntity(updateRequest, xContentType));
-    }
+        BytesRef source = XContentHelper.toXContent(updateRequest, xContentType, false).toBytesRef();
+        HttpEntity entity = new ByteArrayEntity(source.bytes, source.offset, source.length, ContentType.create(xContentType.mediaType()));
 
-    static ByteArrayEntity toHttpEntity(UpdateRequest updateRequest, XContentType xContentType) {
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            builder.startObject();
-            if (updateRequest.docAsUpsert()) {
-                builder.field("doc_as_upsert", updateRequest.docAsUpsert());
-            }
-            IndexRequest doc = updateRequest.doc();
-            if (doc != null) {
-                try (XContentParser parser = createParser(NamedXContentRegistry.EMPTY, doc.source(), doc.getContentType())) {
-                    builder.field("doc").copyCurrentStructure(parser);
-                }
-            }
-            Script script = updateRequest.script();
-            if (script != null) {
-                builder.field("script", script);
-            }
-            IndexRequest upsert = updateRequest.upsertRequest();
-            if (upsert != null) {
-                try (XContentParser parser = createParser(NamedXContentRegistry.EMPTY, upsert.source(), upsert.getContentType())) {
-                    builder.field("upsert").copyCurrentStructure(parser);
-                }
-            }
-            if (updateRequest.scriptedUpsert()) {
-                builder.field("scripted_upsert", updateRequest.scriptedUpsert());
-            }
-            if (updateRequest.detectNoop() == false) {
-                builder.field("detect_noop", updateRequest.detectNoop());
-            }
-            if (updateRequest.fetchSource() != null) {
-                builder.field("_source", updateRequest.fetchSource());
-            }
-            builder.endObject();
-
-            BytesRef requestBody = builder.bytes().toBytesRef();
-            ContentType contentType = ContentType.create(xContentType.mediaType());
-            return new ByteArrayEntity(requestBody.bytes, requestBody.offset, requestBody.length, contentType);
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to build HTTP entity from update request", e);
-        }
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), entity);
     }
 
     /**

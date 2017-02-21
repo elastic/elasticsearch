@@ -40,6 +40,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -355,6 +356,17 @@ public class RequestTests extends ESTestCase {
         } else {
             assertNull(parsedUpdateRequest.upsertRequest());
         }
+    }
+
+    public void testUpdateWithDifferentContentTypes() throws IOException {
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
+            UpdateRequest updateRequest = new UpdateRequest();
+            updateRequest.doc(new IndexRequest().source(Collections.singletonMap("field", "doc"), XContentType.JSON));
+            updateRequest.upsert(new IndexRequest().source(Collections.singletonMap("field", "upsert"), XContentType.YAML));
+            Request.update(updateRequest);
+        });
+        assertEquals("Update request cannot have different content types for doc [JSON] and upsert [YAML] documents",
+                exception.getMessage());
     }
 
     public void testParams() {

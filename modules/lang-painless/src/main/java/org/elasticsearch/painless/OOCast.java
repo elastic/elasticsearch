@@ -25,6 +25,25 @@ public interface OOCast { // NOCOMMIT rename
     void write(MethodWriter writer);
     Object castConstant(Location location, Object constant);
 
+    /**
+     * Cast that doesn't do anything. Used when you don't need to cast at all.
+     */
+    OOCast NOOP = new OOCast() {
+        @Override
+        public void write(MethodWriter writer) {
+        }
+
+        @Override
+        public Object castConstant(Location location, Object constant) {
+            return constant;
+        }
+
+        @Override
+        public String toString() {
+            return "noop";
+        }
+    };
+
     class Box implements OOCast {
         private final Type from;
 

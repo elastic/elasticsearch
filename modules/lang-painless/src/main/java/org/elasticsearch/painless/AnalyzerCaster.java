@@ -57,7 +57,7 @@ public final class AnalyzerCaster {
         Objects.requireNonNull(expected);
 
         if (actual.equals(expected)) {
-            return null;
+            return Cast.NOOP;
         }
 
         switch (actual.sort) {

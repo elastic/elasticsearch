@@ -120,7 +120,7 @@ public abstract class AExpression extends ANode {
     AExpression cast(Locals locals) {
         OOCast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit, internal);
 
-        if (cast == null) {
+        if (cast == OOCast.NOOP) {
             if (constant == null || this instanceof EConstant) {
                 // For the case where a cast is not required and a constant is not set
                 // or the node is already an EConstant no changes are required to the tree.

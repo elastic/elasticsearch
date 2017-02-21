@@ -54,7 +54,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -111,12 +110,24 @@ public class Netty4Transport extends TcpTransport<Channel> {
     public static final Setting<Integer> NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS =
         Setting.intSetting("transport.netty.max_composite_buffer_components", -1, -1, Property.NodeScope, Property.Shared);
 
+    // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(
-            "transport.netty.receive_predictor_size", new ByteSizeValue(32, ByteSizeUnit.KB), Property.NodeScope);
+            "transport.netty.receive_predictor_size",
+            settings -> {
+                long defaultReceiverPredictor = 512 * 1024;
+                if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes() > 0) {
+                    // we can guess a better default...
+                    long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes()) / WORKER_COUNT.get(settings));
+                    defaultReceiverPredictor = Math.min(defaultReceiverPredictor, Math.max(l, 64 * 1024));
+                }
+                return new ByteSizeValue(defaultReceiverPredictor).toString();
+            },
+            Property.NodeScope,
+            Property.Shared);
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MIN =
-        byteSizeSetting("transport.netty.receive_predictor_min", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
+        byteSizeSetting("transport.netty.receive_predictor_min", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope, Property.Shared);
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MAX =
-        byteSizeSetting("transport.netty.receive_predictor_max", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
+        byteSizeSetting("transport.netty.receive_predictor_max", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope, Property.Shared);
     public static final Setting<Integer> NETTY_BOSS_COUNT =
         intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope, Property.Shared);
 

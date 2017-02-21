@@ -197,7 +197,7 @@ repositories.azure:
     container: backup-container
     base_path: backups
     chunk_size: 32m
-    compress": true
+    compress: true
 ----
 
 

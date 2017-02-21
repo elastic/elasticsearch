@@ -184,9 +184,6 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "Integer.valueOf(1)", emptyMap()).execute());
 
         assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = 1; i", emptyMap()).execute());
-        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = (int) 1L; i", emptyMap()).execute());
-        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = (int) 1.1d; i", emptyMap()).execute());
-        assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = (int) 1.1f; i", emptyMap()).execute());
         assertEquals(1, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "def i = Integer.valueOf(1); i", emptyMap()).execute());
 
         assertEquals(2, scriptEngine.compile(ReturnsPrimitiveInt.class, null, "1 + 1", emptyMap()).execute());
@@ -214,6 +211,41 @@ public class ImplementInterfacesTests extends ScriptTestCase {
 
         e = expectScriptThrows(IllegalArgumentException.class, () ->
             scriptEngine.compile(ReturnsPrimitiveInt.class, null, "int i = 0", emptyMap()));
+        assertEquals("Expected all paths to [return] but not all did or end in an expression to return but "
+                + "some path ends is missing a return and ends in a statement.", e.getMessage());
+    }
+
+    public interface ReturnsPrimitiveDouble {
+        String[] ARGUMENTS = new String[] {};
+        double execute();
+    }
+    public void testReturnsPrimitiveDouble() {
+        assertEquals(1.0, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "1", emptyMap()).execute(), 0);
+        assertEquals(1.0, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "1L", emptyMap()).execute(), 0);
+        assertEquals(1.1, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "1.1d", emptyMap()).execute(), 0);
+        assertEquals((double) 1.1f, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "1.1f", emptyMap()).execute(), 0);
+        assertEquals(1.1, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "Double.valueOf(1.1)", emptyMap()).execute(), 0);
+        assertEquals((double) 1.1f,
+                    scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "Float.valueOf(1.1f)", emptyMap()).execute(), 0);
+
+        assertEquals(1.0, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "def d = 1; d", emptyMap()).execute(), 0);
+        assertEquals(1.0, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "def d = 1L; d", emptyMap()).execute(), 0);
+        assertEquals(1.1, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "def d = 1.1d; d", emptyMap()).execute(), 0);
+        assertEquals((double) 1.1f, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "def d = 1.1f; d", emptyMap()).execute(), 0);
+        assertEquals(1.1,
+                scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "def d = Double.valueOf(1.1); d", emptyMap()).execute(), 0);
+        assertEquals((double) 1.1f,
+                scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "def d = Float.valueOf(1.1f); d", emptyMap()).execute(), 0);
+
+        assertEquals(1.1 + 6.7, scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "1.1 + 6.7", emptyMap()).execute(), 0);
+
+        String debug = Debugger.toString(ReturnsPrimitiveDouble.class, "1", new CompilerSettings());
+        assertThat(debug, containsString("DCONST_1"));
+        // The important thing here is that we have the bytecode for returning a double instead of an object
+        assertThat(debug, containsString("DRETURN"));
+
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
+            scriptEngine.compile(ReturnsPrimitiveDouble.class, null, "int i = 0", emptyMap()));
         assertEquals("Expected all paths to [return] but not all did or end in an expression to return but "
                 + "some path ends is missing a return and ends in a statement.", e.getMessage());
     }

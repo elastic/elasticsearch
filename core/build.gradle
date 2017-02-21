@@ -74,7 +74,7 @@ dependencies {
   // percentiles aggregation
   compile 'com.tdunning:t-digest:3.0'
   // precentil ranks aggregation
-  compile 'org.hdrhistogram:HdrHistogram:2.1.6'
+  compile 'org.hdrhistogram:HdrHistogram:2.1.9'
 
   // lucene spatial
   compile "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional

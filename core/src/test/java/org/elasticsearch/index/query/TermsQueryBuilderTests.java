@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -110,7 +110,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
             assertThat(matchNoDocsQuery.toString(), containsString("No terms supplied for \"terms\" query."));
         } else {
-            assertThat(query, either(instanceOf(TermsQuery.class))
+            assertThat(query, either(instanceOf(TermInSetQuery.class))
                     .or(instanceOf(PointInSetQuery.class))
                     .or(instanceOf(ConstantScoreQuery.class)));
             if (query instanceof ConstantScoreQuery) {
@@ -131,7 +131,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 terms = queryBuilder.values();
             }
 
-            TermsQuery expected = new TermsQuery(queryBuilder.fieldName(),
+            TermInSetQuery expected = new TermInSetQuery(queryBuilder.fieldName(),
                     terms.stream().filter(Objects::nonNull).map(Object::toString).map(BytesRef::new).collect(Collectors.toList()));
             assertEquals(expected, query);
         }

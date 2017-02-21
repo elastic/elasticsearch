@@ -60,7 +60,8 @@ public class InternalSearchResponse implements Streamable, ToXContent {
     }
 
     public InternalSearchResponse(SearchHits hits, InternalAggregations aggregations, Suggest suggest,
-                                  SearchProfileShardResults profileResults, boolean timedOut, Boolean terminatedEarly, int numReducePhases) {
+                                  SearchProfileShardResults profileResults, boolean timedOut, Boolean terminatedEarly,
+                                  int numReducePhases) {
         this.hits = hits;
         this.aggregations = aggregations;
         this.suggest = suggest;

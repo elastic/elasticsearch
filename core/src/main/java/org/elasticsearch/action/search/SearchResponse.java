@@ -61,7 +61,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     public SearchResponse() {
     }
 
-    public SearchResponse(InternalSearchResponse internalResponse, String scrollId, int totalShards, int successfulShards, long tookInMillis, ShardSearchFailure[] shardFailures) {
+    public SearchResponse(InternalSearchResponse internalResponse, String scrollId, int totalShards, int successfulShards,
+                          long tookInMillis, ShardSearchFailure[] shardFailures) {
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
         this.totalShards = totalShards;
@@ -199,7 +200,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         if (getNumReducePhases() != 1) {
             builder.field("num_reduce_phases", getNumReducePhases());
         }
-        RestActions.buildBroadcastShardsHeader(builder, params, getTotalShards(), getSuccessfulShards(), getFailedShards(), getShardFailures());
+        RestActions.buildBroadcastShardsHeader(builder, params, getTotalShards(), getSuccessfulShards(), getFailedShards(),
+            getShardFailures());
         internalResponse.toXContent(builder, params);
         return builder;
     }

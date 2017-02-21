@@ -22,13 +22,13 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.OOCast;
 import org.elasticsearch.painless.Operation;
 
 import java.util.ArrayList;
@@ -50,8 +50,8 @@ public final class EAssignment extends AExpression {
     private boolean cat = false;
     private Type promote = null;
     private Type shiftDistance; // for shifts, the RHS is promoted independently
-    private Cast there = null;
-    private Cast back = null;
+    private OOCast there = null;
+    private OOCast back = null;
 
     public EAssignment(Location location, AExpression lhs, AExpression rhs, boolean pre, boolean post, Operation operation) {
         super(location);
@@ -269,7 +269,7 @@ public final class EAssignment extends AExpression {
             }
 
             writer.writeToStrings(); // put the value for string concat onto the stack
-            writer.writeCast(back);  // if necessary, cast the String to the lhs actual type
+            back.write(writer);      // if necessary, cast the String to the lhs actual type
 
             if (lhs.read) {
                 writer.writeDup(lhs.actual.sort.size, lhs.accessElementCount()); // if this lhs is also read
@@ -290,11 +290,11 @@ public final class EAssignment extends AExpression {
                                                                                  // read from and is a post increment
             }
 
-            writer.writeCast(there);    // if necessary cast the current lhs's value
+            there.write(writer);        // if necessary cast the current lhs's value
                                         // to the promotion type between the lhs and rhs types
             rhs.write(writer, globals); // write the bytecode for the rhs
 
-        // XXX: fix these types, but first we need def compound assignment tests.
+        // NOCOMMIT: fix these types, but first we need def compound assignment tests.
         // its tricky here as there are possibly explicit casts, too.
         // write the operation instruction for compound assignment
             if (promote.sort == Sort.DEF) {
@@ -304,7 +304,7 @@ public final class EAssignment extends AExpression {
                 writer.writeBinaryInstruction(location, promote, operation);
             }
 
-            writer.writeCast(back); // if necessary cast the promotion type value back to the lhs's type
+            back.write(writer);         // if necessary cast the promotion type value back to the lhs's type
 
             if (lhs.read && !post) {
                 writer.writeDup(lhs.actual.sort.size, lhs.accessElementCount()); // dup the value if the lhs is also

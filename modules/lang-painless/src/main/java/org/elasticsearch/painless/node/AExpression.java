@@ -20,10 +20,10 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.OOCast;
 
 import java.util.Objects;
 
@@ -118,7 +118,7 @@ public abstract class AExpression extends ANode {
      * @return The new child node for the parent node calling this method.
      */
     AExpression cast(Locals locals) {
-        Cast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit, internal);
+        OOCast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit, internal);
 
         if (cast == null) {
             if (constant == null || this instanceof EConstant) {
@@ -166,7 +166,7 @@ public abstract class AExpression extends ANode {
                     // from this node because the output data for the EConstant
                     // will already be the same.
 
-                    constant = AnalyzerCaster.constCast(location, constant, cast);
+                    constant = cast.castConstant(location, constant);
 
                     EConstant econstant = new EConstant(location, constant);
                     econstant.analyze(locals);

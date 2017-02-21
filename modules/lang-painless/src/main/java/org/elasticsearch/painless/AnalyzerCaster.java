@@ -52,7 +52,7 @@ import static org.elasticsearch.painless.Definition.STRING_TYPE;
  */
 public final class AnalyzerCaster {
 
-    public static Cast getLegalCast(Location location, Type actual, Type expected, boolean explicit, boolean internal) {
+    public static OOCast getLegalCast(Location location, Type actual, Type expected, boolean explicit, boolean internal) {
         Objects.requireNonNull(actual);
         Objects.requireNonNull(expected);
 

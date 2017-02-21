@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.Sort;
@@ -32,6 +31,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.OOCast;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -51,7 +51,7 @@ final class SSubEachIterable extends AStatement {
     private final SBlock block;
     private final Variable variable;
 
-    private Cast cast = null;
+    private OOCast cast = null;
     private Variable iterator = null;
     private Method method = null;
 
@@ -115,7 +115,7 @@ final class SSubEachIterable extends AStatement {
 
         writer.visitVarInsn(iterator.type.type.getOpcode(Opcodes.ILOAD), iterator.getSlot());
         writer.invokeInterface(ITERATOR_TYPE, ITERATOR_NEXT);
-        writer.writeCast(cast);
+        cast.write(writer);
         writer.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.getSlot());
 
         if (loopCounter != null) {

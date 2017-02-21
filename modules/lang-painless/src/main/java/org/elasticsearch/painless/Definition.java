@@ -431,7 +431,7 @@ public final class Definition {
         }
     }
 
-    public static class Cast {
+    public static class Cast implements OOCast {  // NOCOMMIT remove me
         public final Type from;
         public final Type to;
         public final boolean explicit;
@@ -461,6 +461,20 @@ public final class Definition {
             this.boxTo = boxTo;
         }
 
+        @Override
+        public void write(MethodWriter writer) {
+            writer.writeCast(this);
+        }
+
+        @Override
+        public Object castConstant(Location location, Object constant) {
+            return AnalyzerCaster.constCast(location, constant, this);
+        }
+
+        @Override
+        public String toString() {
+            return to.toString();
+        }
     }
 
     public static final class RuntimeClass {

@@ -21,13 +21,13 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.OOCast;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -42,7 +42,7 @@ final class SSubEachArray extends AStatement {
     private AExpression expression;
     private final SBlock block;
 
-    private Cast cast = null;
+    private OOCast cast = null;
     private Variable array = null;
     private Variable index = null;
     private Type indexed = null;
@@ -93,7 +93,7 @@ final class SSubEachArray extends AStatement {
         writer.visitVarInsn(array.type.type.getOpcode(Opcodes.ILOAD), array.getSlot());
         writer.visitVarInsn(index.type.type.getOpcode(Opcodes.ILOAD), index.getSlot());
         writer.arrayLoad(indexed.type);
-        writer.writeCast(cast);
+        cast.write(writer);
         writer.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.getSlot());
 
         if (loopCounter != null) {

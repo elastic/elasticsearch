@@ -29,6 +29,7 @@ import java.net.URL;
 import java.security.CodeSource;
 import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
+import java.util.BitSet;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 
@@ -109,11 +110,9 @@ final class Compiler {
         try {
             Class<? extends PainlessScript> clazz = loader.define(CLASS_NAME, root.getBytes());
             java.lang.reflect.Constructor<? extends PainlessScript> constructor =
-                    clazz.getConstructor(PainlessScript.ScriptMetadata.class);
-            PainlessScript.ScriptMetadata scriptMetadata =
-                    new PainlessScript.ScriptMetadata(name, source, root.getStatements());
+                    clazz.getConstructor(String.class, String.class, BitSet.class);
 
-            return iface.cast(constructor.newInstance(scriptMetadata));
+            return iface.cast(constructor.newInstance(name, source, root.getStatements()));
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException("An internal error occurred attempting to define the script [" + name + "].", exception);
         }

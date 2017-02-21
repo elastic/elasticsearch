@@ -31,6 +31,7 @@ import java.lang.invoke.LambdaMetafactory;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -54,7 +55,7 @@ public final class WriterConstants {
     public static final String CLASS_NAME      = BASE_CLASS_NAME + "$Script";
     public static final Type CLASS_TYPE        = Type.getObjectType(CLASS_NAME.replace('.', '/'));
 
-    public static final Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", PainlessScript.ScriptMetadata.class);
+    public static final Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", String.class, String.class, BitSet.class);
     public static final Method CLINIT      = getAsmMethod(void.class, "<clinit>");
 
     // All of these types are caught by the main method and rethrown as ScriptException

@@ -34,13 +34,6 @@ import java.util.BitSet;
 import java.util.Deque;
 import java.util.List;
 
-import static org.elasticsearch.painless.Definition.BOOLEAN_TYPE;
-import static org.elasticsearch.painless.Definition.BYTE_TYPE;
-import static org.elasticsearch.painless.Definition.DOUBLE_TYPE;
-import static org.elasticsearch.painless.Definition.FLOAT_TYPE;
-import static org.elasticsearch.painless.Definition.INT_TYPE;
-import static org.elasticsearch.painless.Definition.LONG_TYPE;
-import static org.elasticsearch.painless.Definition.SHORT_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CHAR_TO_STRING;
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_BOOLEAN;
@@ -377,17 +370,6 @@ public final class MethodWriter extends GeneratorAdapter {
         } else if (size == 2) {
             pop2();
         }
-    }
-
-    public void writeDefaultValue(org.objectweb.asm.Type type) {
-        if (type.equals(BOOLEAN_TYPE.type))     push(false);
-        else if (type.equals(BYTE_TYPE.type))   push(0);
-        else if (type.equals(SHORT_TYPE.type))  push(0);
-        else if (type.equals(INT_TYPE.type))    push(0);
-        else if (type.equals(LONG_TYPE.type))   push(0L);
-        else if (type.equals(FLOAT_TYPE.type))  push(0f);
-        else if (type.equals(DOUBLE_TYPE.type)) push(0d);
-        else                                    visitInsn(Opcodes.ACONST_NULL);
     }
 
     @Override

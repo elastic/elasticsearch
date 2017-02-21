@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalStats extends InternalNumericMetricsAggregation.MultiValue implements Stats {
     enum Metrics {
@@ -197,5 +198,19 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
 
     protected XContentBuilder otherStatsToXCotent(XContentBuilder builder, Params params) throws IOException {
         return builder;
+    }
+
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(count, min, max, sum);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        return count == count &&
+            min == min &&
+            max == max &&
+            sum == sum;
     }
 }

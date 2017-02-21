@@ -90,6 +90,10 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         return super.value(name);
     }
 
+    public double getSigma() {
+        return this.sigma;
+    }
+
     @Override
     public double getSumOfSquares() {
         return sumOfSqrs;

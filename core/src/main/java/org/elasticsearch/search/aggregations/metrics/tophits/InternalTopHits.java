@@ -96,7 +96,18 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
 
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        SearchHits[] shardHits = new SearchHits[aggregations.size()];
+        final SearchHits[] shardHits = new SearchHits[aggregations.size()];
+        final int from;
+        final int size;
+        if (reduceContext.isFinalReduce()) {
+            from = this.from;
+            size = this.size;
+        } else {
+            // if we are not in the final reduce we need to ensure we maintain all possible elements during reduce
+            // hence for pagination we need to maintain all hits until we are in the final phase.
+            from = 0;
+            size = this.from + this.size;
+        }
 
         final TopDocs reducedTopDocs;
         final TopDocs[] shardDocs;
@@ -130,7 +141,7 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
             } while (shardDocs[scoreDoc.shardIndex].scoreDocs[position] != scoreDoc);
             hits[i] = shardHits[scoreDoc.shardIndex].getAt(position);
         }
-        return new InternalTopHits(name, from, size, reducedTopDocs, new SearchHits(hits, reducedTopDocs.totalHits,
+        return new InternalTopHits(name, this.from, this.size, reducedTopDocs, new SearchHits(hits, reducedTopDocs.totalHits,
                 reducedTopDocs.getMaxScore()),
                 pipelineAggregators(), getMetaData());
     }

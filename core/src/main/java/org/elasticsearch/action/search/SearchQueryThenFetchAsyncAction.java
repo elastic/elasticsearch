@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.transport.Transport;
@@ -44,9 +43,11 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Qu
                                     GroupShardsIterator shardsIts, long startTime, long clusterStateVersion,
                                     SearchTask task) {
         super("query", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, executor,
-            request, listener, shardsIts, startTime, clusterStateVersion, task);
+            request, listener, shardsIts, startTime, clusterStateVersion, task,
+            searchPhaseController.newSearchPhaseResults(request, shardsIts.size()));
         this.searchPhaseController = searchPhaseController;
     }
+
 
     protected void executePhaseOnShard(ShardIterator shardIt, ShardRouting shard, ActionListener listener) {
         getSearchTransport().sendExecuteQuery(getConnection(shard.currentNodeId()),
@@ -54,7 +55,7 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Qu
     }
 
     @Override
-    protected SearchPhase getNextPhase(AtomicArray<QuerySearchResultProvider> results, SearchPhaseContext context) {
+    protected SearchPhase getNextPhase(SearchPhaseResults<QuerySearchResultProvider> results, SearchPhaseContext context) {
         return new FetchSearchPhase(results, searchPhaseController, context);
     }
 }

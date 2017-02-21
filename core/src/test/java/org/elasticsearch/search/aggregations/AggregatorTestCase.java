@@ -180,8 +180,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
             if (aggs.isEmpty()) {
                 return null;
             } else {
+                if (aggs.size() > 2 && randomBoolean()) {
+                    // sometimes do an incremental reduce
+                    List<InternalAggregation> internalAggregations = randomSubsetOf(randomIntBetween(2, aggs.size()-1), aggs);
+                    A internalAgg = (A) aggs.get(0).doReduce(internalAggregations,
+                        new InternalAggregation.ReduceContext(root.context().bigArrays(), null, false));
+                    aggs.removeAll(internalAggregations);
+                    aggs.add(internalAgg);
+                }
+                // now do the final reduce
                 @SuppressWarnings("unchecked")
-                A internalAgg = (A) aggs.get(0).doReduce(aggs, new InternalAggregation.ReduceContext(root.context().bigArrays(), null));
+                A internalAgg = (A) aggs.get(0).doReduce(aggs, new InternalAggregation.ReduceContext(root.context().bigArrays(), null,
+                    true));
                 return internalAgg;
             }
         } finally {

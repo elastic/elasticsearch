@@ -47,6 +47,12 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         e = expectScriptThrows(IllegalArgumentException.class, () ->
             scriptEngine.compile(NoArgs.class, null, "_score", emptyMap()));
         assertEquals("Variable [_score] is not defined.", e.getMessage());
+
+        String debug = Debugger.toString(NoArgs.class, "int i = 0", new CompilerSettings());
+        /* Elasticsearch requires that scripts that return nothing return null. We hack that together by returning null from scripts that
+         * return Object if they don't return anything. */
+        assertThat(debug, containsString("ACONST_NULL"));
+        assertThat(debug, containsString("ARETURN"));
     }
 
     public interface OneArg {
@@ -167,9 +173,12 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertEquals(singletonMap("a", "foo"), map);
         scriptEngine.compile(ReturnsVoid.class, null, "map.remove('a')", emptyMap()).execute(map);
         assertEquals(emptyMap(), map);
-        String debug = Debugger.toString(ReturnsVoid.class, "map.remove('a')", new CompilerSettings());
+
+        String debug = Debugger.toString(ReturnsVoid.class, "int i = 0", new CompilerSettings());
+        // The important thing is that this contains the opcode for returning void
+        assertThat(debug, containsString(" RETURN"));
+        // We shouldn't contain any weird "default to null" logic
         assertThat(debug, not(containsString("ACONST_NULL")));
-        assertThat(debug, containsString("RETURN"));
     }
 
     public interface ReturnsPrimitiveInt {

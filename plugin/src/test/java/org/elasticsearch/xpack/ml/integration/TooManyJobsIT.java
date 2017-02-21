@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
@@ -94,6 +95,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
 
                 // close the first job and check if the latest job gets opened:
                 CloseJobAction.Request closeRequest = new CloseJobAction.Request("1");
+                closeRequest.setTimeout(TimeValue.timeValueSeconds(30L));
                 CloseJobAction.Response closeResponse = client().execute(CloseJobAction.INSTANCE, closeRequest).actionGet();
                 assertTrue(closeResponse.isClosed());
                 client().execute(OpenJobAction.INSTANCE, openJobRequest).get();

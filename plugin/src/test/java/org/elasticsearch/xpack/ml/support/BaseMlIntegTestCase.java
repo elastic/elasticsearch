@@ -9,6 +9,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -158,8 +159,10 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
         for (Map.Entry<String, Job> entry : mlMetadata.getJobs().entrySet()) {
             String jobId = entry.getKey();
             try {
+                CloseJobAction.Request closeRequest = new CloseJobAction.Request(jobId);
+                closeRequest.setTimeout(TimeValue.timeValueSeconds(30L));
                 CloseJobAction.Response response =
-                        client.execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId)).get();
+                        client.execute(CloseJobAction.INSTANCE, closeRequest).get();
                 assertTrue(response.isClosed());
             } catch (Exception e) {
                 // CONFLICT is ok, as it means the job has been closed already, which isn't an issue at all.

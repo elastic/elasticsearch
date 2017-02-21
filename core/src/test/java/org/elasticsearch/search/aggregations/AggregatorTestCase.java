@@ -105,6 +105,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(searchContext.fetchPhase())
             .thenReturn(new FetchPhase(Arrays.asList(new FetchSourceSubPhase(), new DocValueFieldsFetchSubPhase())));
         doAnswer(invocation -> {
+            /* Store the releasables so we can release them at the end of the test case. This is important because aggregations don't
+             * close their sub-aggregations. This is fairly similar to what the production code does. */
             releasables.add((Releasable) invocation.getArguments()[0]);
             return null;
         }).when(searchContext).addReleasable(anyObject(), anyObject());

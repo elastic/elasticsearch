@@ -265,15 +265,18 @@ public class SearchPhaseControllerTests extends ESTestCase {
             Collections.emptyList(), Collections.emptyMap())));
         result.aggregations(aggs);
         consumer.consumeResult(1, result);
-
+        int numTotalReducePhases = 1;
         if (bufferSize == 2) {
             assertThat(consumer, instanceOf(SearchPhaseController.QueryPhaseResultConsumer.class));
+            assertEquals(1, ((SearchPhaseController.QueryPhaseResultConsumer)consumer).getNumReducePhases());
             assertEquals(2, ((SearchPhaseController.QueryPhaseResultConsumer)consumer).getNumBuffered());
+            numTotalReducePhases++;
         } else {
             assertThat(consumer, not(instanceOf(SearchPhaseController.QueryPhaseResultConsumer.class)));
         }
 
         SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
+        assertEquals(numTotalReducePhases, reduce.numReducePhases);
         InternalMax max = (InternalMax) reduce.aggregations.asList().get(0);
         assertEquals(3.0D, max.getValue(), 0.0D);
     }

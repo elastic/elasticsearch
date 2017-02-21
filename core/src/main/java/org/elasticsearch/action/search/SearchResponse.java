@@ -107,6 +107,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     /**
+     * Returns the number of reduce phases applied to obtain this search response
+     */
+    public int getNumReducePhases() {
+        return internalResponse.getNumReducePhases();
+    }
+
+    /**
      * How long the search took.
      */
     public TimeValue getTook() {
@@ -195,6 +202,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         builder.field(Fields.TIMED_OUT, isTimedOut());
         if (isTerminatedEarly() != null) {
             builder.field(Fields.TERMINATED_EARLY, isTerminatedEarly());
+        }
+        if (getNumReducePhases() != 1) {
+            builder.field("num_reduce_phases", getNumReducePhases());
         }
         RestActions.buildBroadcastShardsHeader(builder, params, getTotalShards(), getSuccessfulShards(), getFailedShards(), getShardFailures());
         internalResponse.toXContent(builder, params);

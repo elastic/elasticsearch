@@ -10,18 +10,6 @@ setup:
       indices.refresh: {}
 
 ---
-"batched_reduce_size lower limit":
-  - skip:
-      version: " - 5.99.99"
-      reason:  this was added in 6.0.0
-  - do:
-      catch:      /batchedReduceSize must be >= 2/
-      search:
-        index: test_1
-        batched_reduce_size: 1
-
-
----
 "Request window limits without scroll":
   - do:
       catch:      /Result window is too large, from \+ size must be less than or equal to[:] \[10000\] but was \[10010\]\. See the scroll api for a more efficient way to request large data sets\./

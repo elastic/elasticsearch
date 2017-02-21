@@ -24,7 +24,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import java.util.Map;
 
 /**
- * Generic script interface that all scripts that elasticsearch uses implement.
+ * Generic script interface that Painless implements for all Elasticsearch scripts.
  */
 public interface GenericElasticsearchScript {
     String[] ARGUMENTS = new String[] {"params", "_score", "doc", "_value", "ctx"};

@@ -112,8 +112,23 @@ public class DeprecationLogger {
         deprecated(THREAD_CONTEXT, msg, params);
     }
 
+    /*
+     * RFC7234 specifies the warning format as warn-code <space> warn-agent <space> "warn-text" [<space> "warn-date"]. Here, warn-code is a
+     * three-digit number with various standard warn codes specified. The warn code 299 is apt for our purposes as it represents a
+     * miscellaneous persistent warning (can be presented to a human, or logged, and must not be removed by a cache). The warn-agent is an
+     * arbitrary token; here we use the Elasticsearch version and build hash. The warn text must be quoted. The warn-date is an optional
+     * quoted field that can be in a variety of specified date formats; here we use RFC 1123 format.
+     */
+    private static final String WARNING_FORMAT =
+            String.format(
+                    Locale.ROOT,
+                    "299 Elasticsearch-%s%s/%s ",
+                    Version.CURRENT.toString(),
+                    Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
+                    Build.CURRENT.shortHash()) +
+                    "\"%s\" \"%s\"";
+
     private static final ZoneId GMT = ZoneId.of("GMT");
-    private static final String WARNING_FORMAT;
 
     public static Pattern WARNING_HEADER_PATTERN = Pattern.compile(
             "299 " + // warn code
@@ -128,24 +143,6 @@ public class DeprecationLogger {
                     "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
                     "GMT" + // GMT
                     "\""); // closing quote
-
-    static {
-        /*
-         * RFC7234 specifies the warning format as warn-code <space> warn-agent <space> "warn-text" <space> ["warn-date"]. Here, warn-code
-         * is a three-digit number with various standard warn codes specified. The warn code 299 is apt for our purposes as it represents a
-         * miscellaneous persistent warning (can be presented to a human, or logged, and must not be removed by a cache). The warn-agent is
-         * an arbitrary token; here we use the Elasticsearch version and build hash. The warn text must be quoted. The warn-date is an
-         * optional quoted field that can be in a variety of specified date formats; here we use RFC 1123 format.
-         */
-        WARNING_FORMAT =
-                String.format(
-                        Locale.ROOT,
-                        "299 Elasticsearch-%s%s/%s ",
-                        Version.CURRENT.toString(),
-                        Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
-                        Build.CURRENT.shortHash()) +
-                        "\"%s\" \"%s\"";
-    }
 
     /**
      * Logs a deprecated message to the deprecation log, as well as to the local {@link ThreadContext}.
@@ -175,7 +172,7 @@ public class DeprecationLogger {
                             warningValue,
                             v -> {
                                 final Matcher matcher = WARNING_HEADER_PATTERN.matcher(v);
-                                boolean matches = matcher.matches();
+                                final boolean matches = matcher.matches();
                                 assert matches;
                                 return matcher.group(1);
                             });

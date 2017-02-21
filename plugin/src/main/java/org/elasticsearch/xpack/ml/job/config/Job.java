@@ -515,6 +515,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             this.id = job.getId();
             this.description = job.getDescription();
             this.analysisConfig = job.getAnalysisConfig();
+            this.analysisLimits = job.getAnalysisLimits();
             this.dataDescription = job.getDataDescription();
             this.createTime = job.getCreateTime();
             this.finishedTime = job.getFinishedTime();
@@ -522,9 +523,12 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             this.modelDebugConfig = job.getModelDebugConfig();
             this.renormalizationWindowDays = job.getRenormalizationWindowDays();
             this.backgroundPersistInterval = job.getBackgroundPersistInterval();
+            this.modelSnapshotRetentionDays = job.getModelSnapshotRetentionDays();
             this.resultsRetentionDays = job.getResultsRetentionDays();
             this.customSettings = job.getCustomSettings();
             this.modelSnapshotId = job.getModelSnapshotId();
+            this.resultsIndexName = job.getResultsIndexName();
+            this.deleted = job.isDeleted();
         }
 
         public void setId(String id) {

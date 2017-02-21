@@ -195,6 +195,14 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
     // JobConfigurationVerifierTests:
 
+    public void testCopyConstructor() {
+        for (int i = 0; i < NUMBER_OF_TESTQUERIES; i++) {
+            Job job = createTestInstance();
+            Job copy = new Job.Builder(job).build();
+            assertEquals(job, copy);
+        }
+    }
+
     public void testCheckValidId_IdTooLong()  {
         Job.Builder builder = buildJobBuilder("foo");
         builder.setId("averyveryveryaveryveryveryaveryveryveryaveryveryveryaveryveryveryaveryveryverylongid");

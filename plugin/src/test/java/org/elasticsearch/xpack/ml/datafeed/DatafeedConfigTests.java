@@ -95,6 +95,14 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         return DatafeedConfig.PARSER.apply(parser, null).build();
     }
 
+    public void testCopyConstructor() {
+        for (int i = 0; i < NUMBER_OF_TESTQUERIES; i++) {
+            DatafeedConfig datafeedConfig = createTestInstance();
+            DatafeedConfig copy = new DatafeedConfig.Builder(datafeedConfig).build();
+            assertEquals(datafeedConfig, copy);
+        }
+    }
+
     public void testFillDefaults() {
         DatafeedConfig.Builder expectedDatafeedConfig = new DatafeedConfig.Builder("datafeed1", "job1");
         expectedDatafeedConfig.setIndexes(Arrays.asList("index"));

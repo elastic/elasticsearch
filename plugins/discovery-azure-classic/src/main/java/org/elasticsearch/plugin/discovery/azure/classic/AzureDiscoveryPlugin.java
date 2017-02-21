@@ -102,9 +102,9 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
         // setting existed. This check looks for the legacy setting, and sets hosts provider if set
         String discoveryType = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings);
         if (discoveryType.equals(AZURE)) {
-            deprecationLogger.deprecated("Using " + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() +
-                " setting to set hosts provider is deprecated. " +
-                "Set \"" + DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + ": " + AZURE + "\" instead");
+            deprecationLogger.deprecated("using [" + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() +
+                "] to set hosts provider is deprecated; " +
+                "set [" + DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + ": " + AZURE + "] instead");
             if (DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.exists(settings) == false) {
                 return Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), AZURE).build();
             }

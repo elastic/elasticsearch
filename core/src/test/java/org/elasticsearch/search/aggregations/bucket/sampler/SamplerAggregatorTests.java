@@ -72,7 +72,7 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                 Sampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "good")), aggBuilder, textFieldType,
                         numericFieldType);
                 Min min = sampler.getAggregations().get("min");
-                assertEquals(5.0, min.getValue(), Double.MIN_NORMAL);
+                assertEquals(5.0, min.getValue(), 0);
             }
         }
     }

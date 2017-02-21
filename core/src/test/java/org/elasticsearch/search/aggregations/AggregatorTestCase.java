@@ -29,6 +29,8 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.index.IndexSettings;
@@ -41,7 +43,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
@@ -56,6 +57,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.mockito.Matchers.anyObject;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -65,6 +68,8 @@ import static org.mockito.Mockito.when;
  * {@link AggregationBuilder} instance.
  */
 public abstract class AggregatorTestCase extends ESTestCase {
+    private List<Releasable> releasables = new ArrayList<>();
+
     protected <A extends Aggregator, B extends AggregationBuilder> A createAggregator(B aggregationBuilder,
                                                                                       IndexSearcher indexSearcher,
                                                                                       MappedFieldType... fieldTypes) throws IOException {
@@ -99,6 +104,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(searchContext.bigArrays()).thenReturn(new MockBigArrays(Settings.EMPTY, circuitBreakerService));
         when(searchContext.fetchPhase())
             .thenReturn(new FetchPhase(Arrays.asList(new FetchSourceSubPhase(), new DocValueFieldsFetchSubPhase())));
+        doAnswer(invocation -> {
+            releasables.add((Releasable) invocation.getArguments()[0]);
+            return null;
+        }).when(searchContext).addReleasable(anyObject(), anyObject());
 
         // TODO: now just needed for top_hits, this will need to be revised for other agg unit tests:
         MapperService mapperService = mock(MapperService.class);
@@ -134,7 +143,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             A internalAgg = (A) a.buildAggregation(0L);
             return internalAgg;
         } finally {
-            closeAgg(a);
+            Releasables.close(releasables);
+            releasables.clear();
         }
     }
 
@@ -170,14 +180,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         try {
             for (ShardSearcher subSearcher : subSearchers) {
                 C a = createAggregator(builder, subSearcher, fieldTypes);
-                try {
-                    a.preCollection();
-                    subSearcher.search(weight, a);
-                    a.postCollection();
-                    aggs.add(a.buildAggregation(0L));
-                } finally {
-                    closeAgg(a);
-                }
+                a.preCollection();
+                subSearcher.search(weight, a);
+                a.postCollection();
+                aggs.add(a.buildAggregation(0L));
             }
             if (aggs.isEmpty()) {
                 return null;
@@ -187,15 +193,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 return internalAgg;
             }
         } finally {
-            closeAgg(root);
-        }
-    }
-
-    private void closeAgg(Aggregator agg) {
-        agg = DeferringBucketCollector.unwrap(agg);
-        agg.close();
-        for (Aggregator sub : ((AggregatorBase) agg).subAggregators) {
-            closeAgg(sub);
+            Releasables.close(releasables);
+            releasables.clear();
         }
     }
 

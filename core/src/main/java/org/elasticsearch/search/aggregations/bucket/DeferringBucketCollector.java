@@ -54,16 +54,6 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         return new WrappedAggregator(in);
     }
 
-    /**
-     * Unwrap an aggregator. Used for testing.
-     */
-    public static Aggregator unwrap(Aggregator in) {
-        if (in instanceof WrappedAggregator) {
-            return ((WrappedAggregator) in).in;
-        }
-        return in;
-    }
-
     protected class WrappedAggregator extends Aggregator {
         private Aggregator in;
 

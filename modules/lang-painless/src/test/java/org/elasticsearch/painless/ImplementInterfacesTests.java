@@ -181,6 +181,45 @@ public class ImplementInterfacesTests extends ScriptTestCase {
         assertThat(debug, not(containsString("ACONST_NULL")));
     }
 
+    public interface ReturnsPrimitiveBoolean {
+        String[] ARGUMENTS = new String[] {};
+        boolean execute();
+    }
+    public void testReturnsPrimitiveBoolean() {
+        assertEquals(true, scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "true", emptyMap()).execute());
+        assertEquals(false, scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "false", emptyMap()).execute());
+        assertEquals(true, scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "Boolean.TRUE", emptyMap()).execute());
+        assertEquals(false, scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "Boolean.FALSE", emptyMap()).execute());
+
+        assertEquals(true, scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "def i = true; i", emptyMap()).execute());
+        assertEquals(true, scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "def i = Boolean.TRUE; i", emptyMap()).execute());
+
+        assertEquals(true, scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "true || false", emptyMap()).execute());
+
+        String debug = Debugger.toString(ReturnsPrimitiveBoolean.class, "false", new CompilerSettings());
+        assertThat(debug, containsString("ICONST_0"));
+        // The important thing here is that we have the bytecode for returning an integer instead of an object. booleans are integers.
+        assertThat(debug, containsString("IRETURN"));
+
+        Exception e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "1L", emptyMap()).execute());
+        assertEquals("Cannot cast from [long] to [boolean].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "1.1f", emptyMap()).execute());
+        assertEquals("Cannot cast from [float] to [boolean].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "1.1d", emptyMap()).execute());
+        assertEquals("Cannot cast from [double] to [boolean].", e.getMessage());
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "def i = 1L; i", emptyMap()).execute());
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "def i = 1.1f; i", emptyMap()).execute());
+        expectScriptThrows(ClassCastException.class, () ->
+                scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "def i = 1.1d; i", emptyMap()).execute());
+
+        assertEquals(false, scriptEngine.compile(ReturnsPrimitiveBoolean.class, null, "int i = 0", emptyMap()).execute());
+    }
+
     public interface ReturnsPrimitiveInt {
         String[] ARGUMENTS = new String[] {};
         int execute();

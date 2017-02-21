@@ -64,7 +64,7 @@ import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
  */
 public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestion.Entry> {
 
-    private static final String NAME = "completion";
+    public static final String NAME = "completion";
 
     public static final int TYPE = 4;
 

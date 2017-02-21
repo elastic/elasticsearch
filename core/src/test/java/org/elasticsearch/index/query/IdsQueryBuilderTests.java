@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -76,7 +76,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         if (queryBuilder.ids().size() == 0) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
-            assertThat(query, instanceOf(TermsQuery.class));
+            assertThat(query, instanceOf(TermInSetQuery.class));
         }
     }
 

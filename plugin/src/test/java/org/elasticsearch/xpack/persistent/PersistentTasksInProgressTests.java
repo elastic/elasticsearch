@@ -151,8 +151,7 @@ public class PersistentTasksInProgressTests extends AbstractDiffableSerializatio
         return new NamedXContentRegistry(Arrays.asList(
                 new NamedXContentRegistry.Entry(PersistentActionRequest.class, new ParseField(TestPersistentAction.NAME),
                         TestRequest::fromXContent),
-                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(TestPersistentAction.NAME),
-                        Status::fromXContent)
+                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(Status.NAME), Status::fromXContent)
         ));
     }
 

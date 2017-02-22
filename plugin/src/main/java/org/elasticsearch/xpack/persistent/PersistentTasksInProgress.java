@@ -58,16 +58,18 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
         this.tasks = tasks;
     }
 
-    public static final ObjectParser<Builder, Void> PERSISTENT_TASKS_IN_PROGRESS_PARSER = new ObjectParser<>(TYPE,
-            Builder::new);
+    private static final ObjectParser<Builder, Void> PERSISTENT_TASKS_IN_PROGRESS_PARSER = new ObjectParser<>(TYPE, Builder::new);
 
-    public static final ObjectParser<TaskBuilder<PersistentActionRequest>, Void> PERSISTENT_TASK_IN_PROGRESS_PARSER =
+    private static final ObjectParser<TaskBuilder<PersistentActionRequest>, Void> PERSISTENT_TASK_IN_PROGRESS_PARSER =
             new ObjectParser<>("running_tasks", TaskBuilder::new);
 
     public static final ConstructingObjectParser<Assignment, Void> ASSIGNMENT_PARSER =
             new ConstructingObjectParser<>("assignment", objects -> new Assignment((String) objects[0], (String) objects[1]));
 
-    public static final NamedObjectParser<ActionDescriptionBuilder<PersistentActionRequest>, Void> ACTION_PARSER;
+    private static final NamedObjectParser<PersistentActionRequest, Void> REQUEST_PARSER =
+            (XContentParser p, Void c, String name) -> p.namedObject(PersistentActionRequest.class, name, null);
+    private static final NamedObjectParser<Status, Void> STATUS_PARSER =
+            (XContentParser p, Void c, String name) -> p.namedObject(Status.class, name, null);
 
     static {
         // Tasks parser initialization
@@ -75,13 +77,6 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
         PERSISTENT_TASKS_IN_PROGRESS_PARSER.declareObjectArray(Builder::setTasks, PERSISTENT_TASK_IN_PROGRESS_PARSER,
                 new ParseField("running_tasks"));
 
-        // Action parser initialization
-        ObjectParser<ActionDescriptionBuilder<PersistentActionRequest>, String> parser = new ObjectParser<>("named");
-        parser.declareObject(ActionDescriptionBuilder::setRequest,
-                (p, c) -> p.namedObject(PersistentActionRequest.class, c, null), new ParseField("request"));
-        parser.declareObject(ActionDescriptionBuilder::setStatus,
-                (p, c) -> p.namedObject(Status.class, c, null), new ParseField("status"));
-        ACTION_PARSER = (XContentParser p, Void c, String name) -> parser.parse(p, new ActionDescriptionBuilder<>(name), name);
 
         // Assignment parser
         ASSIGNMENT_PARSER.declareStringOrNull(constructorArg(), new ParseField("executor_node"));
@@ -89,45 +84,30 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
 
         // Task parser initialization
         PERSISTENT_TASK_IN_PROGRESS_PARSER.declareLong(TaskBuilder::setId, new ParseField("id"));
+        PERSISTENT_TASK_IN_PROGRESS_PARSER.declareString(TaskBuilder::setAction, new ParseField("action"));
         PERSISTENT_TASK_IN_PROGRESS_PARSER.declareLong(TaskBuilder::setAllocationId, new ParseField("allocation_id"));
         PERSISTENT_TASK_IN_PROGRESS_PARSER.declareBoolean(TaskBuilder::setRemoveOnCompletion, new ParseField("remove_on_completion"));
         PERSISTENT_TASK_IN_PROGRESS_PARSER.declareBoolean(TaskBuilder::setStopped, new ParseField("stopped"));
         PERSISTENT_TASK_IN_PROGRESS_PARSER.declareNamedObjects(
-                (TaskBuilder<PersistentActionRequest> taskBuilder, List<ActionDescriptionBuilder<PersistentActionRequest>> objects) -> {
+                (TaskBuilder<PersistentActionRequest> taskBuilder, List<PersistentActionRequest> objects) -> {
                     if (objects.size() != 1) {
-                        throw new IllegalArgumentException("only one action description per task is allowed");
+                        throw new IllegalArgumentException("only one action request per task is allowed");
                     }
-                    ActionDescriptionBuilder<PersistentActionRequest> builder = objects.get(0);
-                    taskBuilder.setAction(builder.action);
-                    taskBuilder.setRequest(builder.request);
-                    taskBuilder.setStatus(builder.status);
-                }, ACTION_PARSER, new ParseField("action"));
+                    taskBuilder.setRequest(objects.get(0));
+                }, REQUEST_PARSER, new ParseField("request"));
+
+        PERSISTENT_TASK_IN_PROGRESS_PARSER.declareNamedObjects(
+                (TaskBuilder<PersistentActionRequest> taskBuilder, List<Status> objects) -> {
+                    if (objects.size() != 1) {
+                        throw new IllegalArgumentException("only one status per task is allowed");
+                    }
+                    taskBuilder.setStatus(objects.get(0));
+                }, STATUS_PARSER, new ParseField("status"));
+
+
         PERSISTENT_TASK_IN_PROGRESS_PARSER.declareObject(TaskBuilder::setAssignment, ASSIGNMENT_PARSER, new ParseField("assignment"));
         PERSISTENT_TASK_IN_PROGRESS_PARSER.declareLong(TaskBuilder::setAllocationIdOnLastStatusUpdate,
                 new ParseField("allocation_id_on_last_status_update"));
-    }
-
-    /**
-     * Private builder used in XContent parser
-     */
-    private static class ActionDescriptionBuilder<Request extends PersistentActionRequest> {
-        private final String action;
-        private Request request;
-        private Status status;
-
-        private ActionDescriptionBuilder(String action) {
-            this.action = action;
-        }
-
-        private ActionDescriptionBuilder setRequest(Request request) {
-            this.request = request;
-            return this;
-        }
-
-        private ActionDescriptionBuilder setStatus(Status status) {
-            this.status = status;
-            return this;
-        }
     }
 
     public Collection<PersistentTaskInProgress<?>> tasks() {
@@ -404,19 +384,20 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
             builder.startObject();
             {
                 builder.field("id", id);
-                builder.startObject("action");
+                builder.field("action", action);
+                builder.startObject("request");
                 {
-                    builder.startObject(action);
+                    builder.field(request.getWriteableName(), request, params);
+                }
+                builder.endObject();
+                if (status != null) {
+                    builder.startObject("status");
                     {
-                        builder.field("request");
-                        request.toXContent(builder, params);
-                        if (status != null) {
-                            builder.field("status", status, params);
-                        }
+                        builder.field(status.getWriteableName(), status, params);
                     }
                     builder.endObject();
                 }
-                builder.endObject();
+
                 if (API_CONTEXT.equals(params.param(MetaData.CONTEXT_MODE_PARAM, API_CONTEXT))) {
                     // These are transient values that shouldn't be persisted to gateway cluster state or snapshot
                     builder.field("allocation_id", allocationId);

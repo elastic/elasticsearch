@@ -527,7 +527,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     }
 
     public static enum BoundaryScannerType implements Writeable {
-        SIMPLE, BREAK_ITERATOR;
+        SIMPLE, SENTENCE, WORD;
 
         public static BoundaryScannerType readFromStream(StreamInput in) throws IOException {
             int ordinal = in.readVInt();
@@ -543,10 +543,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         }
 
         public static BoundaryScannerType fromString(String boundaryScannerType) {
-            if (boundaryScannerType.toUpperCase(Locale.ROOT).equals(BREAK_ITERATOR.name())) {
-                return BoundaryScannerType.BREAK_ITERATOR;
-            }
-            return SIMPLE;
+            return valueOf(boundaryScannerType.toUpperCase(Locale.ROOT));
         }
 
         @Override

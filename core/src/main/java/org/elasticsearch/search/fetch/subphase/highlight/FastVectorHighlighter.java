@@ -52,8 +52,10 @@ import java.util.Map;
 public class FastVectorHighlighter implements Highlighter {
 
     private static final BoundaryScanner DEFAULT_SIMPLE_BOUNDARY_SCANNER = new SimpleBoundaryScanner();
-    private static final BoundaryScanner DEFAULT_BREAK_ITERATOR_BOUNDARY_SCANNER = new BreakIteratorBoundaryScanner(
+    private static final BoundaryScanner DEFAULT_SENTENCE_BOUNDARY_SCANNER = new BreakIteratorBoundaryScanner(
             BreakIterator.getSentenceInstance(Locale.ROOT));
+    private static final BoundaryScanner DEFAULT_WORD_BOUNDARY_SCANNER = new BreakIteratorBoundaryScanner(
+            BreakIterator.getWordInstance(Locale.ROOT));
 
     public static final Setting<Boolean> SETTING_TV_HIGHLIGHT_MULTI_VALUE = Setting.boolSetting("search.highlight.term_vector_multi_value",
         true, Setting.Property.NodeScope);
@@ -210,13 +212,18 @@ public class FastVectorHighlighter implements Highlighter {
 
     private static BoundaryScanner getBoundaryScanner(Field field) {
         final FieldOptions fieldOptions = field.fieldOptions();
+        final Locale boundaryScannerLocale = fieldOptions.boundaryScannerLocale();
         switch(fieldOptions.boundaryScannerType()) {
-        case BREAK_ITERATOR:
-            Locale boundaryScannerLocale = fieldOptions.boundaryScannerLocale();
+        case SENTENCE:
             if (boundaryScannerLocale != null) {
                 return new BreakIteratorBoundaryScanner(BreakIterator.getSentenceInstance(boundaryScannerLocale));
             }
-            return DEFAULT_BREAK_ITERATOR_BOUNDARY_SCANNER;
+            return DEFAULT_SENTENCE_BOUNDARY_SCANNER;
+        case WORD:
+            if (boundaryScannerLocale != null) {
+                return new BreakIteratorBoundaryScanner(BreakIterator.getWordInstance(boundaryScannerLocale));
+            }
+            return DEFAULT_WORD_BOUNDARY_SCANNER;
         default:
             if (fieldOptions.boundaryMaxScan() != SimpleBoundaryScanner.DEFAULT_MAX_SCAN
                     || fieldOptions.boundaryChars() != SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS) {

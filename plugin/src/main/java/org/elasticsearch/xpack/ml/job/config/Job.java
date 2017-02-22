@@ -539,6 +539,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             return id;
         }
 
+        public Date getCreateTime() {
+            return createTime;
+        }
+
         public void setCustomSettings(Map<String, Object> customSettings) {
             this.customSettings = customSettings;
         }
@@ -617,31 +621,16 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         }
 
         public Job build() {
-            return build(false, null);
-        }
-
-        public Job build(boolean fromApi, String urlJobId) {
 
             Date createTime;
             Date finishedTime;
             Date lastDataTime;
             String modelSnapshotId;
-            if (fromApi) {
-                if (id == null) {
-                    id = urlJobId;
-                } else if (!id.equals(urlJobId)) {
-                    throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, ID.getPreferredName(), id, urlJobId));
-                }
-                createTime = this.createTime == null ? new Date() : this.createTime;
-                finishedTime = null;
-                lastDataTime = null;
-                modelSnapshotId = null;
-            } else {
-                createTime = this.createTime;
-                finishedTime = this.finishedTime;
-                lastDataTime = this.lastDataTime;
-                modelSnapshotId = this.modelSnapshotId;
-            }
+
+            createTime = ExceptionsHelper.requireNonNull(this.createTime, CREATE_TIME.getPreferredName());
+            finishedTime = this.finishedTime;
+            lastDataTime = this.lastDataTime;
+            modelSnapshotId = this.modelSnapshotId;
 
             if (analysisConfig == null) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MISSING_ANALYSISCONFIG));

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -125,6 +126,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(d1.build(), d2.build()));
         ac.setCategorizationFieldName("cat_field");
         jobBuilder.setAnalysisConfig(ac);
+        jobBuilder.setCreateTime(new Date());
 
         Job updatedJob = update.mergeWithJob(jobBuilder.build());
 

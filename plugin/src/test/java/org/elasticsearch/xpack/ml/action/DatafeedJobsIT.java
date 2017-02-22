@@ -52,7 +52,7 @@ public class DatafeedJobsIT extends BaseMlIntegTestCase {
         indexDocs("data-2", numDocs2, oneWeekAgo, now);
 
         Job.Builder job = createScheduledJob("lookback-job");
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true, job.getId()));
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build());
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         assertTrue(putJobResponse.isAcknowledged());
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId()));
@@ -91,7 +91,7 @@ public class DatafeedJobsIT extends BaseMlIntegTestCase {
         indexDocs("data", numDocs1, lastWeek, now);
 
         Job.Builder job = createScheduledJob("realtime-job");
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true, job.getId()));
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build());
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         assertTrue(putJobResponse.isAcknowledged());
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId()));

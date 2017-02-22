@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.Objects;
 
 public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Response, PutJobAction.RequestBuilder> {
@@ -62,8 +63,14 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
     public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
 
         public static Request parseRequest(String jobId, XContentParser parser) {
-            Job job = Job.PARSER.apply(parser, null).build(true, jobId);
-            return new Request(job);
+            Job.Builder job = Job.PARSER.apply(parser, null);
+            if (job.getId() == null) {
+                job.setId(jobId);
+            }
+            if (job.getCreateTime() == null) {
+                job.setCreateTime(new Date());
+            }
+            return new Request(job.build());
         }
 
         private Job job;

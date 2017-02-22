@@ -257,6 +257,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         AnalysisConfig.Builder analysisConfBuilder = new AnalysisConfig.Builder(Collections.singletonList(detectorBuilder.build()));
         analysisConfBuilder.setInfluencers(Collections.singletonList("influence_field"));
         jobBuilder.setAnalysisConfig(analysisConfBuilder);
+        jobBuilder.setCreateTime(new Date());
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, MlMetadata.EMPTY_METADATA).indices(ImmutableOpenMap.of())).build();

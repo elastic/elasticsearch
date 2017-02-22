@@ -28,6 +28,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.config.Job;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.Objects;
 
 public class ValidateJobConfigAction
@@ -66,7 +67,8 @@ extends Action<ValidateJobConfigAction.Request, ValidateJobConfigAction.Response
             Job.Builder job = Job.PARSER.apply(parser, null);
             // When jobs are PUT their ID must be supplied in the URL - assume this will
             // be valid unless an invalid job ID is specified in the JSON to be validated
-            return new Request(job.build(true, (job.getId() != null) ? job.getId() : "ok"));
+            job.setId(job.getId() != null ? job.getId() : "ok");
+            return new Request(job.build());
         }
 
         Request() {

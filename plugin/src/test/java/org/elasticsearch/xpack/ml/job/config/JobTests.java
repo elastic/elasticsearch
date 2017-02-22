@@ -37,7 +37,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     }
 
     public void testConstructor_GivenEmptyJobConfiguration() {
-        Job job = buildJobBuilder("foo").build(true, "foo");
+        Job job = buildJobBuilder("foo").build();
 
         assertEquals("foo", job.getId());
         assertNotNull(job.getCreateTime());
@@ -58,12 +58,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     }
 
     public void testNoId() {
-        expectThrows(IllegalArgumentException.class, () -> buildJobBuilder("").build(true, ""));
-    }
-
-    public void testInconsistentId() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> buildJobBuilder("foo").build(true, "bar"));
-        assertEquals(Messages.getMessage(Messages.INCONSISTENT_ID, Job.ID.getPreferredName(), "foo", "bar"), e.getMessage());
+        expectThrows(IllegalArgumentException.class, () -> buildJobBuilder("").build());
     }
 
     public void testEquals_GivenDifferentClass() {
@@ -82,42 +77,54 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     }
 
     public void testEquals_GivenDifferentRenormalizationWindowDays() {
+        Date date = new Date();
         Job.Builder jobDetails1 = new Job.Builder("foo");
         jobDetails1.setAnalysisConfig(createAnalysisConfig());
         jobDetails1.setRenormalizationWindowDays(3L);
+        jobDetails1.setCreateTime(date);
         Job.Builder jobDetails2 = new Job.Builder("foo");
         jobDetails2.setRenormalizationWindowDays(4L);
         jobDetails2.setAnalysisConfig(createAnalysisConfig());
+        jobDetails2.setCreateTime(date);
         assertFalse(jobDetails1.build().equals(jobDetails2.build()));
     }
 
     public void testEquals_GivenDifferentBackgroundPersistInterval() {
+        Date date = new Date();
         Job.Builder jobDetails1 = new Job.Builder("foo");
         jobDetails1.setAnalysisConfig(createAnalysisConfig());
         jobDetails1.setBackgroundPersistInterval(10000L);
+        jobDetails1.setCreateTime(date);
         Job.Builder jobDetails2 = new Job.Builder("foo");
         jobDetails2.setBackgroundPersistInterval(8000L);
         jobDetails2.setAnalysisConfig(createAnalysisConfig());
+        jobDetails2.setCreateTime(date);
         assertFalse(jobDetails1.build().equals(jobDetails2.build()));
     }
 
     public void testEquals_GivenDifferentModelSnapshotRetentionDays() {
+        Date date = new Date();
         Job.Builder jobDetails1 = new Job.Builder("foo");
         jobDetails1.setAnalysisConfig(createAnalysisConfig());
         jobDetails1.setModelSnapshotRetentionDays(10L);
+        jobDetails1.setCreateTime(date);
         Job.Builder jobDetails2 = new Job.Builder("foo");
         jobDetails2.setModelSnapshotRetentionDays(8L);
         jobDetails2.setAnalysisConfig(createAnalysisConfig());
+        jobDetails2.setCreateTime(date);
         assertFalse(jobDetails1.build().equals(jobDetails2.build()));
     }
 
     public void testEquals_GivenDifferentResultsRetentionDays() {
+        Date date = new Date();
         Job.Builder jobDetails1 = new Job.Builder("foo");
         jobDetails1.setAnalysisConfig(createAnalysisConfig());
+        jobDetails1.setCreateTime(date);
         jobDetails1.setResultsRetentionDays(30L);
         Job.Builder jobDetails2 = new Job.Builder("foo");
         jobDetails2.setResultsRetentionDays(4L);
         jobDetails2.setAnalysisConfig(createAnalysisConfig());
+        jobDetails2.setCreateTime(date);
         assertFalse(jobDetails1.build().equals(jobDetails2.build()));
     }
 
@@ -333,14 +340,18 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertEquals(Messages.getMessage(Messages.INVALID_ID, Job.RESULTS_INDEX_NAME.getPreferredName()), e.getMessage());
     }
 
-    public static Job.Builder buildJobBuilder(String id) {
+    public static Job.Builder buildJobBuilder(String id, Date date) {
         Job.Builder builder = new Job.Builder(id);
-        builder.setCreateTime(new Date());
+        builder.setCreateTime(date);
         AnalysisConfig.Builder ac = createAnalysisConfig();
         DataDescription.Builder dc = new DataDescription.Builder();
         builder.setAnalysisConfig(ac);
         builder.setDataDescription(dc);
         return builder;
+    }
+
+    public static Job.Builder buildJobBuilder(String id) {
+        return buildJobBuilder(id, new Date());
     }
 
     public static String randomValidJobId() {

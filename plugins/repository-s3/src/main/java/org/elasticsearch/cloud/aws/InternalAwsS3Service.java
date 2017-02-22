@@ -143,7 +143,6 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
 
     public static AWSCredentialsProvider buildCredentials(Logger logger, DeprecationLogger deprecationLogger,
                                                           Settings settings, Settings repositorySettings, String clientName) {
-        AWSCredentialsProvider credentials;
         try (SecureString key = getConfigValue(repositorySettings, settings, clientName, S3Repository.ACCESS_KEY_SETTING,
                                                S3Repository.Repository.KEY_SETTING, S3Repository.Repositories.KEY_SETTING);
              SecureString secret = getConfigValue(repositorySettings, settings, clientName, S3Repository.SECRET_KEY_SETTING,
@@ -151,24 +150,23 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
 
             if (key.length() == 0 && secret.length() == 0) {
                 logger.debug("Using instance profile credentials");
-                credentials = new InstanceProfileCredentialsProvider();
+                AWSCredentialsProvider credentials = new InstanceProfileCredentialsProvider();
+                return new AWSCredentialsProvider() {
+                    @Override
+                    public AWSCredentials getCredentials() {
+                        return SocketAccess.doPrivileged(credentials::getCredentials);
+                    }
+
+                    @Override
+                    public void refresh() {
+                        SocketAccess.doPrivilegedVoid(credentials::refresh);
+                    }
+                };
             } else {
                 logger.debug("Using basic key/secret credentials");
-                credentials = new StaticCredentialsProvider(new BasicAWSCredentials(key.toString(), secret.toString()));
+                return new StaticCredentialsProvider(new BasicAWSCredentials(key.toString(), secret.toString()));
             }
         }
-
-        return new AWSCredentialsProvider() {
-            @Override
-            public AWSCredentials getCredentials() {
-                return SocketAccess.doPrivileged(credentials::getCredentials);
-            }
-
-            @Override
-            public void refresh() {
-                SocketAccess.doPrivilegedVoid(credentials::refresh);
-            }
-        };
     }
 
     // pkg private for tests

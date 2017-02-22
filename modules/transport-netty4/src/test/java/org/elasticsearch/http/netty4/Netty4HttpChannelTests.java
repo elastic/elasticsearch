@@ -20,6 +20,7 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelConfig;
 import io.netty.channel.ChannelFuture;
@@ -28,6 +29,7 @@ import io.netty.channel.ChannelMetadata;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.ChannelProgressivePromise;
 import io.netty.channel.ChannelPromise;
+import io.netty.channel.DefaultChannelPromise;
 import io.netty.channel.EventLoop;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
@@ -40,8 +42,10 @@ import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
+import io.netty.util.concurrent.GlobalEventExecutor;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -64,6 +68,7 @@ import org.junit.Before;
 
 import java.io.UnsupportedEncodingException;
 import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -73,6 +78,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ME
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -99,7 +105,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
 
     public void testResponse() {
         final FullHttpResponse response = executeRequest(Settings.EMPTY, "request-host");
-        assertThat(response.content(), equalTo(Netty4Utils.toByteBuf(new TestResponse(bigArrays).content())));
+        assertThat(response.content(), equalTo(Netty4Utils.toByteBuf(new TestResponse().content())));
     }
 
     public void testCorsEnabledWithoutAllowOrigins() {
@@ -203,7 +209,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
             // send a response
             Netty4HttpChannel channel =
                     new Netty4HttpChannel(httpServerTransport, request, null, randomBoolean(), threadPool.getThreadContext());
-            TestResponse resp = new TestResponse(bigArrays);
+            TestResponse resp = new TestResponse();
             final String customHeader = "custom-header";
             final String customHeaderValue = "xyz";
             resp.addHeader(customHeader, customHeaderValue);
@@ -232,6 +238,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
             final Netty4HttpChannel channel =
                     new Netty4HttpChannel(httpServerTransport, request, pipelinedRequest, randomBoolean(), threadPool.getThreadContext());
             final TestResponse response = new TestResponse(bigArrays);
+            assertThat(response.content(), instanceOf(Releasable.class));
             embeddedChannel.close();
             channel.sendResponse(response);
             // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
@@ -263,7 +270,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
             assertTrue(embeddedChannel.isOpen());
             final Netty4HttpChannel channel =
                 new Netty4HttpChannel(httpServerTransport, request, null, randomBoolean(), threadPool.getThreadContext());
-            final TestResponse resp = new TestResponse(bigArrays);
+            final TestResponse resp = new TestResponse();
             channel.sendResponse(resp);
             assertThat(embeddedChannel.isOpen(), equalTo(!close));
         }
@@ -289,7 +296,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
 
             Netty4HttpChannel channel =
                     new Netty4HttpChannel(httpServerTransport, request, null, randomBoolean(), threadPool.getThreadContext());
-            channel.sendResponse(new TestResponse(bigArrays));
+            channel.sendResponse(new TestResponse());
 
             // get the response
             List<Object> writtenObjects = writeCapturingChannel.getWrittenObjects();
@@ -529,9 +536,13 @@ public class Netty4HttpChannelTests extends ESTestCase {
 
     private static class TestResponse extends RestResponse {
 
-        private final ReleasablePagedBytesReference reference;
+        private final BytesReference reference;
 
-        public TestResponse(BigArrays bigArrays) {
+        public TestResponse() {
+            reference = Netty4Utils.toBytesReference(Unpooled.copiedBuffer("content", StandardCharsets.UTF_8));
+        }
+
+        public TestResponse(final BigArrays bigArrays) {
             final byte[] bytes;
             try {
                 bytes = "content".getBytes("UTF-8");

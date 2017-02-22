@@ -168,7 +168,7 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
                 throw new IllegalArgumentException("Job Id " + Job.ALL + " cannot be for update");
             }
 
-            PersistentTasksInProgress tasks = clusterService.state().custom(PersistentTasksInProgress.TYPE);
+            PersistentTasksInProgress tasks = clusterService.state().getMetaData().custom(PersistentTasksInProgress.TYPE);
             boolean jobIsOpen = MlMetadata.getJobState(request.getJobId(), tasks) == JobState.OPENED;
 
             semaphoreByJob.computeIfAbsent(request.getJobId(), id -> new Semaphore(1)).acquire();
@@ -181,8 +181,7 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
                             releaseJobSemaphore(request.getJobId());
                             listener.onFailure(e);
                         });
-            }
-            else {
+            } else {
                 wrappedListener = ActionListener.wrap(
                         response -> {
                             releaseJobSemaphore(request.getJobId());

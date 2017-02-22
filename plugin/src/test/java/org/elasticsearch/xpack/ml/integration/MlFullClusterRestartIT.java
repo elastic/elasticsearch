@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PutDatafeedAction;
@@ -26,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 
 public class MlFullClusterRestartIT extends BaseMlIntegTestCase {
 
+    @TestLogging("org.elasticsearch.xpack.ml.datafeed:TRACE")
     public void testFullClusterRestart() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableCluster(3);

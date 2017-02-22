@@ -19,11 +19,8 @@
 
 package org.elasticsearch.action.bulk.byscroll;
 
-import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequestTestCase;
-import org.elasticsearch.action.bulk.byscroll.DeleteByQueryRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.junit.Test;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 
@@ -76,7 +73,6 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
         // No extra assertions needed
     }
 
-    @Test
     public void testToDeleteByTypes() {
         int numTypes = between(1, 50);
         int numIndices = between(1, 100);
@@ -92,6 +88,6 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
         searchRequest.types(types);
         DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
         assertArrayEquals(request.types(), types);
-        assertArrayEquals(request.types(), types);
+        assertArrayEquals(request.indices(), indices);
     }
 }

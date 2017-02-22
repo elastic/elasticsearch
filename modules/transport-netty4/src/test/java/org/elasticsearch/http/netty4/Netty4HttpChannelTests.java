@@ -538,11 +538,11 @@ public class Netty4HttpChannelTests extends ESTestCase {
 
         private final BytesReference reference;
 
-        public TestResponse() {
+        TestResponse() {
             reference = Netty4Utils.toBytesReference(Unpooled.copiedBuffer("content", StandardCharsets.UTF_8));
         }
 
-        public TestResponse(final BigArrays bigArrays) {
+        TestResponse(final BigArrays bigArrays) {
             final byte[] bytes;
             try {
                 bytes = "content".getBytes("UTF-8");

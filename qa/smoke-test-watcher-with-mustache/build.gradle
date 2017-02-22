@@ -6,15 +6,13 @@ dependencies {
   testCompile project(path: ':modules:lang-mustache', configuration: 'runtime')
 }
 
-integTest {
-  cluster {
-    plugin ':x-pack-elasticsearch:plugin'
-    setting 'xpack.security.enabled', 'false'
-    setting 'xpack.monitoring.enabled', 'false'
-    setting 'http.port', '9400'
-    setting 'script.inline', 'true'
-    setting 'script.stored', 'true'
-    // Need to allow more compilations per minute because of the integration tests
-    setting 'script.max_compilations_per_minute', '100'
-  }
+integTestCluster {
+  plugin ':x-pack-elasticsearch:plugin'
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'http.port', '9400'
+  setting 'script.inline', 'true'
+  setting 'script.stored', 'true'
+  // Need to allow more compilations per minute because of the integration tests
+  setting 'script.max_compilations_per_minute', '100'
 }

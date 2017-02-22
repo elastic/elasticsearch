@@ -157,77 +157,75 @@ processTestResources.dependsOn(
 ext.pluginsCount = 1 // we install xpack explicitly
 project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each { subproj ->
   // need to get a non-decorated project object, so must re-lookup the project by path
-  integTest.cluster.plugin(subproj.path)
+  integTestCluster.plugin(subproj.path)
   pluginsCount += 1
 }
 
-integTest {
-  cluster {
-    setting 'xpack.monitoring.collection.interval', '3s'
-    setting 'xpack.monitoring.exporters._http.type', 'http'
-    setting 'xpack.monitoring.exporters._http.enabled', 'false'
-    setting 'xpack.monitoring.exporters._http.ssl.truststore.path', clientKeyStore.name
-    setting 'xpack.monitoring.exporters._http.ssl.truststore.password', 'keypass'
-    setting 'xpack.monitoring.exporters._http.auth.username', 'monitoring_agent'
-    setting 'xpack.monitoring.exporters._http.auth.password', 'changeme'
+integTestCluster {
+  setting 'xpack.monitoring.collection.interval', '3s'
+  setting 'xpack.monitoring.exporters._http.type', 'http'
+  setting 'xpack.monitoring.exporters._http.enabled', 'false'
+  setting 'xpack.monitoring.exporters._http.ssl.truststore.path', clientKeyStore.name
+  setting 'xpack.monitoring.exporters._http.ssl.truststore.password', 'keypass'
+  setting 'xpack.monitoring.exporters._http.auth.username', 'monitoring_agent'
+  setting 'xpack.monitoring.exporters._http.auth.password', 'changeme'
 
-    setting 'xpack.security.http.ssl.enabled', 'true'
-    setting 'xpack.security.http.ssl.keystore.path', nodeKeystore.name
-    setting 'xpack.security.http.ssl.keystore.password', 'keypass'
+  setting 'xpack.security.http.ssl.enabled', 'true'
+  setting 'xpack.security.http.ssl.keystore.path', nodeKeystore.name
+  setting 'xpack.security.http.ssl.keystore.password', 'keypass'
 
-    plugin ':x-pack-elasticsearch:plugin'
+  plugin ':x-pack-elasticsearch:plugin'
 
-    // copy keystores into config/
-    extraConfigFile nodeKeystore.name, nodeKeystore
-    extraConfigFile clientKeyStore.name, clientKeyStore
+  // copy keystores into config/
+  extraConfigFile nodeKeystore.name, nodeKeystore
+  extraConfigFile clientKeyStore.name, clientKeyStore
 
-    setupCommand 'setupTestUser',
-                 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
-    setupCommand 'setupMonitoringUser',
-                 'bin/x-pack/users', 'useradd', 'monitoring_agent', '-p', 'changeme', '-r', 'remote_monitoring_agent'
+  setupCommand 'setupTestUser',
+               'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
+  setupCommand 'setupMonitoringUser',
+               'bin/x-pack/users', 'useradd', 'monitoring_agent', '-p', 'changeme', '-r', 'remote_monitoring_agent'
 
-    waitCondition = { NodeInfo node, AntBuilder ant ->
-      File tmpFile = new File(node.cwd, 'wait.success')
-      KeyStore keyStore = KeyStore.getInstance("JKS");
-      keyStore.load(clientKeyStore.newInputStream(), 'keypass'.toCharArray());
-      KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-      kmf.init(keyStore, 'keypass'.toCharArray());
-      TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-      tmf.init(keyStore);
-      SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
-      sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), new SecureRandom());
-      for (int i = 0; i < 10; i++) {
-        // we use custom wait logic here for HTTPS
-        HttpsURLConnection httpURLConnection = null;
-        try {
-          httpURLConnection = (HttpsURLConnection) new URL("https://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}").openConnection();
-          httpURLConnection.setSSLSocketFactory(sslContext.getSocketFactory());
-          httpURLConnection.setRequestProperty("Authorization", "Basic " +
-                  Base64.getEncoder().encodeToString("test_user:changeme".getBytes(StandardCharsets.UTF_8)));
-          httpURLConnection.setRequestMethod("GET");
-          httpURLConnection.connect();
-          if (httpURLConnection.getResponseCode() == 200) {
-            tmpFile.withWriter StandardCharsets.UTF_8.name(), {
-              it.write(httpURLConnection.getInputStream().getText(StandardCharsets.UTF_8.name()))
-            }
-          }
-        } catch (IOException e) {
-          if (i == 9) {
-            logger.error("final attempt of calling cluster health failed", e)
-          } else {
-            logger.debug("failed to call cluster health", e)
-          }
-        } finally {
-          if (httpURLConnection != null) {
-            httpURLConnection.disconnect();
+  waitCondition = { NodeInfo node, AntBuilder ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    KeyStore keyStore = KeyStore.getInstance("JKS");
+    keyStore.load(clientKeyStore.newInputStream(), 'keypass'.toCharArray());
+    KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+    kmf.init(keyStore, 'keypass'.toCharArray());
+    TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+    tmf.init(keyStore);
+    SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
+    sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), new SecureRandom());
+    for (int i = 0; i < 10; i++) {
+      // we use custom wait logic here for HTTPS
+      HttpsURLConnection httpURLConnection = null;
+      try {
+        httpURLConnection = (HttpsURLConnection) new URL("https://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}").openConnection();
+        httpURLConnection.setSSLSocketFactory(sslContext.getSocketFactory());
+        httpURLConnection.setRequestProperty("Authorization", "Basic " +
+                Base64.getEncoder().encodeToString("test_user:changeme".getBytes(StandardCharsets.UTF_8)));
+        httpURLConnection.setRequestMethod("GET");
+        httpURLConnection.connect();
+        if (httpURLConnection.getResponseCode() == 200) {
+          tmpFile.withWriter StandardCharsets.UTF_8.name(), {
+            it.write(httpURLConnection.getInputStream().getText(StandardCharsets.UTF_8.name()))
           }
         }
-
-        // did not start, so wait a bit before trying again
-        Thread.sleep(500L);
+      } catch (IOException e) {
+        if (i == 9) {
+          logger.error("final attempt of calling cluster health failed", e)
+        } else {
+          logger.debug("failed to call cluster health", e)
+        }
+      } finally {
+        if (httpURLConnection != null) {
+          httpURLConnection.disconnect();
+        }
       }
-      return tmpFile.exists()
+
+      // did not start, so wait a bit before trying again
+      Thread.sleep(500L);
     }
+    return tmpFile.exists()
   }
 }
 

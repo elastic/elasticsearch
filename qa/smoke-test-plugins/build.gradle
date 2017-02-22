@@ -10,26 +10,24 @@ dependencies {
 ext.pluginsCount = 1 // we install xpack explicitly
 project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each { subproj ->
   // need to get a non-decorated project object, so must re-lookup the project by path
-  integTest.cluster.plugin(subproj.path)
+  integTestCluster.plugin(subproj.path)
   pluginsCount += 1
 }
 
-integTest {
-  cluster {
-    plugin ':x-pack-elasticsearch:plugin'
+integTestCluster {
+  plugin ':x-pack-elasticsearch:plugin'
 
-    setupCommand 'setupDummyUser',
-                 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
-    waitCondition = { node, ant ->
-      File tmpFile = new File(node.cwd, 'wait.success')
-      ant.get(src: "http://${node.httpUri()}",
-              dest: tmpFile.toString(),
-              username: 'test_user',
-              password: 'changeme',
-              ignoreerrors: true,
-              retries: 10)
-      return tmpFile.exists()
-    }
+  setupCommand 'setupDummyUser',
+               'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
+  waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}",
+            dest: tmpFile.toString(),
+            username: 'test_user',
+            password: 'changeme',
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
   }
 }
 

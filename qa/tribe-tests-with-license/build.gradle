@@ -10,74 +10,62 @@ dependencies {
     testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
 }
 
-List<NodeInfo> cluster1Nodes
 
-task setupClusterOne(type: DefaultTask) {
-    mustRunAfter(precommit)
-    ClusterConfiguration cluster1Config = new ClusterConfiguration(project)
-    cluster1Config.clusterName = 'cluster1'
-    cluster1Config.setting('node.name', 'cluster1-node1')
-    // x-pack
-    cluster1Config.plugin(':x-pack-elasticsearch:plugin')
-    cluster1Config.setting('xpack.monitoring.enabled', false)
-    cluster1Config.setting('xpack.security.enabled', false)
-    cluster1Config.setting('xpack.watcher.enabled', false)
-    cluster1Config.setting('xpack.graph.enabled', false)
+ClusterConfiguration cluster1Config = new ClusterConfiguration(project)
+cluster1Config.clusterName = 'cluster1'
+cluster1Config.setting('node.name', 'cluster1-node1')
+// x-pack
+cluster1Config.plugin(':x-pack-elasticsearch:plugin')
+cluster1Config.setting('xpack.monitoring.enabled', false)
+cluster1Config.setting('xpack.security.enabled', false)
+cluster1Config.setting('xpack.watcher.enabled', false)
+cluster1Config.setting('xpack.graph.enabled', false)
 
-    cluster1Nodes = ClusterFormationTasks.setup(project, setupClusterOne, cluster1Config)
+List<NodeInfo> cluster1Nodes = ClusterFormationTasks.setup(project, 'clusterOne', integTestRunner, cluster1Config)
+
+ClusterConfiguration cluster2Config = new ClusterConfiguration(project)
+cluster2Config.clusterName = 'cluster2'
+cluster2Config.setting('node.name', 'cluster2-node1')
+// x-pack
+cluster2Config.plugin(':x-pack-elasticsearch:plugin')
+cluster2Config.setting('xpack.monitoring.enabled', false)
+cluster2Config.setting('xpack.monitoring.enabled', false)
+cluster2Config.setting('xpack.security.enabled', false)
+cluster2Config.setting('xpack.watcher.enabled', false)
+cluster2Config.setting('xpack.graph.enabled', false)
+
+List<NodeInfo> cluster2Nodes = ClusterFormationTasks.setup(project, 'clusterTwo', integTestRunner, cluster2Config)
+
+integTestCluster {
+  setting 'node.name', 'tribe-node'
+  setting 'tribe.on_conflict', 'prefer_cluster1'
+  setting 'tribe.cluster1.cluster.name', 'cluster1'
+  setting 'tribe.cluster1.discovery.zen.ping.unicast.hosts', "'${-> cluster1Nodes.get(0).transportUri()}'"
+  setting 'tribe.cluster1.http.enabled', 'true'
+  setting 'tribe.cluster1.xpack.monitoring.enabled', false
+  setting 'tribe.cluster1.xpack.monitoring.enabled', false
+  setting 'tribe.cluster1.xpack.security.enabled', false
+  setting 'tribe.cluster1.xpack.watcher.enabled', false
+  setting 'tribe.cluster1.xpack.graph.enabled', false
+  setting 'tribe.cluster2.cluster.name', 'cluster2'
+  setting 'tribe.cluster2.discovery.zen.ping.unicast.hosts', "'${-> cluster2Nodes.get(0).transportUri()}'"
+  setting 'tribe.cluster2.http.enabled', 'true'
+  setting 'tribe.cluster2.xpack.monitoring.enabled', false
+  setting 'tribe.cluster2.xpack.monitoring.enabled', false
+  setting 'tribe.cluster2.xpack.security.enabled', false
+  setting 'tribe.cluster2.xpack.watcher.enabled', false
+  setting 'tribe.cluster2.xpack.graph.enabled', false
+  // x-pack
+  plugin ':x-pack-elasticsearch:plugin'
+  setting 'xpack.monitoring.enabled', false
+  setting 'xpack.monitoring.enabled', false
+  setting 'xpack.security.enabled', false
+  setting 'xpack.watcher.enabled', false
+  setting 'xpack.graph.enabled', false
 }
 
-List<NodeInfo> cluster2Nodes
-
-task setupClusterTwo(type: DefaultTask) {
-    mustRunAfter(precommit)
-    ClusterConfiguration cluster2Config = new ClusterConfiguration(project)
-    cluster2Config.clusterName = 'cluster2'
-    cluster2Config.setting('node.name', 'cluster2-node1')
-    // x-pack
-    cluster2Config.plugin(':x-pack-elasticsearch:plugin')
-    cluster2Config.setting('xpack.monitoring.enabled', false)
-    cluster2Config.setting('xpack.monitoring.enabled', false)
-    cluster2Config.setting('xpack.security.enabled', false)
-    cluster2Config.setting('xpack.watcher.enabled', false)
-    cluster2Config.setting('xpack.graph.enabled', false)
-
-    cluster2Nodes = ClusterFormationTasks.setup(project, setupClusterTwo, cluster2Config)
-}
-
-integTest {
-    dependsOn(setupClusterOne, setupClusterTwo)
-    cluster {
-        setting 'node.name', 'tribe-node'
-        setting 'tribe.on_conflict', 'prefer_cluster1'
-        setting 'tribe.cluster1.cluster.name', 'cluster1'
-        setting 'tribe.cluster1.discovery.zen.ping.unicast.hosts', "'${-> cluster1Nodes.get(0).transportUri()}'"
-        setting 'tribe.cluster1.http.enabled', 'true'
-        setting 'tribe.cluster1.xpack.monitoring.enabled', false
-        setting 'tribe.cluster1.xpack.monitoring.enabled', false
-        setting 'tribe.cluster1.xpack.security.enabled', false
-        setting 'tribe.cluster1.xpack.watcher.enabled', false
-        setting 'tribe.cluster1.xpack.graph.enabled', false
-        setting 'tribe.cluster2.cluster.name', 'cluster2'
-        setting 'tribe.cluster2.discovery.zen.ping.unicast.hosts', "'${-> cluster2Nodes.get(0).transportUri()}'"
-        setting 'tribe.cluster2.http.enabled', 'true'
-        setting 'tribe.cluster2.xpack.monitoring.enabled', false
-        setting 'tribe.cluster2.xpack.monitoring.enabled', false
-        setting 'tribe.cluster2.xpack.security.enabled', false
-        setting 'tribe.cluster2.xpack.watcher.enabled', false
-        setting 'tribe.cluster2.xpack.graph.enabled', false
-        // x-pack
-        plugin ':x-pack-elasticsearch:plugin'
-        setting 'xpack.monitoring.enabled', false
-        setting 'xpack.monitoring.enabled', false
-        setting 'xpack.security.enabled', false
-        setting 'xpack.watcher.enabled', false
-        setting 'xpack.graph.enabled', false
-    }
-    systemProperty 'tests.cluster', "${-> cluster1Nodes.get(0).transportUri()}"
-    systemProperty 'tests.cluster2', "${-> cluster2Nodes.get(0).transportUri()}"
-    systemProperty 'tests.tribe', "${-> integTest.nodes.get(0).transportUri()}"
-    // need to kill the standalone nodes here
-    finalizedBy 'setupClusterOne#stop'
-    finalizedBy 'setupClusterTwo#stop'
+integTestRunner {
+  systemProperty 'tests.cluster', "${-> cluster1Nodes.get(0).transportUri()}"
+  systemProperty 'tests.cluster2', "${-> cluster2Nodes.get(0).transportUri()}"
+  systemProperty 'tests.tribe', "${-> integTest.nodes.get(0).transportUri()}"
 }

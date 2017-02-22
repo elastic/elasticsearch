@@ -51,56 +51,67 @@ String outputDir = "generated-resources/${project.name}"
 
 task oldClusterTest(type: RestIntegTestTask) {
     mustRunAfter(precommit)
-    cluster {
-        plugin ':x-pack-elasticsearch:plugin'
-        distribution = 'zip'
-        bwcVersion = '5.4.0-SNAPSHOT' // TODO: either randomize, or make this settable with sysprop
-        numBwcNodes = 2
-        numNodes = 2
-        clusterName = 'rolling-upgrade'
-        waitCondition = waitWithAuth
-        setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
-        setting 'xpack.security.transport.ssl.enabled', 'true'
-        setting 'xpack.ssl.keystore.path', 'testnode.jks'
-        setting 'xpack.ssl.keystore.password', 'testnode'
-        extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
-    }
-    systemProperty 'tests.rest.suite', 'old_cluster'
+}
+
+oldClusterTestCluster {
+    plugin ':x-pack-elasticsearch:plugin'
+    distribution = 'zip'
+    bwcVersion = '5.4.0-SNAPSHOT' // TODO: either randomize, or make this settable with sysprop
+    numBwcNodes = 2
+    numNodes = 2
+    clusterName = 'rolling-upgrade'
+    waitCondition = waitWithAuth
+    setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
+    setting 'xpack.security.transport.ssl.enabled', 'true'
+    setting 'xpack.ssl.keystore.path', 'testnode.jks'
+    setting 'xpack.ssl.keystore.password', 'testnode'
+    extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+}
+oldClusterTestRunner {
+  systemProperty 'tests.rest.suite', 'old_cluster'
 }
 
 task mixedClusterTest(type: RestIntegTestTask) {
-    dependsOn(oldClusterTest, 'oldClusterTest#node1.stop')
-    cluster {
-        plugin ':x-pack-elasticsearch:plugin'
-        distribution = 'zip'
-        clusterName = 'rolling-upgrade'
-        unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
-        dataDir = "${-> oldClusterTest.nodes[1].dataDir}"
-        waitCondition = waitWithAuth
-        setting 'xpack.ssl.keystore.path', 'testnode.jks'
-        setting 'xpack.ssl.keystore.password', 'testnode'
-        extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
-    }
+    dependsOn(oldClusterTestRunner, 'oldClusterTestCluster#node1.stop')
+}
+
+mixedClusterTestCluster {
+    plugin ':x-pack-elasticsearch:plugin'
+    distribution = 'zip'
+    clusterName = 'rolling-upgrade'
+    unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
+    dataDir = "${-> oldClusterTest.nodes[1].dataDir}"
+    waitCondition = waitWithAuth
+    setting 'xpack.ssl.keystore.path', 'testnode.jks'
+    setting 'xpack.ssl.keystore.password', 'testnode'
+    extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+}
+
+mixedClusterTestRunner {
     systemProperty 'tests.rest.suite', 'mixed_cluster'
-    finalizedBy 'oldClusterTest#node0.stop'
+    finalizedBy 'oldClusterTestCluster#node0.stop'
 }
 
 task upgradedClusterTest(type: RestIntegTestTask) {
-    dependsOn(mixedClusterTest, 'oldClusterTest#node0.stop')
-    cluster {
-        plugin ':x-pack-elasticsearch:plugin'
-        distribution = 'zip'
-        clusterName = 'rolling-upgrade'
-        unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
-        dataDir = "${-> oldClusterTest.nodes[0].dataDir}"
-        waitCondition = waitWithAuth
-        setting 'xpack.ssl.keystore.path', 'testnode.jks'
-        setting 'xpack.ssl.keystore.password', 'testnode'
-        extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
-    }
+    dependsOn(mixedClusterTestRunner, 'oldClusterTestCluster#node0.stop')
+}
+
+upgradedClusterTestCluster {
+    plugin ':x-pack-elasticsearch:plugin'
+    distribution = 'zip'
+    clusterName = 'rolling-upgrade'
+    unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
+    dataDir = "${-> oldClusterTest.nodes[0].dataDir}"
+    waitCondition = waitWithAuth
+    setting 'xpack.ssl.keystore.path', 'testnode.jks'
+    setting 'xpack.ssl.keystore.password', 'testnode'
+    extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+}
+
+upgradedClusterTestRunner {
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     // only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
-    finalizedBy 'mixedClusterTest#stop'
+    finalizedBy 'mixedClusterTestCluster#stop'
 }
 
 task integTest {

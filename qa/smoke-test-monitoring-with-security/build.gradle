@@ -15,29 +15,29 @@ subprojects {
 
   integTest {
     dependsOn copyMonitoringRestTests
+  }
 
-    cluster {
-      systemProperty 'es.logger.level', 'TRACE'
-      plugin ':x-pack-elasticsearch:plugin'
-      setting 'xpack.monitoring.collection.interval', '3s'
-      extraConfigFile 'x-pack/roles.yml', '../roles.yml'
-      setupCommand 'setupTestAdminUser',
-                   'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'
-      setupCommand 'setupMonitoredSystemUser',
-                   'bin/x-pack/users', 'useradd', 'monitoring_system', '-p', 'changeme', '-r', 'monitoring_system,monitoring_without_bulk'
-      setupCommand 'setupPowerlessUser',
-                   'bin/x-pack/users', 'useradd', 'not_monitoring_system', '-p', 'changeme', '-r', 'monitoring_without_bulk'
+  integTestCluster {
+    systemProperty 'es.logger.level', 'TRACE'
+    plugin ':x-pack-elasticsearch:plugin'
+    setting 'xpack.monitoring.collection.interval', '3s'
+    extraConfigFile 'x-pack/roles.yml', '../roles.yml'
+    setupCommand 'setupTestAdminUser',
+                 'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'
+    setupCommand 'setupMonitoredSystemUser',
+                 'bin/x-pack/users', 'useradd', 'monitoring_system', '-p', 'changeme', '-r', 'monitoring_system,monitoring_without_bulk'
+    setupCommand 'setupPowerlessUser',
+                 'bin/x-pack/users', 'useradd', 'not_monitoring_system', '-p', 'changeme', '-r', 'monitoring_without_bulk'
 
-      waitCondition = { node, ant ->
-        File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://${node.httpUri()}",
-                dest: tmpFile.toString(),
-                username: 'test_admin',
-                password: 'changeme',
-                ignoreerrors: true,
-                retries: 10)
-        return tmpFile.exists()
-      }
+    waitCondition = { node, ant ->
+      File tmpFile = new File(node.cwd, 'wait.success')
+      ant.get(src: "http://${node.httpUri()}",
+              dest: tmpFile.toString(),
+              username: 'test_admin',
+              password: 'changeme',
+              ignoreerrors: true,
+              retries: 10)
+      return tmpFile.exists()
     }
   }
 }

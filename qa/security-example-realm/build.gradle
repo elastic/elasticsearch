@@ -44,30 +44,33 @@ task buildZip(type:Zip, dependsOn: [jar]) {
 }
 
 task integTest(type: org.elasticsearch.gradle.test.RestIntegTestTask, dependsOn: buildZip) {
-  systemProperty 'tests.security.manager', 'false'
-  cluster {
-    plugin ':x-pack-elasticsearch:plugin'
-    setting 'xpack.security.authc.realms.custom.order', '0'
-    setting 'xpack.security.authc.realms.custom.type', 'custom'
-    setting 'xpack.security.authc.realms.custom.filtered_setting', 'should be filtered'
-    setting 'xpack.security.authc.realms.esusers.order', '1'
-    setting 'xpack.security.authc.realms.esusers.type', 'file'
+  mustRunAfter precommit
+}
 
-    setupCommand 'setupDummyUser',
-                 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
-    setupCommand 'installExtension',
-                  'bin/x-pack/extension', 'install', 'file:' + buildZip.archivePath
-    waitCondition = { node, ant ->
-      File tmpFile = new File(node.cwd, 'wait.success')
-      ant.get(src: "http://${node.httpUri()}",
-              dest: tmpFile.toString(),
-              username: 'test_user',
-              password: 'changeme',
-              ignoreerrors: true,
-              retries: 10)
-      return tmpFile.exists()
-    }
+integTestRunner {
+  systemProperty 'tests.security.manager', 'false'
+}
+integTestCluster {
+  plugin ':x-pack-elasticsearch:plugin'
+  setting 'xpack.security.authc.realms.custom.order', '0'
+  setting 'xpack.security.authc.realms.custom.type', 'custom'
+  setting 'xpack.security.authc.realms.custom.filtered_setting', 'should be filtered'
+  setting 'xpack.security.authc.realms.esusers.order', '1'
+  setting 'xpack.security.authc.realms.esusers.type', 'file'
+
+  setupCommand 'setupDummyUser',
+               'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
+  setupCommand 'installExtension',
+                'bin/x-pack/extension', 'install', 'file:' + buildZip.archivePath
+  waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}",
+            dest: tmpFile.toString(),
+            username: 'test_user',
+            password: 'changeme',
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
   }
 }
 check.dependsOn integTest
-integTest.mustRunAfter precommit

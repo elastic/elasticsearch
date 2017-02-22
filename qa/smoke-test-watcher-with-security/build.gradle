@@ -14,28 +14,31 @@ task copyWatcherRestTests(type: Copy) {
 
 integTest {
   dependsOn copyWatcherRestTests
+}
+
+integTestRunner {
   systemProperty 'tests.rest.blacklist',
     ['hijack/10_basic/*',
      'getting_started/10_monitor_cluster_health/Getting started - Monitor cluster health'].join(',')
+}
 
-  cluster {
-    plugin ':x-pack-elasticsearch:plugin'
-    extraConfigFile 'x-pack/roles.yml', 'roles.yml'
-    setupCommand 'setupTestAdminUser',
-                 'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'
-    setupCommand 'setupWatcherManagerUser',
-                 'bin/x-pack/users', 'useradd', 'watcher_manager', '-p', 'changeme', '-r', 'watcher_manager'
-    setupCommand 'setupPowerlessUser',
-                 'bin/x-pack/users', 'useradd', 'powerless_user', '-p', 'changeme', '-r', 'crappy_role'
-    waitCondition = { node, ant ->
-      File tmpFile = new File(node.cwd, 'wait.success')
-      ant.get(src: "http://${node.httpUri()}",
-              dest: tmpFile.toString(),
-              username: 'test_admin',
-              password: 'changeme',
-              ignoreerrors: true,
-              retries: 10)
-      return tmpFile.exists()
-    }
+integTestCluster {
+  plugin ':x-pack-elasticsearch:plugin'
+  extraConfigFile 'x-pack/roles.yml', 'roles.yml'
+  setupCommand 'setupTestAdminUser',
+               'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'
+  setupCommand 'setupWatcherManagerUser',
+               'bin/x-pack/users', 'useradd', 'watcher_manager', '-p', 'changeme', '-r', 'watcher_manager'
+  setupCommand 'setupPowerlessUser',
+               'bin/x-pack/users', 'useradd', 'powerless_user', '-p', 'changeme', '-r', 'crappy_role'
+  waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}",
+            dest: tmpFile.toString(),
+            username: 'test_admin',
+            password: 'changeme',
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
   }
 }

@@ -14,25 +14,25 @@ task copyGraphRestTests(type: Copy) {
 
 integTest {
   dependsOn copyGraphRestTests
+}
 
-  cluster {
-    plugin ':x-pack-elasticsearch:plugin'
-    extraConfigFile 'x-pack/roles.yml', 'roles.yml'
-    setupCommand 'setupTestAdminUser',
-                 'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'
-    setupCommand 'setupGraphExplorerUser',
-                 'bin/x-pack/users', 'useradd', 'graph_explorer', '-p', 'changeme', '-r', 'graph_explorer'
-    setupCommand 'setupPowerlessUser',
-                 'bin/x-pack/users', 'useradd', 'no_graph_explorer', '-p', 'changeme', '-r', 'no_graph_explorer'
-    waitCondition = { node, ant ->
-      File tmpFile = new File(node.cwd, 'wait.success')
-      ant.get(src: "http://${node.httpUri()}",
-              dest: tmpFile.toString(),
-              username: 'test_admin',
-              password: 'changeme',
-              ignoreerrors: true,
-              retries: 10)
-      return tmpFile.exists()
-    }
+integTestCluster {
+  plugin ':x-pack-elasticsearch:plugin'
+  extraConfigFile 'x-pack/roles.yml', 'roles.yml'
+  setupCommand 'setupTestAdminUser',
+               'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'
+  setupCommand 'setupGraphExplorerUser',
+               'bin/x-pack/users', 'useradd', 'graph_explorer', '-p', 'changeme', '-r', 'graph_explorer'
+  setupCommand 'setupPowerlessUser',
+               'bin/x-pack/users', 'useradd', 'no_graph_explorer', '-p', 'changeme', '-r', 'no_graph_explorer'
+  waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}",
+            dest: tmpFile.toString(),
+            username: 'test_admin',
+            password: 'changeme',
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
   }
 }

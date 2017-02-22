@@ -35,6 +35,36 @@ public class FunctionReturnsTests extends ScriptTestCase {
         assertEquals(true, exec(    "boolean get() {Boolean.TRUE} get()"));
     }
 
+    public void testReturnBoolean() {
+        // Constants
+        assertEquals(true, exec( "Boolean get() {true } get()"));
+        assertEquals(false, exec("Boolean get() {false} get()"));
+        assertEquals(true, exec( "Object  get() {true } get()"));
+        assertEquals(false, exec("Object  get() {false} get()"));
+        assertEquals(true, exec( "def     get() {true } get()"));
+        assertEquals(false, exec("def     get() {false} get()"));
+        Exception e = expectScriptThrows(ClassCastException.class, () -> exec("Number get() {false} get()"));
+        assertEquals("Cannot cast from [boolean] to [Number].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () -> exec("String get() {false} get()"));
+        assertEquals("Cannot cast from [boolean] to [String].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () -> exec("CharSequence get() {false} get()"));
+        assertEquals("Cannot cast from [boolean] to [CharSequence].", e.getMessage());
+
+        // Non-constants
+        assertEquals(true, exec( "Boolean get(boolean b) {b} get(true)"));
+        assertEquals(false, exec("Boolean get(boolean b) {b} get(false)"));
+        assertEquals(true, exec( "Object  get(boolean b) {b} get(true)"));
+        assertEquals(false, exec("Object  get(boolean b) {b} get(false)"));
+        assertEquals(true, exec( "def     get(boolean b) {b} get(true)"));
+        assertEquals(false, exec("def     get(boolean b) {b} get(false)"));
+        e = expectScriptThrows(ClassCastException.class, () -> exec("Number get(boolean b) {b} get(false)"));
+        assertEquals("Cannot cast from [boolean] to [Number].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () -> exec("String get(boolean b) {b} get(false)"));
+        assertEquals("Cannot cast from [boolean] to [String].", e.getMessage());
+        e = expectScriptThrows(ClassCastException.class, () -> exec("CharSequence get(boolean b) {b} get(false)"));
+        assertEquals("Cannot cast from [boolean] to [CharSequence].", e.getMessage());
+    }
+
     public void testReturnByte() {
         returnByteOk("byte");
     }
@@ -44,7 +74,7 @@ public class FunctionReturnsTests extends ScriptTestCase {
     }
 
     public void testReturnChar() {
-        returnIntOk("char"); // NOCOMMIT return char ok?
+        returnCharOk("char");
     }
 
     public void testReturnInt() {
@@ -76,6 +106,14 @@ public class FunctionReturnsTests extends ScriptTestCase {
         assertEquals((short) 5, exec(   "Short get() {(" + type + ") 5} get()"));
         assertEquals((short) 5, exec(   "short get(" + type + " b) {        b} get(5)"));
         assertEquals((short) 5, exec(   "Short get(" + type + " b) {        b} get(5)"));
+        returnCharOk(type);
+    }
+
+    private void returnCharOk(String type) {
+        assertEquals((char) 5, exec(     "char get() {(char)(" + type + ") 5} get()"));
+        assertEquals((char) 5, exec("Character get() {(char)(" + type + ") 5} get()"));
+        assertEquals((char) 5, exec(     "char get(" + type + " b) { (char) b} get(5)"));
+        assertEquals((char) 5, exec("Character get(" + type + " b) { (char) b} get(5)"));
         returnIntOk(type);
     }
 
@@ -104,23 +142,42 @@ public class FunctionReturnsTests extends ScriptTestCase {
     }
 
     private void returnDoubleOk(String type) {
-        assertEquals(5d, exec(         "double get() {(" + type + ") 5} get()"));
-        assertEquals(5d, exec(         "Double get() {(" + type + ") 5} get()"));
+        // Constants
+        assertEquals(5d, exec(           "double get() {(" + type + ") 5} get()"));
+        assertEquals(5d, exec(           "Double get() {(" + type + ") 5} get()"));
+        if (false == type.equals("char")) {
+            // Chars are funny. They can cast to primitive numbers but not Number....
+            assertEquals(5,  exec(       "Number get() {(" + type + ") 5} get().intValue()"));
+            assertEquals(5,  exec(       "Object get() {(" + type + ") 5} ((Number) get()).intValue()"));
+            assertEquals(5,  exec(          "def get() {(" + type + ") 5} get().intValue()"));
+        } else {
+            assertEquals((char) 5,  exec("Object get() {(" + type + ") 5} get()"));
+            assertEquals((char) 5,  exec(   "def get() {(" + type + ") 5} get()"));
+        }
 
-        assertEquals((byte) 5, exec(     "byte get(" + type + " b) { (byte) b} get(5)"));
-        assertEquals((short) 5, exec(   "short get(" + type + " b) {(short) b} get(5)"));
-        assertEquals((char) 5, exec(     "char get(" + type + " b) { (char) b} get(5)"));
-        assertEquals(5, exec(             "int get(" + type + " b) {  (int) b} get(5)"));
-        assertEquals(5L, exec(           "long get(" + type + " b) { (long) b} get(5)"));
-        assertEquals(5f, exec(          "float get(" + type + " b) {(float) b} get(5)"));
-        assertEquals(5d, exec(         "double get(" + type + " b) {        b} get(5)"));
-        assertEquals((byte) 5, exec(     "Byte get(" + type + " b) { (byte) b} get(5)"));
-        assertEquals((short) 5, exec(   "Short get(" + type + " b) {(short) b} get(5)"));
-        assertEquals((char) 5, exec("Character get(" + type + " b) { (char) b} get(5)"));
-        assertEquals(5, exec(         "Integer get(" + type + " b) {  (int) b} get(5)"));
-        assertEquals(5L, exec(           "Long get(" + type + " b) { (long) b} get(5)"));
-        assertEquals(5f, exec(          "Float get(" + type + " b) {(float) b} get(5)"));
-        assertEquals(5d, exec(         "Double get(" + type + " b) {        b} get(5)"));
-        assertEquals(5, ((Number)exec( "Number get(" + type + " b) {        b} get(5)")).intValue());
+        // Non-constants
+        assertEquals((byte) 5, exec(      "byte get(" + type + " b) { (byte) b} get(5)"));
+        assertEquals((short) 5, exec(    "short get(" + type + " b) {(short) b} get(5)"));
+        assertEquals((char) 5, exec(      "char get(" + type + " b) { (char) b} get(5)"));
+        assertEquals(5, exec(              "int get(" + type + " b) {  (int) b} get(5)"));
+        assertEquals(5L, exec(            "long get(" + type + " b) { (long) b} get(5)"));
+        assertEquals(5f, exec(           "float get(" + type + " b) {(float) b} get(5)"));
+        assertEquals(5d, exec(          "double get(" + type + " b) {        b} get(5)"));
+        assertEquals((byte) 5, exec(      "Byte get(" + type + " b) { (byte) b} get(5)"));
+        assertEquals((short) 5, exec(    "Short get(" + type + " b) {(short) b} get(5)"));
+        assertEquals((char) 5, exec( "Character get(" + type + " b) { (char) b} get(5)"));
+        assertEquals(5, exec(          "Integer get(" + type + " b) {  (int) b} get(5)"));
+        assertEquals(5L, exec(            "Long get(" + type + " b) { (long) b} get(5)"));
+        assertEquals(5f, exec(           "Float get(" + type + " b) {(float) b} get(5)"));
+        assertEquals(5d, exec(          "Double get(" + type + " b) {        b} get(5)"));
+        if (false == type.equals("char")) {
+            // Chars are funny. They can cast to primitive numbers but not Number....
+            assertEquals(5,  exec(      "Number get(" + type + " b) {        b} get(5).intValue()"));
+            assertEquals(5,  exec(      "Object get(" + type + " b) {        b} ((Number) get(5)).intValue()"));
+            assertEquals(5,  exec(         "def get(" + type + " b) {        b} get(5).intValue()"));
+        } else {
+            assertEquals((char) 5, exec("Object get(" + type + " b) {        b} ((Character) get(5))"));
+            assertEquals((char) 5, exec(   "def get(" + type + " b) {        b} get(5)"));
+        }
     }
 }

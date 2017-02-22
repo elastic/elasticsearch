@@ -65,14 +65,13 @@ public final class AnalyzerCaster {
             case BOOL:
                 switch (expected.sort) {
                     case DEF:
-                        return new Cast(BOOLEAN_OBJ_TYPE, DEF_TYPE, explicit, null, null, BOOLEAN_TYPE, null);
+                        return new OOCast.Box(BOOLEAN_TYPE);
                     case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(BOOLEAN_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, BOOLEAN_TYPE, null);
-
+                        if (OBJECT_TYPE.equals(expected) && internal) return new OOCast.Box(BOOLEAN_TYPE);
                         break;
                     case BOOL_OBJ:
                         if (internal) return new OOCast.Box(BOOLEAN_TYPE);
+                        break;
                 }
                 break;
             case BYTE:
@@ -87,14 +86,12 @@ public final class AnalyzerCaster {
                         if (explicit) return new OOCast.Numeric(BYTE_TYPE, expected, OOCast.NOOP);
                         break;
                     case DEF:
-                        return new Cast(BYTE_OBJ_TYPE, DEF_TYPE, explicit, null, null, BYTE_TYPE, null);
+                        return new OOCast.Box(BYTE_TYPE);
                     case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(BYTE_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, BYTE_TYPE, null);
+                        if (OBJECT_TYPE.equals(expected) && internal) return new OOCast.Box(BYTE_TYPE);
                         break;
                     case NUMBER:
-                        if (internal)
-                            return new Cast(BYTE_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, BYTE_TYPE, null);
+                        if (internal) return new OOCast.Box(BYTE_TYPE);
                         break;
                     case BYTE_OBJ:
                         if (internal) return new OOCast.Box(BYTE_TYPE);
@@ -133,14 +130,12 @@ public final class AnalyzerCaster {
                         if (explicit) return new OOCast.Numeric(SHORT_TYPE, expected, OOCast.NOOP);
                         break;
                     case DEF:
-                        return new Cast(SHORT_OBJ_TYPE, DEF_TYPE, explicit, null, null, SHORT_TYPE, null);
+                        return new OOCast.Box(SHORT_TYPE);
                     case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(SHORT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, SHORT_TYPE, null);
+                        if (OBJECT_TYPE.equals(expected) && internal) return new OOCast.Box(SHORT_TYPE);
                         break;
                     case NUMBER:
-                        if (internal)
-                            return new Cast(SHORT_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, SHORT_TYPE, null);
+                        if (internal) return new OOCast.Box(SHORT_TYPE);
                         break;
                     case BYTE_OBJ:
                         if (explicit && internal) new OOCast.Numeric(SHORT_TYPE, BYTE_TYPE, new OOCast.Box(BYTE_TYPE));
@@ -177,16 +172,9 @@ public final class AnalyzerCaster {
                     case DOUBLE:
                         return new OOCast.Numeric(CHAR_TYPE, expected, OOCast.NOOP);
                     case DEF:
-                        return new Cast(CHAR_OBJ_TYPE, DEF_TYPE, explicit, null, null, CHAR_TYPE, null);
+                        return new OOCast.Box(CHAR_TYPE);
                     case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(CHAR_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, CHAR_TYPE, null);
-
-                        break;
-                    case NUMBER:
-                        // Since Character isn't a Number we promote to an int and then an Integer.
-                        // Java doesn't allow this implicit cast but we do because we allow char -> Integer
-                        if (internal) return new OOCast.Numeric(CHAR_TYPE, INT_TYPE, new OOCast.Box(INT_TYPE));
+                        if (OBJECT_TYPE.equals(expected) && internal) return new OOCast.Box(CHAR_TYPE);
                         break;
                     case CHAR_OBJ:
                         if (internal) return new OOCast.Box(CHAR_TYPE);
@@ -227,11 +215,9 @@ public final class AnalyzerCaster {
                     case DOUBLE:
                         return new OOCast.Numeric(INT_TYPE, expected, OOCast.NOOP);
                     case DEF:
-                        return new Cast(INT_OBJ_TYPE, DEF_TYPE, explicit, null, null, INT_TYPE, null);
+                        return new OOCast.Box(INT_TYPE);
                     case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(INT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, INT_TYPE, null);
-
+                        if (OBJECT_TYPE.equals(expected) && internal) return new OOCast.Box(INT_TYPE);
                         break;
                     case NUMBER:
                         if (internal) return new OOCast.Box(INT_TYPE);
@@ -274,11 +260,9 @@ public final class AnalyzerCaster {
                     case DOUBLE:
                         return new OOCast.Numeric(LONG_TYPE, expected, OOCast.NOOP);
                     case DEF:
-                        return new Cast(LONG_TYPE, DEF_TYPE, explicit, null, null, LONG_TYPE, null);
+                        return new OOCast.Box(LONG_TYPE);
                     case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(LONG_TYPE, actual, explicit, null, null, LONG_TYPE, null);
-
+                        if (OBJECT_TYPE.equals(expected) && internal) return new OOCast.Box(LONG_TYPE);
                         break;
                     case NUMBER:
                         if (internal) return new OOCast.Box(LONG_TYPE);
@@ -318,10 +302,9 @@ public final class AnalyzerCaster {
                     case DOUBLE:
                         return new OOCast.Numeric(FLOAT_TYPE, expected, OOCast.NOOP);
                     case DEF:
-                        return new Cast(FLOAT_OBJ_TYPE, DEF_TYPE, explicit, null, null, FLOAT_TYPE, null);
+                        return new OOCast.Box(FLOAT_TYPE);
                     case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(FLOAT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, FLOAT_TYPE, null);
+                        if (OBJECT_TYPE.equals(expected) && internal) return new OOCast.Box(FLOAT_TYPE);
                         break;
                     case NUMBER:
                         if (internal) return new OOCast.Box(FLOAT_TYPE);
@@ -366,10 +349,9 @@ public final class AnalyzerCaster {
                         if (explicit) return new OOCast.Numeric(DOUBLE_TYPE, expected, OOCast.NOOP);
                         break;
                     case DEF:
-                        return new Cast(DOUBLE_OBJ_TYPE, DEF_TYPE, explicit, null, null, DOUBLE_TYPE, null);
+                        return new OOCast.Box(DOUBLE_TYPE);
                     case OBJECT:
-                        if (OBJECT_TYPE.equals(expected) && internal)
-                            return new Cast(DOUBLE_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, DOUBLE_TYPE, null);
+                        if (OBJECT_TYPE.equals(expected) && internal) return new OOCast.Box(DOUBLE_TYPE);
                         break;
                     case NUMBER:
                         if (internal) return new OOCast.Box(DOUBLE_TYPE);

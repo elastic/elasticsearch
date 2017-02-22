@@ -20,11 +20,10 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportResponse.Empty;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.Assignment;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
 
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Component that runs only on the master node and is responsible for assigning running tasks to nodes
@@ -55,13 +54,13 @@ public class PersistentTaskClusterService extends AbstractComponent implements C
         clusterService.submitStateUpdateTask("create persistent task", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                final String executorNodeId;
+                final Assignment assignment;
                 if (stopped) {
-                    executorNodeId = null; // the task is stopped no need to assign it anywhere yet
+                    assignment = PersistentTasksInProgress.FINISHED_TASK_ASSIGNMENT; // the task is stopped no need to assign it anywhere
                 } else {
-                    executorNodeId = executorNode(action, currentState, request);
+                    assignment = getAssignement(action, currentState, request);
                 }
-                return update(currentState, builder(currentState).addTask(action, request, stopped, removeOnCompletion, executorNodeId));
+                return update(currentState, builder(currentState).addTask(action, request, stopped, removeOnCompletion, assignment));
             }
 
             @Override
@@ -100,7 +99,7 @@ public class PersistentTaskClusterService extends AbstractComponent implements C
                 if (tasksInProgress.hasTask(id)) {
                     if (failure != null) {
                         // If the task failed - we need to restart it on another node, otherwise we just remove it
-                        tasksInProgress.reassignTask(id, (action, request) -> executorNode(action, currentState, request));
+                        tasksInProgress.reassignTask(id, (action, request) -> getAssignement(action, currentState, request));
                     } else {
                         tasksInProgress.finishTask(id);
                     }
@@ -137,7 +136,7 @@ public class PersistentTaskClusterService extends AbstractComponent implements C
                 PersistentTasksInProgress.Builder tasksInProgress = builder(currentState);
                 if (tasksInProgress.hasTask(id)) {
                     return update(currentState, tasksInProgress
-                            .assignTask(id, (action, request) -> executorNode(action, currentState, request)));
+                            .assignTask(id, (action, request) -> getAssignement(action, currentState, request)));
                 } else {
                     throw new ResourceNotFoundException("the task with id {} doesn't exist", id);
                 }
@@ -216,26 +215,17 @@ public class PersistentTaskClusterService extends AbstractComponent implements C
         });
     }
 
-    private <Request extends PersistentActionRequest> String executorNode(String action, ClusterState currentState, Request request) {
+    private <Request extends PersistentActionRequest> Assignment getAssignement(String action, ClusterState currentState, Request request) {
         TransportPersistentAction<Request> persistentAction = registry.getPersistentActionSafe(action);
         persistentAction.validate(request, currentState);
-        DiscoveryNode executorNode = persistentAction.executorNode(request, currentState);
-        final String executorNodeId;
-        if (executorNode == null) {
-            // The executor node not available yet, we will create task with empty executor node and try
-            // again later
-            executorNodeId = null;
-        } else {
-            executorNodeId = executorNode.getId();
-        }
-        return executorNodeId;
+        return persistentAction.getAssignment(request, currentState);
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster()) {
             logger.trace("checking task reassignment for cluster state {}", event.state().getVersion());
-            if (reassignmentRequired(event, this::executorNode)) {
+            if (reassignmentRequired(event, this::getAssignement)) {
                 logger.trace("task reassignment is needed");
                 reassignTasks();
             } else {
@@ -245,7 +235,7 @@ public class PersistentTaskClusterService extends AbstractComponent implements C
     }
 
     interface ExecutorNodeDecider {
-        <Request extends PersistentActionRequest> String executorNode(String action, ClusterState currentState, Request request);
+        <Request extends PersistentActionRequest> Assignment getAssignment(String action, ClusterState currentState, Request request);
     }
 
     static boolean reassignmentRequired(ClusterChangedEvent event, ExecutorNodeDecider decider) {
@@ -257,18 +247,16 @@ public class PersistentTaskClusterService extends AbstractComponent implements C
                 event.previousState().nodes().isLocalNodeElectedMaster() == false)) {
             // We need to check if removed nodes were running any of the tasks and reassign them
             boolean reassignmentRequired = false;
-            Set<String> removedNodes = event.nodesDelta().removedNodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
             for (PersistentTaskInProgress<?> taskInProgress : tasks.tasks()) {
-                if (taskInProgress.isStopped() == false) { // skipping stopped tasks
-                    if (taskInProgress.getExecutorNode() == null || removedNodes.contains(taskInProgress.getExecutorNode())) {
-                        // there is an unassigned task or task with a disappeared node - we need to try assigning it
-                        if (Objects.equals(taskInProgress.getRequest(),
-                                decider.executorNode(taskInProgress.getAction(), event.state(), taskInProgress.getRequest())) == false) {
-                            // it looks like a assignment for at least one task is possible - let's trigger reassignment
-                            reassignmentRequired = true;
-                            break;
-                        }
+                if (taskInProgress.needsReassignment(event.state().nodes())) {
+                    // there is an unassigned task or task with a disappeared node - we need to try assigning it
+                    if (Objects.equals(taskInProgress.getAssignment(),
+                            decider.getAssignment(taskInProgress.getAction(), event.state(), taskInProgress.getRequest())) == false) {
+                        // it looks like a assignment for at least one task is possible - let's trigger reassignment
+                        reassignmentRequired = true;
+                        break;
                     }
+
                 }
             }
             return reassignmentRequired;
@@ -283,7 +271,7 @@ public class PersistentTaskClusterService extends AbstractComponent implements C
         clusterService.submitStateUpdateTask("reassign persistent tasks", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                return reassignTasks(currentState, logger, PersistentTaskClusterService.this::executorNode);
+                return reassignTasks(currentState, logger, PersistentTaskClusterService.this::getAssignement);
             }
 
             @Override
@@ -306,16 +294,15 @@ public class PersistentTaskClusterService extends AbstractComponent implements C
             logger.trace("reassigning {} persistent tasks", tasks.tasks().size());
             // We need to check if removed nodes were running any of the tasks and reassign them
             for (PersistentTaskInProgress<?> task : tasks.tasks()) {
-                if (task.isStopped() == false &&
-                        (task.getExecutorNode() == null || nodes.nodeExists(task.getExecutorNode()) == false)) {
+                if (task.needsReassignment(nodes)) {
                     // there is an unassigned task - we need to try assigning it
-                    String executorNode = decider.executorNode(task.getAction(), clusterState, task.getRequest());
-                    if (Objects.equals(executorNode, task.getExecutorNode()) == false) {
+                    Assignment assignment = decider.getAssignment(task.getAction(), clusterState, task.getRequest());
+                    if (Objects.equals(assignment, task.getAssignment()) == false) {
                         logger.trace("reassigning task {} from node {} to node {}", task.getId(),
-                                task.getExecutorNode(), executorNode);
-                        clusterState = update(clusterState, builder(clusterState).reassignTask(task.getId(), executorNode));
+                                task.getAssignment().getExecutorNode(), assignment.getExecutorNode());
+                        clusterState = update(clusterState, builder(clusterState).reassignTask(task.getId(), assignment));
                     } else {
-                        logger.trace("ignoring task {} because executor nodes are the same {}", task.getId(), executorNode);
+                        logger.trace("ignoring task {} because assignment is the same {}", task.getId(), assignment);
                     }
                 } else {
                     if (task.isStopped()) {

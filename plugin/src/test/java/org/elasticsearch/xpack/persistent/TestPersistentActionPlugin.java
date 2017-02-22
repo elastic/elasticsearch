@@ -49,6 +49,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.Assignment;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -351,12 +352,18 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
         }
 
         @Override
-        public DiscoveryNode executorNode(TestRequest request, ClusterState clusterState) {
+        public Assignment getAssignment(TestRequest request, ClusterState clusterState) {
             if (request.getExecutorNodeAttr() == null) {
-                return super.executorNode(request, clusterState);
+                return super.getAssignment(request, clusterState);
             } else {
-                return selectLeastLoadedNode(clusterState,
+                DiscoveryNode executorNode = selectLeastLoadedNode(clusterState,
                         discoveryNode -> request.getExecutorNodeAttr().equals(discoveryNode.getAttributes().get("test_attr")));
+                if (executorNode != null) {
+                    return new Assignment(executorNode.getId(), "test assignment");
+                } else {
+                    return NO_NODE_FOUND;
+                }
+
             }
         }
 

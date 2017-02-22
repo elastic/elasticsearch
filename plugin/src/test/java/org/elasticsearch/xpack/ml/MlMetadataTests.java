@@ -35,6 +35,7 @@ import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.createJobTask
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedConfig;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedJob;
 import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
+import static org.elasticsearch.xpack.persistent.PersistentTasksInProgress.INITIAL_ASSIGNMENT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -269,7 +270,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
         StartDatafeedAction.Request request = new StartDatafeedAction.Request(datafeedConfig1.getId(), 0L);
         PersistentTaskInProgress<StartDatafeedAction.Request> taskInProgress =
-                new PersistentTaskInProgress<>(0, StartDatafeedAction.NAME, request, false, true, null);
+                new PersistentTaskInProgress<>(0, StartDatafeedAction.NAME, request, false, true, INITIAL_ASSIGNMENT);
         PersistentTasksInProgress tasksInProgress =
                 new PersistentTasksInProgress(1, Collections.singletonMap(taskInProgress.getId(), taskInProgress));
 
@@ -331,7 +332,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
         StartDatafeedAction.Request request = new StartDatafeedAction.Request("datafeed1", 0L);
         PersistentTaskInProgress<StartDatafeedAction.Request> taskInProgress =
-                new PersistentTaskInProgress<>(0, StartDatafeedAction.NAME, request, false, true, null);
+                new PersistentTaskInProgress<>(0, StartDatafeedAction.NAME, request, false, true, INITIAL_ASSIGNMENT);
         PersistentTasksInProgress tasksInProgress =
                 new PersistentTasksInProgress(1, Collections.singletonMap(taskInProgress.getId(), taskInProgress));
 

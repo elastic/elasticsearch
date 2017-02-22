@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.Assignment;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.Builder;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
 import org.elasticsearch.xpack.persistent.TestPersistentActionPlugin.Status;
@@ -34,6 +35,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_GATEWAY;
 import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_SNAPSHOT;
+import static org.elasticsearch.xpack.persistent.TransportPersistentAction.NO_NODE_FOUND;
 
 public class PersistentTasksInProgressTests extends AbstractDiffableSerializationTestCase<Custom> {
 
@@ -42,8 +44,9 @@ public class PersistentTasksInProgressTests extends AbstractDiffableSerializatio
         int numberOfTasks = randomInt(10);
         PersistentTasksInProgress.Builder tasks = PersistentTasksInProgress.builder();
         for (int i = 0; i < numberOfTasks; i++) {
+            boolean stopped = randomBoolean();
             tasks.addTask(TestPersistentAction.NAME, new TestRequest(randomAsciiOfLength(10)),
-                    randomBoolean(), randomBoolean(), randomAsciiOfLength(10));
+                    stopped, randomBoolean(), stopped ? new Assignment(null, "stopped") : randomAssignment());
             if (randomBoolean()) {
                 // From time to time update status
                 tasks.updateTaskStatus(tasks.getCurrentId(), new Status(randomAsciiOfLength(10)));
@@ -79,7 +82,7 @@ public class PersistentTasksInProgressTests extends AbstractDiffableSerializatio
                 if (tasksInProgress.tasks().isEmpty()) {
                     addRandomTask(builder);
                 } else {
-                    builder.reassignTask(pickRandomTask(tasksInProgress), randomAsciiOfLength(10));
+                    builder.reassignTask(pickRandomTask(tasksInProgress), randomAssignment());
                 }
                 break;
             case 2:
@@ -133,8 +136,9 @@ public class PersistentTasksInProgressTests extends AbstractDiffableSerializatio
     }
 
     private Builder addRandomTask(Builder builder) {
-        builder.addTask(TestPersistentAction.NAME, new TestRequest(randomAsciiOfLength(10)),
-                randomBoolean(), randomBoolean(), randomAsciiOfLength(10));
+        boolean stopped = randomBoolean();
+        builder.addTask(TestPersistentAction.NAME, new TestRequest(randomAsciiOfLength(10)), stopped, randomBoolean(),
+                stopped ? new Assignment(null, "stopped") : randomAssignment());
         return builder;
     }
 
@@ -210,9 +214,9 @@ public class PersistentTasksInProgressTests extends AbstractDiffableSerializatio
                             changed = true;
                         }
                         if (randomBoolean()) {
-                            builder.reassignTask(lastKnownTask, randomAsciiOfLength(10));
+                            builder.reassignTask(lastKnownTask, randomAssignment());
                         } else {
-                            builder.reassignTask(lastKnownTask, (s, request) -> randomAsciiOfLength(10));
+                            builder.reassignTask(lastKnownTask, (s, request) -> randomAssignment());
                         }
                         break;
                     case 2:
@@ -220,22 +224,23 @@ public class PersistentTasksInProgressTests extends AbstractDiffableSerializatio
                             PersistentTaskInProgress<?> task = builder.build().getTask(lastKnownTask);
                             if (randomBoolean()) {
                                 // Trying to reassign to the same node
-                                builder.assignTask(lastKnownTask, (s, request) -> task.getExecutorNode());
+                                builder.assignTask(lastKnownTask, (s, request) -> task.getAssignment());
                                 // should change if the task was stopped AND unassigned
                                 if (task.getExecutorNode() == null && task.isStopped()) {
                                     changed = true;
                                 }
                             } else {
                                 // Trying to reassign to a different node
-                                builder.assignTask(lastKnownTask, (s, request) -> randomAsciiOfLength(10));
-                                // should change if the task was unassigned
-                                if (task.getExecutorNode() == null) {
+                                Assignment randomAssignment = randomAssignment();
+                                builder.assignTask(lastKnownTask, (s, request) -> randomAssignment);
+                                // should change if the task was unassigned and was reassigned to a different node or started
+                                if ((task.isAssigned() == false && randomAssignment.isAssigned()) || task.isStopped()) {
                                     changed = true;
                                 }
                             }
                         } else {
                             // task doesn't exist - shouldn't change
-                            builder.assignTask(lastKnownTask, (s, request) -> randomAsciiOfLength(10));
+                            builder.assignTask(lastKnownTask, (s, request) -> randomAssignment());
                         }
                         break;
                     case 3:
@@ -264,4 +269,14 @@ public class PersistentTasksInProgressTests extends AbstractDiffableSerializatio
 
     }
 
+    private Assignment randomAssignment() {
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                return NO_NODE_FOUND;
+            } else {
+                return new Assignment(null, randomAsciiOfLength(10));
+            }
+        }
+        return new Assignment(randomAsciiOfLength(10), randomAsciiOfLength(10));
+    }
 }

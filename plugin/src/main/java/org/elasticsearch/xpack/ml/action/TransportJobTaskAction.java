@@ -65,7 +65,7 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
         JobManager.getJobOrThrowIfUnknown(state, jobId);
         PersistentTasksInProgress tasks = clusterService.state().getMetaData().custom(PersistentTasksInProgress.TYPE);
         PersistentTasksInProgress.PersistentTaskInProgress<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
-        if (jobTask == null || jobTask.getExecutorNode() == null) {
+        if (jobTask == null || jobTask.isAssigned() == false) {
             listener.onFailure( new ElasticsearchStatusException("job [" + jobId + "] state is [" + JobState.CLOSED +
                     "], but must be [" + JobState.OPENED + "] to perform requested action", RestStatus.CONFLICT));
         } else {

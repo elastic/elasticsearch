@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.persistent.PersistentActionResponse;
 import org.elasticsearch.xpack.persistent.PersistentActionService;
 import org.elasticsearch.xpack.persistent.PersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.Assignment;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
 import org.elasticsearch.xpack.persistent.TransportPersistentAction;
 
@@ -306,8 +307,14 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         }
 
         @Override
-        public DiscoveryNode executorNode(Request request, ClusterState clusterState) {
-            return selectLeastLoadedMlNode(request.getJobId(), clusterState, maxConcurrentJobAllocations, logger);
+        public Assignment getAssignment(Request request, ClusterState clusterState) {
+            DiscoveryNode discoveryNode = selectLeastLoadedMlNode(request.getJobId(), clusterState, maxConcurrentJobAllocations, logger);
+            // TODO: Add proper explanation
+            if (discoveryNode == null) {
+                return NO_NODE_FOUND;
+            } else {
+                return new Assignment(discoveryNode.getId(), "");
+            }
         }
 
         @Override
@@ -360,7 +367,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         PersistentTaskInProgress<?> task = MlMetadata.getJobTask(jobId, tasks);
         JobState jobState = MlMetadata.getJobState(jobId, tasks);
         if (task != null && jobState == JobState.OPENED) {
-            if (task.getExecutorNode() == null) {
+            if (task.isAssigned() == false) {
                 // We can skip the job state check below, because the task got unassigned after we went into
                 // opened state on a node that disappeared and we didn't have the opportunity to set the status to failed
                 return;

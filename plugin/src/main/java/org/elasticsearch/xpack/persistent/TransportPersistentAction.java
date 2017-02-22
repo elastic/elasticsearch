@@ -16,6 +16,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.Assignment;
 
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -42,14 +43,22 @@ public abstract class TransportPersistentAction<Request extends PersistentAction
         persistentActionRegistry.registerPersistentAction(actionName, this);
     }
 
+    public static final Assignment NO_NODE_FOUND = new Assignment(null, "no appropriate nodes found for the assignment");
+
     /**
      * Returns the node id where the request has to be executed,
      * <p>
      * The default implementation returns the least loaded data node
      */
-    public DiscoveryNode executorNode(Request request, ClusterState clusterState) {
-        return selectLeastLoadedNode(clusterState, DiscoveryNode::isDataNode);
+    public Assignment getAssignment(Request request, ClusterState clusterState) {
+        DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, DiscoveryNode::isDataNode);
+        if (discoveryNode == null) {
+            return NO_NODE_FOUND;
+        } else {
+            return new Assignment(discoveryNode.getId(), "");
+        }
     }
+
 
     /**
      * Finds the least loaded node that satisfies the selector criteria

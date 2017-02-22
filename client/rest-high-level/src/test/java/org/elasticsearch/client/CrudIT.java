@@ -429,5 +429,15 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals(1L, updateResponse.getVersion());
             assertEquals("C", getResult.sourceAsMap().get("level"));
         }
+        {
+            IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
+                UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
+                updateRequest.doc(new IndexRequest().source(Collections.singletonMap("field", "doc"), XContentType.JSON));
+                updateRequest.upsert(new IndexRequest().source(Collections.singletonMap("field", "upsert"), XContentType.YAML));
+                execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
+            });
+            assertEquals("Update request cannot have different content types for doc [JSON] and upsert [YAML] documents",
+                    exception.getMessage());
+        }
     }
 }

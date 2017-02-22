@@ -192,14 +192,14 @@ public class RestHighLevelClient {
             listener.onFailure(validationException);
             return;
         }
-        Request req = null;
         try {
-            req = requestConverter.apply(request);
-        } catch (IOException e) {
+            Request req = requestConverter.apply(request);
+
+            ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
+            client.performRequestAsync(req.method, req.endpoint, req.params, req.entity, responseListener, headers);
+        } catch (Exception e) {
             listener.onFailure(e);
         }
-        ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
-        client.performRequestAsync(req.method, req.endpoint, req.params, req.entity, responseListener, headers);
     }
 
     static <Resp> ResponseListener wrapResponseListener(CheckedFunction<Response, Resp, IOException> responseConverter,

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -342,9 +341,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         requestCache = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            batchedReduceSize = in.readVInt();
-        }
+        batchedReduceSize = in.readVInt();
     }
 
     @Override
@@ -362,9 +359,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            out.writeVInt(batchedReduceSize);
-        }
+        out.writeVInt(batchedReduceSize);
     }
 
     @Override

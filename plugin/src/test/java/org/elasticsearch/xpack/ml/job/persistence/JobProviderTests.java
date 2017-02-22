@@ -1270,12 +1270,14 @@ public class JobProviderTests extends ESTestCase {
         MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
                 .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), CategorizerState.TYPE, JOB_ID + "_1", categorizerStateGetResponse1)
                 .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), CategorizerState.TYPE, JOB_ID + "_2", categorizerStateGetResponse2)
-                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ModelState.TYPE.getPreferredName(), "123_1", modelStateGetResponse1)
-                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ModelState.TYPE.getPreferredName(), "123_2", modelStateGetResponse2);
+                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ModelState.TYPE.getPreferredName(), JOB_ID + "-123_1",
+                        modelStateGetResponse1)
+                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ModelState.TYPE.getPreferredName(), JOB_ID + "-123_2",
+                        modelStateGetResponse2);
 
         JobProvider provider = createProvider(clientBuilder.build());
 
-        ModelSnapshot modelSnapshot = new ModelSnapshot(randomAsciiOfLengthBetween(1, 20));
+        ModelSnapshot modelSnapshot = new ModelSnapshot(JOB_ID);
         modelSnapshot.setSnapshotId("123");
         modelSnapshot.setSnapshotDocCount(2);
 

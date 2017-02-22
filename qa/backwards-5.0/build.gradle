@@ -35,9 +35,10 @@ apply plugin: 'elasticsearch.rest-test'
  */
 integTest {
   includePackaged = true
-  cluster {
+}
+
+integTestCluster {
     numNodes = 2
     numBwcNodes = 1
     bwcVersion = "5.0.2"
-  }
 }

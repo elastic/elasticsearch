@@ -28,10 +28,8 @@ dependencies {
     testCompile project(path: ':modules:reindex', configuration: 'runtime')
 }
 
-integTest {
-    cluster {
-        plugin ':plugins:ingest-geoip'
-        setting 'script.inline', 'true'
-        setting 'path.scripts', "${project.buildDir}/resources/test/scripts"
-    }
+integTestCluster {
+    plugin ':plugins:ingest-geoip'
+    setting 'script.inline', 'true'
+    setting 'path.scripts', "${project.buildDir}/resources/test/scripts"
 }

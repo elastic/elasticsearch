@@ -171,9 +171,10 @@ public final class Script implements ToXContentObject, Writeable {
                 type = ScriptType.INLINE;
 
                 if (parser.currentToken() == Token.START_OBJECT) {
-                    XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
-                    idOrCode = builder.copyCurrentStructure(parser).bytes().utf8ToString();
-                    options.put(CONTENT_TYPE_OPTION, parser.contentType().mediaType());
+                    //this is really for search templates, that need to be converted to json format
+                    XContentBuilder builder = XContentFactory.jsonBuilder();
+                    idOrCode = builder.copyCurrentStructure(parser).string();
+                    options.put(CONTENT_TYPE_OPTION, XContentType.JSON.mediaType());
                 } else {
                     idOrCode = parser.text();
                 }

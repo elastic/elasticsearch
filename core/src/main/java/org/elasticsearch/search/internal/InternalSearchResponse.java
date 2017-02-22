@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -144,11 +143,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         timedOut = in.readBoolean();
         terminatedEarly = in.readOptionalBoolean();
         profileResults = in.readOptionalWriteable(SearchProfileShardResults::new);
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            numReducePhases = in.readVInt();
-        } else {
-            numReducePhases = 1;
-        }
+        numReducePhases = in.readVInt();
     }
 
     @Override
@@ -169,8 +164,6 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         out.writeBoolean(timedOut);
         out.writeOptionalBoolean(terminatedEarly);
         out.writeOptionalWriteable(profileResults);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            out.writeVInt(numReducePhases);
-        }
+        out.writeVInt(numReducePhases);
     }
 }

@@ -308,63 +308,49 @@ public final class AnalyzerCaster {
                 break;
             case FLOAT:
                 switch (expected.sort) {
-                    case DOUBLE:
-                        return new Cast(actual, expected, explicit);
                     case BYTE:
                     case SHORT:
                     case CHAR:
                     case INT:
-                    case FLOAT:
-                        if (explicit)
-                            return new Cast(actual, expected, true);
-
+                    case LONG:
+                        if (explicit) return new OOCast.Numeric(FLOAT_TYPE, expected, OOCast.NOOP);
                         break;
+                    case DOUBLE:
+                        return new OOCast.Numeric(FLOAT_TYPE, expected, OOCast.NOOP);
                     case DEF:
                         return new Cast(FLOAT_OBJ_TYPE, DEF_TYPE, explicit, null, null, FLOAT_TYPE, null);
                     case OBJECT:
                         if (OBJECT_TYPE.equals(expected) && internal)
                             return new Cast(FLOAT_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, FLOAT_TYPE, null);
-
                         break;
                     case NUMBER:
-                        if (internal)
-                            return new Cast(FLOAT_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, FLOAT_TYPE, null);
-
-                        break;
-                    case FLOAT_OBJ:
-                        if (internal)
-                            return new OOCast.Box(FLOAT_TYPE);
-
-                        break;
-                    case DOUBLE_OBJ:
-                        if (internal)
-                            return new Cast(FLOAT_TYPE, DOUBLE_TYPE, explicit, null, null, null, DOUBLE_TYPE);
-
+                        if (internal) return new OOCast.Box(FLOAT_TYPE);
                         break;
                     case BYTE_OBJ:
-                        if (explicit && internal)
-                            return new Cast(FLOAT_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-
+                        // NOCOMMIT can't trigger
+                        if (explicit && internal) return new OOCast.Numeric(FLOAT_TYPE, BYTE_TYPE, new OOCast.Box(BYTE_TYPE));
                         break;
                     case SHORT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(FLOAT_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
-
+                        // NOCOMMIT can't trigger
+                        if (explicit && internal) return new OOCast.Numeric(FLOAT_TYPE, SHORT_TYPE, new OOCast.Box(SHORT_TYPE));
                         break;
                     case CHAR_OBJ:
-                        if (explicit && internal)
-                            return new Cast(FLOAT_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-
+                        // NOCOMMIT can't trigger
+                        if (explicit && internal) return new OOCast.Numeric(FLOAT_TYPE, CHAR_TYPE, new OOCast.Box(CHAR_TYPE));
                         break;
                     case INT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(FLOAT_TYPE, INT_TYPE, true, null, null, null, INT_TYPE);
-
+                        // NOCOMMIT can't trigger
+                        if (explicit && internal) return new OOCast.Numeric(FLOAT_TYPE, INT_TYPE, new OOCast.Box(INT_TYPE));
                         break;
                     case LONG_OBJ:
-                        if (explicit && internal)
-                            return new Cast(FLOAT_TYPE, LONG_TYPE, true, null, null, null, LONG_TYPE);
-
+                        // NOCOMMIT can't trigger
+                        if (explicit && internal) return new OOCast.Numeric(FLOAT_TYPE, LONG_TYPE, new OOCast.Box(LONG_TYPE));
+                        break;
+                    case FLOAT_OBJ:
+                        if (internal) return new OOCast.Box(FLOAT_TYPE);
+                        break;
+                    case DOUBLE_OBJ:
+                        if (internal) return new OOCast.Numeric(FLOAT_TYPE, DOUBLE_TYPE, new OOCast.Box(DOUBLE_TYPE));
                         break;
                 }
 
@@ -375,60 +361,42 @@ public final class AnalyzerCaster {
                     case SHORT:
                     case CHAR:
                     case INT:
+                    case LONG:
                     case FLOAT:
-                        if (explicit)
-                            return new Cast(DOUBLE_TYPE, expected, true);
-
+                        if (explicit) return new OOCast.Numeric(DOUBLE_TYPE, expected, OOCast.NOOP);
                         break;
                     case DEF:
                         return new Cast(DOUBLE_OBJ_TYPE, DEF_TYPE, explicit, null, null, DOUBLE_TYPE, null);
                     case OBJECT:
                         if (OBJECT_TYPE.equals(expected) && internal)
                             return new Cast(DOUBLE_OBJ_TYPE, OBJECT_TYPE, explicit, null, null, DOUBLE_TYPE, null);
-
                         break;
                     case NUMBER:
-                        if (internal)
-                            return new Cast(DOUBLE_OBJ_TYPE, NUMBER_TYPE, explicit, null, null, DOUBLE_TYPE, null);
-
-                        break;
-                    case DOUBLE_OBJ:
-                        if (internal)
-                            return new OOCast.Box(DOUBLE_TYPE);
-
+                        if (internal) return new OOCast.Box(DOUBLE_TYPE);
                         break;
                     case BYTE_OBJ:
-                        if (explicit && internal)
-                            return new Cast(DOUBLE_TYPE, BYTE_TYPE, true, null, null, null, BYTE_TYPE);
-
+                        if (explicit && internal) new OOCast.Numeric(DOUBLE_TYPE, BYTE_TYPE, new OOCast.Box(BYTE_TYPE));
                         break;
                     case SHORT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(DOUBLE_TYPE, SHORT_TYPE, true, null, null, null, SHORT_TYPE);
-
+                        if (explicit && internal) new OOCast.Numeric(DOUBLE_TYPE, SHORT_TYPE, new OOCast.Box(SHORT_TYPE));
                         break;
                     case CHAR_OBJ:
-                        if (explicit && internal)
-                            return new Cast(DOUBLE_TYPE, CHAR_TYPE, true, null, null, null, CHAR_TYPE);
-
+                        // NOCOMMIT can't trigger
+                        if (explicit && internal) new OOCast.Numeric(DOUBLE_TYPE, CHAR_TYPE, new OOCast.Box(CHAR_TYPE));
                         break;
                     case INT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(DOUBLE_TYPE, INT_TYPE, true, null, null, null, INT_TYPE);
-
+                        if (explicit && internal) new OOCast.Numeric(DOUBLE_TYPE, INT_TYPE, new OOCast.Box(INT_TYPE));
                         break;
                     case LONG_OBJ:
-                        if (explicit && internal)
-                            return new Cast(DOUBLE_TYPE, LONG_TYPE, true, null, null, null, LONG_TYPE);
-
+                        if (explicit && internal) new OOCast.Numeric(DOUBLE_TYPE, LONG_TYPE, new OOCast.Box(LONG_TYPE));
                         break;
                     case FLOAT_OBJ:
-                        if (explicit && internal)
-                            return new Cast(DOUBLE_TYPE, FLOAT_TYPE, true, null, null, null, FLOAT_TYPE);
-
+                        if (explicit && internal) new OOCast.Numeric(DOUBLE_TYPE, FLOAT_TYPE, new OOCast.Box(FLOAT_TYPE));
+                        break;
+                    case DOUBLE_OBJ:
+                        if (internal) return new OOCast.Box(DOUBLE_TYPE);
                         break;
                 }
-
                 break;
             case OBJECT:
                 if (OBJECT_TYPE.equals(actual))

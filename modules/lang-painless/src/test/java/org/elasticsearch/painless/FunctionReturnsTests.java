@@ -55,6 +55,14 @@ public class FunctionReturnsTests extends ScriptTestCase {
         returnLongOk("long");
     }
 
+    public void testReturnFloat() {
+        returnFloatOk("float");
+    }
+
+    public void testReturnDouble() {
+        returnDoubleOk("double");
+    }
+
     private void returnByteOk(String type) {
         assertEquals((byte) 5, exec(     "byte get() {(" + type + ") 5} get()"));
         assertEquals((byte) 5, exec(     "Byte get() {(" + type + ") 5} get()"));
@@ -81,25 +89,37 @@ public class FunctionReturnsTests extends ScriptTestCase {
 
     private void returnLongOk(String type) {
         assertEquals(5L, exec(           "long get() {(" + type + ") 5} get()"));
-        assertEquals(5f, exec(          "float get() {(" + type + ") 5} get()"));
-        assertEquals(5d, exec(         "double get() {(" + type + ") 5} get()"));
         assertEquals(5L, exec(           "Long get() {(" + type + ") 5} get()"));
+        assertEquals(5L, exec(           "long get(" + type + " b) {        b} get(5)"));
+        assertEquals(5L, exec(           "Long get(" + type + " b) {        b} get(5)"));
+        returnFloatOk(type);
+    }
+
+    private void returnFloatOk(String type) {
+        assertEquals(5f, exec(          "float get() {(" + type + ") 5} get()"));
         assertEquals(5f, exec(          "Float get() {(" + type + ") 5} get()"));
+        assertEquals(5f, exec(          "float get(" + type + " b) {        b} get(5)"));
+        assertEquals(5f, exec(          "Float get(" + type + " b) {        b} get(5)"));
+        returnDoubleOk(type);
+    }
+
+    private void returnDoubleOk(String type) {
+        assertEquals(5d, exec(         "double get() {(" + type + ") 5} get()"));
         assertEquals(5d, exec(         "Double get() {(" + type + ") 5} get()"));
 
         assertEquals((byte) 5, exec(     "byte get(" + type + " b) { (byte) b} get(5)"));
         assertEquals((short) 5, exec(   "short get(" + type + " b) {(short) b} get(5)"));
         assertEquals((char) 5, exec(     "char get(" + type + " b) { (char) b} get(5)"));
         assertEquals(5, exec(             "int get(" + type + " b) {  (int) b} get(5)"));
-        assertEquals(5L, exec(           "long get(" + type + " b) {        b} get(5)"));
-        assertEquals(5f, exec(          "float get(" + type + " b) {        b} get(5)"));
+        assertEquals(5L, exec(           "long get(" + type + " b) { (long) b} get(5)"));
+        assertEquals(5f, exec(          "float get(" + type + " b) {(float) b} get(5)"));
         assertEquals(5d, exec(         "double get(" + type + " b) {        b} get(5)"));
         assertEquals((byte) 5, exec(     "Byte get(" + type + " b) { (byte) b} get(5)"));
         assertEquals((short) 5, exec(   "Short get(" + type + " b) {(short) b} get(5)"));
         assertEquals((char) 5, exec("Character get(" + type + " b) { (char) b} get(5)"));
         assertEquals(5, exec(         "Integer get(" + type + " b) {  (int) b} get(5)"));
-        assertEquals(5L, exec(           "Long get(" + type + " b) {        b} get(5)"));
-        assertEquals(5f, exec(          "Float get(" + type + " b) {        b} get(5)"));
+        assertEquals(5L, exec(           "Long get(" + type + " b) { (long) b} get(5)"));
+        assertEquals(5f, exec(          "Float get(" + type + " b) {(float) b} get(5)"));
         assertEquals(5d, exec(         "Double get(" + type + " b) {        b} get(5)"));
         assertEquals(5, ((Number)exec( "Number get(" + type + " b) {        b} get(5)")).intValue());
     }

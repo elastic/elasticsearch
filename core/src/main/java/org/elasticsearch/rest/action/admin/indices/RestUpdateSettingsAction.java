@@ -24,33 +24,23 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.client.Requests.updateSettingsRequest;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
  *
  */
 public class RestUpdateSettingsAction extends BaseRestHandler {
-    private static final Set<String> VALUES_TO_EXCLUDE = unmodifiableSet(newHashSet(
-            "error_trace",
-            "pretty",
-            "timeout",
-            "master_timeout",
-            "index",
-            "preserve_existing",
-            "expand_wildcards",
-            "ignore_unavailable",
-            "allow_no_indices"));
 
     public RestUpdateSettingsAction(Settings settings, RestController controller) {
         super(settings);
@@ -66,29 +56,22 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         updateSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", updateSettingsRequest.masterNodeTimeout()));
         updateSettingsRequest.indicesOptions(IndicesOptions.fromRequest(request, updateSettingsRequest.indicesOptions()));
 
-        Settings.Builder updateSettings = Settings.builder();
-        String bodySettingsStr = request.content().utf8ToString();
-        if (Strings.hasText(bodySettingsStr)) {
-            Settings buildSettings = Settings.builder()
-                .loadFromSource(bodySettingsStr, request.getXContentType())
-                .build();
-            for (Map.Entry<String, String> entry : buildSettings.getAsMap().entrySet()) {
-                String key = entry.getKey();
-                String value = entry.getValue();
+        Map<String, Object> settings = new HashMap<>();
+        if (request.hasContent()) {
+            try (XContentParser parser = request.contentParser()) {
+                Map<String, Object> bodySettings = parser.map();
+                Object innerBodySettings = bodySettings.get("settings");
                 // clean up in case the body is wrapped with "settings" : { ... }
-                if (key.startsWith("settings.")) {
-                    key = key.substring("settings.".length());
+                if (innerBodySettings instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> innerBodySettingsMap = (Map<String, Object>) innerBodySettings;
+                    settings.putAll(innerBodySettingsMap);
+                } else {
+                    settings.putAll(bodySettings);
                 }
-                updateSettings.put(key, value);
             }
         }
-        for (Map.Entry<String, String> entry : request.params().entrySet()) {
-            if (VALUES_TO_EXCLUDE.contains(entry.getKey())) {
-                continue;
-            }
-            updateSettings.put(entry.getKey(), entry.getValue());
-        }
-        updateSettingsRequest.settings(updateSettings);
+        updateSettingsRequest.settings(settings);
 
         return channel -> client.admin().indices().updateSettings(updateSettingsRequest, new AcknowledgedRestListener<>(channel));
     }
@@ -97,5 +80,4 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
     protected Set<String> responseParams() {
         return Settings.FORMAT_PARAMS;
     }
-
 }

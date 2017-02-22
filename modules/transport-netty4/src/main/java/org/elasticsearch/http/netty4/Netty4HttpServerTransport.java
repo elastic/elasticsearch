@@ -150,9 +150,9 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE =
         Setting.byteSizeSetting("http.netty.receive_predictor_size", new ByteSizeValue(32, ByteSizeUnit.KB), Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MIN =
-        byteSizeSetting("http.netty.receive_predictor_min", SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
+        byteSizeSetting("http.netty.receive_predictor_min", SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope, Property.Shared);
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MAX =
-        byteSizeSetting("http.netty.receive_predictor_max", SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
+        byteSizeSetting("http.netty.receive_predictor_max", SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope, Property.Shared);
 
 
     protected final NetworkService networkService;

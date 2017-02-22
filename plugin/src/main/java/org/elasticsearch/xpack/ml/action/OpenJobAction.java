@@ -40,9 +40,9 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.JobStateObserver;
@@ -94,6 +94,10 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
             PARSER.declareBoolean(Request::setIgnoreDowntime, IGNORE_DOWNTIME);
             PARSER.declareString((request, val) ->
                     request.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+        }
+
+        public static Request fromXContent(XContentParser parser) {
+            return parseRequest(null, parser);
         }
 
         public static Request parseRequest(String jobId, XContentParser parser) {

@@ -223,8 +223,20 @@ public class MachineLearning extends Plugin implements ActionPlugin {
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return Arrays.asList(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField("ml"),
+        return Arrays.asList(
+                // Custom metadata
+                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField("ml"),
                         parser -> MlMetadata.ML_METADATA_PARSER.parse(parser, null).build()),
+                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(PersistentTasksInProgress.TYPE),
+                        PersistentTasksInProgress::fromXContent),
+
+                // Persistent action requests
+                new NamedXContentRegistry.Entry(PersistentActionRequest.class, new ParseField(StartDatafeedAction.NAME),
+                        StartDatafeedAction.Request::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentActionRequest.class, new ParseField(OpenJobAction.NAME),
+                        OpenJobAction.Request::fromXContent),
+
+                // Task statuses
                 new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(DatafeedState.NAME), DatafeedState::fromXContent),
                 new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(JobState.NAME), JobState::fromXContent)
         );

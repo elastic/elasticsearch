@@ -33,10 +33,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
@@ -193,7 +193,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 if (modelSizeStats != null) {
                     builder.field(MODEL_SIZE_STATS, modelSizeStats);
                 }
-                builder.field(STATE, state);
+                builder.field(STATE, state.toString());
                 builder.endObject();
 
                 return builder;

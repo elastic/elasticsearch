@@ -5,16 +5,20 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.ml.action.OpenJobAction;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Jobs whether running or complete are in one of these states.
@@ -25,7 +29,14 @@ public enum JobState implements Task.Status {
 
     CLOSING, CLOSED, OPENING, OPENED, FAILED;
 
-    public static final String NAME = "JobState";
+    public static final String NAME = OpenJobAction.NAME;//"JobState";
+
+    private static final ConstructingObjectParser<JobState, Void> PARSER =
+            new ConstructingObjectParser<>(NAME, args -> fromString((String) args[0]));
+
+    static {
+        PARSER.declareString(constructorArg(), new ParseField("state"));
+    }
 
     public static JobState fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
@@ -51,15 +62,20 @@ public enum JobState implements Task.Status {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.value(this.toString().toLowerCase(Locale.ROOT));
+        builder.startObject();
+        builder.field("state", name().toLowerCase(Locale.ROOT));
+        builder.endObject();
         return builder;
     }
 
+    @Override
+    public boolean isFragment() {
+        return false;
+    }
+
+
     public static JobState fromXContent(XContentParser parser) throws IOException {
-        if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
-            throw new ElasticsearchParseException("Unexpected token {}", parser.currentToken());
-        }
-        return fromString(parser.text());
+        return PARSER.parse(parser, null);
     }
 
     /**

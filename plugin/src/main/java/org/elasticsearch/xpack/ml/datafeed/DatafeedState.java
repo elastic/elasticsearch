@@ -5,21 +5,32 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 
 import java.io.IOException;
 import java.util.Locale;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public enum DatafeedState implements Task.Status {
 
     STARTED, STOPPED;
 
-    public static final String NAME = "DatafeedState";
+    public static final String NAME = StartDatafeedAction.NAME;//"DatafeedState";
+
+    private static final ConstructingObjectParser<DatafeedState, Void> PARSER =
+            new ConstructingObjectParser<>(NAME, args -> fromString((String) args[0]));
+
+    static {
+        PARSER.declareString(constructorArg(), new ParseField("state"));
+    }
 
     public static DatafeedState fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
@@ -45,15 +56,19 @@ public enum DatafeedState implements Task.Status {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.value(this.toString().toLowerCase(Locale.ROOT));
+        builder.startObject();
+        builder.field("state", name().toLowerCase(Locale.ROOT));
+        builder.endObject();
         return builder;
     }
 
+    @Override
+    public boolean isFragment() {
+        return false;
+    }
+
     public static DatafeedState fromXContent(XContentParser parser) throws IOException {
-        if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
-            throw new ElasticsearchParseException("Unexpected token {}", parser.currentToken());
-        }
-        return fromString(parser.text());
+        return PARSER.parse(parser, null);
     }
 
     @Override

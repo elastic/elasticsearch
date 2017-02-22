@@ -38,13 +38,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentActionRegistry;
@@ -93,6 +93,10 @@ public class StartDatafeedAction
             PARSER.declareLong(Request::setEndTime, END_TIME);
             PARSER.declareString((request, val) ->
                     request.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+        }
+
+        public static Request fromXContent(XContentParser parser) {
+            return parseRequest(null, parser);
         }
 
         public static Request parseRequest(String datafeedId, XContentParser parser) {
@@ -354,11 +358,15 @@ public class StartDatafeedAction
 
         PersistentTaskInProgress<?> datafeedTask = MlMetadata.getDatafeedTask(datafeedId, tasks);
         DatafeedState datafeedState = MlMetadata.getDatafeedState(datafeedId, tasks);
-        if (datafeedTask != null && datafeedTask.getExecutorNode() != null && datafeedState == DatafeedState.STARTED) {
-            if (nodes.nodeExists(datafeedTask.getExecutorNode()) == false) {
+        if (datafeedTask != null && datafeedState == DatafeedState.STARTED) {
+            if (datafeedTask.getExecutorNode() == null) {
+                // We can skip the datafeed state check below, because the task got unassigned after we went into
+                // started state on a node that disappeared and we didn't have the opportunity to set the status to stopped
+                return;
+            } else if (nodes.nodeExists(datafeedTask.getExecutorNode()) == false) {
                 // The state is started and the node were running on no longer exists.
                 // We can skip the datafeed state check below, because when the node
-                // disappeared we didn't have time to set the state to failed.
+                // disappeared we didn't have time to set the state to stopped.
                 return;
             }
         }

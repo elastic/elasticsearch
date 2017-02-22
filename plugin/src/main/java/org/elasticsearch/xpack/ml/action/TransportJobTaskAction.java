@@ -25,10 +25,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
@@ -120,7 +120,7 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
 
     @Override
     protected boolean accumulateExceptions() {
-        return false;
+        return true;
     }
 
     public static class JobTaskRequest<R extends JobTaskRequest<R>> extends BaseTasksRequest<R> {

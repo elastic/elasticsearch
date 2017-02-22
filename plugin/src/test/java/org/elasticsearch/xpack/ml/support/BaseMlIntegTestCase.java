@@ -6,6 +6,10 @@
 package org.elasticsearch.xpack.ml.support;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -15,6 +19,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
@@ -28,7 +33,7 @@ import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.MlMetadata;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
 
 import java.util.Collections;
@@ -37,6 +42,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  * A base class for testing datafeed and job lifecycle specifics.
@@ -121,6 +127,33 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
         internalCluster().startNode(Settings.builder().put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false));
         ensureStableCluster(1);
         cluster().wipe(Collections.emptySet());
+    }
+
+    protected void indexDocs(String index, long numDocs, long start, long end) {
+        int maxDelta = (int) (end - start - 1);
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest indexRequest = new IndexRequest(index, "type");
+            long timestamp = start + randomIntBetween(0, maxDelta);
+            assert timestamp >= start && timestamp < end;
+            indexRequest.source("time", timestamp);
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get();
+        assertThat(bulkResponse.hasFailures(), is(false));
+        logger.info("Indexed [{}] documents", numDocs);
+    }
+
+    protected DataCounts getDataCounts(String jobId) {
+        GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
+        GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
+        if (response.getResponse().results().isEmpty()) {
+            return new DataCounts(jobId);
+        } else {
+            return response.getResponse().results().get(0).getDataCounts();
+        }
     }
 
     private void deleteAllDatafeeds(Client client) throws Exception {

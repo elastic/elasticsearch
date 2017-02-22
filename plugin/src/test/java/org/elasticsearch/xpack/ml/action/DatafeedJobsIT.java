@@ -7,19 +7,10 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.persistent.PersistentActionResponse;
@@ -27,12 +18,10 @@ import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class DatafeedJobsIT extends BaseMlIntegTestCase {
 
@@ -152,37 +141,6 @@ public class DatafeedJobsIT extends BaseMlIntegTestCase {
             GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
             assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
         });
-    }
-
-    private void indexDocs(String index, long numDocs, long start, long end) {
-        int maxDelta = (int) (end - start - 1);
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        for (int i = 0; i < numDocs; i++) {
-            IndexRequest indexRequest = new IndexRequest(index, "type");
-            long timestamp = start + randomIntBetween(0, maxDelta);
-            assert timestamp >= start && timestamp < end;
-            indexRequest.source("time", timestamp);
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
-        assertThat(bulkResponse.hasFailures(), is(false));
-        logger.info("Indexed [{}] documents", numDocs);
-    }
-
-    private DataCounts getDataCounts(String jobId) {
-        GetResponse getResponse = client().prepareGet(AnomalyDetectorsIndex.jobResultsIndexName(jobId),
-                DataCounts.TYPE.getPreferredName(), jobId + "-data-counts").get();
-        if (getResponse.isExists() == false) {
-            return new DataCounts(jobId);
-        }
-
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, getResponse.getSourceAsBytesRef())) {
-            return DataCounts.PARSER.apply(parser, null);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 
 }

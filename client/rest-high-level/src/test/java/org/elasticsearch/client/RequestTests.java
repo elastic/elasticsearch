@@ -22,6 +22,9 @@ package org.elasticsearch.client;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -29,7 +32,9 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -40,6 +45,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -369,6 +375,142 @@ public class RequestTests extends ESTestCase {
                 exception.getMessage());
     }
 
+    public void testBulk() throws IOException {
+        Map<String, String> expectedParams = new HashMap<>();
+
+        BulkRequest bulkRequest = new BulkRequest();
+        if (randomBoolean()) {
+            String timeout = randomTimeValue();
+            bulkRequest.timeout(timeout);
+            expectedParams.put("timeout", timeout);
+        } else {
+            expectedParams.put("timeout", BulkShardRequest.DEFAULT_TIMEOUT.getStringRep());
+        }
+
+        if (randomBoolean()) {
+            WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
+            bulkRequest.setRefreshPolicy(refreshPolicy);
+            if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
+                expectedParams.put("refresh", refreshPolicy.getValue());
+            }
+        }
+
+        int nbItems = randomIntBetween(10, 100);
+        for (int i = 0; i < nbItems; i++) {
+            String index = randomAsciiOfLength(5);
+            String type = randomAsciiOfLength(5);
+            String id = randomAsciiOfLength(5);
+
+            XContentType xContentType = randomFrom(XContentType.values());
+            BytesReference source = RandomObjects.randomSource(random(), xContentType);
+            DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
+
+            DocWriteRequest<?> docWriteRequest = null;
+            if (opType == DocWriteRequest.OpType.INDEX) {
+                IndexRequest indexRequest = new IndexRequest(index, type, id).source(source, xContentType);
+                docWriteRequest = indexRequest;
+                if (randomBoolean()) {
+                    indexRequest.setPipeline(randomAsciiOfLength(5));
+                }
+                if (randomBoolean()) {
+                    indexRequest.parent(randomAsciiOfLength(5));
+                }
+            } else if (opType == DocWriteRequest.OpType.CREATE) {
+                IndexRequest createRequest = new IndexRequest(index, type, id).source(source, xContentType).create(true);
+                docWriteRequest = createRequest;
+                if (randomBoolean()) {
+                    createRequest.parent(randomAsciiOfLength(5));
+                }
+            } else if (opType == DocWriteRequest.OpType.UPDATE) {
+                final UpdateRequest updateRequest = new UpdateRequest(index, type, id).doc(source, xContentType);
+                docWriteRequest = updateRequest;
+                if (randomBoolean()) {
+                    updateRequest.retryOnConflict(randomIntBetween(1, 5));
+                }
+                if (randomBoolean()) {
+                    randomizeFetchSourceContextParams(updateRequest::fetchSource, new HashMap<>());
+                }
+                if (randomBoolean()) {
+                    updateRequest.parent(randomAsciiOfLength(5));
+                }
+            } else if (opType == DocWriteRequest.OpType.DELETE) {
+                docWriteRequest = new DeleteRequest(index, type, id);
+            }
+
+            if (randomBoolean()) {
+                docWriteRequest.routing(randomAsciiOfLength(10));
+            }
+            if (randomBoolean()) {
+                docWriteRequest.version(randomNonNegativeLong());
+            }
+            if (randomBoolean()) {
+                docWriteRequest.versionType(randomFrom(VersionType.values()));
+            }
+            bulkRequest.add(docWriteRequest);
+        }
+
+        Request request = Request.bulk(bulkRequest);
+        assertEquals("/_bulk", request.endpoint);
+        assertEquals(expectedParams, request.params);
+        assertEquals("POST", request.method);
+
+        byte[] content = new byte[(int) request.entity.getContentLength()];
+        try (InputStream inputStream = request.entity.getContent()) {
+            Streams.readFully(inputStream, content);
+        }
+
+        BulkRequest parsedBulkRequest = new BulkRequest();
+        parsedBulkRequest.add(content, 0, content.length, XContentType.JSON);
+        assertEquals(bulkRequest.numberOfActions(), parsedBulkRequest.numberOfActions());
+
+        for (int i = 0; i < bulkRequest.numberOfActions(); i++) {
+            DocWriteRequest<?> originalRequest = bulkRequest.requests().get(i);
+            DocWriteRequest<?> parsedRequest = parsedBulkRequest.requests().get(i);
+
+            assertEquals(originalRequest.opType(), parsedRequest.opType());
+            assertEquals(originalRequest.index(), parsedRequest.index());
+            assertEquals(originalRequest.type(), parsedRequest.type());
+            assertEquals(originalRequest.id(), parsedRequest.id());
+            assertEquals(originalRequest.routing(), parsedRequest.routing());
+            assertEquals(originalRequest.parent(), parsedRequest.parent());
+            assertEquals(originalRequest.version(), parsedRequest.version());
+            assertEquals(originalRequest.versionType(), parsedRequest.versionType());
+
+            DocWriteRequest.OpType opType = originalRequest.opType();
+            if (opType == DocWriteRequest.OpType.INDEX) {
+                IndexRequest indexRequest = (IndexRequest) originalRequest;
+                IndexRequest parsedIndexRequest = (IndexRequest) parsedRequest;
+
+                assertEquals(indexRequest.getPipeline(), parsedIndexRequest.getPipeline());
+            } else if (opType == DocWriteRequest.OpType.UPDATE) {
+                UpdateRequest updateRequest = (UpdateRequest) originalRequest;
+                UpdateRequest parsedUpdateRequest = (UpdateRequest) parsedRequest;
+
+                assertEquals(updateRequest.retryOnConflict(), parsedUpdateRequest.retryOnConflict());
+                assertEquals(updateRequest.fetchSource(), parsedUpdateRequest.fetchSource());
+                if (updateRequest.doc() != null) {
+                    BytesReference originalBytes = updateRequest.doc().source();
+                    XContentType originalContentType = updateRequest.doc().getContentType();
+
+                    BytesReference finalBytes = parsedUpdateRequest.doc().source();
+                    XContentType finalContentType = parsedUpdateRequest.doc().getContentType();
+
+                    if (finalContentType != originalContentType) {
+                        try (XContentParser parser = finalContentType.xContent().createParser(NamedXContentRegistry.EMPTY, finalBytes)) {
+                            try (XContentBuilder builder = XContentBuilder.builder(originalContentType.xContent())) {
+                                builder.copyCurrentStructure(parser);
+                                finalBytes = builder.bytes();
+                            }
+                        }
+                    }
+                    assertToXContentEquivalent(originalBytes, finalBytes, originalContentType);
+                } else {
+                    assertNull(parsedUpdateRequest.doc());
+                }
+            }
+        }
+    }
+
     public void testParams() {
         final int nbParams = randomIntBetween(0, 10);
         Request.Params params = Request.Params.builder();
@@ -404,6 +546,7 @@ public class RequestTests extends ESTestCase {
         assertEquals("/a/b", Request.endpoint("a", "b"));
         assertEquals("/a/b/_create", Request.endpoint("a", "b", "_create"));
         assertEquals("/a/b/c/_create", Request.endpoint("a", "b", "c", "_create"));
+        assertEquals("/a/_create", Request.endpoint("a", null, null, "_create"));
     }
 
     /**

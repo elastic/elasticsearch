@@ -38,6 +38,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
@@ -77,7 +78,7 @@ public class DoSection implements ExecutableSection {
 
         DoSection doSection = new DoSection(parser.getTokenLocation());
         ApiCallSection apiCallSection = null;
-        Map<String, String> headers = new HashMap<>();
+        Map<String, String> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         List<String> expectedWarnings = new ArrayList<>();
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -138,9 +139,7 @@ public class DoSection implements ExecutableSection {
             if (apiCallSection == null) {
                 throw new IllegalArgumentException("client call section is mandatory within a do section");
             }
-            if (headers.isEmpty() == false) {
-                apiCallSection.addHeaders(headers);
-            }
+            apiCallSection.addHeaders(headers);
             doSection.setApiCallSection(apiCallSection);
             doSection.setExpectedWarningHeaders(unmodifiableList(expectedWarnings));
         } finally {

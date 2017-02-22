@@ -6,23 +6,21 @@ dependencies {
   testCompile project(path: ':modules:lang-mustache', configuration: 'runtime')
 }
 
-integTest {
-  cluster {
-    plugin ':x-pack-elasticsearch:plugin'
-    setting 'xpack.watcher.enabled', 'false'
-    setting 'xpack.monitoring.enabled', 'false'
-    setting 'path.scripts', "${project.buildDir}/resources/test/templates"
-    setupCommand 'setupDummyUser',
-            'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'
-    waitCondition = { node, ant ->
-      File tmpFile = new File(node.cwd, 'wait.success')
-      ant.get(src: "http://${node.httpUri()}",
-              dest: tmpFile.toString(),
-              username: 'test_admin',
-              password: 'changeme',
-              ignoreerrors: true,
-              retries: 10)
-      return tmpFile.exists()
-    }
+integTestCluster {
+  plugin ':x-pack-elasticsearch:plugin'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'path.scripts', "${project.buildDir}/resources/test/templates"
+  setupCommand 'setupDummyUser',
+          'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'
+  waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}",
+            dest: tmpFile.toString(),
+            username: 'test_admin',
+            password: 'changeme',
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
   }
 }

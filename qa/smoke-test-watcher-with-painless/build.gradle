@@ -6,11 +6,9 @@ dependencies {
   testCompile project(path: ':modules:lang-painless', configuration: 'runtime')
 }
 
-integTest {
-  cluster {
-    plugin ':x-pack-elasticsearch:plugin'
-    setting 'script.inline', 'true'
-    setting 'xpack.security.enabled', 'false'
-    setting 'xpack.monitoring.enabled', 'false'
-  }
+integTestCluster {
+  plugin ':x-pack-elasticsearch:plugin'
+  setting 'script.inline', 'true'
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
 }

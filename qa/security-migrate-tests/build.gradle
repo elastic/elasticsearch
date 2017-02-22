@@ -6,29 +6,27 @@ dependencies {
   testCompile project(path: ':x-pack-elasticsearch:transport-client', configuration: 'runtime')
 }
 
-integTest {
-  cluster {
-    setting 'script.inline', 'true'
-    plugin ':x-pack-elasticsearch:plugin'
-    extraConfigFile 'x-pack/roles.yml', 'roles.yml'
-    [
-      test_admin: 'superuser',
-      transport_user: 'superuser',
-      existing: 'superuser',
-      bob: 'actual_role'
-    ].each { String user, String role ->
-      setupCommand 'setupUser#' + user,
-                   'bin/x-pack/users', 'useradd', user, '-p', 'changeme', '-r', role
-    }
-    waitCondition = { node, ant ->
-      File tmpFile = new File(node.cwd, 'wait.success')
-      ant.get(src: "http://${node.httpUri()}",
-              dest: tmpFile.toString(),
-              username: 'test_admin',
-              password: 'changeme',
-              ignoreerrors: true,
-              retries: 10)
-      return tmpFile.exists()
-    }
+integTestCluster {
+  setting 'script.inline', 'true'
+  plugin ':x-pack-elasticsearch:plugin'
+  extraConfigFile 'x-pack/roles.yml', 'roles.yml'
+  [
+    test_admin: 'superuser',
+    transport_user: 'superuser',
+    existing: 'superuser',
+    bob: 'actual_role'
+  ].each { String user, String role ->
+    setupCommand 'setupUser#' + user,
+                 'bin/x-pack/users', 'useradd', user, '-p', 'changeme', '-r', role
+  }
+  waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}",
+            dest: tmpFile.toString(),
+            username: 'test_admin',
+            password: 'changeme',
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
   }
 }

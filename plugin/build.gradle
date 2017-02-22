@@ -291,45 +291,46 @@ project.afterEvaluate {
   }
 }
 
-integTest {
+integTestRunner {
   // TODO: fix this rest test to not depend on a hardcoded port!
   systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*,bulk/10_basic/*'
-  cluster {
-    setting 'xpack.ml.enabled', 'true'
-    setting 'xpack.monitoring.collection.interval', '3s'
-    waitCondition = { NodeInfo node, AntBuilder ant ->
-        File tmpFile = new File(node.cwd, 'wait.success')
-        for (int i = 0; i < 10; i++) {
-          // we use custom wait logic here as the elastic user is not available immediately and ant.get will fail when a 401 is returned
-          HttpURLConnection httpURLConnection = null;
-          try {
-            httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}").openConnection();
-            httpURLConnection.setRequestProperty("Authorization", "Basic " +
-                    Base64.getEncoder().encodeToString("elastic:changeme".getBytes(StandardCharsets.UTF_8)));
-            httpURLConnection.setRequestMethod("GET");
-            httpURLConnection.connect();
-            if (httpURLConnection.getResponseCode() == 200) {
-              tmpFile.withWriter StandardCharsets.UTF_8.name(), {
-                it.write(httpURLConnection.getInputStream().getText(StandardCharsets.UTF_8.name()))
-              }
-            }
-          } catch (Exception e) {
-            if (i == 9) {
-              logger.error("final attempt of calling cluster health failed", e)
-            } else {
-              logger.debug("failed to call cluster health", e)
-            }
-          } finally {
-            if (httpURLConnection != null) {
-              httpURLConnection.disconnect();
+}
+
+integTestCluster {
+  setting 'xpack.ml.enabled', 'true'
+  setting 'xpack.monitoring.collection.interval', '3s'
+  waitCondition = { NodeInfo node, AntBuilder ant ->
+      File tmpFile = new File(node.cwd, 'wait.success')
+      for (int i = 0; i < 10; i++) {
+        // we use custom wait logic here as the elastic user is not available immediately and ant.get will fail when a 401 is returned
+        HttpURLConnection httpURLConnection = null;
+        try {
+          httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}").openConnection();
+          httpURLConnection.setRequestProperty("Authorization", "Basic " +
+                  Base64.getEncoder().encodeToString("elastic:changeme".getBytes(StandardCharsets.UTF_8)));
+          httpURLConnection.setRequestMethod("GET");
+          httpURLConnection.connect();
+          if (httpURLConnection.getResponseCode() == 200) {
+            tmpFile.withWriter StandardCharsets.UTF_8.name(), {
+              it.write(httpURLConnection.getInputStream().getText(StandardCharsets.UTF_8.name()))
             }
           }
-
-          // did not start, so wait a bit before trying again
-          Thread.sleep(500L);
+        } catch (Exception e) {
+          if (i == 9) {
+            logger.error("final attempt of calling cluster health failed", e)
+          } else {
+            logger.debug("failed to call cluster health", e)
+          }
+        } finally {
+          if (httpURLConnection != null) {
+            httpURLConnection.disconnect();
+          }
         }
-        return tmpFile.exists()
-    }
+
+        // did not start, so wait a bit before trying again
+        Thread.sleep(500L);
+      }
+      return tmpFile.exists()
   }
 }
 

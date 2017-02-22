@@ -7,6 +7,9 @@ dependencies {
 
 integTest {
   includePackaged true
+}
+
+integTestRunner {
   systemProperty 'tests.rest.blacklist',
     ['cat.aliases/10_basic/Empty cluster',
      'index/10_with_id/Index with ID',
@@ -15,22 +18,22 @@ integTest {
      'cat.templates/10_basic/Sort templates',
      'cat.templates/10_basic/Multiple template',
     ].join(',')
+}
 
-  cluster {
-    plugin ':x-pack-elasticsearch:plugin'
-    setting 'xpack.watcher.enabled', 'false'
-    setting 'xpack.monitoring.enabled', 'false'
-    setupCommand 'setupDummyUser',
-                 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
-    waitCondition = { node, ant ->
-      File tmpFile = new File(node.cwd, 'wait.success')
-      ant.get(src: "http://${node.httpUri()}",
-              dest: tmpFile.toString(),
-              username: 'test_user',
-              password: 'changeme',
-              ignoreerrors: true,
-              retries: 10)
-      return tmpFile.exists()
-    }
+integTestCluster {
+  plugin ':x-pack-elasticsearch:plugin'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setupCommand 'setupDummyUser',
+               'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
+  waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}",
+            dest: tmpFile.toString(),
+            username: 'test_user',
+            password: 'changeme',
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
   }
 }

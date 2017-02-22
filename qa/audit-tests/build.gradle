@@ -13,23 +13,21 @@ task copyXPackPluginProps(type: Copy) {
 }
 project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
 
-integTest {
-  cluster {
-    plugin ':x-pack-elasticsearch:plugin'
-    setting 'xpack.security.audit.enabled', 'true'
-    setting 'xpack.security.audit.outputs', 'index'
-    setting 'logger.level', 'DEBUG'
-    setupCommand 'setupDummyUser',
-                 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
-    waitCondition = { node, ant ->
-      File tmpFile = new File(node.cwd, 'wait.success')
-      ant.get(src: "http://${node.httpUri()}",
-              dest: tmpFile.toString(),
-              username: 'test_user',
-              password: 'changeme',
-              ignoreerrors: true,
-              retries: 10)
-      return tmpFile.exists()
-    }
+integTestCluster {
+  plugin ':x-pack-elasticsearch:plugin'
+  setting 'xpack.security.audit.enabled', 'true'
+  setting 'xpack.security.audit.outputs', 'index'
+  setting 'logger.level', 'DEBUG'
+  setupCommand 'setupDummyUser',
+               'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
+  waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}",
+            dest: tmpFile.toString(),
+            username: 'test_user',
+            password: 'changeme',
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
   }
 }

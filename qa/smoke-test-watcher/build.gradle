@@ -17,28 +17,26 @@ ext {
   jiraProject  =  'XWT'
 }
 
-integTest {
-  cluster {
-    plugin ':x-pack-elasticsearch:plugin'
-    setting 'xpack.security.enabled', 'false'
-    setting 'xpack.monitoring.enabled', 'false'
-    setting 'http.port', '9400'
-    // Need to allow more compilations per minute because of the integration tests
-    setting 'script.max_compilations_per_minute', '100'
+integTestCluster {
+  plugin ':x-pack-elasticsearch:plugin'
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'http.port', '9400'
+  // Need to allow more compilations per minute because of the integration tests
+  setting 'script.max_compilations_per_minute', '100'
 
-    //
-    // JIRA integration test settings
-    //
-    // The integration tests use a JIRA account on elasticsearch.atlassian.net. This account
-    // has been created by Edward Sy [edward@elastic.co]. It uses the "XPACK WATCHER TEST"
-    // Jira project available at https://elasticsearch.atlassian.net/projects/XWT/issues/?filter=allopenissues
-    // and the "xpack-user@elastic.co" username which is also an internal Google Group.
-    setting 'xpack.notification.jira.account.test.url', jiraUrl
-    setting 'xpack.notification.jira.account.test.user', jiraUser
-    setting 'xpack.notification.jira.account.test.password', jiraPassword
-    setting 'xpack.notification.jira.account.test.issue_defaults.project.key', jiraProject
-    setting 'xpack.notification.jira.account.test.issue_defaults.labels', ['integration-tests', project.version]
-  }
+  //
+  // JIRA integration test settings
+  //
+  // The integration tests use a JIRA account on elasticsearch.atlassian.net. This account
+  // has been created by Edward Sy [edward@elastic.co]. It uses the "XPACK WATCHER TEST"
+  // Jira project available at https://elasticsearch.atlassian.net/projects/XWT/issues/?filter=allopenissues
+  // and the "xpack-user@elastic.co" username which is also an internal Google Group.
+  setting 'xpack.notification.jira.account.test.url', jiraUrl
+  setting 'xpack.notification.jira.account.test.user', jiraUser
+  setting 'xpack.notification.jira.account.test.password', jiraPassword
+  setting 'xpack.notification.jira.account.test.issue_defaults.project.key', jiraProject
+  setting 'xpack.notification.jira.account.test.issue_defaults.labels', ['integration-tests', project.version]
 }
 
 /** Clean up JIRA after tests: delete all created issues **/
@@ -53,7 +51,7 @@ task cleanJira(type: DefaultTask) {
     }
   }
 }
-integTest.finalizedBy cleanJira
+integTestRunner.finalizedBy cleanJira
 
 /** List all issues associated to a given Jira project **/
 def jiraIssues(String projectKey) {

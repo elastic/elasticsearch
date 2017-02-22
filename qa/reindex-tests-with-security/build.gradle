@@ -7,34 +7,32 @@ dependencies {
   testCompile project(path: ':modules:reindex')
 }
 
-integTest {
-  cluster {
-    setting 'script.inline', 'true'
-    plugin ':x-pack-elasticsearch:plugin'
-    // Whitelist reindexing from the local node so we can test it.
-    setting 'reindex.remote.whitelist', '127.0.0.1:*'
-    extraConfigFile 'x-pack/roles.yml', 'roles.yml'
-    [
-      test_admin: 'superuser',
-      powerful_user: 'superuser',
-      minimal_user: 'minimal',
-      readonly_user: 'readonly',
-      dest_only_user: 'dest_only',
-      can_not_see_hidden_docs_user: 'can_not_see_hidden_docs',
-      can_not_see_hidden_fields_user: 'can_not_see_hidden_fields',
-    ].each { String user, String role ->
-      setupCommand 'setupUser#' + user,
-                   'bin/x-pack/users', 'useradd', user, '-p', 'changeme', '-r', role
-    }
-    waitCondition = { node, ant ->
-      File tmpFile = new File(node.cwd, 'wait.success')
-      ant.get(src: "http://${node.httpUri()}",
-              dest: tmpFile.toString(),
-              username: 'test_admin',
-              password: 'changeme',
-              ignoreerrors: true,
-              retries: 10)
-      return tmpFile.exists()
-    }
+integTestCluster {
+  setting 'script.inline', 'true'
+  plugin ':x-pack-elasticsearch:plugin'
+  // Whitelist reindexing from the local node so we can test it.
+  setting 'reindex.remote.whitelist', '127.0.0.1:*'
+  extraConfigFile 'x-pack/roles.yml', 'roles.yml'
+  [
+    test_admin: 'superuser',
+    powerful_user: 'superuser',
+    minimal_user: 'minimal',
+    readonly_user: 'readonly',
+    dest_only_user: 'dest_only',
+    can_not_see_hidden_docs_user: 'can_not_see_hidden_docs',
+    can_not_see_hidden_fields_user: 'can_not_see_hidden_fields',
+  ].each { String user, String role ->
+    setupCommand 'setupUser#' + user,
+                 'bin/x-pack/users', 'useradd', user, '-p', 'changeme', '-r', role
+  }
+  waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}",
+            dest: tmpFile.toString(),
+            username: 'test_admin',
+            password: 'changeme',
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
   }
 }

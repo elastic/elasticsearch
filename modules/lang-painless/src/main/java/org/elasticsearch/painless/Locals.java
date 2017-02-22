@@ -92,12 +92,12 @@ public final class Locals {
 
     /** Creates a new main method scope */
     public static Locals newMainMethodScope(ScriptInterface scriptInterface, Locals programScope, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, Definition.OBJECT_TYPE, KEYWORDS);
+        Locals locals = new Locals(programScope, scriptInterface.getExecuteMethodReturnType(), KEYWORDS);
         // This reference. Internal use only.
         locals.defineVariable(null, Definition.getType("Object"), THIS, true);
 
         // Method arguments
-        for (MethodArgument arg : scriptInterface.getArguments()) {
+        for (MethodArgument arg : scriptInterface.getExecuteArguments()) {
             locals.defineVariable(null, arg.getType(), arg.getName(), true);
         }
 

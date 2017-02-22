@@ -127,7 +127,6 @@ final class Netty4HttpChannel extends AbstractRestChannel {
 
             if (release) {
                 promise.addListener(f -> ((Releasable)content).close());
-                release = false;
             }
 
             if (isCloseConnection()) {
@@ -141,7 +140,7 @@ final class Netty4HttpChannel extends AbstractRestChannel {
                 msg = resp;
             }
             channel.writeAndFlush(msg, promise);
-
+            release = false;
         } finally {
             if (release) {
                 ((Releasable) content).close();

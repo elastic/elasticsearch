@@ -192,7 +192,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                         new NewPendingClusterStateListener(),
                         discoverySettings,
                         clusterService.getClusterName());
-        this.membership = new MembershipAction(settings, transportService, this::localNode, new MembershipListener());
+        this.membership = new MembershipAction(settings, transportService, new MembershipListener());
         this.joinThreadControl = new JoinThreadControl();
 
         transportService.registerRequestHandler(

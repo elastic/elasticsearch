@@ -69,7 +69,8 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
                 job.setId(jobId);
             } else if (!Strings.isNullOrEmpty(jobId) && !jobId.equals(job.getId())) {
                 // If we have both URI and body job ID, they must be identical
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, Job.ID.getPreferredName(), job.getId(), jobId));
+                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, Job.ID.getPreferredName(),
+                        job.getId(), jobId));
             }
             if (job.getCreateTime() == null) {
                 job.setCreateTime(new Date());

@@ -96,9 +96,9 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
         // the actionlistener's onFailure
         if (tasks.isEmpty()) {
             if (taskOperationFailures.isEmpty() == false) {
-                throw new ElasticsearchException(taskOperationFailures.get(0).getCause());
+                throw wrapThrowable(taskOperationFailures.get(0).getCause());
             } else if (failedNodeExceptions.isEmpty() == false) {
-                throw new ElasticsearchException(failedNodeExceptions.get(0).getCause());
+                throw wrapThrowable(failedNodeExceptions.get(0).getCause());
             } else {
                 throw new IllegalStateException("No errors or response");
             }
@@ -107,6 +107,14 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
                 throw new IllegalStateException("Expected one node level response, but got [" + tasks.size() + "]");
             }
             return tasks.get(0);
+        }
+    }
+
+    private ElasticsearchException wrapThrowable(Throwable th) {
+        if (th instanceof ElasticsearchException) {
+            return (ElasticsearchException) th;
+        } else {
+            return new ElasticsearchException(th);
         }
     }
 

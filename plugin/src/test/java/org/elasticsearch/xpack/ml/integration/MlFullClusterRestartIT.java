@@ -40,7 +40,7 @@ public class MlFullClusterRestartIT extends BaseMlIntegTestCase {
         indexDocs("data", numDocs1, twoWeeksAgo, weekAgo);
 
         Job.Builder job = createScheduledJob("job_id");
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true, job.getId()));
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build());
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         assertTrue(putJobResponse.isAcknowledged());
 

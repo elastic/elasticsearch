@@ -24,9 +24,6 @@ import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.LastHttpContent;
-import io.netty.util.ReferenceCountUtil;
-import org.elasticsearch.action.termvectors.TermVectorsFilter;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.util.Collections;
@@ -84,7 +81,7 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
                             break;
                         }
                         holdingQueue.remove();
-                        ctx.write(response.response(), response.promise());
+                        ctx.write(response.response(), promise);
                         writeSequence++;
                     }
                 } else {

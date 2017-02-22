@@ -148,7 +148,9 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     }
 
     /**
-     * Test that {@link Netty4HttpServerTransport} responds to a 100-continue expectation with too large a content-length with a 413 status.
+     * Test that {@link Netty4HttpServerTransport} responds to a
+     * 100-continue expectation with too large a content-length
+     * with a 413 status.
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/23172")
@@ -198,7 +200,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
                 final FullHttpResponse response = client.post(remoteAddress.address(), request);
                 assertThat(response.status(), equalTo(expectedStatus));
                 if (expectedStatus.equals(HttpResponseStatus.CONTINUE)) {
-                    final FullHttpRequest continuationRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Unpooled.EMPTY_BUFFER);
+                    final FullHttpRequest continuationRequest =
+                        new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Unpooled.EMPTY_BUFFER);
                     final FullHttpResponse continuationResponse = client.post(remoteAddress.address(), continuationRequest);
 
                     assertThat(continuationResponse.status(), is(HttpResponseStatus.OK));

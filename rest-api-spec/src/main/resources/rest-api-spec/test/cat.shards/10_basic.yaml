@@ -186,8 +186,8 @@
             shadow_replicas: true
             shared_filesystem: false
       warnings:
-        - "[index.shadow_replicas] setting was deprecated in Elasticsearch and it will be removed in a future release! See the breaking changes lists in the documentation for details"
-        - "[index.shared_filesystem] setting was deprecated in Elasticsearch and it will be removed in a future release! See the breaking changes lists in the documentation for details"
+        - "[index.shadow_replicas] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
+        - "[index.shared_filesystem] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
 
   - do:
       cat.shards:

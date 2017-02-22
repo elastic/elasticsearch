@@ -40,6 +40,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 
@@ -89,6 +90,29 @@ public class FsProbeTests extends ESTestCase {
                 assertThat(path.available, greaterThan(0L));
             }
         }
+    }
+
+    public void testFsInfoOverflow() throws Exception {
+        FsInfo.Path pathStats = new FsInfo.Path("/foo/bar", null,
+                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+
+        // While not overflowing, keep adding
+        FsInfo.Path pathToAdd = new FsInfo.Path("/foo/baz", null,
+                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+        while ((pathStats.total + pathToAdd.total) > 0) {
+            // Add itself as a path, to increase the total bytes until it overflows
+            logger.info("--> adding {} bytes to {}, will be: {}", pathToAdd.total, pathStats.total, pathToAdd.total + pathStats.total);
+            pathStats.add(pathToAdd);
+            pathToAdd = new FsInfo.Path("/foo/baz", null,
+                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+        }
+
+        logger.info("--> adding {} bytes to {}, will be: {}", pathToAdd.total, pathStats.total, pathToAdd.total + pathStats.total);
+        assertThat(pathStats.total + pathToAdd.total, lessThan(0L));
+        pathStats.add(pathToAdd);
+
+        // Even after overflowing, it should not be negative
+        assertThat(pathStats.total, greaterThan(0L));
     }
 
     public void testIoStats() {

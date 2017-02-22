@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -315,7 +316,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
                 .endObject().string();
 
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type", mapping));
+                .addMapping("type", mapping, XContentType.JSON));
         ensureGreen();
         int docs = between(10, 100);
         IndexRequestBuilder[] builder = new IndexRequestBuilder[docs];

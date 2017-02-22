@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,7 +34,6 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -56,26 +56,28 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
                 builder.field("test", "test");
             }
             builder.endObject();
-            client().performRequest("PUT", "/" + indexName + "/" + typeName + "/" + "1", emptyMap(), new StringEntity(builder.string()));
+            client().performRequest("PUT", "/" + indexName + "/" + typeName + "/" + "1", emptyMap(),
+                new StringEntity(builder.string(), ContentType.APPLICATION_JSON));
         }
     }
 
     public void testDocumentExists() throws IOException {
         createTestDoc();
-        headTestCase("test/test/1", emptyMap(), equalTo(0));
-        headTestCase("test/test/1", singletonMap("pretty", "true"), equalTo(0));
+        headTestCase("/test/test/1", emptyMap(), greaterThan(0));
+        headTestCase("/test/test/1", singletonMap("pretty", "true"), greaterThan(0));
+        headTestCase("/test/test/2", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
     }
 
     public void testIndexExists() throws IOException {
         createTestDoc();
-        headTestCase("test", emptyMap(), greaterThan(0));
-        headTestCase("test", singletonMap("pretty", "true"), greaterThan(0));
+        headTestCase("/test", emptyMap(), greaterThan(0));
+        headTestCase("/test", singletonMap("pretty", "true"), greaterThan(0));
     }
 
     public void testTypeExists() throws IOException {
         createTestDoc();
-        headTestCase("test/test", emptyMap(), equalTo(0));
-        headTestCase("test/test", singletonMap("pretty", "true"), equalTo(0));
+        headTestCase("/test/test", emptyMap(), equalTo(0));
+        headTestCase("/test/test", singletonMap("pretty", "true"), equalTo(0));
     }
 
     public void testAliasExists() throws IOException {
@@ -100,7 +102,7 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             }
             builder.endObject();
 
-            client().performRequest("POST", "_aliases", emptyMap(), new StringEntity(builder.string()));
+            client().performRequest("POST", "_aliases", emptyMap(), new StringEntity(builder.string(), ContentType.APPLICATION_JSON));
             headTestCase("/_alias/test_alias", emptyMap(), greaterThan(0));
             headTestCase("/test/_alias/test_alias", emptyMap(), greaterThan(0));
         }
@@ -119,7 +121,8 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             }
             builder.endObject();
 
-            client().performRequest("PUT", "/_template/template", emptyMap(), new StringEntity(builder.string()));
+            client().performRequest("PUT", "/_template/template", emptyMap(),
+                new StringEntity(builder.string(), ContentType.APPLICATION_JSON));
             headTestCase("/_template/template", emptyMap(), greaterThan(0));
         }
     }
@@ -147,7 +150,7 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
                 builder.endObject();
             }
             builder.endObject();
-            client().performRequest("PUT", "/test-no-source", emptyMap(), new StringEntity(builder.string()));
+            client().performRequest("PUT", "/test-no-source", emptyMap(), new StringEntity(builder.string(), ContentType.APPLICATION_JSON));
             createTestDoc("test-no-source", "test-no-source");
             headTestCase("/test-no-source/test-no-source/1/_source", emptyMap(), NOT_FOUND.getStatus(), equalTo(0));
         }

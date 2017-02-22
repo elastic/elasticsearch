@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.util.BytesRef;
@@ -35,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -166,6 +168,25 @@ public final class InternalBinaryRange
             return to == null ? null : format.format(to);
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            Bucket bucket = (Bucket) o;
+
+            if (docCount != bucket.docCount) return false;
+            // keyed and format are ignored since they are already tested on the InternalBinaryRange object
+            return Objects.equals(key, bucket.key) &&
+                Objects.equals(from, bucket.from) &&
+                Objects.equals(to, bucket.to) &&
+                Objects.equals(aggregations, bucket.aggregations);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getClass(), docCount, key, from, to, aggregations);
+        }
     }
 
     private final DocValueFormat format;
@@ -262,5 +283,18 @@ public final class InternalBinaryRange
             builder.endArray();
         }
         return builder;
+    }
+
+    @Override
+    public boolean doEquals(Object obj) {
+        InternalBinaryRange that = (InternalBinaryRange) obj;
+        return Objects.equals(buckets, that.buckets)
+            && Objects.equals(format, that.format)
+            && Objects.equals(keyed, that.keyed);
+    }
+
+    @Override
+    public int doHashCode() {
+        return Objects.hash(buckets, format, keyed);
     }
 }

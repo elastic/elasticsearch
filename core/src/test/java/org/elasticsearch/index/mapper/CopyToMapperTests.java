@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.ParseContext.Document;
@@ -66,7 +67,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().endObject().string();
 
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("type1").setSource(mapping).get();
+        client().admin().indices().preparePutMapping("test").setType("type1").setSource(mapping, XContentType.JSON).get();
         DocumentMapper docMapper = index.mapperService().documentMapper("type1");
         FieldMapper fieldMapper = docMapper.mappers().getMapper("copy_test");
 
@@ -114,7 +115,8 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.getFields("new_field")[0].numericValue().intValue(), equalTo(42));
 
         assertNotNull(parsedDoc.dynamicMappingsUpdate());
-        client().admin().indices().preparePutMapping("test").setType("type1").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
+        client().admin().indices().preparePutMapping("test").setType("type1")
+            .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
         docMapper = index.mapperService().documentMapper("type1");
         fieldMapper = docMapper.mappers().getMapper("new_field");

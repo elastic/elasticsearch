@@ -3114,7 +3114,7 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testSequenceNumberAdvancesToMaxSeqNoOnEngineOpenOnReplica() throws IOException {
         final long v = Versions.MATCH_ANY;
-        final VersionType t = VersionType.INTERNAL;
+        final VersionType t = VersionType.EXTERNAL;
         final long ts = IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
         final int docs = randomIntBetween(1, 32);
         InternalEngine initialEngine = null;

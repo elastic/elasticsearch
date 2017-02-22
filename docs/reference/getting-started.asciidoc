@@ -401,7 +401,7 @@ If we study the above commands carefully, we can actually see a pattern of how w
 --------------------------------------------------
 // NOTCONSOLE
 
-This REST access pattern is pervasive throughout all the API commands that if you can simply remember it, you will have a good head start at mastering Elasticsearch.
+This REST access pattern is so pervasive throughout all the API commands that if you can simply remember it, you will have a good head start at mastering Elasticsearch.
 
 == Modifying Your Data
 
@@ -588,7 +588,7 @@ You can download the sample dataset (accounts.json) from https://github.com/elas
 
 [source,sh]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/account/_bulk?pretty&refresh' --data-binary "@accounts.json"
+curl -H "Content-Type: application/json" -XPOST 'localhost:9200/bank/account/_bulk?pretty&refresh' --data-binary "@accounts.json"
 curl 'localhost:9200/_cat/indices?v'
 --------------------------------------------------
 // NOTCONSOLE
@@ -677,8 +677,8 @@ As for the response, we see the following parts:
 * `hits` – search results
 * `hits.total` – total number of documents matching our search criteria
 * `hits.hits` – actual array of search results (defaults to first 10 documents)
-* `sort` - sort key for results (missing if sorting by score)
-* `_score` and `max_score` - ignore these fields for now
+* `hits.sort` - sort key for results (missing if sorting by score)
+* `hits._score` and `max_score` - ignore these fields for now
 
 Here is the same exact search above using the alternative request body method:
 

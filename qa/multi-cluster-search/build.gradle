@@ -23,25 +23,33 @@ apply plugin: 'elasticsearch.standalone-test'
 
 task remoteClusterTest(type: RestIntegTestTask) {
   mustRunAfter(precommit)
-  cluster {
-    distribution = 'zip'
-    numNodes = 2
-    clusterName = 'remote-cluster'
-    setting 'search.remote.connect', false
-  }
+}
+
+remoteClusterTestCluster {
+  distribution = 'zip'
+  numNodes = 2
+  clusterName = 'remote-cluster'
+  setting 'search.remote.connect', false
+}
+
+remoteClusterTestRunner {
   systemProperty 'tests.rest.suite', 'remote_cluster'
 }
 
 task mixedClusterTest(type: RestIntegTestTask) {
-  dependsOn(remoteClusterTest)
-  cluster {
-    distribution = 'zip'
-    setting 'search.remote.my_remote_cluster.seeds', "\"${-> remoteClusterTest.nodes.get(0).transportUri()}\""
-    setting 'search.remote.connections_per_cluster', 1
-    setting 'search.remote.connect', true
-  }
+  dependsOn(remoteClusterTestRunner)
+}
+
+mixedClusterTestCluster {
+  distribution = 'zip'
+  setting 'search.remote.my_remote_cluster.seeds', "\"${-> remoteClusterTest.nodes.get(0).transportUri()}\""
+  setting 'search.remote.connections_per_cluster', 1
+  setting 'search.remote.connect', true
+}
+
+mixedClusterTestRunner {
   systemProperty 'tests.rest.suite', 'multi_cluster'
-  finalizedBy 'remoteClusterTest#node0.stop','remoteClusterTest#node1.stop'
+  finalizedBy 'remoteClusterTestCluster#node0.stop','remoteClusterTestCluster#node1.stop'
 }
 
 task integTest {

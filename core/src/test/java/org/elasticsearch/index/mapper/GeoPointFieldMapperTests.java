@@ -25,6 +25,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -227,7 +228,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().endObject().endObject().string();
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test")
-            .addMapping("pin", mapping);
+            .addMapping("pin", mapping, XContentType.JSON);
         mappingRequest.execute().actionGet();
 
         // create index and add random test points

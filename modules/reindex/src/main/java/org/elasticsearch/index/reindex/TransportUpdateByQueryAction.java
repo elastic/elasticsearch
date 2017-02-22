@@ -120,7 +120,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             index.index(doc.getIndex());
             index.type(doc.getType());
             index.id(doc.getId());
-            index.source(doc.getSource());
+            index.source(doc.getSource(), doc.getXContentType());
             index.versionType(VersionType.INTERNAL);
             index.version(doc.getVersion());
             index.setPipeline(mainRequest.getPipeline());

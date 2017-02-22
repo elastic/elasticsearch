@@ -38,7 +38,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
@@ -74,7 +73,6 @@ public class ReplicationResponse extends ActionResponse {
 
     public static class ShardInfo implements Streamable, ToXContentObject {
 
-        private static final String _SHARDS = "_shards";
         private static final String TOTAL = "total";
         private static final String SUCCESSFUL = "successful";
         private static final String FAILED = "failed";
@@ -132,25 +130,6 @@ public class ReplicationResponse extends ActionResponse {
                 }
             }
             return status;
-        }
-
-        @Override
-        public boolean equals(Object that) {
-            if (this == that) {
-                return true;
-            }
-            if (that == null || getClass() != that.getClass()) {
-                return false;
-            }
-            ShardInfo other = (ShardInfo) that;
-            return Objects.equals(total, other.total) &&
-                    Objects.equals(successful, other.successful) &&
-                    Arrays.equals(failures, other.failures);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(total, successful, failures);
         }
 
         @Override
@@ -325,27 +304,6 @@ public class ReplicationResponse extends ActionResponse {
              */
             public boolean primary() {
                 return primary;
-            }
-
-            @Override
-            public boolean equals(Object that) {
-                if (this == that) {
-                    return true;
-                }
-                if (that == null || getClass() != that.getClass()) {
-                    return false;
-                }
-                Failure failure = (Failure) that;
-                return Objects.equals(primary, failure.primary) &&
-                        Objects.equals(shardId, failure.shardId) &&
-                        Objects.equals(nodeId, failure.nodeId) &&
-                        Objects.equals(cause, failure.cause) &&
-                        Objects.equals(status, failure.status);
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(shardId, nodeId, cause, status, primary);
             }
 
             @Override

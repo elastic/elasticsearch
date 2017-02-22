@@ -288,7 +288,6 @@ import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestDeleteAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.document.RestGetSourceAction;
-import org.elasticsearch.rest.action.document.RestHeadAction;
 import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.rest.action.document.RestMultiTermVectorsAction;
@@ -563,7 +562,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestIndexAction(settings, restController));
         registerHandler.accept(new RestGetAction(settings, restController));
         registerHandler.accept(new RestGetSourceAction(settings, restController));
-        registerHandler.accept(new RestHeadAction.Document(settings, restController));
         registerHandler.accept(new RestMultiGetAction(settings, restController));
         registerHandler.accept(new RestDeleteAction(settings, restController));
         registerHandler.accept(new org.elasticsearch.rest.action.document.RestCountAction(settings, restController));

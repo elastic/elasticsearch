@@ -136,7 +136,11 @@ public class FsProbe extends AbstractComponent {
     }
 
     /* See: https://bugs.openjdk.java.net/browse/JDK-8162520 */
-    private static long adjustForHugeFilesystems(long bytes) {
+    /**
+     * Take a large value intended to be positive, and if it has overflowed,
+     * return {@code Long.MAX_VALUE} instead of a negative number.
+     */
+    static long adjustForHugeFilesystems(long bytes) {
         if (bytes < 0) {
             return Long.MAX_VALUE;
         }

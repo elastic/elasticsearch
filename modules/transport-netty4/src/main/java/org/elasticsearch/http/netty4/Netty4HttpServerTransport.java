@@ -69,7 +69,6 @@ import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.http.netty4.pipelining.HttpPipeliningHandler;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -143,17 +142,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         Setting.byteSizeSetting("http.tcp.receive_buffer_size", NetworkService.TcpSettings.TCP_RECEIVE_BUFFER_SIZE,
             Property.NodeScope, Property.Shared);
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE =
-        Setting.byteSizeSetting("transport.netty.receive_predictor_size",
-            settings -> {
-                long defaultReceiverPredictor = 512 * 1024;
-                if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes() > 0) {
-                    // we can guess a better default...
-                    long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes()) / SETTING_HTTP_WORKER_COUNT.get
-                        (settings));
-                    defaultReceiverPredictor = Math.min(defaultReceiverPredictor, Math.max(l, 64 * 1024));
-                }
-                return new ByteSizeValue(defaultReceiverPredictor).toString();
-            }, Property.NodeScope);
+        Setting.byteSizeSetting("http.netty.receive_predictor_size", new ByteSizeValue(32, ByteSizeUnit.KB), Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MIN =
         byteSizeSetting("http.netty.receive_predictor_min", SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MAX =

@@ -215,7 +215,8 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().string();
 
-        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("shapes").addMapping("polygon", mapping);
+        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("shapes")
+            .addMapping("polygon", mapping, XContentType.JSON);
         mappingRequest.execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -384,7 +385,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .endObject();
 
         client().admin().indices().prepareCreate("countries").setSettings(settings)
-                .addMapping("country", xContentBuilder.string()).execute().actionGet();
+                .addMapping("country", xContentBuilder).execute().actionGet();
         BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, null, xContentBuilder.contentType()).get();
 
         for (BulkItemResponse item : bulk.getItems()) {

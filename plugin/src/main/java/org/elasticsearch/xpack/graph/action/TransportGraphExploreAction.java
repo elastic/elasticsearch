@@ -39,7 +39,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.graph.Graph;
 import org.elasticsearch.xpack.graph.action.Connection.ConnectionId;
 import org.elasticsearch.xpack.graph.action.GraphExploreRequest.TermBoost;
 import org.elasticsearch.xpack.graph.action.Vertex.VertexId;
@@ -112,7 +111,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         AsyncGraphAction(GraphExploreRequest request, ActionListener<GraphExploreResponse> listener) {
             this.request = request;
             this.listener = listener;
-            this.startTime = threadPool.estimatedTimeInMillis();
+            this.startTime = threadPool.relativeTimeInMillis();
             this.timedOut = new AtomicBoolean(false);
             this.shardFailures = ShardSearchFailure.EMPTY_ARRAY;
         }
@@ -757,7 +756,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         long timeRemainingMillis() {
             // Actual resolution of timer is granularity of the interval
             // configured globally for updating estimated time.
-            return (startTime + request.timeout().millis()) - threadPool.estimatedTimeInMillis();
+            return (startTime + request.timeout().millis()) - threadPool.relativeTimeInMillis();
         }
 
         void addShardFailure(ShardOperationFailedException failure) {
@@ -774,7 +773,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         }
 
         protected GraphExploreResponse buildResponse() {
-            long took = threadPool.estimatedTimeInMillis() - startTime;
+            long took = threadPool.relativeTimeInMillis() - startTime;
             return new GraphExploreResponse(took, timedOut.get(), shardFailures, vertices, connections, request.returnDetailedInfo());
         }
 

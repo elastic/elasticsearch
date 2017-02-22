@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -32,7 +33,6 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.script.ScriptType.INLINE;
-import static org.elasticsearch.script.mustache.CustomMustacheFactory.CONTENT_TYPE_PARAM;
 import static org.elasticsearch.script.mustache.CustomMustacheFactory.JSON_MIME_TYPE;
 import static org.elasticsearch.script.mustache.CustomMustacheFactory.PLAIN_TEXT_MIME_TYPE;
 import static org.elasticsearch.script.mustache.CustomMustacheFactory.X_WWW_FORM_URLENCODED_MIME_TYPE;
@@ -63,7 +63,7 @@ public class CustomMustacheFactoryTests extends ESTestCase {
 
     public void testJsonEscapeEncoder() {
         final ScriptEngineService engine = new MustacheScriptEngineService(Settings.EMPTY);
-        final Map<String, String> params = randomBoolean() ? singletonMap(CONTENT_TYPE_PARAM, JSON_MIME_TYPE) : emptyMap();
+        final Map<String, String> params = randomBoolean() ? singletonMap(Script.CONTENT_TYPE_OPTION, JSON_MIME_TYPE) : emptyMap();
 
         Mustache script = (Mustache) engine.compile(null, "{\"field\": \"{{value}}\"}", params);
         CompiledScript compiled = new CompiledScript(INLINE, null, MustacheScriptEngineService.NAME, script);
@@ -75,7 +75,7 @@ public class CustomMustacheFactoryTests extends ESTestCase {
 
     public void testDefaultEncoder() {
         final ScriptEngineService engine = new MustacheScriptEngineService(Settings.EMPTY);
-        final Map<String, String> params = singletonMap(CONTENT_TYPE_PARAM, PLAIN_TEXT_MIME_TYPE);
+        final Map<String, String> params = singletonMap(Script.CONTENT_TYPE_OPTION, PLAIN_TEXT_MIME_TYPE);
 
         Mustache script = (Mustache) engine.compile(null, "{\"field\": \"{{value}}\"}", params);
         CompiledScript compiled = new CompiledScript(INLINE, null, MustacheScriptEngineService.NAME, script);
@@ -87,7 +87,7 @@ public class CustomMustacheFactoryTests extends ESTestCase {
 
     public void testUrlEncoder() {
         final ScriptEngineService engine = new MustacheScriptEngineService(Settings.EMPTY);
-        final Map<String, String> params = singletonMap(CONTENT_TYPE_PARAM, X_WWW_FORM_URLENCODED_MIME_TYPE);
+        final Map<String, String> params = singletonMap(Script.CONTENT_TYPE_OPTION, X_WWW_FORM_URLENCODED_MIME_TYPE);
 
         Mustache script = (Mustache) engine.compile(null, "{\"field\": \"{{value}}\"}", params);
         CompiledScript compiled = new CompiledScript(INLINE, null, MustacheScriptEngineService.NAME, script);

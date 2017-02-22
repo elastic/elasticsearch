@@ -26,5 +26,4 @@ public class TikaImplTests extends ESTestCase {
   public void testTikaLoads() throws Exception {
     Class.forName("org.elasticsearch.mapper.attachments.TikaImpl");
   }
-
 }

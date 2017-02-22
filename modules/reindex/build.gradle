@@ -23,11 +23,9 @@ esplugin {
   hasClientJar = true
 }
 
-integTest {
-  cluster {
-    // Whitelist reindexing from the local node so we can test it.
-    setting 'reindex.remote.whitelist', '127.0.0.1:*'
-  }
+integTestCluster {
+  // Whitelist reindexing from the local node so we can test it.
+  setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 
 run {

@@ -193,7 +193,7 @@ class ClusterFormationTasks {
             // the first argument is the actual script name, relative to home
             Object[] args = command.getValue().clone()
             args[0] = new File(node.homeDir, args[0].toString())
-            setup = configureExecTask(taskName(task, node, command.getKey()), project, setup, node, args)
+            setup = configureExecTask(taskName(task, node, command.getKey()), project, setup, node, args, [CONF_DIR: node.confDir])
         }
 
         Task start = configureStartTask(taskName(task, node, 'start'), project, setup, node)
@@ -428,7 +428,7 @@ class ClusterFormationTasks {
         // delay reading the file location until execution time by wrapping in a closure within a GString
         Object file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
         Object[] args = [new File(node.homeDir, 'bin/elasticsearch-plugin'), 'install', file]
-        return configureExecTask(name, project, setup, node, args)
+        return configureExecTask(name, project, setup, node, args, [CONF_DIR: node.confDir])
     }
 
     /** Wrapper for command line argument: surrounds comma with double quotes **/
@@ -448,7 +448,7 @@ class ClusterFormationTasks {
     }
 
     /** Adds a task to execute a command to help setup the cluster */
-    static Task configureExecTask(String name, Project project, Task setup, NodeInfo node, Object[] execArgs) {
+    static Task configureExecTask(String name, Project project, Task setup, NodeInfo node, Object[] execArgs, Map<String, ?> env) {
         return project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) {
             workingDir node.cwd
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
@@ -458,6 +458,7 @@ class ClusterFormationTasks {
                 // argument are wrapped in an ExecArgWrapper that escapes commas
                 args execArgs.collect { a -> new EscapeCommaWrapper(arg: a) }
             } else {
+                environment env
                 commandLine execArgs
             }
         }

@@ -131,7 +131,7 @@ provided it doesn't start with `{` :
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&filter=lowercase&char_filter=html_strip' -d 'this is a <b>test</b>' -H 'Content-Type: application/json'
+curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&filter=lowercase&char_filter=reverse' -d 'this is a test' -H 'Content-Type: text/plain'
 --------------------------------------------------
 // NOTCONSOLE
 

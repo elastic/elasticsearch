@@ -37,6 +37,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction.Response;
+import org.elasticsearch.persistent.PersistentTasksInProgress.Assignment;
 import org.elasticsearch.persistent.TestPersistentActionPlugin.TestRequest;
 
 import java.io.IOException;
@@ -89,10 +90,12 @@ public class PersistentActionCoordinatorTests extends ESTestCase {
         boolean added = false;
         if (nonLocalNodesCount > 0) {
             for (int i = 0; i < randomInt(5); i++) {
-                tasks.addTask("test_action", new TestRequest("other_" + i), false, true, "other_node_" + randomInt(nonLocalNodesCount));
+                tasks.addTask("test_action", new TestRequest("other_" + i), false, true,
+                        new Assignment("other_node_" + randomInt(nonLocalNodesCount), "test assignment on other node"));
                 if (added == false && randomBoolean()) {
                     added = true;
-                    tasks.addTask("test", new TestRequest("this_param"), false, true, "this_node");
+                    tasks.addTask("test", new TestRequest("this_param"), false, true,
+                            new Assignment("this_node", "test assignment on this node"));
                 }
             }
         }
@@ -302,7 +305,7 @@ public class PersistentActionCoordinatorTests extends ESTestCase {
         PersistentTasksInProgress.Builder builder =
                 PersistentTasksInProgress.builder(state.getMetaData().custom(PersistentTasksInProgress.TYPE));
         return ClusterState.builder(state).metaData(MetaData.builder(state.metaData()).putCustom(PersistentTasksInProgress.TYPE,
-                builder.addTask(action, request, false, true, node).build())).build();
+                builder.addTask(action, request, false, true, new Assignment(node, "test assignment")).build())).build();
     }
 
     private ClusterState reallocateTask(ClusterState state, long taskId, String node) {
@@ -310,7 +313,7 @@ public class PersistentActionCoordinatorTests extends ESTestCase {
                 PersistentTasksInProgress.builder(state.getMetaData().custom(PersistentTasksInProgress.TYPE));
         assertTrue(builder.hasTask(taskId));
         return ClusterState.builder(state).metaData(MetaData.builder(state.metaData()).putCustom(PersistentTasksInProgress.TYPE,
-                builder.reassignTask(taskId, node).build())).build();
+                builder.reassignTask(taskId, new Assignment(node, "test assignment")).build())).build();
     }
 
     private ClusterState removeTask(ClusterState state, long taskId) {

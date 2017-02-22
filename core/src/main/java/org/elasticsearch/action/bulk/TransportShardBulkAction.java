@@ -208,7 +208,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         // Make sure to use request.index() here, if you
                         // use docWriteRequest.index() it will use the
                         // concrete index instead of an alias if used!
-                        new BulkItemResponse.Failure(request.index(), docWriteRequest.type(), docWriteRequest.id(), failure));
+                        new BulkItemResponse.Failure(request.index(), docWriteRequest.type(), docWriteRequest.id(),
+                                failure, operationResult.getSeqNo()));
             } else {
                 assert replicaRequest.getPrimaryResponse() != null : "replica request must have a primary response";
                 return null;
@@ -361,8 +362,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     static boolean shouldExecuteReplicaItem(final BulkItemRequest request, final int index) {
         final BulkItemResponse primaryResponse = request.getPrimaryResponse();
         assert primaryResponse != null : "expected primary response to be set for item [" + index + "] request ["+ request.request() +"]";
-        return primaryResponse.isFailed() == false &&
-                primaryResponse.getResponse().getResult() != DocWriteResponse.Result.NOOP;
+        return request.getPrimaryResponse().getResponse().getResult() != DocWriteResponse.Result.NOOP;
     }
 
     @Override
@@ -372,33 +372,45 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             BulkItemRequest item = request.items()[i];
             if (shouldExecuteReplicaItem(item, i)) {
                 DocWriteRequest docWriteRequest = item.request();
-                DocWriteResponse primaryResponse = item.getPrimaryResponse().getResponse();
                 final Engine.Result operationResult;
                 try {
-                    switch (docWriteRequest.opType()) {
-                        case CREATE:
-                        case INDEX:
-                            operationResult = executeIndexRequestOnReplica(primaryResponse, (IndexRequest) docWriteRequest, replica);
-                            break;
-                        case DELETE:
-                            operationResult = executeDeleteRequestOnReplica(primaryResponse, (DeleteRequest) docWriteRequest, replica);
-                            break;
-                        default:
-                            throw new IllegalStateException("Unexpected request operation type on replica: "
-                                + docWriteRequest.opType().getLowercase());
-                    }
-                    if (operationResult.hasFailure()) {
-                        // check if any transient write operation failures should be bubbled up
-                        Exception failure = operationResult.getFailure();
-                        assert failure instanceof VersionConflictEngineException
-                            || failure instanceof MapperParsingException
-                            : "expected any one of [version conflict, mapper parsing, engine closed, index shard closed]" +
-                            " failures. got " + failure;
-                        if (!TransportActions.isShardNotAvailableException(failure)) {
-                            throw failure;
-                        }
+                    if (item.getPrimaryResponse().isFailed()) {
+                        // execution on primary resulted in a failure
+                        // if primary execution generated a sequence no, execute a noop on the replica engine to record it in the translog
+                        final BulkItemResponse.Failure failure = item.getPrimaryResponse().getFailure();
+                        operationResult = failure.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO
+                                ? executeNoOpRequestOnReplica(failure, docWriteRequest, replica)
+                                : null;
                     } else {
-                        location = locationToSync(location, operationResult.getTranslogLocation());
+                        final DocWriteResponse primaryResponse = item.getPrimaryResponse().getResponse();
+                        switch (docWriteRequest.opType()) {
+                            case CREATE:
+                            case INDEX:
+                                operationResult = executeIndexRequestOnReplica(primaryResponse, (IndexRequest) docWriteRequest, replica);
+                                break;
+                            case DELETE:
+                                operationResult = executeDeleteRequestOnReplica(primaryResponse, (DeleteRequest) docWriteRequest, replica);
+                                break;
+                            default:
+                                throw new IllegalStateException("Unexpected request operation type on replica: "
+                                        + docWriteRequest.opType().getLowercase());
+                        }
+                        assert operationResult != null : "operation result must never be null when primary response has no failure";
+                    }
+                    if (operationResult != null) {
+                        if (operationResult.hasFailure()) {
+                            // check if any transient write operation failures should be bubbled up
+                            Exception failure = operationResult.getFailure();
+                            assert failure instanceof VersionConflictEngineException
+                                    || failure instanceof MapperParsingException
+                                    : "expected any one of [version conflict, mapper parsing, engine closed, index shard closed]" +
+                                    " failures. got " + failure;
+                            if (!TransportActions.isShardNotAvailableException(failure)) {
+                                throw failure;
+                            }
+                        } else {
+                            location = locationToSync(location, operationResult.getTranslogLocation());
+                        }
                     }
                 } catch (Exception e) {
                     // if its not an ignore replica failure, we need to make sure to bubble up the failure
@@ -531,6 +543,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final Engine.Delete delete = replica.prepareDeleteOnReplica(request.type(), request.id(),
                 primaryResponse.getSeqNo(), request.primaryTerm(), version, versionType);
         return replica.delete(delete);
+    }
+
+    private Engine.NoOpResult executeNoOpRequestOnReplica(BulkItemResponse.Failure primaryFailure, DocWriteRequest docWriteRequest, IndexShard replica) throws IOException {
+        final long version = docWriteRequest.version();
+        final VersionType versionType = docWriteRequest.versionType().versionTypeForReplicationAndRecovery();
+        final Engine.NoOp noOp = replica.prepareNoOpOnReplica(docWriteRequest.type(), docWriteRequest.id(),
+                primaryFailure.getSeqNo(), version, versionType, primaryFailure.getMessage());
+        return replica.noOp(noOp);
     }
 
     class ConcreteMappingUpdatePerformer implements MappingUpdatePerformer {

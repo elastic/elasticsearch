@@ -23,103 +23,62 @@ import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
-
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 
 public class RestClientTests extends RestClientTestCase {
 
     public void testPerformAsyncWithUnsupportedMethod() throws Exception {
-        TestListener listener = new TestListener();
+        RestClient.SyncResponseListener listener = new RestClient.SyncResponseListener(10000);
         try (RestClient restClient = createRestClient()) {
             restClient.performRequestAsync("unsupported", randomAsciiOfLength(5), listener);
-            listener.waitForCompletion();
-        }
+            listener.get();
 
-        Exception exception = listener.getException();
-        assertNotNull(exception);
-        assertTrue(exception instanceof UnsupportedOperationException);
-        assertEquals("http method not supported: unsupported", exception.getMessage());
+            fail("should have failed because of unsupported method");
+        } catch (UnsupportedOperationException exception) {
+            assertEquals("http method not supported: unsupported", exception.getMessage());
+        }
     }
 
     public void testPerformAsyncWithNullParams() throws Exception {
-        TestListener listener = new TestListener();
+        RestClient.SyncResponseListener listener = new RestClient.SyncResponseListener(10000);
         try (RestClient restClient = createRestClient()) {
             restClient.performRequestAsync(randomAsciiOfLength(5), randomAsciiOfLength(5), null, listener);
-            listener.waitForCompletion();
-        }
+            listener.get();
 
-        Exception exception = listener.getException();
-        assertNotNull(exception);
-        assertTrue(exception instanceof NullPointerException);
-        assertEquals("params must not be null", exception.getMessage());
+            fail("should have failed because of null parameters");
+        } catch (NullPointerException exception) {
+            assertEquals("params must not be null", exception.getMessage());
+        }
     }
 
     public void testPerformAsyncWithNullHeaders() throws Exception {
-        TestListener listener = new TestListener();
+        RestClient.SyncResponseListener listener = new RestClient.SyncResponseListener(10000);
         try (RestClient restClient = createRestClient()) {
             restClient.performRequestAsync("GET", randomAsciiOfLength(5), listener, null);
-            listener.waitForCompletion();
-        }
+            listener.get();
 
-        Exception exception = listener.getException();
-        assertNotNull(exception);
-        assertTrue(exception instanceof NullPointerException);
-        assertEquals("request headers must not be null", exception.getMessage());
+            fail("should have failed because of null headers");
+        } catch (NullPointerException exception) {
+            assertEquals("request headers must not be null", exception.getMessage());
+        }
     }
 
     public void testPerformAsyncWithWrongEndpoint() throws Exception {
-        TestListener listener = new TestListener();
+        RestClient.SyncResponseListener listener = new RestClient.SyncResponseListener(10000);
         try (RestClient restClient = createRestClient()) {
             restClient.performRequestAsync("GET", "::http:///", listener);
-            listener.waitForCompletion();
-        }
+            listener.get();
 
-        Exception exception = listener.getException();
-        assertNotNull(exception);
-        assertTrue(exception instanceof IllegalArgumentException);
-        assertEquals("Expected scheme name at index 0: ::http:///", exception.getMessage());
+            fail("should have failed because of wrong endpoint");
+        } catch (IllegalArgumentException exception) {
+            assertEquals("Expected scheme name at index 0: ::http:///", exception.getMessage());
+        }
     }
 
     private static RestClient createRestClient() {
-        return new RestClient(mock(CloseableHttpAsyncClient.class), randomLongBetween(1_000, 30_000), new Header[]{},
-                new HttpHost[]{new HttpHost("localhost", 9200)}, null, null);
-    }
-
-    class TestListener implements ResponseListener {
-
-        private final CountDownLatch countDown = new CountDownLatch(1);
-        private final AtomicReference<Response> response = new AtomicReference<>();
-        private final AtomicReference<Exception> exception = new AtomicReference<>();
-
-        @Override
-        public void onSuccess(Response theResponse) {
-            if (response.getAndSet(theResponse) == null) {
-                countDown.countDown();
-            }
-        }
-
-        @Override
-        public void onFailure(Exception theException) {
-            if (exception.getAndSet(theException) == null) {
-                countDown.countDown();
-            }
-        }
-
-        void waitForCompletion() throws InterruptedException {
-            countDown.await();
-        }
-
-        public Response getResponse() {
-            return response.get();
-        }
-
-        Exception getException() {
-            return exception.get();
-        }
+        HttpHost[] hosts = new HttpHost[]{new HttpHost("localhost", 9200)};
+        return new RestClient(mock(CloseableHttpAsyncClient.class), randomLongBetween(1_000, 30_000), new Header[]{}, hosts, null, null);
     }
 }

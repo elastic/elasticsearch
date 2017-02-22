@@ -32,12 +32,16 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -118,6 +122,48 @@ final class Request {
         return new Request(method, endpoint, parameters.getParams(), entity);
     }
 
+    static Request update(UpdateRequest updateRequest) throws IOException {
+        String endpoint = endpoint(updateRequest.index(), updateRequest.type(), updateRequest.id(), "_update");
+
+        Params parameters = Params.builder();
+        parameters.withRouting(updateRequest.routing());
+        parameters.withParent(updateRequest.parent());
+        parameters.withTimeout(updateRequest.timeout());
+        parameters.withRefreshPolicy(updateRequest.getRefreshPolicy());
+        parameters.withWaitForActiveShards(updateRequest.waitForActiveShards());
+        parameters.withDocAsUpsert(updateRequest.docAsUpsert());
+        parameters.withFetchSourceContext(updateRequest.fetchSource());
+        parameters.withRetryOnConflict(updateRequest.retryOnConflict());
+        parameters.withVersion(updateRequest.version());
+        parameters.withVersionType(updateRequest.versionType());
+
+        // The Java API allows update requests with different content types
+        // set for the partial document and the upsert document. This client
+        // only accepts update requests that have the same content types set
+        // for both doc and upsert.
+        XContentType xContentType = null;
+        if (updateRequest.doc() != null) {
+            xContentType = updateRequest.doc().getContentType();
+        }
+        if (updateRequest.upsertRequest() != null) {
+            XContentType upsertContentType = updateRequest.upsertRequest().getContentType();
+            if ((xContentType != null) && (xContentType != upsertContentType)) {
+                throw new IllegalStateException("Update request cannot have different content types for doc [" + xContentType + "]" +
+                        " and upsert [" + upsertContentType + "] documents");
+            } else {
+                xContentType = upsertContentType;
+            }
+        }
+        if (xContentType == null) {
+            xContentType = Requests.INDEX_CONTENT_TYPE;
+        }
+
+        BytesRef source = XContentHelper.toXContent(updateRequest, xContentType, false).toBytesRef();
+        HttpEntity entity = new ByteArrayEntity(source.bytes, source.offset, source.length, ContentType.create(xContentType.mediaType()));
+
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), entity);
+    }
+
     /**
      * Utility method to build request's endpoint.
      */
@@ -156,6 +202,13 @@ final class Request {
         Params putParam(String key, TimeValue value) {
             if (value != null) {
                 return putParam(key, value.getStringRep());
+            }
+            return this;
+        }
+
+        Params withDocAsUpsert(boolean docAsUpsert) {
+            if (docAsUpsert) {
+                return putParam("doc_as_upsert", Boolean.TRUE.toString());
             }
             return this;
         }
@@ -203,7 +256,14 @@ final class Request {
 
         Params withRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
             if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
-                putParam("refresh", refreshPolicy.getValue());
+                return putParam("refresh", refreshPolicy.getValue());
+            }
+            return this;
+        }
+
+        Params withRetryOnConflict(int retryOnConflict) {
+            if (retryOnConflict > 0) {
+                return putParam("retry_on_conflict", String.valueOf(retryOnConflict));
             }
             return this;
         }

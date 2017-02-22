@@ -228,7 +228,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
             final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
             final EmbeddedChannel embeddedChannel = new EmbeddedChannel();
             final Netty4HttpRequest request = new Netty4HttpRequest(registry, httpRequest, embeddedChannel);
-            final HttpPipelinedRequest pipelinedRequest = new HttpPipelinedRequest(request.request(), 1);
+            final HttpPipelinedRequest pipelinedRequest = randomBoolean() ? new HttpPipelinedRequest(request.request(), 1) : null;
             final Netty4HttpChannel channel =
                     new Netty4HttpChannel(httpServerTransport, request, pipelinedRequest, randomBoolean(), threadPool.getThreadContext());
             final TestResponse response = new TestResponse(bigArrays);

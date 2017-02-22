@@ -225,7 +225,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             final UpdateHelper.Result translate;
             // translate update request
             try {
-                translate = updateHelper.prepare(updateRequest, primary, threadPool::estimatedTimeInMillis);
+                translate = updateHelper.prepare(updateRequest, primary, threadPool::absoluteTimeInMillis);
             } catch (Exception failure) {
                 // we may fail translating a update to index or delete operation
                 // we use index result to communicate failure while translating update request

@@ -23,7 +23,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
@@ -37,7 +36,6 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
@@ -248,8 +246,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             executorService.submit(() -> {
                 try {
                     waitingLatch.await(1000, TimeUnit.SECONDS);
-                    final ChannelPromise promise = ctx.newPromise();
-                    ctx.write(pipelinedRequest.createHttpResponse(httpResponse, promise), promise);
+                    ctx.write(pipelinedRequest.createHttpResponse(httpResponse), ctx.newPromise());
                     finishingLatch.countDown();
                 } catch (InterruptedException e) {
                     fail(e.toString());

@@ -1119,7 +1119,7 @@ public class JobProvider {
         // the order the C++ process expects.
         int numDocs = modelSnapshot.getSnapshotDocCount();
         for (docNum = 1; docNum <= numDocs; ++docNum) {
-            String docId = String.format(Locale.ROOT, "%s_%d", modelSnapshot.getSnapshotId(), docNum);
+            String docId = String.format(Locale.ROOT, "%s_%d", ModelSnapshot.documentId(modelSnapshot), docNum);
 
             LOGGER.trace("ES API CALL: get ID {} type {} from index {}", docId, ModelState.TYPE, indexName);
 

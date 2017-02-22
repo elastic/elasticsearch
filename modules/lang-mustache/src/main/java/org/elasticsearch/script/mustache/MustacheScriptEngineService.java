@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.GeneralScriptException;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -42,8 +43,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.Map;
-
-import static org.elasticsearch.script.mustache.CustomMustacheFactory.CONTENT_TYPE_PARAM;
 
 /**
  * Main entry point handling template registration, compilation and
@@ -94,10 +93,10 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
     }
 
     private CustomMustacheFactory createMustacheFactory(Map<String, String> params) {
-        if (params == null || params.isEmpty() || params.containsKey(CONTENT_TYPE_PARAM) == false) {
+        if (params == null || params.isEmpty() || params.containsKey(Script.CONTENT_TYPE_OPTION) == false) {
             return new CustomMustacheFactory();
         }
-        return new CustomMustacheFactory(params.get(CONTENT_TYPE_PARAM));
+        return new CustomMustacheFactory(params.get(Script.CONTENT_TYPE_OPTION));
     }
 
     @Override
@@ -145,7 +144,7 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
          **/
         MustacheExecutableScript(CompiledScript template, Map<String, Object> vars) {
             this.template = template;
-            this.vars = vars == null ? Collections.<String, Object>emptyMap() : vars;
+            this.vars = vars == null ? Collections.emptyMap() : vars;
         }
 
         @Override

@@ -193,7 +193,7 @@ public abstract class AExpression extends ANode {
                     // For the case where a cast is required, a constant is set,
                     // the constant cannot be immediately cast to the expected type,
                     // and this node is not an EConstant.  Replace this node with
-                    // an Econstant node copying the constant from this node.
+                    // an EConstant node copying the constant from this node.
                     // Modify the tree to add an ECast between the EConstant node
                     // and its parent.  Note that for constants output data does not
                     // need to be copied from this node because the output data for

@@ -186,7 +186,7 @@ public final class MethodWriter extends GeneratorAdapter {
             cast(from.type, to.type);
         } else {
             if (!to.clazz.isAssignableFrom(from.clazz)) {
-                checkCast(to.type);
+                checkCast(to.type); // NOCOMMIT Make one
             }
         }
     }

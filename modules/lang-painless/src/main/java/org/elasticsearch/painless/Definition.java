@@ -431,7 +431,7 @@ public final class Definition {
         }
     }
 
-    public static class Cast implements OOCast {  // NOCOMMIT remove me
+    public static class Cast extends OOCast {  // NOCOMMIT remove me
         public final Type from;
         public final Type to;
         public final boolean explicit;

@@ -44,7 +44,7 @@ mappings when using shadow replicas.
 
 [source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/my_index' -d '
+curl -XPUT 'localhost:9200/my_index' -H 'Content-Type: application/json' -d '
 {
     "index" : {
         "number_of_shards" : 1,

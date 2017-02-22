@@ -109,7 +109,7 @@ the name `my_backup`:
 
 [source,js]
 -----------------------------------
-$ curl -XPUT 'http://localhost:9200/_snapshot/my_backup' -d '{
+$ curl -XPUT 'http://localhost:9200/_snapshot/my_backup' -H 'Content-Type: application/json' -d '{
     "type": "fs",
     "settings": {
         "location": "/mount/backups/my_backup",
@@ -123,7 +123,7 @@ in `path.repo`:
 
 [source,js]
 -----------------------------------
-$ curl -XPUT 'http://localhost:9200/_snapshot/my_backup' -d '{
+$ curl -XPUT 'http://localhost:9200/_snapshot/my_backup' -H 'Content-Type: application/json' -d '{
     "type": "fs",
     "settings": {
         "location": "my_backup",

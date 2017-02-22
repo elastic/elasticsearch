@@ -26,6 +26,11 @@
 
   - is_true: ''
 
+---
+"test version parameter is recognized":
+  - skip:
+      version: " - 5.3.99"
+      reason:  This parameter was added in 5.4.0
   - do:
       exists:
         index: test_1

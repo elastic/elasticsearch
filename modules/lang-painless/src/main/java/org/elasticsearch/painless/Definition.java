@@ -462,6 +462,11 @@ public final class Definition {
         }
 
         @Override
+        public boolean castRequired() {
+            return true;
+        }
+
+        @Override
         public void write(MethodWriter writer) {
             writer.writeCast(this);
         }

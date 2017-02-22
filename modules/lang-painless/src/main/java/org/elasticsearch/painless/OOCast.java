@@ -28,6 +28,7 @@ import org.elasticsearch.painless.Definition.Type;
 public abstract class OOCast { // NOCOMMIT rename
     OOCast() {} // Subclasses should all be inner classes.
 
+    public abstract boolean castRequired();
     public abstract void write(MethodWriter writer);
     public abstract Object castConstant(Location location, Object constant);
     public abstract String toString();
@@ -35,9 +36,14 @@ public abstract class OOCast { // NOCOMMIT rename
     /**
      * Cast that doesn't do anything. Used when you don't need to cast at all.
      */
-    public static final OOCast NOOP = new OOCast() {
+    static final OOCast NOOP = new OOCast() {
         @Override
         public void write(MethodWriter writer) {
+        }
+
+        @Override
+        public boolean castRequired() {
+            return false;
         }
 
         @Override
@@ -51,6 +57,9 @@ public abstract class OOCast { // NOCOMMIT rename
         }
     };
 
+    /**
+     * Promote or demote a numeric.
+     */
     static class Numeric extends OOCast {
         private final Type from;
         private final Type to;
@@ -75,6 +84,11 @@ public abstract class OOCast { // NOCOMMIT rename
             this.from = from;
             this.to = to;
             this.next = next;
+        }
+
+        @Override
+        public boolean castRequired() {
+            return true;
         }
 
         @Override
@@ -110,6 +124,9 @@ public abstract class OOCast { // NOCOMMIT rename
         }
     }
 
+    /**
+     * Box some boxable type.
+     */
     static class Box extends OOCast {
         private final Type from;
 
@@ -118,6 +135,11 @@ public abstract class OOCast { // NOCOMMIT rename
                 throw new IllegalArgumentException("From must be a boxable type but was [" + from + "]");
             }
             this.from = from;
+        }
+
+        @Override
+        public boolean castRequired() {
+            return true;
         }
 
         @Override

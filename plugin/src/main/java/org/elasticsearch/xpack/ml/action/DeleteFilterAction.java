@@ -9,9 +9,10 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -31,9 +32,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -144,13 +145,13 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
 
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
-        private final TransportDeleteAction transportAction;
+        private final TransportBulkAction transportAction;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                ThreadPool threadPool, ActionFilters actionFilters,
                                IndexNameExpressionResolver indexNameExpressionResolver,
-                               TransportDeleteAction transportAction) {
+                               TransportBulkAction transportAction) {
             super(settings, DeleteFilterAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.transportAction = transportAction;
@@ -188,10 +189,12 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
             }
 
             DeleteRequest deleteRequest = new DeleteRequest(JobProvider.ML_META_INDEX, MlFilter.TYPE.getPreferredName(), filterId);
-            transportAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.add(deleteRequest);
+            transportAction.execute(bulkRequest, new ActionListener<BulkResponse>() {
                 @Override
-                public void onResponse(DeleteResponse deleteResponse) {
-                    if (deleteResponse.status().equals(RestStatus.NOT_FOUND)) {
+                public void onResponse(BulkResponse bulkResponse) {
+                    if (bulkResponse.getItems()[0].status() == RestStatus.NOT_FOUND) {
                         listener.onFailure(new ResourceNotFoundException("Could not delete filter with ID [" + filterId
                                 + "] because it does not exist"));
                     } else {

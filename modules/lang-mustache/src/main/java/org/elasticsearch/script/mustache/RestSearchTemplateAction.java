@@ -66,8 +66,9 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         PARSER.declareField((parser, request, value) -> {
             request.setScriptType(ScriptType.INLINE);
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
-                    request.setScript(builder.copyCurrentStructure(parser).bytes().utf8ToString());
+                //convert the template to json which is the only supported XContentType (see CustomMustacheFactory#createEncoder)
+                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                    request.setScript(builder.copyCurrentStructure(parser).string());
                 } catch (IOException e) {
                     throw new ParsingException(parser.getTokenLocation(), "Could not parse inline template", e);
                 }

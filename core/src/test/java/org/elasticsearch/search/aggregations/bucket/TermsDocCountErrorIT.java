@@ -38,7 +38,6 @@ import org.elasticsearch.test.client.RandomizingClient;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
@@ -88,7 +87,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                  */
                 @Override
                 public SearchRequestBuilder prepareSearch(String... indices) {
-                    return this.in.prepareSearch(indices).setReduceUpTo(512);
+                    return this.in.prepareSearch(indices).setBatchedReduceSize(512);
                 }
             };
         }

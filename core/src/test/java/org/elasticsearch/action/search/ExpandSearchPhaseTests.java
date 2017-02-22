@@ -79,7 +79,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
 
 
                     InternalSearchResponse internalSearchResponse = new InternalSearchResponse(collapsedHits,
-                        null, null, null, false, null);
+                        null, null, null, false, null, 1);
                     SearchResponse response = mockSearchPhaseContext.buildSearchResponse(internalSearchResponse, null);
                     listener.onResponse(new MultiSearchResponse(new MultiSearchResponse.Item[]{
                         new MultiSearchResponse.Item(response, null)
@@ -91,7 +91,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             SearchHits hits = new SearchHits(new SearchHit[]{new SearchHit(1, "ID", new Text("type"),
                 Collections.singletonMap("someField", new SearchHitField("someField", Collections.singletonList(collapseValue))))},
                 1, 1.0F);
-            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null);
+            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
             SearchResponse response = mockSearchPhaseContext.buildSearchResponse(internalSearchResponse, null);
             AtomicReference<SearchResponse> reference = new AtomicReference<>();
             ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, response, r ->
@@ -132,7 +132,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
                 assertTrue(executedMultiSearch.compareAndSet(false, true));
                 InternalSearchResponse internalSearchResponse = new InternalSearchResponse(collapsedHits,
-                    null, null, null, false, null);
+                    null, null, null, false, null, 1);
                 SearchResponse response = mockSearchPhaseContext.buildSearchResponse(internalSearchResponse, null);
                 listener.onResponse(new MultiSearchResponse(new MultiSearchResponse.Item[]{
                     new MultiSearchResponse.Item(null, new RuntimeException("boom")),
@@ -146,7 +146,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             new SearchHit(2, "ID2", new Text("type"),
                 Collections.singletonMap("someField", new SearchHitField("someField", Collections.singletonList(collapseValue))))}, 1,
             1.0F);
-        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null);
+        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
         SearchResponse response = mockSearchPhaseContext.buildSearchResponse(internalSearchResponse, null);
         AtomicReference<SearchResponse> reference = new AtomicReference<>();
         ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, response, r ->
@@ -180,7 +180,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             Collections.singletonMap("someField", new SearchHitField("someField", Collections.singletonList(null)))),
             new SearchHit(2, "ID2", new Text("type"),
                 Collections.singletonMap("someField", new SearchHitField("someField", Collections.singletonList(null))))}, 1, 1.0F);
-        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null);
+        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
         SearchResponse response = mockSearchPhaseContext.buildSearchResponse(internalSearchResponse, null);
         AtomicReference<SearchResponse> reference = new AtomicReference<>();
         ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, response, r ->

@@ -26,20 +26,28 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class RequestTests extends ESTestCase {
 
@@ -121,43 +129,7 @@ public class RequestTests extends ESTestCase {
                 expectedParams.put("stored_fields", storedFieldsParam.toString());
             }
             if (randomBoolean()) {
-                if (randomBoolean()) {
-                    boolean fetchSource = randomBoolean();
-                    getRequest.fetchSourceContext(new FetchSourceContext(fetchSource));
-                    if (fetchSource == false) {
-                        expectedParams.put("_source", "false");
-                    }
-                } else {
-                    int numIncludes = randomIntBetween(0, 5);
-                    String[] includes = new String[numIncludes];
-                    StringBuilder includesParam = new StringBuilder();
-                    for (int i = 0; i < numIncludes; i++) {
-                        String include = randomAsciiOfLengthBetween(3, 10);
-                        includes[i] = include;
-                        includesParam.append(include);
-                        if (i < numIncludes - 1) {
-                            includesParam.append(",");
-                        }
-                    }
-                    if (numIncludes > 0) {
-                        expectedParams.put("_source_include", includesParam.toString());
-                    }
-                    int numExcludes = randomIntBetween(0, 5);
-                    String[] excludes = new String[numExcludes];
-                    StringBuilder excludesParam = new StringBuilder();
-                    for (int i = 0; i < numExcludes; i++) {
-                        String exclude = randomAsciiOfLengthBetween(3, 10);
-                        excludes[i] = exclude;
-                        excludesParam.append(exclude);
-                        if (i < numExcludes - 1) {
-                            excludesParam.append(",");
-                        }
-                    }
-                    if (numExcludes > 0) {
-                        expectedParams.put("_source_exclude", excludesParam.toString());
-                    }
-                    getRequest.fetchSourceContext(new FetchSourceContext(true, includes, excludes));
-                }
+                randomizeFetchSourceContextParams(getRequest::fetchSourceContext, expectedParams);
             }
         }
         Request request = requestConverter.apply(getRequest);
@@ -271,6 +243,132 @@ public class RequestTests extends ESTestCase {
         }
     }
 
+    public void testUpdate() throws IOException {
+        XContentType xContentType = randomFrom(XContentType.values());
+
+        Map<String, String> expectedParams = new HashMap<>();
+        String index = randomAsciiOfLengthBetween(3, 10);
+        String type = randomAsciiOfLengthBetween(3, 10);
+        String id = randomAsciiOfLengthBetween(3, 10);
+
+        UpdateRequest updateRequest = new UpdateRequest(index, type, id);
+        updateRequest.detectNoop(randomBoolean());
+
+        if (randomBoolean()) {
+            BytesReference source = RandomObjects.randomSource(random(), xContentType);
+            updateRequest.doc(new IndexRequest().source(source, xContentType));
+
+            boolean docAsUpsert = randomBoolean();
+            updateRequest.docAsUpsert(docAsUpsert);
+            if (docAsUpsert) {
+                expectedParams.put("doc_as_upsert", "true");
+            }
+        } else {
+            updateRequest.script(new Script("_value + 1"));
+            updateRequest.scriptedUpsert(randomBoolean());
+        }
+        if (randomBoolean()) {
+            BytesReference source = RandomObjects.randomSource(random(), xContentType);
+            updateRequest.upsert(new IndexRequest().source(source, xContentType));
+        }
+        if (randomBoolean()) {
+            String routing = randomAsciiOfLengthBetween(3, 10);
+            updateRequest.routing(routing);
+            expectedParams.put("routing", routing);
+        }
+        if (randomBoolean()) {
+            String parent = randomAsciiOfLengthBetween(3, 10);
+            updateRequest.parent(parent);
+            expectedParams.put("parent", parent);
+        }
+        if (randomBoolean()) {
+            String timeout = randomTimeValue();
+            updateRequest.timeout(timeout);
+            expectedParams.put("timeout", timeout);
+        } else {
+            expectedParams.put("timeout", ReplicationRequest.DEFAULT_TIMEOUT.getStringRep());
+        }
+        if (randomBoolean()) {
+            WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
+            updateRequest.setRefreshPolicy(refreshPolicy);
+            if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
+                expectedParams.put("refresh", refreshPolicy.getValue());
+            }
+        }
+        if (randomBoolean()) {
+            int waitForActiveShards = randomIntBetween(0, 10);
+            updateRequest.waitForActiveShards(waitForActiveShards);
+            expectedParams.put("wait_for_active_shards", String.valueOf(waitForActiveShards));
+        }
+        if (randomBoolean()) {
+            long version = randomLong();
+            updateRequest.version(version);
+            if (version != Versions.MATCH_ANY) {
+                expectedParams.put("version", Long.toString(version));
+            }
+        }
+        if (randomBoolean()) {
+            VersionType versionType = randomFrom(VersionType.values());
+            updateRequest.versionType(versionType);
+            if (versionType != VersionType.INTERNAL) {
+                expectedParams.put("version_type", versionType.name().toLowerCase(Locale.ROOT));
+            }
+        }
+        if (randomBoolean()) {
+            int retryOnConflict = randomIntBetween(0, 5);
+            updateRequest.retryOnConflict(retryOnConflict);
+            if (retryOnConflict > 0) {
+                expectedParams.put("retry_on_conflict", String.valueOf(retryOnConflict));
+            }
+        }
+        if (randomBoolean()) {
+            randomizeFetchSourceContextParams(updateRequest::fetchSource, expectedParams);
+        }
+
+        Request request = Request.update(updateRequest);
+        assertEquals("/" + index + "/" + type + "/" + id + "/_update", request.endpoint);
+        assertEquals(expectedParams, request.params);
+        assertEquals("POST", request.method);
+
+        HttpEntity entity = request.entity;
+        assertNotNull(entity);
+        assertTrue(entity instanceof ByteArrayEntity);
+
+        UpdateRequest parsedUpdateRequest = new UpdateRequest();
+
+        XContentType entityContentType = XContentType.fromMediaTypeOrFormat(entity.getContentType().getValue());
+        try (XContentParser parser = createParser(entityContentType.xContent(), entity.getContent())) {
+            parsedUpdateRequest.fromXContent(parser);
+        }
+
+        assertEquals(updateRequest.scriptedUpsert(), parsedUpdateRequest.scriptedUpsert());
+        assertEquals(updateRequest.docAsUpsert(), parsedUpdateRequest.docAsUpsert());
+        assertEquals(updateRequest.detectNoop(), parsedUpdateRequest.detectNoop());
+        assertEquals(updateRequest.fetchSource(), parsedUpdateRequest.fetchSource());
+        assertEquals(updateRequest.script(), parsedUpdateRequest.script());
+        if (updateRequest.doc() != null) {
+            assertToXContentEquivalent(updateRequest.doc().source(), parsedUpdateRequest.doc().source(), xContentType);
+        } else {
+            assertNull(parsedUpdateRequest.doc());
+        }
+        if (updateRequest.upsertRequest() != null) {
+            assertToXContentEquivalent(updateRequest.upsertRequest().source(), parsedUpdateRequest.upsertRequest().source(), xContentType);
+        } else {
+            assertNull(parsedUpdateRequest.upsertRequest());
+        }
+    }
+
+    public void testUpdateWithDifferentContentTypes() throws IOException {
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
+            UpdateRequest updateRequest = new UpdateRequest();
+            updateRequest.doc(new IndexRequest().source(Collections.singletonMap("field", "doc"), XContentType.JSON));
+            updateRequest.upsert(new IndexRequest().source(Collections.singletonMap("field", "upsert"), XContentType.YAML));
+            Request.update(updateRequest);
+        });
+        assertEquals("Update request cannot have different content types for doc [JSON] and upsert [YAML] documents",
+                exception.getMessage());
+    }
+
     public void testParams() {
         final int nbParams = randomIntBetween(0, 10);
         Request.Params params = Request.Params.builder();
@@ -306,5 +404,50 @@ public class RequestTests extends ESTestCase {
         assertEquals("/a/b", Request.endpoint("a", "b"));
         assertEquals("/a/b/_create", Request.endpoint("a", "b", "_create"));
         assertEquals("/a/b/c/_create", Request.endpoint("a", "b", "c", "_create"));
+    }
+
+    /**
+     * Randomize the {@link FetchSourceContext} request parameters.
+     */
+    private static void randomizeFetchSourceContextParams(Consumer<FetchSourceContext> consumer, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                boolean fetchSource = randomBoolean();
+                consumer.accept(new FetchSourceContext(fetchSource));
+                if (fetchSource == false) {
+                    expectedParams.put("_source", "false");
+                }
+            } else {
+                int numIncludes = randomIntBetween(0, 5);
+                String[] includes = new String[numIncludes];
+                StringBuilder includesParam = new StringBuilder();
+                for (int i = 0; i < numIncludes; i++) {
+                    String include = randomAsciiOfLengthBetween(3, 10);
+                    includes[i] = include;
+                    includesParam.append(include);
+                    if (i < numIncludes - 1) {
+                        includesParam.append(",");
+                    }
+                }
+                if (numIncludes > 0) {
+                    expectedParams.put("_source_include", includesParam.toString());
+                }
+                int numExcludes = randomIntBetween(0, 5);
+                String[] excludes = new String[numExcludes];
+                StringBuilder excludesParam = new StringBuilder();
+                for (int i = 0; i < numExcludes; i++) {
+                    String exclude = randomAsciiOfLengthBetween(3, 10);
+                    excludes[i] = exclude;
+                    excludesParam.append(exclude);
+                    if (i < numExcludes - 1) {
+                        excludesParam.append(",");
+                    }
+                }
+                if (numExcludes > 0) {
+                    expectedParams.put("_source_exclude", excludesParam.toString());
+                }
+                consumer.accept(new FetchSourceContext(true, includes, excludes));
+            }
+        }
     }
 }

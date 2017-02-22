@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -71,7 +70,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private Scroll scroll;
 
-    private int reduceUpTo = 512;
+    private int batchedReduceSize = 512;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -281,19 +280,19 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
      * Sets the number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection
      * mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
      */
-    public void setReduceUpTo(int reduceUpTo) {
-        if (reduceUpTo <= 1) {
-            throw new IllegalArgumentException("reduceUpTo must be >= 2");
+    public void setBatchedReduceSize(int batchedReduceSize) {
+        if (batchedReduceSize <= 1) {
+            throw new IllegalArgumentException("batchedReduceSize must be >= 2");
         }
-        this.reduceUpTo = reduceUpTo;
+        this.batchedReduceSize = batchedReduceSize;
     }
 
     /**
      * Returns the number of shard results that should be reduced at once on the coordinating node. This value should be used as a
      * protection mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
      */
-    public int getReduceUpTo() {
-        return reduceUpTo;
+    public int getBatchedReduceSize() {
+        return batchedReduceSize;
     }
 
     /**
@@ -342,9 +341,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         requestCache = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            reduceUpTo = in.readVInt();
-        }
+        batchedReduceSize = in.readVInt();
     }
 
     @Override
@@ -362,9 +359,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            out.writeVInt(reduceUpTo);
-        }
+        out.writeVInt(batchedReduceSize);
     }
 
     @Override

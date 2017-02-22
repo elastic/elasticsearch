@@ -60,7 +60,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         if (randomBoolean()) {
             // we leave at least one in the list
             List<InternalAggregation> internalAggregations = randomSubsetOf(randomIntBetween(1, toReduceSize), toReduce);
-            InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(null, null, true);
+            InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(null, null, false);
             @SuppressWarnings("unchecked")
             T reduced = (T) inputs.get(0).reduce(internalAggregations, context);
             toReduce.removeAll(internalAggregations);

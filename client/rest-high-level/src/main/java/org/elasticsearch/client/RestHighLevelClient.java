@@ -31,6 +31,8 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.main.MainRequest;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -39,10 +41,8 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
@@ -121,14 +121,35 @@ public class RestHighLevelClient {
         performRequestAsyncAndParseEntity(indexRequest, Request::index, IndexResponse::fromXContent, listener, emptySet(), headers);
     }
 
-    private <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request, Function<Req, Request>  requestConverter,
-            CheckedFunction<XContentParser, Resp, IOException> entityParser, Set<Integer> ignores, Header... headers) throws IOException {
+    /**
+     * Updates a document using the Update API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
+     */
+    public UpdateResponse update(UpdateRequest updateRequest, Header... headers) throws IOException {
+        return performRequestAndParseEntity(updateRequest, Request::update, UpdateResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously updates a document using the Update API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
+     */
+    public void updateAsync(UpdateRequest updateRequest, ActionListener<UpdateResponse> listener, Header... headers) {
+        performRequestAsyncAndParseEntity(updateRequest, Request::update, UpdateResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    private <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
+                                                                            CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                            CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                            Set<Integer> ignores, Header... headers) throws IOException {
         return performRequest(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser), ignores, headers);
     }
 
-    <Req extends ActionRequest, Resp> Resp performRequest(Req request, Function<Req, Request> requestConverter,
-            CheckedFunction<Response, Resp, IOException> responseConverter, Set<Integer> ignores, Header... headers) throws IOException {
-
+    <Req extends ActionRequest, Resp> Resp performRequest(Req request,
+                                                          CheckedFunction<Req, Request, IOException> requestConverter,
+                                                          CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                          Set<Integer> ignores, Header... headers) throws IOException {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             throw validationException;
@@ -154,22 +175,31 @@ public class RestHighLevelClient {
         }
     }
 
-    private <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request, Function<Req, Request> requestConverter,
-            CheckedFunction<XContentParser, Resp, IOException> entityParser, ActionListener<Resp> listener,
-            Set<Integer> ignores, Header... headers) {
+    private <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
+                                                                 CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                 CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                 ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {
         performRequestAsync(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser),
                 listener, ignores, headers);
     }
 
-    <Req extends ActionRequest, Resp> void performRequestAsync(Req request, Function<Req, Request> requestConverter,
-            CheckedFunction<Response, Resp, IOException> responseConverter, ActionListener<Resp> listener,
-            Set<Integer> ignores, Header... headers) {
+    <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
+                                                               CheckedFunction<Req, Request, IOException> requestConverter,
+                                                               CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                               ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             listener.onFailure(validationException);
             return;
         }
-        Request req = requestConverter.apply(request);
+        Request req;
+        try {
+            req = requestConverter.apply(request);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
         client.performRequestAsync(req.method, req.endpoint, req.params, req.entity, responseListener, headers);
     }

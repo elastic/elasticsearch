@@ -465,7 +465,7 @@ public class SearchPhaseController extends AbstractComponent {
      * @param queryResults a list of non-null query shard results
      */
     public final ReducedQueryPhase reducedQueryPhase(List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults) {
-        return reducedQueryPhase(queryResults, null);
+        return reducedQueryPhase(queryResults, null, 0);
     }
 
     /**
@@ -473,18 +473,22 @@ public class SearchPhaseController extends AbstractComponent {
      * @param queryResults a list of non-null query shard results
      * @param bufferdAggs a list of pre-collected / buffered aggregations. if this list is non-null all aggregations have been consumed
      *                    from all non-null query results.
+     * @param numReducePhases the number of non-final reduce phases applied to the query results.
      * @see QuerySearchResult#consumeAggs()
      * @see QuerySearchResult#consumeProfileResult()
      */
     private ReducedQueryPhase reducedQueryPhase(List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults,
-                                                     List<InternalAggregations> bufferdAggs) {
+                                                     List<InternalAggregations> bufferdAggs, int numReducePhases) {
+        assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
+        numReducePhases++; // increment for this phase
         long totalHits = 0;
         long fetchHits = 0;
         float maxScore = Float.NEGATIVE_INFINITY;
         boolean timedOut = false;
         Boolean terminatedEarly = null;
         if (queryResults.isEmpty()) { // early terminate we have nothing to reduce
-            return new ReducedQueryPhase(totalHits, fetchHits, maxScore, timedOut, terminatedEarly, null, null, null, null);
+            return new ReducedQueryPhase(totalHits, fetchHits, maxScore, timedOut, terminatedEarly, null, null, null, null,
+                numReducePhases);
         }
         final QuerySearchResult firstResult = queryResults.get(0).value.queryResult();
         final boolean hasSuggest = firstResult.suggest() != null;
@@ -548,7 +552,7 @@ public class SearchPhaseController extends AbstractComponent {
             firstResult.pipelineAggregators(), reduceContext);
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         return new ReducedQueryPhase(totalHits, fetchHits, maxScore, timedOut, terminatedEarly, firstResult, suggest, aggregations,
-            shardResults);
+            shardResults, numReducePhases);
     }
 
 
@@ -597,10 +601,15 @@ public class SearchPhaseController extends AbstractComponent {
         final InternalAggregations aggregations;
         // the reduced profile results
         final SearchProfileShardResults shardResults;
+        // the number of reduces phases
+        final int numReducePhases;
 
         ReducedQueryPhase(long totalHits, long fetchHits, float maxScore, boolean timedOut, Boolean terminatedEarly,
                                  QuerySearchResult oneResult, Suggest suggest, InternalAggregations aggregations,
-                                 SearchProfileShardResults shardResults) {
+                                 SearchProfileShardResults shardResults, int numReducePhases) {
+            if (numReducePhases <= 0) {
+                throw new IllegalArgumentException("at least one reduce phase must have been applied but was: " + numReducePhases);
+            }
             this.totalHits = totalHits;
             this.fetchHits = fetchHits;
             if (Float.isInfinite(maxScore)) {
@@ -614,6 +623,7 @@ public class SearchPhaseController extends AbstractComponent {
             this.suggest = suggest;
             this.aggregations = aggregations;
             this.shardResults = shardResults;
+            this.numReducePhases = numReducePhases;
         }
 
         /**
@@ -621,7 +631,7 @@ public class SearchPhaseController extends AbstractComponent {
          * @see #merge(boolean, ScoreDoc[], ReducedQueryPhase, AtomicArray)
          */
         public InternalSearchResponse buildResponse(SearchHits hits) {
-            return new InternalSearchResponse(hits, aggregations, suggest, shardResults, timedOut, terminatedEarly);
+            return new InternalSearchResponse(hits, aggregations, suggest, shardResults, timedOut, terminatedEarly, numReducePhases);
         }
 
         /**
@@ -643,6 +653,7 @@ public class SearchPhaseController extends AbstractComponent {
         private final InternalAggregations[] buffer;
         private int index;
         private final SearchPhaseController controller;
+        private int numReducePhases = 0;
 
         /**
          * Creates a new {@link QueryPhaseResultConsumer}
@@ -677,6 +688,7 @@ public class SearchPhaseController extends AbstractComponent {
             if (index == buffer.length) {
                 InternalAggregations reducedAggs = controller.reduceAggsIncrementally(Arrays.asList(buffer));
                 Arrays.fill(buffer, null);
+                numReducePhases++;
                 buffer[0] = reducedAggs;
                 index = 1;
             }
@@ -690,7 +702,7 @@ public class SearchPhaseController extends AbstractComponent {
 
         @Override
         public ReducedQueryPhase reduce() {
-            return controller.reducedQueryPhase(results.asList(), getRemaining());
+            return controller.reducedQueryPhase(results.asList(), getRemaining(), numReducePhases);
         }
 
         /**
@@ -699,6 +711,8 @@ public class SearchPhaseController extends AbstractComponent {
         int getNumBuffered() {
             return index;
         }
+
+        int getNumReducePhases() { return numReducePhases; }
     }
 
     /**
@@ -707,9 +721,9 @@ public class SearchPhaseController extends AbstractComponent {
     InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> newSearchPhaseResults(SearchRequest request, int numShards) {
         SearchSourceBuilder source = request.source();
         if (source != null && source.aggregations() != null) {
-            if (request.getReduceUpTo() < numShards) {
+            if (request.getBatchedReduceSize() < numShards) {
                 // only use this if there are aggs and if there are more shards than we should reduce at once
-                return new QueryPhaseResultConsumer(this, numShards, request.getReduceUpTo());
+                return new QueryPhaseResultConsumer(this, numShards, request.getBatchedReduceSize());
             }
         }
         return new InitialSearchPhase.SearchPhaseResults(numShards) {

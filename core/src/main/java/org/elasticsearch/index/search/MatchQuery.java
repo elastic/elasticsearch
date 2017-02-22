@@ -375,23 +375,7 @@ public class MatchQuery {
             if (booleanQuery != null && booleanQuery instanceof BooleanQuery) {
                 BooleanQuery bq = (BooleanQuery) booleanQuery;
                 return boolToExtendedCommonTermsQuery(bq, highFreqOccur, lowFreqOccur, maxTermFrequency, fieldType);
-            } else if (booleanQuery != null && booleanQuery instanceof GraphQuery && ((GraphQuery) booleanQuery).hasBoolean()) {
-                // we have a graph query that has at least one boolean sub-query
-                // re-build and use extended common terms
-                List<Query> oldQueries = ((GraphQuery) booleanQuery).getQueries();
-                Query[] queries = new Query[oldQueries.size()];
-                for (int i = 0; i < queries.length; i++) {
-                    Query oldQuery = oldQueries.get(i);
-                    if (oldQuery instanceof BooleanQuery) {
-                        queries[i] = boolToExtendedCommonTermsQuery((BooleanQuery) oldQuery, highFreqOccur, lowFreqOccur, maxTermFrequency, fieldType);
-                    } else {
-                        queries[i] = oldQuery;
-                    }
-                }
-
-                return new GraphQuery(queries);
             }
-
             return booleanQuery;
         }
 

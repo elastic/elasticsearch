@@ -25,11 +25,12 @@ task oldClusterTest(type: RestIntegTestTask) {
   mustRunAfter(precommit)
   cluster {
     distribution = 'zip'
-    bwcVersion = '5.3.0-SNAPSHOT' // TODO: either randomize, or make this settable with sysprop
+    bwcVersion = '5.4.0-SNAPSHOT' // TODO: either randomize, or make this settable with sysprop
     numBwcNodes = 2
     numNodes = 2
     clusterName = 'rolling-upgrade'
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+    setting 'http.content_type.required', 'true'
   }
   systemProperty 'tests.rest.suite', 'old_cluster'
 }

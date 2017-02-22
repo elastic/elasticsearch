@@ -29,12 +29,13 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -56,6 +57,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.mockito.Matchers.anyObject;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -65,6 +68,8 @@ import static org.mockito.Mockito.when;
  * {@link AggregationBuilder} instance.
  */
 public abstract class AggregatorTestCase extends ESTestCase {
+    private List<Releasable> releasables = new ArrayList<>();
+
     protected <A extends Aggregator, B extends AggregationBuilder> A createAggregator(B aggregationBuilder,
                                                                                       IndexSearcher indexSearcher,
                                                                                       MappedFieldType... fieldTypes) throws IOException {
@@ -99,6 +104,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(searchContext.bigArrays()).thenReturn(new MockBigArrays(Settings.EMPTY, circuitBreakerService));
         when(searchContext.fetchPhase())
             .thenReturn(new FetchPhase(Arrays.asList(new FetchSourceSubPhase(), new DocValueFieldsFetchSubPhase())));
+        doAnswer(invocation -> {
+            /* Store the releasables so we can release them at the end of the test case. This is important because aggregations don't
+             * close their sub-aggregations. This is fairly similar to what the production code does. */
+            releasables.add((Releasable) invocation.getArguments()[0]);
+            return null;
+        }).when(searchContext).addReleasable(anyObject(), anyObject());
 
         // TODO: now just needed for top_hits, this will need to be revised for other agg unit tests:
         MapperService mapperService = mock(MapperService.class);
@@ -110,10 +121,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         for (MappedFieldType fieldType : fieldTypes) {
-            IndexFieldData<?> fieldData = fieldType.fielddataBuilder().build(indexSettings, fieldType,
-                new IndexFieldDataCache.None(), circuitBreakerService, mock(MapperService.class));
             when(queryShardContext.fieldMapper(fieldType.name())).thenReturn(fieldType);
-            when(queryShardContext.getForField(fieldType)).thenReturn(fieldData);
+            when(queryShardContext.getForField(fieldType)).then(invocation -> fieldType.fielddataBuilder().build(
+                    indexSettings, fieldType, new IndexFieldDataCache.None(), circuitBreakerService, mock(MapperService.class)));
             when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
         }
 
@@ -126,13 +136,17 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                                              Query query,
                                                                              AggregationBuilder builder,
                                                                              MappedFieldType... fieldTypes) throws IOException {
-        try (C a = createAggregator(builder, searcher, fieldTypes)) {
+        C a = createAggregator(builder, searcher, fieldTypes);
+        try {
             a.preCollection();
             searcher.search(query, a);
             a.postCollection();
             @SuppressWarnings("unchecked")
             A internalAgg = (A) a.buildAggregation(0L);
             return internalAgg;
+        } finally {
+            Releasables.close(releasables);
+            releasables.clear();
         }
     }
 
@@ -168,31 +182,31 @@ public abstract class AggregatorTestCase extends ESTestCase {
         try {
             for (ShardSearcher subSearcher : subSearchers) {
                 C a = createAggregator(builder, subSearcher, fieldTypes);
-                try {
-                    a.preCollection();
-                    subSearcher.search(weight, a);
-                    a.postCollection();
-                    aggs.add(a.buildAggregation(0L));
-                } finally {
-                    closeAgg(a);
-                }
+                a.preCollection();
+                subSearcher.search(weight, a);
+                a.postCollection();
+                aggs.add(a.buildAggregation(0L));
             }
             if (aggs.isEmpty()) {
                 return null;
             } else {
+                if (randomBoolean()) {
+                    // sometimes do an incremental reduce
+                    List<InternalAggregation> internalAggregations = randomSubsetOf(randomIntBetween(1, aggs.size()), aggs);
+                    A internalAgg = (A) aggs.get(0).doReduce(internalAggregations,
+                        new InternalAggregation.ReduceContext(root.context().bigArrays(), null, false));
+                    aggs.removeAll(internalAggregations);
+                    aggs.add(internalAgg);
+                }
+                // now do the final reduce
                 @SuppressWarnings("unchecked")
-                A internalAgg = (A) aggs.get(0).doReduce(aggs, new InternalAggregation.ReduceContext(root.context().bigArrays(), null));
+                A internalAgg = (A) aggs.get(0).doReduce(aggs, new InternalAggregation.ReduceContext(root.context().bigArrays(), null,
+                    true));
                 return internalAgg;
             }
         } finally {
-            closeAgg(root);
-        }
-    }
-
-    private void closeAgg(Aggregator agg) {
-        agg.close();
-        for (Aggregator sub : ((AggregatorBase) agg).subAggregators) {
-            closeAgg(sub);
+            Releasables.close(releasables);
+            releasables.clear();
         }
     }
 

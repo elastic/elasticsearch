@@ -91,7 +91,7 @@ public class RestCountAction extends BaseRestHandler {
                 if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
                     builder.field("terminated_early", response.isTerminatedEarly());
                 }
-                builder.field("count", response.getHits().totalHits());
+                builder.field("count", response.getHits().getTotalHits());
                 buildBroadcastShardsHeader(builder, request, response.getTotalShards(), response.getSuccessfulShards(),
                         response.getFailedShards(), response.getShardFailures());
 

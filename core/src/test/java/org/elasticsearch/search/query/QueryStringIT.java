@@ -353,10 +353,10 @@ public class QueryStringIT extends ESIntegTestCase {
     }
 
     private void assertHits(SearchHits hits, String... ids) {
-        assertThat(hits.totalHits(), equalTo((long) ids.length));
+        assertThat(hits.getTotalHits(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
-            hitIds.add(hit.id());
+            hitIds.add(hit.getId());
         }
         assertThat(hitIds, containsInAnyOrder(ids));
     }

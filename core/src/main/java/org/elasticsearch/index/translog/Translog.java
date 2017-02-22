@@ -72,12 +72,12 @@ import java.util.stream.Stream;
  * records the current translog generation {@link Translog#getGeneration()} in it's commit metadata using {@link #TRANSLOG_GENERATION_KEY}
  * to reference the generation that contains all operations that have not yet successfully been committed to the engines lucene index.
  * Additionally, since Elasticsearch 2.0 the engine also records a {@link #TRANSLOG_UUID_KEY} with each commit to ensure a strong association
- * between the lucene index an the transaction log file. This UUID is used to prevent accidential recovery from a transaction log that belongs to a
+ * between the lucene index an the transaction log file. This UUID is used to prevent accidental recovery from a transaction log that belongs to a
  * different engine.
  * <p>
  * Each Translog has only one translog file open at any time referenced by a translog generation ID. This ID is written to a <tt>translog.ckp</tt> file that is designed
  * to fit in a single disk block such that a write of the file is atomic. The checkpoint file is written on each fsync operation of the translog and records the number of operations
- * written, the current tranlogs file generation and it's fsynced offset in bytes.
+ * written, the current translogs file generation and it's fsynced offset in bytes.
  * </p>
  * <p>
  * When a translog is opened the checkpoint is use to retrieve the latest translog file generation and subsequently to open the last written file to recovery operations.
@@ -198,7 +198,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 logger.debug("wipe translog location - creating new translog");
                 Files.createDirectories(location);
                 final long generation = 1;
-                Checkpoint checkpoint = new Checkpoint(0, 0, generation, globalCheckpointSupplier.getAsLong());
+                final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, generation, globalCheckpointSupplier.getAsLong());
                 final Path checkpointFile = location.resolve(CHECKPOINT_FILE_NAME);
                 Checkpoint.write(getChannelFactory(), checkpointFile, checkpoint, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
                 IOUtils.fsync(checkpointFile, false);
@@ -400,13 +400,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Adds a delete / index operations to the transaction log.
+     * Adds an operation to the transaction log.
      *
-     * @see org.elasticsearch.index.translog.Translog.Operation
-     * @see Index
-     * @see org.elasticsearch.index.translog.Translog.Delete
+     * @param operation the operation to add
+     * @return the location of the operation in the translog
+     * @throws IOException if adding the operation to the translog resulted in an I/O exception
      */
-    public Location add(Operation operation) throws IOException {
+    public Location add(final Operation operation) throws IOException {
         final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
         try {
             final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(out);
@@ -419,22 +419,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.writeInt(operationSize);
             out.seek(end);
             final ReleasablePagedBytesReference bytes = out.bytes();
-            try (ReleasableLock lock = readLock.acquire()) {
+            try (ReleasableLock ignored = readLock.acquire()) {
                 ensureOpen();
-                Location location = current.add(bytes);
-                return location;
+                return current.add(bytes, operation.seqNo());
             }
-        } catch (AlreadyClosedException | IOException ex) {
+        } catch (final AlreadyClosedException | IOException ex) {
             try {
                 closeOnTragicEvent(ex);
-            } catch (Exception inner) {
+            } catch (final Exception inner) {
                 ex.addSuppressed(inner);
             }
             throw ex;
-        } catch (Exception e) {
+        } catch (final Exception e) {
             try {
                 closeOnTragicEvent(e);
-            } catch (Exception inner) {
+            } catch (final Exception inner) {
                 e.addSuppressed(inner);
             }
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
@@ -781,7 +780,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         long seqNo();
 
         /**
-         * Reads the type and the operation from the given stream. The operatino must be written with
+         * Reads the type and the operation from the given stream. The operation must be written with
          * {@link Operation#writeType(Operation, StreamOutput)}
          */
         static Operation readType(StreamInput input) throws IOException {
@@ -1222,14 +1221,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
 
     public enum Durability {
+
         /**
          * Async durability - translogs are synced based on a time interval.
          */
         ASYNC,
         /**
-         * Request durability - translogs are synced for each high levle request (bulk, index, delete)
+         * Request durability - translogs are synced for each high level request (bulk, index, delete)
          */
-        REQUEST;
+        REQUEST
 
     }
 
@@ -1429,7 +1429,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Returns <code>true</code> iff the given generation is the current gbeneration of this translog
+     * Returns <code>true</code> iff the given generation is the current generation of this translog
      */
     public boolean isCurrent(TranslogGeneration generation) {
         try (ReleasableLock lock = writeLock.acquire()) {

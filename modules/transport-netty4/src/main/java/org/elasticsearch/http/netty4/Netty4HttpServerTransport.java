@@ -32,6 +32,7 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
@@ -76,7 +77,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.netty4.Netty4OpenChannelsHandler;
 import org.elasticsearch.transport.netty4.Netty4Utils;
-import org.elasticsearch.transport.netty4.channel.PrivilegedNioServerSocketChannel;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -143,17 +143,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         Setting.byteSizeSetting("http.tcp.receive_buffer_size", NetworkService.TcpSettings.TCP_RECEIVE_BUFFER_SIZE,
             Property.NodeScope, Property.Shared);
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE =
-        Setting.byteSizeSetting("transport.netty.receive_predictor_size",
-            settings -> {
-                long defaultReceiverPredictor = 512 * 1024;
-                if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes() > 0) {
-                    // we can guess a better default...
-                    long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes()) / SETTING_HTTP_WORKER_COUNT.get
-                        (settings));
-                    defaultReceiverPredictor = Math.min(defaultReceiverPredictor, Math.max(l, 64 * 1024));
-                }
-                return new ByteSizeValue(defaultReceiverPredictor).toString();
-            }, Property.NodeScope);
+        Setting.byteSizeSetting("http.netty.receive_predictor_size", new ByteSizeValue(32, ByteSizeUnit.KB), Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MIN =
         byteSizeSetting("http.netty.receive_predictor_min", SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MAX =
@@ -289,7 +279,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
 
             serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings,
                 HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
-            serverBootstrap.channel(PrivilegedNioServerSocketChannel.class);
+            serverBootstrap.channel(NioServerSocketChannel.class);
 
             serverBootstrap.childHandler(configureServerChannelHandler());
 
@@ -496,8 +486,12 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         return corsConfig;
     }
 
-    protected void dispatchRequest(RestRequest request, RestChannel channel) {
-        dispatcher.dispatch(request, channel, threadPool.getThreadContext());
+    void dispatchRequest(final RestRequest request, final RestChannel channel) {
+        dispatcher.dispatchRequest(request, channel, threadPool.getThreadContext());
+    }
+
+    void dispatchBadRequest(final RestRequest request, final RestChannel channel, final Throwable cause) {
+        dispatcher.dispatchBadRequest(request, channel, threadPool.getThreadContext(), cause);
     }
 
     protected void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {

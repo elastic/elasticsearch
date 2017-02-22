@@ -72,8 +72,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     private static final ParseField UNIT_FIELD = new ParseField("unit");
     private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
-    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed").withAllDeprecated("validation_method");
-    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize").withAllDeprecated("validation_method");
     private static final ParseField SORTMODE_FIELD = new ParseField("mode", "sort_mode");
 
     private final String fieldName;
@@ -405,9 +403,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         SortMode sortMode = null;
         QueryBuilder nestedFilter = null;
         String nestedPath = null;
-
-        boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
-        boolean ignoreMalformed = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
         GeoValidationMethod validation = null;
 
         XContentParser.Token token;
@@ -443,16 +438,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     unit = DistanceUnit.fromString(parser.text());
                 } else if (DISTANCE_TYPE_FIELD.match(currentName)) {
                     geoDistance = GeoDistance.fromString(parser.text());
-                } else if (COERCE_FIELD.match(currentName)) {
-                    coerce = parser.booleanValue();
-                    if (coerce) {
-                        ignoreMalformed = true;
-                    }
-                } else if (IGNORE_MALFORMED_FIELD.match(currentName)) {
-                    boolean ignore_malformed_value = parser.booleanValue();
-                    if (coerce == false) {
-                        ignoreMalformed = ignore_malformed_value;
-                    }
                 } else if (VALIDATION_METHOD_FIELD.match(currentName)) {
                     validation = GeoValidationMethod.fromString(parser.text());
                 } else if (SORTMODE_FIELD.match(currentName)) {
@@ -472,11 +457,17 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     point.resetFromString(parser.text());
                     geoPoints.add(point);
                     fieldName = currentName;
-                } else {
+                } else if (fieldName.equals(currentName)){
                     throw new ParsingException(
                             parser.getTokenLocation(),
                             "Only geohashes of type string supported for field [{}]",
                             currentName);
+                } else {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[{}] does not support [{}]",
+                        NAME, currentName
+                    );
                 }
             }
         }
@@ -492,11 +483,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             result.setNestedFilter(nestedFilter);
         }
         result.setNestedPath(nestedPath);
-        if (validation == null) {
-            // looks like either validation was left unset or we are parsing old validation json
-            result.validation(GeoValidationMethod.infer(coerce, ignoreMalformed));
-        } else {
-            // ignore deprecated coerce/ignore_malformed
+        if (validation != null) {
             result.validation(validation);
         }
         return result;
@@ -567,8 +554,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             }
 
             @Override
-            public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed)
-                throws IOException {
+            public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
                 return new FieldComparator.DoubleComparator(numHits, null, null) {
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field)

@@ -43,7 +43,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -203,7 +203,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         parser.nextToken();
         if (fieldType instanceof DateFieldMapper.DateFieldType) {
             return parseDateVariable(parser, context, fieldType, mode);
-        } else if (fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType) {
+        } else if (fieldType instanceof GeoPointFieldType) {
             return parseGeoVariable(parser, context, fieldType, mode);
         } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
             return parseNumberVariable(parser, context, fieldType, mode);

@@ -26,6 +26,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -126,12 +127,12 @@ public class ClusterServiceTests extends ESTestCase {
             emptySet(), Version.CURRENT));
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
-            public void connectToNodes(Iterable<DiscoveryNode> discoveryNodes) {
+            public void connectToNodes(DiscoveryNodes discoveryNodes) {
                 // skip
             }
 
             @Override
-            public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
+            public void disconnectFromNodesExcept(DiscoveryNodes nodesToKeep) {
                 // skip
             }
         });
@@ -1059,12 +1060,12 @@ public class ClusterServiceTests extends ESTestCase {
         Set<DiscoveryNode> currentNodes = new HashSet<>();
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
-            public void connectToNodes(Iterable<DiscoveryNode> discoveryNodes) {
+            public void connectToNodes(DiscoveryNodes discoveryNodes) {
                 discoveryNodes.forEach(currentNodes::add);
             }
 
             @Override
-            public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
+            public void disconnectFromNodesExcept(DiscoveryNodes nodesToKeep) {
                 Set<DiscoveryNode> nodeSet = new HashSet<>();
                 nodesToKeep.iterator().forEachRemaining(nodeSet::add);
                 currentNodes.removeIf(node -> nodeSet.contains(node) == false);
@@ -1196,6 +1197,59 @@ public class ClusterServiceTests extends ESTestCase {
         assertNull(error.get());
         assertTrue(applierCalled.get());
     }
+
+    public void testClusterStateApplierCanCreateAnObserver() throws InterruptedException {
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        AtomicBoolean applierCalled = new AtomicBoolean();
+        clusterService.addStateApplier(event -> {
+            try {
+                applierCalled.set(true);
+                ClusterStateObserver observer = new ClusterStateObserver(event.state(),
+                    clusterService, null, logger, threadPool.getThreadContext());
+                observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+
+                    }
+                });
+            } catch (AssertionError e) {
+                    error.set(e);
+            }
+        });
+
+        CountDownLatch latch = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                return ClusterState.builder(currentState).build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                error.compareAndSet(null, e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                latch.countDown();
+            }
+        });
+
+        latch.await();
+        assertNull(error.get());
+        assertTrue(applierCalled.get());
+    }
+
 
     private static class SimpleTask {
         private final int id;

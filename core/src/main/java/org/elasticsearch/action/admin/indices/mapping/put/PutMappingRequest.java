@@ -272,15 +272,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     /**
      * The mapping source definition.
-     * @deprecated use {@link #source(String, XContentType)}
-     */
-    @Deprecated
-    public PutMappingRequest source(String mappingSource) {
-        return source(mappingSource, XContentFactory.xContentType(mappingSource));
-    }
-
-    /**
-     * The mapping source definition.
      */
     public PutMappingRequest source(String mappingSource, XContentType xContentType) {
         return source(new BytesArray(mappingSource), xContentType);

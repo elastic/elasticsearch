@@ -22,6 +22,7 @@ package org.elasticsearch.routing;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.mockito.internal.util.collections.Sets;
@@ -42,7 +43,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                     .setSettings(Settings.builder()
                         .put("index.number_of_shards", shards)
                         .put("index.routing_partition_size", partitionSize))
-                    .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}")
+                    .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
                     .execute().actionGet();
                 ensureGreen();
 
@@ -67,7 +68,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             .setSettings(Settings.builder()
                 .put("index.number_of_shards", currentShards)
                 .put("index.routing_partition_size", partitionSize))
-            .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}")
+            .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
             .execute().actionGet();
         ensureGreen();
 
@@ -124,11 +125,11 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 .execute().actionGet();
 
             logger.info("--> routed search on index [" + index + "] visited [" + response.getTotalShards()
-                + "] shards for routing [" + routing + "] and got hits [" + response.getHits().totalHits() + "]");
+                + "] shards for routing [" + routing + "] and got hits [" + response.getHits().getTotalHits() + "]");
 
             assertTrue(response.getTotalShards() + " was not in " + expectedShards + " for " + index,
                     expectedShards.contains(response.getTotalShards()));
-            assertEquals(expectedDocuments, response.getHits().totalHits());
+            assertEquals(expectedDocuments, response.getHits().getTotalHits());
 
             Set<String> found = new HashSet<>();
             response.getHits().forEach(h -> found.add(h.getId()));
@@ -149,7 +150,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 .execute().actionGet();
 
             assertEquals(expectedShards, response.getTotalShards());
-            assertEquals(expectedDocuments, response.getHits().totalHits());
+            assertEquals(expectedDocuments, response.getHits().getTotalHits());
 
             Set<String> found = new HashSet<>();
             response.getHits().forEach(h -> found.add(h.getId()));

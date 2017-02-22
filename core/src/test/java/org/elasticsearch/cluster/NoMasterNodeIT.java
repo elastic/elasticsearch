@@ -184,7 +184,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
             } else {
                 // timeout is 5000
-                assertThat(System.currentTimeMillis() - now, lessThan(timeout.millis() + 50));
+                assertThat(System.currentTimeMillis() - now, lessThan(timeout.millis() + 300));
             }
         }
     }

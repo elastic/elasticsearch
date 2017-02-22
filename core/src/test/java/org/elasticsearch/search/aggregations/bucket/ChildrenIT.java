@@ -190,7 +190,7 @@ public class ChildrenIT extends ESIntegTestCase {
             TopHits topHits = childrenBucket.getAggregations().get("top_comments");
             logger.info("total_hits={}", topHits.getHits().getTotalHits());
             for (SearchHit searchHit : topHits.getHits()) {
-                logger.info("hit= {} {} {}", searchHit.sortValues()[0], searchHit.getType(), searchHit.getId());
+                logger.info("hit= {} {} {}", searchHit.getSortValues()[0], searchHit.getType(), searchHit.getId());
             }
         }
 
@@ -202,7 +202,7 @@ public class ChildrenIT extends ESIntegTestCase {
         assertThat(childrenBucket.getName(), equalTo("to_comment"));
         assertThat(childrenBucket.getDocCount(), equalTo(2L));
         TopHits topHits = childrenBucket.getAggregations().get("top_comments");
-        assertThat(topHits.getHits().totalHits(), equalTo(2L));
+        assertThat(topHits.getHits().getTotalHits(), equalTo(2L));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("a"));
         assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
         assertThat(topHits.getHits().getAt(1).getId(), equalTo("c"));
@@ -216,7 +216,7 @@ public class ChildrenIT extends ESIntegTestCase {
         assertThat(childrenBucket.getName(), equalTo("to_comment"));
         assertThat(childrenBucket.getDocCount(), equalTo(1L));
         topHits = childrenBucket.getAggregations().get("top_comments");
-        assertThat(topHits.getHits().totalHits(), equalTo(1L));
+        assertThat(topHits.getHits().getTotalHits(), equalTo(1L));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("c"));
         assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
 
@@ -228,7 +228,7 @@ public class ChildrenIT extends ESIntegTestCase {
         assertThat(childrenBucket.getName(), equalTo("to_comment"));
         assertThat(childrenBucket.getDocCount(), equalTo(1L));
         topHits = childrenBucket.getAggregations().get("top_comments");
-        assertThat(topHits.getHits().totalHits(), equalTo(1L));
+        assertThat(topHits.getHits().getTotalHits(), equalTo(1L));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("c"));
         assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
     }

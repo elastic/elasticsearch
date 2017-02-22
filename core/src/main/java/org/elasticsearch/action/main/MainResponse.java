@@ -23,14 +23,17 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class MainResponse extends ActionResponse implements ToXContent {
+public class MainResponse extends ActionResponse implements ToXContentObject {
 
     private String nodeName;
     private Version version;
@@ -113,5 +116,25 @@ public class MainResponse extends ActionResponse implements ToXContent {
         builder.field("tagline", "You Know, for Search");
         builder.endObject();
         return builder;
+    }
+
+    private static final ObjectParser<MainResponse, Void> PARSER = new ObjectParser<>(MainResponse.class.getName(), true,
+            () -> new MainResponse());
+
+    static {
+        PARSER.declareString((response, value) -> response.nodeName = value, new ParseField("name"));
+        PARSER.declareString((response, value) -> response.clusterName = new ClusterName(value), new ParseField("cluster_name"));
+        PARSER.declareString((response, value) -> response.clusterUuid = value, new ParseField("cluster_uuid"));
+        PARSER.declareString((response, value) -> {}, new ParseField("tagline"));
+        PARSER.declareObject((response, value) -> {
+            response.build = new Build((String) value.get("build_hash"), (String) value.get("build_date"),
+                    (boolean) value.get("build_snapshot"));
+            response.version = Version.fromString((String) value.get("number"));
+            response.available = true;
+        }, (parser, context) -> parser.map(), new ParseField("version"));
+    }
+
+    public static MainResponse fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

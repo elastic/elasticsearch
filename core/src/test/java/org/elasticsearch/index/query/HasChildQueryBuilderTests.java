@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -240,8 +240,8 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertThat(booleanQuery.clauses().size(), equalTo(2));
         //check the inner ids query, we have to call rewrite to get to check the type it's executed against
         assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
-        assertThat(booleanQuery.clauses().get(0).getQuery(), instanceOf(TermsQuery.class));
-        TermsQuery termsQuery = (TermsQuery) booleanQuery.clauses().get(0).getQuery();
+        assertThat(booleanQuery.clauses().get(0).getQuery(), instanceOf(TermInSetQuery.class));
+        TermInSetQuery termsQuery = (TermInSetQuery) booleanQuery.clauses().get(0).getQuery();
         Query rewrittenTermsQuery = termsQuery.rewrite(null);
         assertThat(rewrittenTermsQuery, instanceOf(ConstantScoreQuery.class));
         ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) rewrittenTermsQuery;

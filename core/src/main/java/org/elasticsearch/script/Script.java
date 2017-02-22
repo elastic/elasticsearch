@@ -169,9 +169,10 @@ public final class Script implements ToXContentObject, Writeable {
                 type = ScriptType.INLINE;
 
                 if (parser.currentToken() == Token.START_OBJECT) {
-                    XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
-                    idOrCode = builder.copyCurrentStructure(parser).bytes().utf8ToString();
-                    options.put(CONTENT_TYPE_OPTION, parser.contentType().mediaType());
+                    //this is really for search templates, that need to be converted to json format
+                    XContentBuilder builder = XContentFactory.jsonBuilder();
+                    idOrCode = builder.copyCurrentStructure(parser).string();
+                    options.put(CONTENT_TYPE_OPTION, XContentType.JSON.mediaType());
                 } else {
                     idOrCode = parser.text();
                 }
@@ -386,8 +387,8 @@ public final class Script implements ToXContentObject, Writeable {
      *
      * @param parser       The {@link XContentParser} to be used.
      * @param defaultLang  The default language to use if no language is specified.  The default language isn't necessarily
-     *                     the one defined by {@link Script#DEFAULT_SCRIPT_LANG} due to backwards compatiblity requirements
-     *                     related to stored queries using previously default languauges.
+     *                     the one defined by {@link Script#DEFAULT_SCRIPT_LANG} due to backwards compatibility requirements
+     *                     related to stored queries using previously default languages.
      *
      * @return             The parsed {@link Script}.
      */

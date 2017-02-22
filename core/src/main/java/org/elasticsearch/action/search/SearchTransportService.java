@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
@@ -55,7 +56,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
@@ -77,13 +78,18 @@ public class SearchTransportService extends AbstractLifecycleComponent {
 
     private final TransportService transportService;
     private final RemoteClusterService remoteClusterService;
+    private final boolean connectToRemote;
 
     public SearchTransportService(Settings settings, ClusterSettings clusterSettings, TransportService transportService) {
         super(settings);
+        this.connectToRemote = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings);
         this.transportService = transportService;
         this.remoteClusterService = new RemoteClusterService(settings, transportService);
-        clusterSettings.addAffixUpdateConsumer(RemoteClusterService.REMOTE_CLUSTERS_SEEDS, remoteClusterService::updateRemoteCluster,
-            (namespace, value) -> {});
+        if (connectToRemote) {
+            clusterSettings.addAffixUpdateConsumer(RemoteClusterService.REMOTE_CLUSTERS_SEEDS, remoteClusterService::updateRemoteCluster,
+                (namespace, value) -> {
+                });
+        }
     }
 
     public void sendFreeContext(Transport.Connection connection, final long contextId, SearchRequest request) {
@@ -119,8 +125,18 @@ public class SearchTransportService extends AbstractLifecycleComponent {
 
     public void sendExecuteQuery(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task,
                                  final ActionListener<QuerySearchResultProvider> listener) {
-        transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,
-            new ActionListenerResponseHandler<>(listener, QuerySearchResult::new));
+        // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
+        // this used to be the QUERY_AND_FETCH which doesn't exists anymore.
+        final boolean fetchDocuments = request.numberOfShards() == 1;
+        Supplier<QuerySearchResultProvider> supplier = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
+        if (connection.getVersion().onOrBefore(Version.V_5_3_0_UNRELEASED) && fetchDocuments) {
+            // TODO this BWC layer can be removed once this is back-ported to 5.3
+            transportService.sendChildRequest(connection, QUERY_FETCH_ACTION_NAME, request, task,
+                new ActionListenerResponseHandler<>(listener, supplier));
+        } else {
+            transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,
+                new ActionListenerResponseHandler<>(listener, supplier));
+        }
     }
 
     public void sendExecuteQuery(Transport.Connection connection, final QuerySearchRequest request, SearchTask task,
@@ -133,12 +149,6 @@ public class SearchTransportService extends AbstractLifecycleComponent {
                                  final ActionListener<ScrollQuerySearchResult> listener) {
         transportService.sendChildRequest(transportService.getConnection(node), QUERY_SCROLL_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(listener, ScrollQuerySearchResult::new));
-    }
-
-    public void sendExecuteFetch(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task,
-                                 final ActionListener<QueryFetchSearchResult> listener) {
-        transportService.sendChildRequest(connection, QUERY_FETCH_ACTION_NAME, request, task,
-            new ActionListenerResponseHandler<>(listener, QueryFetchSearchResult::new));
     }
 
     public void sendExecuteFetch(DiscoveryNode node, final InternalScrollSearchRequest request, SearchTask task,
@@ -161,6 +171,15 @@ public class SearchTransportService extends AbstractLifecycleComponent {
                                   final ActionListener<FetchSearchResult> listener) {
         transportService.sendChildRequest(connection, action, request, task,
             new ActionListenerResponseHandler<>(listener, FetchSearchResult::new));
+    }
+
+    /**
+     * Used by {@link TransportSearchAction} to send the expand queries (field collapsing).
+     */
+    void sendExecuteMultiSearch(final MultiSearchRequest request, SearchTask task,
+                                       final ActionListener<MultiSearchResponse> listener) {
+        transportService.sendChildRequest(transportService.getConnection(transportService.getLocalNode()), MultiSearchAction.NAME, request,
+            task, new ActionListenerResponseHandler<>(listener, MultiSearchResponse::new));
     }
 
     public RemoteClusterService getRemoteClusterService() {
@@ -334,11 +353,15 @@ public class SearchTransportService extends AbstractLifecycleComponent {
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, ScrollQuerySearchResult::new);
 
+        // this is for BWC with 5.3 until the QUERY_AND_FETCH removal change has been back-ported to 5.x
+        // in 5.3 we will only execute a `indices:data/read/search[phase/query+fetch]` if the node is pre 5.3
+        // such that we can remove this after the back-port.
         transportService.registerRequestHandler(QUERY_FETCH_ACTION_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
                 @Override
                 public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel, Task task) throws Exception {
-                    QueryFetchSearchResult result = searchService.executeFetchPhase(request, (SearchTask)task);
+                    assert request.numberOfShards() == 1 : "expected single shard request but got: " + request.numberOfShards();
+                    QuerySearchResultProvider result = searchService.executeQueryPhase(request, (SearchTask)task);
                     channel.sendResponse(result);
                 }
             });
@@ -381,8 +404,10 @@ public class SearchTransportService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        // here we start to connect to the remote clusters
-        remoteClusterService.initializeRemoteClusters();
+        if (connectToRemote) {
+            // here we start to connect to the remote clusters
+            remoteClusterService.initializeRemoteClusters();
+        }
     }
 
     @Override

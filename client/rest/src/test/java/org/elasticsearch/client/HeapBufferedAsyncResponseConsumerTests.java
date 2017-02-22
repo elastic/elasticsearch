@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.ContentTooLongException;
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.StatusLine;
@@ -31,6 +32,8 @@ import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.ContentDecoder;
 import org.apache.http.nio.IOControl;
 import org.apache.http.protocol.HttpContext;
+
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
@@ -56,7 +59,7 @@ public class HeapBufferedAsyncResponseConsumerTests extends RestClientTestCase {
         ProtocolVersion protocolVersion = new ProtocolVersion("HTTP", 1, 1);
         StatusLine statusLine = new BasicStatusLine(protocolVersion, 200, "OK");
         HttpResponse httpResponse = new BasicHttpResponse(statusLine);
-        httpResponse.setEntity(new StringEntity("test"));
+        httpResponse.setEntity(new StringEntity("test", ContentType.TEXT_PLAIN));
 
         //everything goes well
         consumer.responseReceived(httpResponse);
@@ -99,11 +102,17 @@ public class HeapBufferedAsyncResponseConsumerTests extends RestClientTestCase {
         StatusLine statusLine = new BasicStatusLine(protocolVersion, 200, "OK");
         consumer.onResponseReceived(new BasicHttpResponse(statusLine));
 
-        BasicHttpEntity entity = new BasicHttpEntity();
-        entity.setContentLength(randomInt(bufferLimit));
+        final AtomicReference<Long> contentLength = new AtomicReference<>();
+        HttpEntity entity = new StringEntity("", ContentType.APPLICATION_JSON) {
+            @Override
+            public long getContentLength() {
+                return contentLength.get();
+            }
+        };
+        contentLength.set(randomLong(bufferLimit));
         consumer.onEntityEnclosed(entity, ContentType.APPLICATION_JSON);
 
-        entity.setContentLength(randomIntBetween(bufferLimit + 1, MAX_TEST_BUFFER_SIZE));
+        contentLength.set(randomLongBetween(bufferLimit + 1, MAX_TEST_BUFFER_SIZE));
         try {
             consumer.onEntityEnclosed(entity, ContentType.APPLICATION_JSON);
         } catch(ContentTooLongException e) {

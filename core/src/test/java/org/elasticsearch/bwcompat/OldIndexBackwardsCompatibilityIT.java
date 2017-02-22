@@ -346,7 +346,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
         // Make sure there are payloads and they are taken into account for the score
         // the 'string' field has a boost of 4 in the mappings so it should get a payload boost
-        String stringValue = (String) bestHit.sourceAsMap().get("string");
+        String stringValue = (String) bestHit.getSourceAsMap().get("string");
         assertNotNull(stringValue);
         Explanation explanation = client().prepareExplain(indexName, bestHit.getType(), bestHit.getId())
                 .setQuery(QueryBuilders.matchQuery("_all", stringValue)).get().getExplanation();
@@ -457,7 +457,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         }
         // We can read from the alias just like we can read from the index.
         String aliasName = "#" + indexName;
-        long totalDocs = client().prepareSearch(indexName).setSize(0).get().getHits().totalHits();
+        long totalDocs = client().prepareSearch(indexName).setSize(0).get().getHits().getTotalHits();
         assertHitCount(client().prepareSearch(aliasName).setSize(0).get(), totalDocs);
         assertThat(totalDocs, greaterThanOrEqualTo(2000L));
 
@@ -475,11 +475,11 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         builder.setSize(100);
         builder.addStoredField("binary");
         SearchHits hits = builder.get().getHits();
-        assertEquals(100, hits.hits().length);
+        assertEquals(100, hits.getHits().length);
         for(SearchHit hit : hits) {
             SearchHitField field = hit.field("binary");
             assertNotNull(field);
-            Object value = field.value();
+            Object value = field.getValue();
             assertTrue(value instanceof BytesArray);
             assertEquals(16, ((BytesArray) value).length());
         }

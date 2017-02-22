@@ -265,8 +265,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } else {
                 contextProcessedSuccessfully(context);
             }
-            operationListener.onQueryPhase(context, System.nanoTime() - time);
-
+            final long afterQueryTime = System.nanoTime();
+            operationListener.onQueryPhase(context, afterQueryTime - time);
+            if (request.numberOfShards() == 1) {
+                return executeFetchPhase(context, operationListener, afterQueryTime);
+            }
             return context.queryResult();
         } catch (Exception e) {
             // execution exception can happen while loading the cache, strip it
@@ -281,6 +284,25 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } finally {
             cleanContext(context);
         }
+    }
+
+    private QueryFetchSearchResult executeFetchPhase(SearchContext context, SearchOperationListener operationListener,
+                                                        long afterQueryTime) {
+        operationListener.onPreFetchPhase(context);
+        try {
+            shortcutDocIdsToLoad(context);
+            fetchPhase.execute(context);
+            if (fetchPhaseShouldFreeContext(context)) {
+                freeContext(context.id());
+            } else {
+                contextProcessedSuccessfully(context);
+            }
+        } catch (Exception e) {
+            operationListener.onFailedFetchPhase(context);
+            throw ExceptionsHelper.convertToRuntime(e);
+        }
+        operationListener.onFetchPhase(context, System.nanoTime() - afterQueryTime);
+        return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
     }
 
     public ScrollQuerySearchResult executeQueryPhase(InternalScrollSearchRequest request, SearchTask task) {
@@ -348,89 +370,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    public QueryFetchSearchResult executeFetchPhase(ShardSearchRequest request, SearchTask task) throws IOException {
-        final SearchContext context = createAndPutContext(request);
-        context.incRef();
-        try {
-            contextProcessing(context);
-            context.setTask(task);
-            SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
-            operationListener.onPreQueryPhase(context);
-            long time = System.nanoTime();
-            try {
-                loadOrExecuteQueryPhase(request, context);
-            } catch (Exception e) {
-                operationListener.onFailedQueryPhase(context);
-                throw ExceptionsHelper.convertToRuntime(e);
-            }
-            long time2 = System.nanoTime();
-            operationListener.onQueryPhase(context, time2 - time);
-            operationListener.onPreFetchPhase(context);
-            try {
-                shortcutDocIdsToLoad(context);
-                fetchPhase.execute(context);
-                if (fetchPhaseShouldFreeContext(context)) {
-                    freeContext(context.id());
-                } else {
-                    contextProcessedSuccessfully(context);
-                }
-            } catch (Exception e) {
-                operationListener.onFailedFetchPhase(context);
-                throw ExceptionsHelper.convertToRuntime(e);
-            }
-            operationListener.onFetchPhase(context, System.nanoTime() - time2);
-            return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
-        } catch (Exception e) {
-            logger.trace("Fetch phase failed", e);
-            processFailure(context, e);
-            throw ExceptionsHelper.convertToRuntime(e);
-        } finally {
-            cleanContext(context);
-        }
-    }
-
-    public QueryFetchSearchResult executeFetchPhase(QuerySearchRequest request, SearchTask task) {
-        final SearchContext context = findContext(request.id());
-        context.incRef();
-        try {
-            context.setTask(task);
-            contextProcessing(context);
-            context.searcher().setAggregatedDfs(request.dfs());
-            SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
-            operationListener.onPreQueryPhase(context);
-            long time = System.nanoTime();
-            try {
-                queryPhase.execute(context);
-            } catch (Exception e) {
-                operationListener.onFailedQueryPhase(context);
-                throw ExceptionsHelper.convertToRuntime(e);
-            }
-            long time2 = System.nanoTime();
-            operationListener.onQueryPhase(context, time2 - time);
-            operationListener.onPreFetchPhase(context);
-            try {
-                shortcutDocIdsToLoad(context);
-                fetchPhase.execute(context);
-                if (fetchPhaseShouldFreeContext(context)) {
-                    freeContext(request.id());
-                } else {
-                    contextProcessedSuccessfully(context);
-                }
-            } catch (Exception e) {
-                operationListener.onFailedFetchPhase(context);
-                throw ExceptionsHelper.convertToRuntime(e);
-            }
-            operationListener.onFetchPhase(context, System.nanoTime() - time2);
-            return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
-        } catch (Exception e) {
-            logger.trace("Fetch phase failed", e);
-            processFailure(context, e);
-            throw ExceptionsHelper.convertToRuntime(e);
-        } finally {
-            cleanContext(context);
-        }
-    }
-
     public ScrollQueryFetchSearchResult executeFetchPhase(InternalScrollSearchRequest request, SearchTask task) {
         final SearchContext context = findContext(request.id());
         context.incRef();
@@ -440,30 +379,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
             processScroll(request, context);
             operationListener.onPreQueryPhase(context);
-            long time = System.nanoTime();
+            final long time = System.nanoTime();
             try {
                 queryPhase.execute(context);
             } catch (Exception e) {
                 operationListener.onFailedQueryPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
-            long time2 = System.nanoTime();
-            operationListener.onQueryPhase(context, time2 - time);
-            operationListener.onPreFetchPhase(context);
-            try {
-                shortcutDocIdsToLoad(context);
-                fetchPhase.execute(context);
-                if (fetchPhaseShouldFreeContext(context)) {
-                    freeContext(request.id());
-                } else {
-                    contextProcessedSuccessfully(context);
-                }
-            } catch (Exception e) {
-                operationListener.onFailedFetchPhase(context);
-                throw ExceptionsHelper.convertToRuntime(e);
-            }
-            operationListener.onFetchPhase(context, System.nanoTime() - time2);
-            return new ScrollQueryFetchSearchResult(new QueryFetchSearchResult(context.queryResult(), context.fetchResult()),
+            long afterQueryTime = System.nanoTime();
+            operationListener.onQueryPhase(context, afterQueryTime - time);
+            QueryFetchSearchResult fetchSearchResult = executeFetchPhase(context, operationListener, afterQueryTime);
+
+            return new ScrollQueryFetchSearchResult(fetchSearchResult,
                 context.shardTarget());
         } catch (Exception e) {
             logger.trace("Fetch phase failed", e);

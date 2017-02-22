@@ -24,6 +24,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -152,17 +153,17 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         case BOOLEAN:
             assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
                     .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)).or(instanceOf(MatchNoDocsQuery.class))
-                    .or(instanceOf(PointRangeQuery.class)));
+                    .or(instanceOf(PointRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
             break;
         case PHRASE:
             assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(PhraseQuery.class))
                     .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class))
-                    .or(instanceOf(PointRangeQuery.class)));
+                    .or(instanceOf(PointRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
             break;
         case PHRASE_PREFIX:
             assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
                     .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class))
-                    .or(instanceOf(PointRangeQuery.class)));
+                    .or(instanceOf(PointRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
             break;
         }
         QueryShardContext context = searchContext.getQueryShardContext();

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -86,7 +87,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("appAccountIds").field("type", "text").endObject().endObject()
             .endObject().endObject().string();
-        assertAcked(prepareCreate("test").addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
 
         client().prepareIndex("test", "type1", "10990239").setSource(jsonBuilder().startObject()
             .startArray("appAccountIds").value(14).value(179).endArray().endObject()).execute().actionGet();
@@ -160,7 +161,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(
             SETTING_NUMBER_OF_SHARDS, numberOfShards(),
             SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1)
-        ).addMapping("type1", mapping));
+        ).addMapping("type1", mapping, XContentType.JSON));
 
         int value1Docs;
         int value2Docs;
@@ -339,9 +340,11 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).execute().actionGet();
         // TODO: remove once refresh doesn't fail immediately if there a master block:
         // https://github.com/elastic/elasticsearch/issues/9997
-        client().admin().cluster().prepareHealth("test").setWaitForYellowStatus().get();
+        // client().admin().cluster().prepareHealth("test").setWaitForYellowStatus().get();
+        logger.info("--> refreshing all indices after indexing is complete");
         client().admin().indices().prepareRefresh().execute().actionGet();
 
+        logger.info("--> checking if documents exist, there should be 3");
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet(), 3);
         }

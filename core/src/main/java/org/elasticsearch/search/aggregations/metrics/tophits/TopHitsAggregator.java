@@ -41,8 +41,8 @@ import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
@@ -165,10 +165,10 @@ public class TopHitsAggregator extends MetricsAggregator {
             subSearchContext.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
             fetchPhase.execute(subSearchContext);
             FetchSearchResult fetchResult = subSearchContext.fetchResult();
-            InternalSearchHit[] internalHits = fetchResult.fetchResult().hits().internalHits();
+            SearchHit[] internalHits = fetchResult.fetchResult().hits().internalHits();
             for (int i = 0; i < internalHits.length; i++) {
                 ScoreDoc scoreDoc = topDocs.scoreDocs[i];
-                InternalSearchHit searchHitFields = internalHits[i];
+                SearchHit searchHitFields = internalHits[i];
                 searchHitFields.shard(subSearchContext.shardTarget());
                 searchHitFields.score(scoreDoc.score);
                 if (scoreDoc instanceof FieldDoc) {
@@ -190,7 +190,7 @@ public class TopHitsAggregator extends MetricsAggregator {
         } else {
             topDocs = Lucene.EMPTY_TOP_DOCS;
         }
-        return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, InternalSearchHits.empty(),
+        return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, SearchHits.empty(),
                 pipelineAggregators(), metaData());
     }
 

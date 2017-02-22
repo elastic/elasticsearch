@@ -260,16 +260,12 @@ public class QueryPhase implements SearchPhase {
                                 topDocs.totalHits = scrollContext.totalHits;
                                 topDocs.setMaxScore(scrollContext.maxScore);
                             }
-                            switch (searchType) {
-                            case QUERY_AND_FETCH:
-                                // for QUERY_AND_FETCH, we already know the last emitted doc
+                            if (searchContext.request().numberOfShards() == 1) {
+                                // if we fetch the document in the same roundtrip, we already know the last emitted doc
                                 if (topDocs.scoreDocs.length > 0) {
                                     // set the last emitted doc
                                     scrollContext.lastEmittedDoc = topDocs.scoreDocs[topDocs.scoreDocs.length - 1];
                                 }
-                                break;
-                            default:
-                                break;
                             }
                         }
                         return topDocs;

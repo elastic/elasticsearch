@@ -391,6 +391,14 @@ public abstract class Engine implements Closeable {
             this.created = created;
         }
 
+        /**
+         * use in case of index operation failed before getting to internal engine
+         * (e.g while preparing operation or updating mappings)
+         * */
+        public IndexResult(Exception failure, long version) {
+            this(failure, version, SequenceNumbersService.UNASSIGNED_SEQ_NO);
+        }
+
         public IndexResult(Exception failure, long version, long seqNo) {
             super(Operation.TYPE.INDEX, failure, version, seqNo);
             this.created = false;
@@ -488,7 +496,7 @@ public abstract class Engine implements Closeable {
 
     /**
      * Returns a new searcher instance. The consumer of this
-     * API is responsible for releasing the returned seacher in a
+     * API is responsible for releasing the returned searcher in a
      * safe manner, preferably in a try/finally block.
      *
      * @see Searcher#close()

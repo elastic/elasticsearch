@@ -18,6 +18,12 @@ check if `_all` is enabled/disabled and switch to executing the query across all
 fields if `_all` is disabled. `_all` can no longer be configured for indices
 created with Elasticsearch version 6.0 or later.
 
+==== The `include_in_all` mapping parameter is now disallowed
+
+Since the `_all` field is now disabled by default and cannot be configured for
+indices created with Elasticsearch 6.0 or later, the `include_in_all` setting is
+now disallowed for these indices' mappings.
+
 ==== Unrecognized `match_mapping_type` options not silently ignored
 
 Previously Elastiscearch would silently ignore any dynamic templates that

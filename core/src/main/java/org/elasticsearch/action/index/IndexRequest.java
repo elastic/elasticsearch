@@ -26,6 +26,7 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -69,6 +71,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
+
+    /**
+     * Max length of the source document to include into toString()
+     *
+     * @see ReplicationRequest#createTask(long, java.lang.String, java.lang.String, org.elasticsearch.tasks.TaskId)
+     */
+    static final int MAX_SOURCE_LENGTH_IN_TOSTRING = 2048;
 
     private String type;
     private String id;
@@ -112,7 +121,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /**
      * Constructs a new index request against the specific index and type. The
-     * {@link #source(byte[])} must be set.
+     * {@link #source(byte[], XContentType)} must be set.
      */
     public IndexRequest(String index, String type) {
         this.index = index;
@@ -310,16 +319,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Sets the document source to index.
      *
-     * @deprecated use {@link #source(String, XContentType)}
-     */
-    @Deprecated
-    public IndexRequest source(String source) {
-        return source(new BytesArray(source), XContentFactory.xContentType(source));
-    }
-
-    /**
-     * Sets the document source to index.
-     *
      * Note, its preferable to either set it using {@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}
      * or using the {@link #source(byte[], XContentType)}.
      */
@@ -376,16 +375,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /**
      * Sets the document to index in bytes form.
-     * @deprecated use {@link #source(BytesReference, XContentType)}
-     */
-    @Deprecated
-    public IndexRequest source(BytesReference source) {
-        return source(source, XContentFactory.xContentType(source));
-
-    }
-
-    /**
-     * Sets the document to index in bytes form.
      */
     public IndexRequest source(BytesReference source, XContentType xContentType) {
         this.source = Objects.requireNonNull(source);
@@ -395,32 +384,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /**
      * Sets the document to index in bytes form.
-     * @deprecated use {@link #source(byte[], XContentType)}
-     */
-    @Deprecated
-    public IndexRequest source(byte[] source) {
-        return source(source, 0, source.length);
-    }
-
-    /**
-     * Sets the document to index in bytes form.
      */
     public IndexRequest source(byte[] source, XContentType xContentType) {
         return source(source, 0, source.length, xContentType);
-    }
-
-    /**
-     * Sets the document to index in bytes form (assumed to be safe to be used from different
-     * threads).
-     *
-     * @param source The source to index
-     * @param offset The offset in the byte array
-     * @param length The length of the data
-     * @deprecated use {@link #source(byte[], int, int, XContentType)}
-     */
-    @Deprecated
-    public IndexRequest source(byte[] source, int offset, int length) {
-        return source(new BytesArray(source, offset, length), XContentFactory.xContentType(source));
     }
 
     /**
@@ -517,7 +483,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
 
-    public void process(@Nullable MappingMetaData mappingMd, boolean allowIdGeneration, String concreteIndex) {
+    public void process(@Nullable MappingMetaData mappingMd, String concreteIndex) {
         if (mappingMd != null) {
             // might as well check for routing here
             if (mappingMd.routing().required() && routing == null) {
@@ -533,9 +499,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             }
         }
 
-        // generate id if not already provided and id generation is allowed
-        if (allowIdGeneration && id == null) {
-            assert autoGeneratedTimestamp == -1;
+        // generate id if not already provided
+        if (id == null) {
+            assert autoGeneratedTimestamp == -1 : "timestamp has already been generated!";
             autoGeneratedTimestamp = Math.max(0, System.currentTimeMillis()); // extra paranoia
             id(UUIDs.base64UUID());
         }
@@ -564,7 +530,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         pipeline = in.readOptionalString();
         isRetry = in.readBoolean();
         autoGeneratedTimestamp = in.readLong();
-        if (in.getVersion().after(Version.V_5_3_0_UNRELEASED)) { // TODO update to onOrAfter after backporting
+        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
             contentType = in.readOptionalWriteable(XContentType::readFrom);
         } else {
             contentType = XContentFactory.xContentType(source);
@@ -597,7 +563,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(pipeline);
         out.writeBoolean(isRetry);
         out.writeLong(autoGeneratedTimestamp);
-        if (out.getVersion().after(Version.V_5_3_0_UNRELEASED)) { // TODO update to onOrAfter after backporting
+        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
             out.writeOptionalWriteable(contentType);
         }
     }
@@ -606,7 +572,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public String toString() {
         String sSource = "_na_";
         try {
-            sSource = XContentHelper.convertToJson(source, false);
+            if (source.length() > MAX_SOURCE_LENGTH_IN_TOSTRING) {
+                sSource = "n/a, actual length: [" + new ByteSizeValue(source.length()).toString() + "], max length: " +
+                    new ByteSizeValue(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();
+            } else {
+                sSource = XContentHelper.convertToJson(source, false);
+            }
         } catch (Exception e) {
             // ignore
         }

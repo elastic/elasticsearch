@@ -22,16 +22,17 @@ import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.CommonTermsQuery;
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanFirstQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -62,10 +64,11 @@ public final class QueryAnalyzer {
         map.put(ConstantScoreQuery.class, constantScoreQuery());
         map.put(BoostQuery.class, boostQuery());
         map.put(TermQuery.class, termQuery());
-        map.put(TermsQuery.class, termsQuery());
+        map.put(TermInSetQuery.class, termInSetQuery());
         map.put(CommonTermsQuery.class, commonTermsQuery());
         map.put(BlendedTermQuery.class, blendedTermQuery());
         map.put(PhraseQuery.class, phraseQuery());
+        map.put(MultiPhraseQuery.class, multiPhraseQuery());
         map.put(SpanTermQuery.class, spanTermQuery());
         map.put(SpanNearQuery.class, spanNearQuery());
         map.put(SpanOrQuery.class, spanOrQuery());
@@ -145,11 +148,11 @@ public final class QueryAnalyzer {
         });
     }
 
-    static Function<Query, Result> termsQuery() {
+    static Function<Query, Result> termInSetQuery() {
         return query -> {
-            TermsQuery termsQuery = (TermsQuery) query;
+            TermInSetQuery termInSetQuery = (TermInSetQuery) query;
             Set<Term> terms = new HashSet<>();
-            PrefixCodedTerms.TermIterator iterator = termsQuery.getTermData().iterator();
+            PrefixCodedTerms.TermIterator iterator = termInSetQuery.getTermData().iterator();
             for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
                 terms.add(new Term(iterator.field(), term));
             }
@@ -194,6 +197,21 @@ public final class QueryAnalyzer {
                 }
             }
             return new Result(false, Collections.singleton(longestTerm));
+        };
+    }
+
+    static Function<Query, Result> multiPhraseQuery() {
+        return query -> {
+            Term[][] terms = ((MultiPhraseQuery) query).getTermArrays();
+            if (terms.length == 0) {
+                return new Result(true, Collections.emptySet());
+            }
+
+            Set<Term> bestTermArr = null;
+            for (Term[] termArr : terms) {
+                bestTermArr = selectTermListWithTheLongestShortestTerm(bestTermArr, new HashSet<>(Arrays.asList(termArr)));
+            }
+            return new Result(false, bestTermArr);
         };
     }
 

@@ -39,7 +39,9 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -49,6 +51,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiSearchAction extends BaseRestHandler {
+
+    private static final Set<String> RESPONSE_PARAMS = Collections.singleton(RestSearchAction.TYPED_KEYS_PARAM);
 
     private final boolean allowExplicitIndex;
 
@@ -186,6 +190,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
         }
     }
 
+    @Override
+    public boolean supportsContentStream() {
+        return true;
+    }
+
     private static int findNextMarker(byte marker, int from, BytesReference data, int length) {
         for (int i = from; i < length; i++) {
             if (data.get(i) == marker) {
@@ -193,5 +202,10 @@ public class RestMultiSearchAction extends BaseRestHandler {
             }
         }
         return -1;
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 }

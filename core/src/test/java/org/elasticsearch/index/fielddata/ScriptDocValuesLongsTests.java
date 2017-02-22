@@ -80,6 +80,10 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             Exception e = expectThrows(UnsupportedOperationException.class, () -> longs.getDates().add(new DateTime()));
             assertEquals("doc values are unmodifiable", e.getMessage());
         }
+
+        assertWarnings(
+                "getDate on numeric fields is deprecated. Use a date field to get dates.",
+                "getDates on numeric fields is deprecated. Use a date field to get dates.");
     }
 
     private Longs wrap(long[][] values) {

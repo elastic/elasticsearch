@@ -1,0 +1,45 @@
+:version:               6.0.0-alpha1
+:major-version:         6.x
+:lucene_version:        6.4.0
+:lucene_version_path:   6_4_0
+:branch:                master
+:jdk:                   1.8.0_73
+
+//////////
+release-state can be: released | prerelease | unreleased
+//////////
+
+:release-state:   unreleased
+
+:ref:             https://www.elastic.co/guide/en/elasticsearch/reference/{branch}
+:defguide:        https://www.elastic.co/guide/en/elasticsearch/guide/master
+:plugins:         https://www.elastic.co/guide/en/elasticsearch/plugins/{branch}
+:javaclient:      https://www.elastic.co/guide/en/elasticsearch/client/java-api/{branch}
+:xpack:           https://www.elastic.co/guide/en/x-pack/5.0
+:logstash:        https://www.elastic.co/guide/en/logstash/{branch}
+:kibana:          https://www.elastic.co/guide/en/kibana/{branch}
+:issue:           https://github.com/elastic/elasticsearch/issues/
+:pull:            https://github.com/elastic/elasticsearch/pull/
+
+:docker-image:    docker.elastic.co/elasticsearch/elasticsearch:{version}
+:plugin_url:      https://artifacts.elastic.co/downloads/elasticsearch-plugins
+
+
+///////
+Javadoc roots used to generate links from Painless's API reference
+///////
+:java8-javadoc: https://docs.oracle.com/javase/8/docs/api
+:java9-javadoc: http://download.java.net/java/jigsaw/docs/api
+:joda-time-javadoc: http://www.joda.org/joda-time/apidocs
+:lucene-core-javadoc: http://lucene.apache.org/core/{lucene_version_path}/core
+
+ifeval::["{release-state}"=="unreleased"]
+:elasticsearch-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/elasticsearch/{version}-SNAPSHOT
+:painless-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/painless/lang-painless/{version}-SNAPSHOT
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+:elasticsearch-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/elasticsearch/{version}
+:painless-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/painless/lang-painless/{version}
+endif::[]
+

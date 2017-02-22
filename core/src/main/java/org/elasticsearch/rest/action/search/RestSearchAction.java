@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -44,6 +43,8 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -51,6 +52,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
 public class RestSearchAction extends BaseRestHandler {
+
+    public static final String TYPED_KEYS_PARAM = "typed_keys";
+    private static final Set<String> RESPONSE_PARAMS = Collections.singleton(TYPED_KEYS_PARAM);
+
     public RestSearchAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_search", this);
@@ -88,11 +93,14 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.source().parseXContent(context);
         }
 
+        final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());
+        searchRequest.setBatchedReduceSize(batchedReduceSize);
+
         // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types
         // from the REST layer. these modes are an internal optimization and should
         // not be specified explicitly by the user.
         String searchType = request.param("search_type");
-        if (SearchType.fromString(searchType).equals(SearchType.QUERY_AND_FETCH) ||
+        if ("query_and_fetch".equals(searchType) ||
                 "dfs_query_and_fetch".equals(searchType)) {
             throw new IllegalArgumentException("Unsupported search type [" + searchType + "]");
         } else {
@@ -218,5 +226,10 @@ public class RestSearchAction extends BaseRestHandler {
                         .text(suggestText).size(suggestSize)
                         .suggestMode(SuggestMode.resolve(suggestMode))));
         }
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return RESPONSE_PARAMS;
     }
 }

@@ -63,7 +63,7 @@ public class BlobPath implements Iterable<String> {
 
     public String buildAsString() {
         String p = String.join(SEPARATOR, paths);
-        if (p.isEmpty()) {
+        if (p.isEmpty() || p.endsWith(SEPARATOR)) {
             return p;
         }
         return p + SEPARATOR;

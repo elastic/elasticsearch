@@ -91,7 +91,7 @@ public class RestCountAction extends AbstractCatAction {
     private Table buildTable(RestRequest request, SearchResponse response) {
         Table table = getTableWithHeader(request);
         table.startRow();
-        table.addCell(response.getHits().totalHits());
+        table.addCell(response.getHits().getTotalHits());
         table.endRow();
 
         return table;

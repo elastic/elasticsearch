@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.BooleanFieldMapper.BooleanFieldType;
@@ -599,7 +600,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
         DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
@@ -609,7 +610,8 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
         assertNotNull(doc.dynamicMappingsUpdate());
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get();
+        client().admin().indices().preparePutMapping("test").setType("type")
+            .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
 
         defaultMapper = index.mapperService().documentMapper("type");
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("s_long");
@@ -624,7 +626,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
         DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
@@ -634,7 +636,8 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
         assertNotNull(doc.dynamicMappingsUpdate());
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get());
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("type")
+            .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get());
 
         defaultMapper = index.mapperService().documentMapper("type");
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("s_long");
@@ -671,7 +674,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
         DocumentMapper defaultMapper = index.mapperService().documentMapper("type");
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
@@ -682,7 +685,8 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
         assertNotNull(doc.dynamicMappingsUpdate());
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get());
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("type")
+            .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get());
 
         defaultMapper = index.mapperService().documentMapper("type");
 

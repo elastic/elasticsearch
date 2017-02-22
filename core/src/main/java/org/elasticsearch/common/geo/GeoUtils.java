@@ -481,7 +481,7 @@ public class GeoUtils {
 
     /**
      * Return the distance (in meters) between 2 lat,lon geo points using a simple tangential plane
-     * this provides a faster alternative to {@link GeoUtils#arcDistance} but is innaccurate for distances greater than
+     * this provides a faster alternative to {@link GeoUtils#arcDistance} but is inaccurate for distances greater than
      * 4 decimal degrees
      */
     public static double planeDistance(double lat1, double lon1, double lat2, double lon2) {

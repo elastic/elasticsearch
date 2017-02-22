@@ -34,7 +34,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 import static junit.framework.TestCase.fail;
@@ -48,17 +47,22 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterService createClusterService(ThreadPool threadPool, DiscoveryNode localNode) {
-        ClusterService clusterService = new ClusterService(Settings.builder().put("cluster.name", "ClusterServiceTests").build(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+        return createClusterService(Settings.EMPTY, threadPool, localNode);
+    }
+
+    public static ClusterService createClusterService(Settings settings, ThreadPool threadPool, DiscoveryNode localNode) {
+        ClusterService clusterService = new ClusterService(
+            Settings.builder().put("cluster.name", "ClusterServiceTests").put(settings).build(),
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool, () -> localNode);
         clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
-            public void connectToNodes(Iterable<DiscoveryNode> discoveryNodes) {
+            public void connectToNodes(DiscoveryNodes discoveryNodes) {
                 // skip
             }
 
             @Override
-            public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
+            public void disconnectFromNodesExcept(DiscoveryNodes nodesToKeep) {
                 // skip
             }
         });

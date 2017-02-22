@@ -83,16 +83,6 @@ public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<PutMapp
 
     /**
      * The mapping source definition.
-     * @deprecated use {@link #setSource(String, XContentType)}
-     */
-    @Deprecated
-    public PutMappingRequestBuilder setSource(String mappingSource) {
-        request.source(mappingSource);
-        return this;
-    }
-
-    /**
-     * The mapping source definition.
      */
     public PutMappingRequestBuilder setSource(String mappingSource, XContentType xContentType) {
         request.source(mappingSource, xContentType);

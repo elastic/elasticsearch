@@ -23,7 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -114,12 +114,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
             final BytesRef[] uids = Uid.createUidsForTypesAndId(context.queryTypes(), value);
-            return new TermsQuery(UidFieldMapper.NAME, uids);
+            return new TermInSetQuery(UidFieldMapper.NAME, uids);
         }
 
         @Override
         public Query termsQuery(List values, @Nullable QueryShardContext context) {
-            return new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(context.queryTypes(), values));
+            return new TermInSetQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(context.queryTypes(), values));
         }
     }
 

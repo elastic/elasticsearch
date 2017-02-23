@@ -64,7 +64,7 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        settings.put(MachineLearning.USE_NATIVE_PROCESS_OPTION.getKey(), false);
+        settings.put(MachineLearning.AUTODETECT_PROCESS.getKey(), false);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         return settings.build();
     }

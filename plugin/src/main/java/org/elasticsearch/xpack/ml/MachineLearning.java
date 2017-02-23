@@ -145,10 +145,8 @@ public class MachineLearning extends Plugin implements ActionPlugin {
     public static final String DATAFEED_RUNNER_THREAD_POOL_NAME = NAME + "_datafeed_runner";
     public static final String AUTODETECT_PROCESS_THREAD_POOL_NAME = NAME + "_autodetect_process";
 
-    // NORELEASE - temporary solution
-    public static final Setting<Boolean> USE_NATIVE_PROCESS_OPTION = Setting.boolSetting("useNativeProcess", true, Property.NodeScope,
-            Property.Deprecated);
-
+    public static final Setting<Boolean> AUTODETECT_PROCESS =
+            Setting.boolSetting("xpack.ml.autodetect_process", true, Property.NodeScope);
     public static final Setting<Boolean> ML_ENABLED =
             Setting.boolSetting("node.ml", XPackSettings.MACHINE_LEARNING_ENABLED, Setting.Property.NodeScope);
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
@@ -173,7 +171,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return Collections.unmodifiableList(
-                Arrays.asList(USE_NATIVE_PROCESS_OPTION,
+                Arrays.asList(AUTODETECT_PROCESS,
                         ML_ENABLED,
                         CONCURRENT_JOB_ALLOCATIONS,
                         ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING,
@@ -257,7 +255,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
         JobManager jobManager = new JobManager(settings, jobProvider, jobResultsPersister, clusterService);
         AutodetectProcessFactory autodetectProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
-        if (USE_NATIVE_PROCESS_OPTION.get(settings)) {
+        if (AUTODETECT_PROCESS.get(settings)) {
             try {
                 NativeController nativeController = NativeControllerHolder.getNativeController(settings);
                 if (nativeController == null) {

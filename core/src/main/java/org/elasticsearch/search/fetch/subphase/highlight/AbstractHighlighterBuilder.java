@@ -136,7 +136,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             boundaryChars(in.readString().toCharArray());
         }
         if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
-            boundaryScannerLocale(in.readOptionalString());
+            if (in.readBoolean()) {
+                boundaryScannerLocale(in.readString());
+            }
         }
         noMatchSize(in.readOptionalVInt());
         phraseLimit(in.readOptionalVInt());
@@ -571,7 +573,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (boundaryChars != null) {
             builder.field(BOUNDARY_CHARS_FIELD.getPreferredName(), new String(boundaryChars));
         }
-        if (boundaryScannerLocale != null && boundaryScannerLocale != Locale.ROOT) {
+        if (boundaryScannerLocale != null) {
             builder.field(BOUNDARY_SCANNER_LOCALE_FIELD.getPreferredName(), boundaryScannerLocale.toLanguageTag());
         }
         if (options != null && options.size() > 0) {
@@ -641,8 +643,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public final int hashCode() {
         return Objects.hash(getClass(), Arrays.hashCode(preTags), Arrays.hashCode(postTags), fragmentSize,
                 numOfFragments, highlighterType, fragmenter, highlightQuery, order, highlightFilter,
-                forceSource, boundaryScannerType, boundaryMaxScan, Arrays.hashCode(boundaryChars), noMatchSize,
-                boundaryScannerLocale, phraseLimit, options, requireFieldMatch, doHashCode());
+                forceSource, boundaryScannerType, boundaryMaxScan, Arrays.hashCode(boundaryChars), boundaryScannerLocale,
+                noMatchSize, phraseLimit, options, requireFieldMatch, doHashCode());
     }
 
     /**

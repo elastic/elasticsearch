@@ -564,7 +564,7 @@ public class HighlightBuilderTests extends ESTestCase {
                 highlightBuilder.boundaryScannerType(randomFrom(BoundaryScannerType.values()));
             } else {
                 // also test the string setter
-                highlightBuilder.boundaryScannerType(randomFrom(BoundaryScannerType.values().toString()));
+                highlightBuilder.boundaryScannerType(randomFrom(BoundaryScannerType.values()).toString());
             }
         }
         if (randomBoolean()) {

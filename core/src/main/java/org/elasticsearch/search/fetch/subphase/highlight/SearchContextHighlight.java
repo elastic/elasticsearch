@@ -357,6 +357,9 @@ public class SearchContextHighlight {
                 if (fieldOptions.boundaryChars == null && globalOptions.boundaryChars != null) {
                     fieldOptions.boundaryChars = Arrays.copyOf(globalOptions.boundaryChars, globalOptions.boundaryChars.length);
                 }
+                if (fieldOptions.boundaryScannerLocale == null) {
+                    fieldOptions.boundaryScannerLocale = globalOptions.boundaryScannerLocale;
+                }
                 if (fieldOptions.highlighterType == null) {
                     fieldOptions.highlighterType = globalOptions.highlighterType;
                 }

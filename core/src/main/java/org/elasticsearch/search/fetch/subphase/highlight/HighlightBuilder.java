@@ -336,6 +336,9 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         if (highlighterBuilder.boundaryChars != null) {
             targetOptionsBuilder.boundaryChars(convertCharArray(highlighterBuilder.boundaryChars));
         }
+        if (highlighterBuilder.boundaryScannerLocale != null) {
+            targetOptionsBuilder.boundaryScannerLocale(highlighterBuilder.boundaryScannerLocale);
+        }
         if (highlighterBuilder.highlighterType != null) {
             targetOptionsBuilder.highlighterType(highlighterBuilder.highlighterType);
         }
@@ -526,8 +529,8 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         }
     }
 
-    public static enum BoundaryScannerType implements Writeable {
-        CHARS, SENTENCE, WORD;
+    public enum BoundaryScannerType implements Writeable {
+        CHARS, WORD, SENTENCE;
 
         public static BoundaryScannerType readFromStream(StreamInput in) throws IOException {
             int ordinal = in.readVInt();

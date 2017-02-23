@@ -20,11 +20,13 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -113,9 +115,13 @@ public class SearchContextHighlight {
 
         private String fragmenter;
 
+        private BoundaryScannerType boundaryScannerType;
+
         private int boundaryMaxScan = -1;
 
         private Character[] boundaryChars = null;
+
+        private Locale boundaryScannerLocale;
 
         private Query highlightQuery;
 
@@ -171,12 +177,20 @@ public class SearchContextHighlight {
             return fragmenter;
         }
 
+        public BoundaryScannerType boundaryScannerType() {
+            return boundaryScannerType;
+        }
+
         public int boundaryMaxScan() {
             return boundaryMaxScan;
         }
 
         public Character[] boundaryChars() {
             return boundaryChars;
+        }
+
+        public Locale boundaryScannerLocale() {
+            return boundaryScannerLocale;
         }
 
         public Query highlightQuery() {
@@ -263,6 +277,11 @@ public class SearchContextHighlight {
                 return this;
             }
 
+            Builder boundaryScannerType(BoundaryScannerType boundaryScanner) {
+                fieldOptions.boundaryScannerType = boundaryScanner;
+                return this;
+            }
+
             Builder boundaryMaxScan(int boundaryMaxScan) {
                 fieldOptions.boundaryMaxScan = boundaryMaxScan;
                 return this;
@@ -270,6 +289,11 @@ public class SearchContextHighlight {
 
             Builder boundaryChars(Character[] boundaryChars) {
                 fieldOptions.boundaryChars = boundaryChars;
+                return this;
+            }
+
+            Builder boundaryScannerLocale(Locale boundaryScannerLocale) {
+                fieldOptions.boundaryScannerLocale = boundaryScannerLocale;
                 return this;
             }
 
@@ -327,11 +351,17 @@ public class SearchContextHighlight {
                 if (fieldOptions.requireFieldMatch == null) {
                     fieldOptions.requireFieldMatch = globalOptions.requireFieldMatch;
                 }
+                if (fieldOptions.boundaryScannerType == null) {
+                    fieldOptions.boundaryScannerType = globalOptions.boundaryScannerType;
+                }
                 if (fieldOptions.boundaryMaxScan == -1) {
                     fieldOptions.boundaryMaxScan = globalOptions.boundaryMaxScan;
                 }
                 if (fieldOptions.boundaryChars == null && globalOptions.boundaryChars != null) {
                     fieldOptions.boundaryChars = Arrays.copyOf(globalOptions.boundaryChars, globalOptions.boundaryChars.length);
+                }
+                if (fieldOptions.boundaryScannerLocale == null) {
+                    fieldOptions.boundaryScannerLocale = globalOptions.boundaryScannerLocale;
                 }
                 if (fieldOptions.highlighterType == null) {
                     fieldOptions.highlighterType = globalOptions.highlighterType;

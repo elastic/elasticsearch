@@ -98,15 +98,15 @@ final class Request {
 
             DocWriteRequest.OpType opType = request.opType();
             if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
-                bulkContentType = ensureBulkContentType((IndexRequest) request, bulkContentType);
+                bulkContentType = enforceSameContentType((IndexRequest) request, bulkContentType);
 
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
                 UpdateRequest updateRequest = (UpdateRequest) request;
                 if (updateRequest.doc() != null) {
-                    bulkContentType = ensureBulkContentType(updateRequest.doc(), bulkContentType);
+                    bulkContentType = enforceSameContentType(updateRequest.doc(), bulkContentType);
                 }
                 if (updateRequest.upsertRequest() != null) {
-                    bulkContentType = ensureBulkContentType(updateRequest.upsertRequest(), bulkContentType);
+                    bulkContentType = enforceSameContentType(updateRequest.upsertRequest(), bulkContentType);
                 }
             }
         }
@@ -444,18 +444,20 @@ final class Request {
     /**
      * Ensure that the {@link IndexRequest}'s content type is supported by the Bulk API and that it conforms
      * to the current {@link BulkRequest}'s content type (if it's known at the time of this method get called).
+     *
+     * @return the {@link IndexRequest}'s content type
      */
-    static XContentType ensureBulkContentType(IndexRequest indexRequest, @Nullable XContentType xContentType) {
+    static XContentType enforceSameContentType(IndexRequest indexRequest, @Nullable XContentType xContentType) {
         XContentType requestContentType = indexRequest.getContentType();
         if (requestContentType != XContentType.JSON && requestContentType != XContentType.SMILE) {
-            throw new IllegalStateException("Unsupported content-type found for request with content-type [" + requestContentType
+            throw new IllegalArgumentException("Unsupported content-type found for request with content-type [" + requestContentType
                     + "], only JSON and SMILE are supported");
         }
         if (xContentType == null) {
             return requestContentType;
         }
         if (requestContentType != xContentType) {
-            throw new IllegalStateException("Mismatching content-type found for request with content-type [" + requestContentType
+            throw new IllegalArgumentException("Mismatching content-type found for request with content-type [" + requestContentType
                     + "], previous requests have content-type [" + xContentType + "]");
         }
         return xContentType;

@@ -5,15 +5,19 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction.Response;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
-import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 import org.joda.time.DateTime;
 
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -40,7 +44,11 @@ public class GetJobStatsActionResponseTests extends AbstractStreamableTestCase<R
             }
             JobState jobState = randomFrom(EnumSet.allOf(JobState.class));
 
-            Response.JobStats jobStats = new Response.JobStats(jobId, dataCounts, sizeStats, jobState);
+            DiscoveryNode node = null;
+            if (randomBoolean()) {
+                node = new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
+            }
+            Response.JobStats jobStats = new Response.JobStats(jobId, dataCounts, sizeStats, jobState, node);
             jobStatsList.add(jobStats);
         }
 

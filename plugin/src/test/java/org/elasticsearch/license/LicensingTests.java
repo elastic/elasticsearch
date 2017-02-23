@@ -270,7 +270,9 @@ public class LicensingTests extends SecurityIntegTestCase {
     public void testNativeRealmMigratorWorksUnderBasicLicense() throws Exception {
         final String securityIndex = ".security";
         final String reservedUserType = "reserved-user";
+        final String securityVersionField = "security-version";
         final String oldVersionThatRequiresMigration = Version.V_5_0_2.toString();
+        final String expectedVersionAfterMigration = Version.CURRENT.toString();
 
         final Client client = internalCluster().transportClient();
         final String template = TemplateUtils.loadTemplate("/" + SecurityTemplateService.SECURITY_TEMPLATE_NAME + ".json",
@@ -298,18 +300,21 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
         final GetMappingsRequest getMappingsRequest = client.admin().indices().prepareGetMappings(securityIndex).request();
+        logger.info("Waiting for '{}' in mapping meta-data of index '{}' to equal '{}'",
+                securityVersionField, securityIndex, expectedVersionAfterMigration);
         final boolean upgradeOk = awaitBusy(() -> {
             final GetMappingsResponse getMappingsResponse = client.admin().indices().getMappings(getMappingsRequest).actionGet();
             final MappingMetaData metaData = getMappingsResponse.mappings().get(securityIndex).get(reservedUserType);
             try {
                 Map<String, Object> meta = (Map<String, Object>) metaData.sourceAsMap().get("_meta");
-                return meta != null && Version.CURRENT.toString().equals(meta.get("security-version"));
+                return meta != null && expectedVersionAfterMigration.equals(meta.get(securityVersionField));
             } catch (IOException e) {
                 return false;
             }
-        }, 1, TimeUnit.SECONDS);
-        assertThat(upgradeOk, equalTo(true));
+        }, 3, TimeUnit.SECONDS);
+        assertThat("Update of " + securityVersionField + " did not happen within allowed time limit", upgradeOk, equalTo(true));
 
+        logger.info("Update of {}/{} complete, checking that logstash_system user exists", securityIndex, securityVersionField);
         final GetRequest getRequest = client.prepareGet(securityIndex, reservedUserType, "logstash_system").setRefresh(true).request();
         final GetResponse getResponse = client.get(getRequest).actionGet();
         assertThat(getResponse.isExists(), equalTo(true));

@@ -19,19 +19,6 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-
 import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.exception.AddressNotFoundException;
 import com.maxmind.geoip2.model.CityResponse;
@@ -48,6 +35,19 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
@@ -270,9 +270,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
         );
         static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = EnumSet.of(Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE);
 
-        private final Map<String, DatabaseReader> databaseReaders;
+        private final Map<String, DatabaseReaderLazyLoader> databaseReaders;
 
-        public Factory(Map<String, DatabaseReader> databaseReaders) {
+        public Factory(Map<String, DatabaseReaderLazyLoader> databaseReaders) {
             this.databaseReaders = databaseReaders;
         }
 
@@ -285,12 +285,13 @@ public final class GeoIpProcessor extends AbstractProcessor {
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
 
-            DatabaseReader databaseReader = databaseReaders.get(databaseFile);
-            if (databaseReader == null) {
+            DatabaseReaderLazyLoader lazyLoader = databaseReaders.get(databaseFile);
+            if (lazyLoader == null) {
                 throw newConfigurationException(TYPE, processorTag,
                     "database_file", "database file [" + databaseFile + "] doesn't exist");
             }
 
+            DatabaseReader databaseReader = lazyLoader.get();
             String databaseType = databaseReader.getMetadata().getDatabaseType();
 
             final Set<Property> properties;

@@ -80,7 +80,7 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
                     while (!holdingQueue.isEmpty()) {
                         /*
                          * Since the response with the lowest sequence number is the top of the priority queue, we know if its sequence
-                         * number does not match the current write sequence then we have not processed all preceding responses yet.
+                         * number does not match the current write sequence number then we have not processed all preceding responses yet.
                          */
                         final HttpPipelinedResponse response = holdingQueue.peek();
                         if (response.sequence() != writeSequence) {

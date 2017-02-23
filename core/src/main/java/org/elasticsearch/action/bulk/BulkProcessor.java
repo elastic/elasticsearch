@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -39,6 +40,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 
 /**
  * A bulk processor is a thread safe bulk processing class, allowing to easily set when to "flush" a new bulk request
@@ -194,7 +196,8 @@ public class BulkProcessor implements Closeable {
         this.bulkSize = bulkSize.getBytes();
 
         this.bulkRequest = new BulkRequest();
-        this.bulkRequestHandler = (concurrentRequests == 0) ? BulkRequestHandler.syncHandler(client, backoffPolicy, listener) : BulkRequestHandler.asyncHandler(client, backoffPolicy, listener, concurrentRequests);
+        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = client::bulk;
+        this.bulkRequestHandler = (concurrentRequests == 0) ? BulkRequestHandler.syncHandler(consumer, backoffPolicy, listener, client.settings()) : BulkRequestHandler.asyncHandler(consumer, backoffPolicy, listener, concurrentRequests, client.settings());
 
         if (flushInterval != null) {
             this.scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(client.settings(), (name != null ? "[" + name + "]" : "") + "bulk_processor"));

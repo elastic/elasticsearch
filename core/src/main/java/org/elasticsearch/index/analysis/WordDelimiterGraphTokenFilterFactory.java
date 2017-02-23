@@ -98,4 +98,8 @@ public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFac
         }
         return 0;
     }
+
+    int getFlags() {
+        return flags;
+    }
 }

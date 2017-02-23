@@ -256,7 +256,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             }
 
             if (pipelinedRequest != null) {
-                ctx.writeAndFlush(pipelinedRequest.createHttpResponse(httpResponse));
+                ctx.writeAndFlush(pipelinedRequest.createHttpResponse(httpResponse, ctx.newPromise()));
             } else {
                 ctx.writeAndFlush(httpResponse);
             }

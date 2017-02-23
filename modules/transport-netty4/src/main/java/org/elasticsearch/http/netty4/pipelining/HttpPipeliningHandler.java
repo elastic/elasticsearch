@@ -87,7 +87,12 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
                             break;
                         }
                         holdingQueue.remove();
-                        ctx.write(response.response(), promise);
+                        /*
+                         * We must use the promise attached to the response; this is necessary since are going to hold a response until all
+                         * responses that precede it in the pipeline are written first. Note that the promise from the method invocation is
+                         * not ignored, it will already be attached to an existing response and consumed when that response is drained.
+                         */
+                        ctx.write(response.response(), response.promise());
                         writeSequence++;
                     }
                 } else {

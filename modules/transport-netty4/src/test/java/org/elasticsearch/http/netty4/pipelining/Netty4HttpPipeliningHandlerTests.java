@@ -23,6 +23,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
@@ -246,7 +247,8 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             executorService.submit(() -> {
                 try {
                     waitingLatch.await(1000, TimeUnit.SECONDS);
-                    ctx.write(pipelinedRequest.createHttpResponse(httpResponse), ctx.newPromise());
+                    final ChannelPromise promise = ctx.newPromise();
+                    ctx.write(pipelinedRequest.createHttpResponse(httpResponse, promise), promise);
                     finishingLatch.countDown();
                 } catch (InterruptedException e) {
                     fail(e.toString());

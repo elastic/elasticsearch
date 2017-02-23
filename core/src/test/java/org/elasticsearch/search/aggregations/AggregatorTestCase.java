@@ -118,7 +118,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(mapperService.hasNested()).thenReturn(false);
         when(searchContext.mapperService()).thenReturn(mapperService);
         IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
-                new IndicesFieldDataCache(Settings.EMPTY, null), null, mapperService);
+                new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
+                }), circuitBreakerService, mapperService);
         when(searchContext.fieldData()).thenReturn(ifds);
 
         SearchLookup searchLookup = new SearchLookup(mapperService, ifds, new String[]{"type"});

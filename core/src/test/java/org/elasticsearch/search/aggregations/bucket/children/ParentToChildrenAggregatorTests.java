@@ -34,8 +34,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -46,13 +48,16 @@ import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.mockito.Mockito.mock;
@@ -64,42 +69,75 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
     private static final String PARENT_TYPE = "parent_type";
 
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
-            // Intentionally not writing any docs
-        }, parentToChild -> {
+        Directory directory = newDirectory();
+
+        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+        // intentionally not writing any docs
+        indexWriter.close();
+        IndexReader indexReader = DirectoryReader.open(directory);
+
+        testCase(new MatchAllDocsQuery(), newSearcher(indexReader, false, true), parentToChild -> {
             assertEquals(0, parentToChild.getDocCount());
             assertEquals(Double.POSITIVE_INFINITY, ((InternalMin) parentToChild.getAggregations().get("in_child")).getValue(),
                     Double.MIN_VALUE);
         });
+        indexReader.close();
+        directory.close();
     }
 
     public void testParentChild() throws IOException {
-        testCase(new MatchAllDocsQuery(), ParentToChildrenAggregatorTests::setupIndex, child -> {
-            assertEquals(4, child.getDocCount());
-            assertEquals(2, ((InternalMin) child.getAggregations().get("in_child")).getValue(), Double.MIN_VALUE);
+        Directory directory = newDirectory();
+        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+
+        final Map<String, Tuple<Integer, Integer>> expectedParentChildRelations = setupIndex(indexWriter);
+        indexWriter.close();
+
+        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory),
+                new ShardId(new Index("foo", "_na_"), 1));
+        // TODO no "maybeWrap" for the searcher because this randomly led to java.lang.ClassCastException:
+        // org.apache.lucene.search.QueryUtils$FCInvisibleMultiReader cannot be
+        // cast to org.apache.lucene.index.DirectoryReader
+        // according to @mvg this can be fixed later but requires bigger changes
+        IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
+
+        testCase(new MatchAllDocsQuery(), indexSearcher, child -> {
+            int expectedTotalChildren = 0;
+            int expectedMinValue = Integer.MAX_VALUE;
+            for (Tuple<Integer, Integer> expectedValues : expectedParentChildRelations.values()) {
+                expectedTotalChildren += expectedValues.v1();
+                expectedMinValue = Math.min(expectedMinValue, expectedValues.v2());
+            }
+            assertEquals(expectedTotalChildren, child.getDocCount());
+            assertEquals(expectedMinValue, ((InternalMin) child.getAggregations().get("in_child")).getValue(), Double.MIN_VALUE);
         });
 
-        testCase(new TermInSetQuery(UidFieldMapper.NAME, new BytesRef(Uid.createUid(PARENT_TYPE, "parent1"))),
-                ParentToChildrenAggregatorTests::setupIndex, child -> {
-                    assertEquals(1, child.getDocCount());
-                    assertEquals(10, ((InternalMin) child.getAggregations().get("in_child")).getValue(), Double.MIN_VALUE);
-                });
-
-        testCase(new TermInSetQuery(UidFieldMapper.NAME, new BytesRef(Uid.createUid(PARENT_TYPE, "parent2"))),
-                ParentToChildrenAggregatorTests::setupIndex, child -> {
-                    assertEquals(3, child.getDocCount());
-                    assertEquals(2, ((InternalMin) child.getAggregations().get("in_child")).getValue(), Double.MIN_VALUE);
-                });
+        for (String parent : expectedParentChildRelations.keySet()) {
+            testCase(new TermInSetQuery(UidFieldMapper.NAME, new BytesRef(Uid.createUid(PARENT_TYPE, parent))), indexSearcher, child -> {
+                assertEquals((long) expectedParentChildRelations.get(parent).v1(), child.getDocCount());
+                assertEquals(expectedParentChildRelations.get(parent).v2(),
+                        ((InternalMin) child.getAggregations().get("in_child")).getValue(), Double.MIN_VALUE);
+            });
+        }
+        indexReader.close();
+        directory.close();
     }
 
-    private static void setupIndex(RandomIndexWriter iw) throws IOException {
-        iw.addDocument(createParentDocument("parent1"));
-        iw.addDocument(createChildDocument("child1", "parent1", 10));
-
-        iw.addDocument(createParentDocument("parent2"));
-        iw.addDocument(createChildDocument("child2", "parent2", 5));
-        iw.addDocument(createChildDocument("child3", "parent2", 2));
-        iw.addDocument(createChildDocument("child4", "parent2", 7));
+    private static Map<String, Tuple<Integer, Integer>> setupIndex(RandomIndexWriter iw) throws IOException {
+        Map<String, Tuple<Integer, Integer>> expectedValues = new HashMap<>();
+        int numParents = randomIntBetween(1, 10);
+        for (int i = 0; i < numParents; i++) {
+            String parent = "parent" + i;
+            iw.addDocument(createParentDocument(parent));
+            int numChildren = randomIntBetween(1, 10);
+            int minValue = Integer.MAX_VALUE;
+            for (int c = 0; c < numChildren; c++) {
+                int randomValue = randomIntBetween(0, 100);
+                minValue = Math.min(minValue, randomValue);
+                iw.addDocument(createChildDocument("child" + c + "_" + parent, parent, randomValue));
+            }
+            expectedValues.put(parent, new Tuple<>(numChildren, minValue));
+        }
+        return expectedValues;
     }
 
     private static List<Field> createParentDocument(String id) {
@@ -140,19 +178,8 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         return new ParentFieldMapper.Builder("parent").type(PARENT_TYPE).build(new Mapper.BuilderContext(settings, new ContentPath(0)));
     }
 
-    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalChildren> verify)
+    private void testCase(Query query, IndexSearcher indexSearcher, Consumer<InternalChildren> verify)
             throws IOException {
-        Directory directory = newDirectory();
-        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        buildIndex.accept(indexWriter);
-        indexWriter.close();
-
-        IndexReader indexReader = DirectoryReader.open(directory);
-        // TODO no "maybeWrap" for the searcher because this randomly led to java.lang.ClassCastException:
-        // org.apache.lucene.search.QueryUtils$FCInvisibleMultiReader cannot be
-        // cast to org.apache.lucene.index.DirectoryReader
-        // according to @mvg this can be fixed later but requires bigger changes
-        IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
 
         ChildrenAggregationBuilder aggregationBuilder = new ChildrenAggregationBuilder("_name", CHILD_TYPE);
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_child").field("number"));
@@ -161,7 +188,5 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         fieldType.setName("number");
         InternalChildren result = search(indexSearcher, query, aggregationBuilder, fieldType);
         verify.accept(result);
-        indexReader.close();
-        directory.close();
     }
 }

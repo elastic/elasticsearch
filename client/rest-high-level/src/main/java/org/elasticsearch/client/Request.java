@@ -34,6 +34,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -48,10 +49,8 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
@@ -93,58 +92,22 @@ final class Request {
         // Bulk API only supports newline delimited JSON or Smile. Before executing
         // the bulk, we need to check that all requests have the same content-type
         // and this content-type is supported by the Bulk API.
-        List<XContentType> allowedContentTypes = Arrays.asList(XContentType.JSON, XContentType.SMILE);
-
         XContentType bulkContentType = null;
         for (int i = 0; i < bulkRequest.numberOfActions(); i++) {
             DocWriteRequest<?> request = bulkRequest.requests().get(i);
-            XContentType requestContentType = null;
-
-            boolean supported = true;
-            boolean match = true;
 
             DocWriteRequest.OpType opType = request.opType();
             if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
-                IndexRequest indexRequest = (IndexRequest) request;
-                requestContentType = indexRequest.getContentType();
-
-                supported = allowedContentTypes.contains(requestContentType);
-                if (bulkContentType == null) {
-                    bulkContentType = requestContentType;
-                } else {
-                    match = (requestContentType == bulkContentType);
-                }
+                bulkContentType = ensureBulkContentType((IndexRequest) request, bulkContentType);
 
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
                 UpdateRequest updateRequest = (UpdateRequest) request;
                 if (updateRequest.doc() != null) {
-                    requestContentType = updateRequest.doc().getContentType();
-
-                    supported = allowedContentTypes.contains(requestContentType);
-                    if (bulkContentType == null) {
-                        bulkContentType = requestContentType;
-                    } else {
-                        match = (requestContentType == bulkContentType);
-                    }
+                    bulkContentType = ensureBulkContentType(updateRequest.doc(), bulkContentType);
                 }
-                if (updateRequest.upsertRequest() != null && supported && match) {
-                    requestContentType = updateRequest.upsertRequest().getContentType();
-
-                    supported = allowedContentTypes.contains(requestContentType);
-                    if (bulkContentType == null) {
-                        bulkContentType = requestContentType;
-                    } else {
-                        match = (requestContentType == bulkContentType);
-                    }
+                if (updateRequest.upsertRequest() != null) {
+                    bulkContentType = ensureBulkContentType(updateRequest.upsertRequest(), bulkContentType);
                 }
-            }
-
-            if (supported == false) {
-                throw new IllegalStateException("Unsupported content-type found for " + opType.getLowercase() + " request at [" + i +
-                        "] with content-type [" + requestContentType + "], only " + allowedContentTypes + " are supported");
-            } else if (match == false) {
-                throw new IllegalStateException("Mismatching content-type found for " + opType.getLowercase() + " request at [" + i +
-                        "] with content-type [" + requestContentType + "], previous requests have content-type [" + bulkContentType + "]");
             }
         }
 
@@ -476,5 +439,25 @@ final class Request {
         static Params builder() {
             return new Params();
         }
+    }
+
+    /**
+     * Ensure that the {@link IndexRequest}'s content type is supported by the Bulk API and that it conforms
+     * to the current {@link BulkRequest}'s content type (if it's known at the time of this method get called).
+     */
+    static XContentType ensureBulkContentType(IndexRequest indexRequest, @Nullable XContentType xContentType) {
+        XContentType requestContentType = indexRequest.getContentType();
+        if (requestContentType != XContentType.JSON && requestContentType != XContentType.SMILE) {
+            throw new IllegalStateException("Unsupported content-type found for request with content-type [" + requestContentType
+                    + "], only JSON and SMILE are supported");
+        }
+        if (xContentType == null) {
+            return requestContentType;
+        }
+        if (requestContentType != xContentType) {
+            throw new IllegalStateException("Mismatching content-type found for request with content-type [" + requestContentType
+                    + "], previous requests have content-type [" + xContentType + "]");
+        }
+        return xContentType;
     }
 }

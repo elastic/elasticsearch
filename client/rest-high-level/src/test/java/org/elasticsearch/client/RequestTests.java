@@ -52,6 +52,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.client.Request.ensureBulkContentType;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class RequestTests extends ESTestCase {
@@ -523,8 +524,7 @@ public class RequestTests extends ESTestCase {
             UpdateRequest updateRequest = new UpdateRequest("index", "type", "0");
             if (randomBoolean()) {
                 updateRequest.doc(new IndexRequest().source(singletonMap("field", "value"), xContentType));
-            }
-            if (randomBoolean()) {
+            } else {
                 updateRequest.upsert(new IndexRequest().source(singletonMap("field", "value"), xContentType));
             }
 
@@ -536,7 +536,7 @@ public class RequestTests extends ESTestCase {
             bulkRequest.add(new IndexRequest("index", "type", "0").source(singletonMap("field", "value"), XContentType.SMILE));
             bulkRequest.add(new IndexRequest("index", "type", "1").source(singletonMap("field", "value"), XContentType.JSON));
             IllegalStateException exception = expectThrows(IllegalStateException.class, () -> Request.bulk(bulkRequest));
-            assertEquals("Mismatching content-type found for index request at [1] with content-type [JSON], " +
+            assertEquals("Mismatching content-type found for request with content-type [JSON], " +
                             "previous requests have content-type [SMILE]", exception.getMessage());
         }
         {
@@ -550,7 +550,7 @@ public class RequestTests extends ESTestCase {
                     .upsert(new IndexRequest().source(singletonMap("field", "value"), XContentType.SMILE))
             );
             IllegalStateException exception = expectThrows(IllegalStateException.class, () -> Request.bulk(bulkRequest));
-            assertEquals("Mismatching content-type found for update request at [2] with content-type [SMILE], " +
+            assertEquals("Mismatching content-type found for request with content-type [SMILE], " +
                             "previous requests have content-type [JSON]", exception.getMessage());
         }
         {
@@ -563,8 +563,8 @@ public class RequestTests extends ESTestCase {
             bulkRequest.add(new IndexRequest("index", "type", "4").source(singletonMap("field", "value"), XContentType.JSON));
             bulkRequest.add(new IndexRequest("index", "type", "1").source(singletonMap("field", "value"), xContentType));
             IllegalStateException exception = expectThrows(IllegalStateException.class, () -> Request.bulk(bulkRequest));
-            assertEquals("Unsupported content-type found for index request at [5] with content-type [CBOR], " +
-                    "only [JSON, SMILE] are supported", exception.getMessage());
+            assertEquals("Unsupported content-type found for request with content-type [" + xContentType
+                    + "], only JSON and SMILE are supported", exception.getMessage());
         }
     }
 
@@ -604,6 +604,32 @@ public class RequestTests extends ESTestCase {
         assertEquals("/a/b/_create", Request.endpoint("a", "b", "_create"));
         assertEquals("/a/b/c/_create", Request.endpoint("a", "b", "c", "_create"));
         assertEquals("/a/_create", Request.endpoint("a", null, null, "_create"));
+    }
+
+    public void testEnsureBulkContentType() {
+        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+        IndexRequest indexRequest = new IndexRequest().source(singletonMap("field", "value"), xContentType);
+        assertEquals(xContentType, ensureBulkContentType(indexRequest, null));
+        assertEquals(xContentType, ensureBulkContentType(indexRequest, xContentType));
+
+        XContentType bulkContentType = randomBoolean() ? xContentType : null;
+
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () ->
+                ensureBulkContentType(new IndexRequest().source(singletonMap("field", "value"), XContentType.CBOR), bulkContentType));
+        assertEquals("Unsupported content-type found for request with content-type [CBOR], only JSON and SMILE are supported",
+                exception.getMessage());
+
+        exception = expectThrows(IllegalStateException.class, () ->
+                ensureBulkContentType(new IndexRequest().source(singletonMap("field", "value"), XContentType.YAML), bulkContentType));
+        assertEquals("Unsupported content-type found for request with content-type [YAML], only JSON and SMILE are supported",
+                exception.getMessage());
+
+        XContentType requestContentType = xContentType == XContentType.JSON ? XContentType.SMILE : XContentType.JSON;
+
+        exception = expectThrows(IllegalStateException.class, () ->
+                ensureBulkContentType(new IndexRequest().source(singletonMap("field", "value"), requestContentType), xContentType));
+        assertEquals("Mismatching content-type found for request with content-type [" + requestContentType + "], "
+                + "previous requests have content-type [" + xContentType + "]", exception.getMessage());
     }
 
     /**

@@ -69,19 +69,22 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
     @Override
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) throws Exception {
         if (msg instanceof HttpPipelinedResponse) {
+            final HttpPipelinedResponse current = (HttpPipelinedResponse) msg;
+            assert current.promise() == promise;
+
             boolean channelShouldClose = false;
 
             synchronized (holdingQueue) {
                 if (holdingQueue.size() < maxEventsHeld) {
-                    holdingQueue.add((HttpPipelinedResponse) msg);
+                    holdingQueue.add(current);
 
                     while (!holdingQueue.isEmpty()) {
                         /*
                          * Since the response with the lowest sequence number is the top of the priority queue, we know if its sequence
                          * number does not match the current write sequence number then we have not processed all preceding responses yet.
                          */
-                        final HttpPipelinedResponse response = holdingQueue.peek();
-                        if (response.sequence() != writeSequence) {
+                        final HttpPipelinedResponse top = holdingQueue.peek();
+                        if (top.sequence() != writeSequence) {
                             break;
                         }
                         holdingQueue.remove();
@@ -90,7 +93,7 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
                          * responses that precede it in the pipeline are written first. Note that the promise from the method invocation is
                          * not ignored, it will already be attached to an existing response and consumed when that response is drained.
                          */
-                        ctx.write(response.response(), response.promise());
+                        ctx.write(top.response(), top.promise());
                         writeSequence++;
                     }
                 } else {

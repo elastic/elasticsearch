@@ -37,7 +37,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     public void testAWSCredentialsWithSystemProviders() {
         AWSCredentialsProvider credentialsProvider =
             InternalAwsS3Service.buildCredentials(logger, deprecationLogger, Settings.EMPTY, Settings.EMPTY, "default");
-        assertThat(credentialsProvider, instanceOf(AWSCredentialsProvider.class));
+        assertThat(credentialsProvider, instanceOf(InternalAwsS3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
 
     public void testAwsCredsDefaultSettings() {

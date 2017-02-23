@@ -217,7 +217,7 @@ epoch      timestamp cluster       status node.total node.data shards pri relo i
 1475247709 17:01:49  elasticsearch green           1         1      0   0    0    0        0             0                  -                100.0%
 --------------------------------------------------
 // TESTRESPONSE[s/0             0/0             [01]/]
-// TESTRESPONSE[s/1475247709 17:01:49  elasticsearch/\\d+ \\d+:\\d+:\\d+ docs_integTest/ _cat]
+// TESTRESPONSE[s/1475247709 17:01:49  elasticsearch/\\d+ \\d+:\\d+:\\d+ docs_integTestCluster/ _cat]
 
 We can see that our cluster named "elasticsearch" is up with a green status.
 

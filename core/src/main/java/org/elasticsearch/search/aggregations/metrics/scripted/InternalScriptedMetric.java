@@ -27,7 +27,6 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
@@ -37,7 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class InternalScriptedMetric extends InternalMetricsAggregation implements ScriptedMetric {
+public class InternalScriptedMetric extends InternalAggregation implements ScriptedMetric {
     private final Script reduceScript;
     private final List<Object> aggregation;
 

@@ -53,4 +53,23 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected, null, null, null,
                 expectedIncr, expectedPosLen, null);
     }
+
+    /** Correct offset order when doing both parts and concatenation: PowerShot is a synonym of Power */
+    public void testPartsAndCatenate() throws IOException {
+        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put("index.analysis.filter.my_word_delimiter.type", type)
+            .put("index.analysis.filter.my_word_delimiter.catenate_words", "true")
+            .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "true")
+            .build());
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
+        String source = "PowerShot";
+        int[] expectedIncr = new int[]{1, 0, 1};
+        int[] expectedPosLen = new int[]{2, 1, 1};
+        String[] expected = new String[]{"PowerShot", "Power", "Shot" };
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader(source));
+        assertTokenStreamContents(tokenFilter.create(tokenizer), expected, null, null, null,
+            expectedIncr, expectedPosLen, null);
+    }
 }

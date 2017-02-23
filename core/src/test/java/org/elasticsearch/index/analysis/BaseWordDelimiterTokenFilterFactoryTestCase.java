@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.io.StringReader;
 
 /**
- * Base class to test {@link WordDelimiterGraphTokenFilterFactory}  and {@link WordDelimiterGraphTokenFilterFactory}
+ * Base class to test {@link WordDelimiterTokenFilterFactory}  and {@link WordDelimiterGraphTokenFilterFactory}
  */
 public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESTokenStreamTestCase {
     final String type;
@@ -46,7 +46,8 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESToke
                 .build());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
-        String[] expected = new String[]{"Power", "Shot", "500", "42", "wi", "fi", "wi", "fi", "4000", "j", "2", "se", "O", "Neil"};
+        String[] expected = new String[]{"Power", "Shot", "500", "42", "wi", "fi", "wi",
+            "fi", "4000", "j", "2", "se", "O", "Neil"};
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
@@ -76,7 +77,8 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESToke
                 .build());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
-        String[] expected = new String[]{"Power", "Shot", "50042", "wi", "fi", "wi", "fi", "4000", "j", "2", "se", "O", "Neil"};
+        String[] expected = new String[]{"Power", "Shot", "50042", "wi", "fi", "wi", "fi", "4000", "j", "2",
+            "se", "O", "Neil"};
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
@@ -120,7 +122,8 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESToke
                 .build());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
-        String[] expected = new String[]{"PowerShot", "Power", "Shot", "500-42", "500", "42", "wi-fi", "wi", "fi", "wi-fi-4000", "wi", "fi", "4000", "j2se", "j", "2", "se", "O'Neil's", "O", "Neil"};
+        String[] expected = new String[]{"PowerShot", "Power", "Shot", "500-42", "500", "42", "wi-fi", "wi", "fi",
+            "wi-fi-4000", "wi", "fi", "4000", "j2se", "j", "2", "se", "O'Neil's", "O", "Neil"};
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
@@ -134,23 +137,8 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESToke
                 .build());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
-        String[] expected = new String[]{"Power", "Shot", "500", "42", "wi", "fi", "wi", "fi", "4000", "j", "2", "se", "O", "Neil", "s"};
-        Tokenizer tokenizer = new WhitespaceTokenizer();
-        tokenizer.setReader(new StringReader(source));
-        assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
-    }
-
-    /** Correct offset order when doing both parts and concatenation: PowerShot is a synonym of Power */
-    public void testPartsAndCatenate() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put("index.analysis.filter.my_word_delimiter.type", type)
-                .put("index.analysis.filter.my_word_delimiter.catenate_words", "true")
-                .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "true")
-                .build());
-        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
-        String source = "PowerShot";
-        String[] expected = new String[]{"Power", "PowerShot", "Shot" };
+        String[] expected = new String[]{"Power", "Shot", "500", "42", "wi", "fi", "wi", "fi", "4000", "j", "2",
+            "se", "O", "Neil", "s"};
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);

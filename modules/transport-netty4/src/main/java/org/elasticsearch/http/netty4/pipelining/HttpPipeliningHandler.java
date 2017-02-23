@@ -33,8 +33,7 @@ import java.util.PriorityQueue;
  */
 public class HttpPipeliningHandler extends ChannelDuplexHandler {
 
-    // we use a priority queue so that responses are ordered by their sequence number
-    private final PriorityQueue<HttpPipelinedResponse> holdingQueue;
+    private static final int INITIAL_EVENTS_HELD = 8;
 
     private final int maxEventsHeld;
 
@@ -46,6 +45,9 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
     private int readSequence;
     private int writeSequence;
 
+    // we use a priority queue so that responses are ordered by their sequence number
+    private final PriorityQueue<HttpPipelinedResponse> holdingQueue;
+
     /**
      * Construct a new pipelining handler; this handler should be used downstream of HTTP decoding/aggregation.
      *
@@ -54,7 +56,7 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
      */
     public HttpPipeliningHandler(final int maxEventsHeld) {
         this.maxEventsHeld = maxEventsHeld;
-        this.holdingQueue = new PriorityQueue<>(1);
+        this.holdingQueue = new PriorityQueue<>(INITIAL_EVENTS_HELD);
     }
 
     @Override

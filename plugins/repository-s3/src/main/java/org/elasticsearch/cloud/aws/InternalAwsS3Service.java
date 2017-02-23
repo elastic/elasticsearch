@@ -214,7 +214,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
     static class PrivilegedInstanceProfileCredentialsProvider implements AWSCredentialsProvider {
         private final InstanceProfileCredentialsProvider credentials;
 
-        public PrivilegedInstanceProfileCredentialsProvider(InstanceProfileCredentialsProvider credentials) {
+        private PrivilegedInstanceProfileCredentialsProvider(InstanceProfileCredentialsProvider credentials) {
             this.credentials = credentials;
         }
 

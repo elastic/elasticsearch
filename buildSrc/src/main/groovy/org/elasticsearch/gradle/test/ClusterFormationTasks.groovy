@@ -62,7 +62,7 @@ class ClusterFormationTasks {
                 sharedDir.mkdirs()
             }
         }
-        List<Task> startTasks = [cleanup]
+        List<Task> startTasks = []
         List<NodeInfo> nodes = []
         if (config.numNodes < config.numBwcNodes) {
             throw new GradleException("numNodes must be >= numBwcNodes [${config.numNodes} < ${config.numBwcNodes}]")
@@ -102,7 +102,8 @@ class ClusterFormationTasks {
             }
             NodeInfo node = new NodeInfo(config, i, project, prefix, elasticsearchVersion, sharedDir)
             nodes.add(node)
-            startTasks.add(configureNode(project, prefix, runner, cleanup, node, distro, nodes.get(0)))
+            Task dependsOn = startTasks.empty ? cleanup : startTasks.get(0)
+            startTasks.add(configureNode(project, prefix, runner, dependsOn, node, distro, nodes.get(0)))
         }
 
         Task wait = configureWaitTask("${prefix}#wait", project, nodes, startTasks)

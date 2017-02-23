@@ -73,7 +73,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
         int nShards = randomIntBetween(1, 20);
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
-        AtomicArray<QuerySearchResultProvider> results = generateQueryResults(nShards, suggestions, queryResultSize);
+        AtomicArray<QuerySearchResultProvider> results = generateQueryResults(nShards, suggestions, queryResultSize, false);
         ScoreDoc[] sortedDocs = searchPhaseController.sortDocs(true, results);
         int accumulatedLength = Math.min(queryResultSize, getTotalQueryHits(results));
         for (Suggest.Suggestion<?> suggestion : reducedSuggest(results)) {
@@ -83,6 +83,18 @@ public class SearchPhaseControllerTests extends ESTestCase {
         assertThat(sortedDocs.length, equalTo(accumulatedLength));
     }
 
+    public void testSortIsIdempotent() throws IOException {
+        int nShards = randomIntBetween(1, 20);
+        int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
+        AtomicArray<QuerySearchResultProvider> results = generateQueryResults(nShards, Collections.emptyList(), queryResultSize,
+            randomBoolean() || true);
+        boolean ignoreFrom = randomBoolean();
+        ScoreDoc[] sortedDocs = searchPhaseController.sortDocs(ignoreFrom, results);
+
+        ScoreDoc[] sortedDocs2 = searchPhaseController.sortDocs(ignoreFrom, results);
+        assertArrayEquals(sortedDocs, sortedDocs2);
+    }
+
     public void testMerge() throws IOException {
         List<CompletionSuggestion> suggestions = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
@@ -90,7 +102,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
         int nShards = randomIntBetween(1, 20);
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
-        AtomicArray<QuerySearchResultProvider> queryResults = generateQueryResults(nShards, suggestions, queryResultSize);
+        AtomicArray<QuerySearchResultProvider> queryResults = generateQueryResults(nShards, suggestions, queryResultSize, false);
 
         // calculate offsets and score doc array
         List<ScoreDoc> mergedScoreDocs = new ArrayList<>();
@@ -127,7 +139,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
     private AtomicArray<QuerySearchResultProvider> generateQueryResults(int nShards,
                                                                         List<CompletionSuggestion> suggestions,
-                                                                        int searchHitsSize) {
+                                                                        int searchHitsSize, boolean useConstantScore) {
         AtomicArray<QuerySearchResultProvider> queryResults = new AtomicArray<>(nShards);
         for (int shardIndex = 0; shardIndex < nShards; shardIndex++) {
             QuerySearchResult querySearchResult = new QuerySearchResult(shardIndex,
@@ -138,7 +150,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 ScoreDoc[] scoreDocs = new ScoreDoc[nDocs];
                 float maxScore = 0F;
                 for (int i = 0; i < nDocs; i++) {
-                    float score = Math.abs(randomFloat());
+                    float score = useConstantScore ? 1.0F : Math.abs(randomFloat());
                     scoreDocs[i] = new ScoreDoc(i, score);
                     if (score > maxScore) {
                         maxScore = score;

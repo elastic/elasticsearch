@@ -150,18 +150,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
 
             if (key.length() == 0 && secret.length() == 0) {
                 logger.debug("Using instance profile credentials");
-                AWSCredentialsProvider credentials = new InstanceProfileCredentialsProvider();
-                return new AWSCredentialsProvider() {
-                    @Override
-                    public AWSCredentials getCredentials() {
-                        return SocketAccess.doPrivileged(credentials::getCredentials);
-                    }
-
-                    @Override
-                    public void refresh() {
-                        SocketAccess.doPrivilegedVoid(credentials::refresh);
-                    }
-                };
+                return new PrivilegedInstanceProfileCredentialsProvider(new InstanceProfileCredentialsProvider());
             } else {
                 logger.debug("Using basic key/secret credentials");
                 return new StaticCredentialsProvider(new BasicAWSCredentials(key.toString(), secret.toString()));
@@ -220,5 +209,23 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
 
         // Ensure that IdleConnectionReaper is shutdown
         IdleConnectionReaper.shutdown();
+    }
+
+    static class PrivilegedInstanceProfileCredentialsProvider implements AWSCredentialsProvider {
+        private final InstanceProfileCredentialsProvider credentials;
+
+        public PrivilegedInstanceProfileCredentialsProvider(InstanceProfileCredentialsProvider credentials) {
+            this.credentials = credentials;
+        }
+
+        @Override
+        public AWSCredentials getCredentials() {
+            return SocketAccess.doPrivileged(credentials::getCredentials);
+        }
+
+        @Override
+        public void refresh() {
+            SocketAccess.doPrivilegedVoid(credentials::refresh);
+        }
     }
 }

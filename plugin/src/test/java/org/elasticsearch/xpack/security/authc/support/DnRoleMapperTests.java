@@ -68,7 +68,7 @@ public class DnRoleMapperTests extends ESTestCase {
     @Before
     public void init() throws IOException {
         settings = Settings.builder()
-                .put("resource.reload.interval.high", "2s")
+                .put("resource.reload.interval.high", "100ms")
                 .put("path.home", createTempDir())
                 .build();
         env = new Environment(settings);
@@ -84,7 +84,7 @@ public class DnRoleMapperTests extends ESTestCase {
     }
 
     public void testMapper_ConfiguredWithUnreadableFile() throws Exception {
-        Path file = createTempFile();
+        Path file = createTempFile("", ".yml");
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
 
@@ -155,6 +155,42 @@ public class DnRoleMapperTests extends ESTestCase {
         assertThat(mapper.mappingsCount(), is(0));
     }
 
+    public void testMapperAutoReloadWithoutListener() throws Exception {
+        Path roleMappingFile = getDataPath("role_mapping.yml");
+        Path file = env.configFile().resolve("test_role_mapping.yml");
+        Files.copy(roleMappingFile, file, StandardCopyOption.REPLACE_EXISTING);
+
+        ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
+        DnRoleMapper mapper = createMapper(file, watcherService);
+        Set<String> roles = mapper.resolveRoles("", Collections.singletonList("cn=shield,ou=marvel,o=superheros"));
+        assertThat(roles, notNullValue());
+        assertThat(roles.size(), is(1));
+        assertThat(roles, contains("security"));
+
+        watcherService.start();
+
+        try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
+            writer.newLine();
+            writer.append("fantastic_four:\n")
+                    .append("  - \"cn=fantastic_four,ou=marvel,o=superheros\"");
+        }
+
+        assertBusy(() -> {
+            Set<String> resolvedRoles = mapper.resolveRoles("", Collections.singletonList("cn=fantastic_four,ou=marvel,o=superheros"));
+            assertThat(resolvedRoles, notNullValue());
+            assertThat(resolvedRoles.size(), is(1));
+            assertThat(resolvedRoles, contains("fantastic_four"));
+        }, 2L, TimeUnit.SECONDS);
+    }
+
+    public void testAddNullListener() throws Exception {
+        Path file = env.configFile().resolve("test_role_mapping.yml");
+        ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
+        DnRoleMapper mapper = createMapper(file, watcherService);
+        NullPointerException e = expectThrows(NullPointerException.class, () -> mapper.addListener(null));
+        assertEquals("listener cannot be null", e.getMessage());
+    }
+
     public void testParseFile() throws Exception {
         Path file = getDataPath("role_mapping.yml");
         Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
@@ -205,7 +241,7 @@ public class DnRoleMapperTests extends ESTestCase {
     }
 
     public void testParseFile_WhenCannotReadFile() throws Exception {
-        Path file = createTempFile();
+        Path file = createTempFile("", ".yml");
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
         Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
@@ -218,7 +254,7 @@ public class DnRoleMapperTests extends ESTestCase {
     }
 
     public void testParseFileLenient_WhenCannotReadFile() throws Exception {
-        Path file = createTempFile();
+        Path file = createTempFile("", ".yml");
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
         Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
@@ -237,7 +273,7 @@ public class DnRoleMapperTests extends ESTestCase {
                 .build();
         RealmConfig config = new RealmConfig("ldap1", ldapSettings, settings);
 
-        DnRoleMapper mapper = new DnRoleMapper(LdapRealm.LDAP_TYPE, config, new ResourceWatcherService(settings, threadPool), null);
+        DnRoleMapper mapper = new DnRoleMapper(LdapRealm.LDAP_TYPE, config, new ResourceWatcherService(settings, threadPool));
 
         Set<String> roles = mapper.resolveRoles("", Arrays.asList(STARK_GROUP_DNS));
 
@@ -251,7 +287,7 @@ public class DnRoleMapperTests extends ESTestCase {
                 .build();
         RealmConfig config = new RealmConfig("ldap1", ldapSettings, settings);
 
-        DnRoleMapper mapper = new DnRoleMapper(LdapRealm.LDAP_TYPE, config, new ResourceWatcherService(settings, threadPool), null);
+        DnRoleMapper mapper = new DnRoleMapper(LdapRealm.LDAP_TYPE, config, new ResourceWatcherService(settings, threadPool));
 
         Set<String> roles = mapper.resolveRoles("", Arrays.asList(STARK_GROUP_DNS));
         assertThat(roles, hasItems("genius", "billionaire", "playboy", "philanthropist", "shield", "avengers"));
@@ -265,7 +301,7 @@ public class DnRoleMapperTests extends ESTestCase {
                 .build();
         RealmConfig config = new RealmConfig("ldap-userdn-role", ldapSettings, settings);
 
-        DnRoleMapper mapper = new DnRoleMapper(LdapRealm.LDAP_TYPE, config, new ResourceWatcherService(settings, threadPool), null);
+        DnRoleMapper mapper = new DnRoleMapper(LdapRealm.LDAP_TYPE, config, new ResourceWatcherService(settings, threadPool));
 
         Set<String> roles = mapper.resolveRoles("cn=Horatio Hornblower,ou=people,o=sevenSeas", Collections.<String>emptyList());
         assertThat(roles, hasItem("avenger"));
@@ -276,6 +312,6 @@ public class DnRoleMapperTests extends ESTestCase {
                 .put("files.role_mapping", file.toAbsolutePath())
                 .build();
         RealmConfig config = new RealmConfig("ad-group-mapper-test", realmSettings, settings, env);
-        return new DnRoleMapper(randomBoolean() ? LdapRealm.AD_TYPE : LdapRealm.LDAP_TYPE, config, watcherService, () -> {});
+        return new DnRoleMapper(randomBoolean() ? LdapRealm.AD_TYPE : LdapRealm.LDAP_TYPE, config, watcherService);
     }
 }

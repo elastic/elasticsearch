@@ -45,7 +45,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
 
     public LdapRealm(String type, RealmConfig config, ResourceWatcherService watcherService, SSLService sslService,
                      ThreadPool threadPool) throws LDAPException {
-        this(type, config, sessionFactory(config, sslService, type), new DnRoleMapper(type, config, watcherService, null), threadPool);
+        this(type, config, sessionFactory(config, sslService, type), new DnRoleMapper(type, config, watcherService), threadPool);
     }
 
     // pkg private for testing

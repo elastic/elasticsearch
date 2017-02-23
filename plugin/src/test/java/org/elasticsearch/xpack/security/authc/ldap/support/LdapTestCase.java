@@ -126,7 +126,7 @@ public abstract class LdapTestCase extends ESTestCase {
         Settings global = Settings.builder().put("path.home", createTempDir()).build();
         RealmConfig config = new RealmConfig("ldap1", settings, global);
 
-        return new DnRoleMapper(LdapRealm.LDAP_TYPE, config, resourceWatcherService, () -> {});
+        return new DnRoleMapper(LdapRealm.LDAP_TYPE, config, resourceWatcherService);
     }
 
     protected LdapSession session(SessionFactory factory, String username, SecuredString password) {

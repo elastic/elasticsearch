@@ -62,7 +62,7 @@ public class PkiRealm extends Realm {
 
 
     public PkiRealm(RealmConfig config, ResourceWatcherService watcherService, SSLService sslService) {
-        this(config, new DnRoleMapper(TYPE, config, watcherService, null), sslService);
+        this(config, new DnRoleMapper(TYPE, config, watcherService), sslService);
     }
 
     // pkg private for testing

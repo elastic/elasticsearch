@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
@@ -56,15 +57,13 @@ public class DnRoleMapper {
     private final String realmType;
     private final Path file;
     private final boolean useUnmappedGroupsAsRoles;
+    private final CopyOnWriteArrayList<Runnable> listeners = new CopyOnWriteArrayList<>();
     private volatile Map<DN, Set<String>> dnRoles;
 
-    private CopyOnWriteArrayList<Runnable> listeners;
-
-    public DnRoleMapper(String realmType, RealmConfig config, ResourceWatcherService watcherService, Runnable listener) {
+    public DnRoleMapper(String realmType, RealmConfig config, ResourceWatcherService watcherService) {
         this.realmType = realmType;
         this.config = config;
         this.logger = config.logger(getClass());
-        this.listeners = new CopyOnWriteArrayList<>(Collections.singleton(listener));
 
         useUnmappedGroupsAsRoles = USE_UNMAPPED_GROUPS_AS_ROLES_SETTING.get(config.settings());
         file = resolveFile(config.settings(), config.env());
@@ -79,7 +78,7 @@ public class DnRoleMapper {
     }
 
     public synchronized void addListener(Runnable listener) {
-        listeners.add(listener);
+        listeners.add(Objects.requireNonNull(listener, "listener cannot be null"));
     }
 
     public static Path resolveFile(Settings settings, Environment env) {

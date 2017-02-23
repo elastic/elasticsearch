@@ -23,13 +23,12 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.InstanceProfileCredentialsProvider;
+
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.s3.S3Repository;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -38,7 +37,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     public void testAWSCredentialsWithSystemProviders() {
         AWSCredentialsProvider credentialsProvider =
             InternalAwsS3Service.buildCredentials(logger, deprecationLogger, Settings.EMPTY, Settings.EMPTY, "default");
-        assertThat(credentialsProvider, instanceOf(InstanceProfileCredentialsProvider.class));
+        assertThat(credentialsProvider, instanceOf(AWSCredentialsProvider.class));
     }
 
     public void testAwsCredsDefaultSettings() {

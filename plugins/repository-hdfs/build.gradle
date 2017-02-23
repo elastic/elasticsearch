@@ -68,33 +68,31 @@ task hdfsFixture(type: org.elasticsearch.gradle.test.Fixture) {
        baseDir
 }
 
-integTest {
-  boolean fixtureSupported = false;
-  if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-    // hdfs fixture will not start without hadoop native libraries on windows
-    String nativePath = System.getenv("HADOOP_HOME")
-    if (nativePath != null) {
-      Path path = Paths.get(nativePath);
-      if (Files.isDirectory(path) &&
-          Files.exists(path.resolve("bin").resolve("winutils.exe")) &&
-          Files.exists(path.resolve("bin").resolve("hadoop.dll")) &&
-          Files.exists(path.resolve("bin").resolve("hdfs.dll"))) {
-        fixtureSupported = true
-      } else {
-        throw new IllegalStateException("HADOOP_HOME: " + path.toString() + " is invalid, does not contain hadoop native libraries in $HADOOP_HOME/bin");
-      }
+boolean fixtureSupported = false;
+if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+  // hdfs fixture will not start without hadoop native libraries on windows
+  String nativePath = System.getenv("HADOOP_HOME")
+  if (nativePath != null) {
+    Path path = Paths.get(nativePath);
+    if (Files.isDirectory(path) &&
+        Files.exists(path.resolve("bin").resolve("winutils.exe")) &&
+        Files.exists(path.resolve("bin").resolve("hadoop.dll")) &&
+        Files.exists(path.resolve("bin").resolve("hdfs.dll"))) {
+      fixtureSupported = true
+    } else {
+      throw new IllegalStateException("HADOOP_HOME: " + path.toString() + " is invalid, does not contain hadoop native libraries in $HADOOP_HOME/bin");
     }
-  } else {
-    fixtureSupported = true
   }
+} else {
+  fixtureSupported = true
+}
 
-  if (fixtureSupported) {
-    dependsOn hdfsFixture
-  } else {
-    logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
-    // just tests that the plugin loads
-    systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
-  }
+if (fixtureSupported) {
+  integTest.dependsOn hdfsFixture
+} else {
+  logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
+  // just tests that the plugin loads
+  integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
 }
 
 thirdPartyAudit.excludes = [

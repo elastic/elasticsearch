@@ -525,14 +525,16 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             this.backgroundPersistInterval = job.getBackgroundPersistInterval();
             this.modelSnapshotRetentionDays = job.getModelSnapshotRetentionDays();
             this.resultsRetentionDays = job.getResultsRetentionDays();
+            this.modelSnapshotRetentionDays = job.getModelSnapshotRetentionDays();
             this.customSettings = job.getCustomSettings();
             this.modelSnapshotId = job.getModelSnapshotId();
             this.resultsIndexName = job.getResultsIndexName();
             this.deleted = job.isDeleted();
         }
 
-        public void setId(String id) {
+        public Builder setId(String id) {
             this.id = id;
+            return this;
         }
 
         public String getId() {
@@ -543,19 +545,22 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             return createTime;
         }
 
-        public void setCustomSettings(Map<String, Object> customSettings) {
+        public Builder setCustomSettings(Map<String, Object> customSettings) {
             this.customSettings = customSettings;
+            return this;
         }
 
-        public void setDescription(String description) {
+        public Builder setDescription(String description) {
             this.description = description;
+            return this;
         }
 
-        public void setAnalysisConfig(AnalysisConfig.Builder configBuilder) {
+        public Builder setAnalysisConfig(AnalysisConfig.Builder configBuilder) {
             analysisConfig = ExceptionsHelper.requireNonNull(configBuilder, ANALYSIS_CONFIG.getPreferredName()).build();
+            return this;
         }
 
-        public void setAnalysisLimits(AnalysisLimits analysisLimits) {
+        public Builder setAnalysisLimits(AnalysisLimits analysisLimits) {
             if (this.analysisLimits != null) {
                 long oldMemoryLimit = this.analysisLimits.getModelMemoryLimit();
                 long newMemoryLimit = analysisLimits.getModelMemoryLimit();
@@ -566,58 +571,71 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 }
             }
             this.analysisLimits = analysisLimits;
+            return this;
         }
 
-        public void setCreateTime(Date createTime) {
+        public Builder setCreateTime(Date createTime) {
             this.createTime = createTime;
+            return this;
         }
 
-        public void setFinishedTime(Date finishedTime) {
+        public Builder setFinishedTime(Date finishedTime) {
             this.finishedTime = finishedTime;
+            return this;
         }
 
         /**
          * Set the wall clock time of the last data upload
          * @param lastDataTime Wall clock time
          */
-        public void setLastDataTime(Date lastDataTime) {
+        public Builder setLastDataTime(Date lastDataTime) {
             this.lastDataTime = lastDataTime;
+            return this;
         }
 
-        public void setDataDescription(DataDescription.Builder description) {
+        public Builder setDataDescription(DataDescription.Builder description) {
             dataDescription = ExceptionsHelper.requireNonNull(description, DATA_DESCRIPTION.getPreferredName()).build();
+            return this;
         }
 
-        public void setModelDebugConfig(ModelDebugConfig modelDebugConfig) {
+        public Builder setModelDebugConfig(ModelDebugConfig modelDebugConfig) {
             this.modelDebugConfig = modelDebugConfig;
+            return this;
         }
 
-        public void setBackgroundPersistInterval(Long backgroundPersistInterval) {
+        public Builder setBackgroundPersistInterval(Long backgroundPersistInterval) {
             this.backgroundPersistInterval = backgroundPersistInterval;
+            return this;
         }
 
-        public void setRenormalizationWindowDays(Long renormalizationWindowDays) {
+        public Builder setRenormalizationWindowDays(Long renormalizationWindowDays) {
             this.renormalizationWindowDays = renormalizationWindowDays;
+            return this;
         }
 
-        public void setModelSnapshotRetentionDays(Long modelSnapshotRetentionDays) {
+        public Builder setModelSnapshotRetentionDays(Long modelSnapshotRetentionDays) {
             this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
+            return this;
         }
 
-        public void setResultsRetentionDays(Long resultsRetentionDays) {
+        public Builder setResultsRetentionDays(Long resultsRetentionDays) {
             this.resultsRetentionDays = resultsRetentionDays;
+            return this;
         }
 
-        public void setModelSnapshotId(String modelSnapshotId) {
+        public Builder setModelSnapshotId(String modelSnapshotId) {
             this.modelSnapshotId = modelSnapshotId;
+            return this;
         }
 
-        public void setResultsIndexName(String resultsIndexName) {
+        public Builder setResultsIndexName(String resultsIndexName) {
             this.resultsIndexName = resultsIndexName;
+            return this;
         }
 
-        public void setDeleted(boolean deleted) {
+        public Builder setDeleted(boolean deleted) {
             this.deleted = deleted;
+            return this;
         }
 
         public Job build() {

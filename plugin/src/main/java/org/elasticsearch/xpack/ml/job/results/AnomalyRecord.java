@@ -58,7 +58,6 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
     public static final ParseField IS_INTERIM = new ParseField("is_interim");
     public static final ParseField INFLUENCERS = new ParseField("influencers");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
-    public static final ParseField TIMESTAMP = new ParseField("timestamp");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("records");
@@ -94,8 +93,9 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
             } else if (p.currentToken() == Token.VALUE_STRING) {
                 return new Date(TimeUtils.dateStringToEpoch(p.text()));
             }
-            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + TIMESTAMP.getPreferredName() + "]");
-        }, TIMESTAMP, ValueType.VALUE);
+            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
+                    + Result.TIMESTAMP.getPreferredName() + "]");
+        }, Result.TIMESTAMP, ValueType.VALUE);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), SEQUENCE_NUM);
         PARSER.declareString((anomalyRecord, s) -> {}, Result.RESULT_TYPE);
@@ -154,7 +154,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
 
     public AnomalyRecord(String jobId, Date timestamp, long bucketSpan, int sequenceNum) {
         this.jobId = jobId;
-        this.timestamp = ExceptionsHelper.requireNonNull(timestamp, TIMESTAMP.getPreferredName());
+        this.timestamp = ExceptionsHelper.requireNonNull(timestamp, Result.TIMESTAMP.getPreferredName());
         this.bucketSpan = bucketSpan;
         this.sequenceNum = sequenceNum;
     }
@@ -252,7 +252,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
         builder.field(SEQUENCE_NUM.getPreferredName(), sequenceNum);
         builder.field(IS_INTERIM.getPreferredName(), isInterim);
-        builder.dateField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
+        builder.dateField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         if (byFieldName != null) {
             builder.field(BY_FIELD_NAME.getPreferredName(), byFieldName);
         }

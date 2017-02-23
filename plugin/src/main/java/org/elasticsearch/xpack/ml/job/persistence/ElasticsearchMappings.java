@@ -6,15 +6,12 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelState;
-import org.elasticsearch.xpack.ml.job.results.ReservedFieldNames;
-import org.elasticsearch.xpack.ml.notifications.AuditActivity;
-import org.elasticsearch.xpack.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.AnomalyCause;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
@@ -25,7 +22,10 @@ import org.elasticsearch.xpack.ml.job.results.Influence;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
+import org.elasticsearch.xpack.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.ml.job.results.Result;
+import org.elasticsearch.xpack.ml.notifications.AuditActivity;
+import org.elasticsearch.xpack.ml.notifications.AuditMessage;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -137,7 +137,7 @@ public class ElasticsearchMappings {
                                 .field(TYPE, KEYWORD)
                                 .field(COPY_TO, ALL_FIELD_VALUES)
                             .endObject()
-                            .startObject(Bucket.TIMESTAMP.getPreferredName())
+                            .startObject(Result.TIMESTAMP.getPreferredName())
                                 .field(TYPE, DATE)
                             .endObject()
                             .startObject(Bucket.ANOMALY_SCORE.getPreferredName())
@@ -212,7 +212,7 @@ public class ElasticsearchMappings {
                                     .startObject(BucketInfluencer.PROBABILITY.getPreferredName())
                                         .field(TYPE, DOUBLE)
                                     .endObject()
-                                    .startObject(BucketInfluencer.TIMESTAMP.getPreferredName())
+                                    .startObject(Result.TIMESTAMP.getPreferredName())
                                         .field(TYPE, DATE)
                                     .endObject()
                                     .startObject(BucketInfluencer.BUCKET_SPAN.getPreferredName())

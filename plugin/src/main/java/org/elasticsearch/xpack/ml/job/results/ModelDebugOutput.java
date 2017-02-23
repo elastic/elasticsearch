@@ -34,7 +34,6 @@ public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
     public static final String RESULT_TYPE_VALUE = "model_debug_output";
     public static final ParseField RESULTS_FIELD = new ParseField(RESULT_TYPE_VALUE);
 
-    public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField PARTITION_FIELD_NAME = new ParseField("partition_field_name");
     public static final ParseField PARTITION_FIELD_VALUE = new ParseField("partition_field_value");
     public static final ParseField OVER_FIELD_NAME = new ParseField("over_field_name");
@@ -59,8 +58,9 @@ public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
             } else if (p.currentToken() == Token.VALUE_STRING) {
                 return new Date(TimeUtils.dateStringToEpoch(p.text()));
             }
-            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + TIMESTAMP.getPreferredName() + "]");
-        }, TIMESTAMP, ValueType.VALUE);
+            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
+                    + Result.TIMESTAMP.getPreferredName() + "]");
+        }, Result.TIMESTAMP, ValueType.VALUE);
         PARSER.declareString(ModelDebugOutput::setPartitionFieldName, PARTITION_FIELD_NAME);
         PARSER.declareString(ModelDebugOutput::setPartitionFieldValue, PARTITION_FIELD_VALUE);
         PARSER.declareString(ModelDebugOutput::setOverFieldName, OVER_FIELD_NAME);
@@ -140,7 +140,7 @@ public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         if (timestamp != null) {
-            builder.dateField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
+            builder.dateField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         }
         if (partitionFieldName != null) {
             builder.field(PARTITION_FIELD_NAME.getPreferredName(), partitionFieldName);

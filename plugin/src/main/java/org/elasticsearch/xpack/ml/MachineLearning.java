@@ -291,7 +291,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
                 jobProvider,
                 jobManager,
                 dataProcessor,
-                new MlInitializationService(settings, threadPool, clusterService, jobProvider),
+                new MlInitializationService(settings, threadPool, clusterService, client, jobProvider),
                 jobDataCountsPersister,
                 datafeedJobRunner,
                 persistentActionService,

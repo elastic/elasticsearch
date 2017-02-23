@@ -17,4 +17,5 @@ public class Result {
      */
     public static final ParseField TYPE = new ParseField("result");
     public static final ParseField RESULT_TYPE = new ParseField("result_type");
+    public static final ParseField TIMESTAMP = new ParseField("timestamp");
 }

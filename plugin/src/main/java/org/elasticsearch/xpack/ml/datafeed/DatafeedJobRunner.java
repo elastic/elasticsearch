@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
+import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
 
@@ -196,7 +197,7 @@ public class DatafeedJobRunner extends AbstractComponent {
 
     private void gatherInformation(String jobId, BiConsumer<QueryPage<Bucket>, DataCounts> handler, Consumer<Exception> errorHandler) {
         BucketsQueryBuilder.BucketsQuery latestBucketQuery = new BucketsQueryBuilder()
-                .sortField(Bucket.TIMESTAMP.getPreferredName())
+                .sortField(Result.TIMESTAMP.getPreferredName())
                 .sortDescending(true).size(1)
                 .includeInterim(false)
                 .build();

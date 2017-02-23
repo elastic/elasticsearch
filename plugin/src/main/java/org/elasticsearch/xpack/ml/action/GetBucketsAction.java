@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
+import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -73,7 +74,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
 
         static {
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
-            PARSER.declareString(Request::setTimestamp, Bucket.TIMESTAMP);
+            PARSER.declareString(Request::setTimestamp, Result.TIMESTAMP);
             PARSER.declareString(Request::setPartitionValue, PARTITION_VALUE);
             PARSER.declareBoolean(Request::setExpand, EXPAND);
             PARSER.declareBoolean(Request::setIncludeInterim, INCLUDE_INTERIM);
@@ -127,7 +128,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
                                 + ANOMALY_SCORE.getPreferredName() + ","
                                 + MAX_NORMALIZED_PROBABILITY.getPreferredName() + "]");
             }
-            this.timestamp = ExceptionsHelper.requireNonNull(timestamp, Bucket.TIMESTAMP.getPreferredName());
+            this.timestamp = ExceptionsHelper.requireNonNull(timestamp, Result.TIMESTAMP.getPreferredName());
         }
 
         public String getTimestamp() {
@@ -262,7 +263,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
             builder.startObject();
             builder.field(Job.ID.getPreferredName(), jobId);
             if (timestamp != null) {
-                builder.field(Bucket.TIMESTAMP.getPreferredName(), timestamp);
+                builder.field(Result.TIMESTAMP.getPreferredName(), timestamp);
             }
             builder.field(EXPAND.getPreferredName(), expand);
             builder.field(INCLUDE_INTERIM.getPreferredName(), includeInterim);

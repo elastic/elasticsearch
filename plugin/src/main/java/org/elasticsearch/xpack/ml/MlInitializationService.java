@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -14,19 +15,23 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ml.MlMetadata;
+import org.elasticsearch.xpack.ml.job.retention.ExpiredModelSnapshotsRemover;
+import org.elasticsearch.xpack.ml.job.retention.ExpiredResultsRemover;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MlInitializationService extends AbstractComponent implements ClusterStateListener {
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
+    private final Client client;
     private final JobProvider jobProvider;
 
     private final AtomicBoolean installMlMetadataCheck = new AtomicBoolean(false);
@@ -34,13 +39,22 @@ public class MlInitializationService extends AbstractComponent implements Cluste
     private final AtomicBoolean createMlMetaIndexCheck = new AtomicBoolean(false);
     private final AtomicBoolean createStateIndexCheck = new AtomicBoolean(false);
 
-    public MlInitializationService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                        JobProvider jobProvider) {
+    private volatile MlDailyManagementService mlDailyManagementService;
+
+    public MlInitializationService(Settings settings, ThreadPool threadPool, ClusterService clusterService, Client client,
+                                   JobProvider jobProvider) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        this.client = client;
         this.jobProvider = jobProvider;
         clusterService.addListener(this);
+        clusterService.addLifecycleListener(new LifecycleListener() {
+            @Override
+            public void beforeStop() {
+                super.beforeStop();
+            }
+        });
     }
 
     @Override
@@ -51,6 +65,9 @@ public class MlInitializationService extends AbstractComponent implements Cluste
             createMlAuditIndex(metaData);
             createMlMetaIndex(metaData);
             createStateIndex(metaData);
+            installDailyManagementService();
+        } else {
+            uninstallDailyManagementService();
         }
     }
 
@@ -143,5 +160,38 @@ public class MlInitializationService extends AbstractComponent implements Cluste
                 });
             }
         }
+    }
+
+    private void installDailyManagementService() {
+        if (mlDailyManagementService == null) {
+            mlDailyManagementService = new MlDailyManagementService(threadPool, Arrays.asList(
+                    new ExpiredResultsRemover(client, clusterService, jobId -> jobProvider.audit(jobId)),
+                    new ExpiredModelSnapshotsRemover(client, clusterService)
+            ));
+            mlDailyManagementService.start();
+            clusterService.addLifecycleListener(new LifecycleListener() {
+                @Override
+                public void beforeStop() {
+                    uninstallDailyManagementService();
+                }
+            });
+        }
+    }
+
+    private void uninstallDailyManagementService() {
+        if (mlDailyManagementService != null) {
+            mlDailyManagementService.stop();
+            mlDailyManagementService = null;
+        }
+    }
+
+    /** For testing */
+    MlDailyManagementService getDailyManagementService() {
+        return mlDailyManagementService;
+    }
+
+    /** For testing */
+    void setDailyManagementService(MlDailyManagementService service) {
+        mlDailyManagementService = service;
     }
 }

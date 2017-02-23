@@ -509,9 +509,9 @@ public class JobProvider {
             throws ResourceNotFoundException {
         ResultsFilterBuilder rfb = new ResultsFilterBuilder();
         if (query.getTimestamp() != null) {
-            rfb.timeRange(Bucket.TIMESTAMP.getPreferredName(), query.getTimestamp());
+            rfb.timeRange(Result.TIMESTAMP.getPreferredName(), query.getTimestamp());
         } else {
-            rfb.timeRange(Bucket.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
+            rfb.timeRange(Result.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
                     .score(Bucket.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreFilter())
                     .score(Bucket.MAX_NORMALIZED_PROBABILITY.getPreferredName(), query.getNormalizedProbability())
                     .interim(Bucket.IS_INTERIM.getPreferredName(), query.isIncludeInterim());
@@ -645,7 +645,7 @@ public class JobProvider {
     private SearchRequest createPartitionMaxNormailizedProbabilitiesRequest(String jobId, Object epochStart, Object epochEnd,
                                                                             String partitionFieldValue) {
         QueryBuilder timeRangeQuery = new ResultsFilterBuilder()
-                .timeRange(Bucket.TIMESTAMP.getPreferredName(), epochStart, epochEnd)
+                .timeRange(Result.TIMESTAMP.getPreferredName(), epochStart, epochEnd)
                 .build();
 
         QueryBuilder boolQuery = new BoolQueryBuilder()
@@ -653,7 +653,7 @@ public class JobProvider {
                 .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), PerPartitionMaxProbabilities.RESULT_TYPE_VALUE))
                 .filter(new TermsQueryBuilder(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(), partitionFieldValue));
 
-        FieldSortBuilder sb = new FieldSortBuilder(Bucket.TIMESTAMP.getPreferredName()).order(SortOrder.ASC);
+        FieldSortBuilder sb = new FieldSortBuilder(Result.TIMESTAMP.getPreferredName()).order(SortOrder.ASC);
         String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.sort(sb);
@@ -752,7 +752,7 @@ public class JobProvider {
         // the scenes, and Elasticsearch documentation claims it's significantly
         // slower.  Here we rely on the record timestamps being identical to the
         // bucket timestamp.
-        QueryBuilder recordFilter = QueryBuilders.termQuery(Bucket.TIMESTAMP.getPreferredName(), bucket.getTimestamp().getTime());
+        QueryBuilder recordFilter = QueryBuilders.termQuery(Result.TIMESTAMP.getPreferredName(), bucket.getTimestamp().getTime());
 
         ResultsFilterBuilder builder = new ResultsFilterBuilder(recordFilter)
                 .interim(AnomalyRecord.IS_INTERIM.getPreferredName(), includeInterim);
@@ -835,7 +835,7 @@ public class JobProvider {
     public void records(String jobId, RecordsQueryBuilder.RecordsQuery query, Consumer<QueryPage<AnomalyRecord>> handler,
                         Consumer<Exception> errorHandler) {
         QueryBuilder fb = new ResultsFilterBuilder()
-                .timeRange(Bucket.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
+                .timeRange(Result.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
                 .score(AnomalyRecord.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreThreshold())
                 .score(AnomalyRecord.NORMALIZED_PROBABILITY.getPreferredName(), query.getNormalizedProbabilityThreshold())
                 .interim(AnomalyRecord.IS_INTERIM.getPreferredName(), query.isIncludeInterim())
@@ -911,7 +911,7 @@ public class JobProvider {
     public void influencers(String jobId, InfluencersQuery query, Consumer<QueryPage<Influencer>> handler,
                             Consumer<Exception> errorHandler) {
         QueryBuilder fb = new ResultsFilterBuilder()
-                .timeRange(Bucket.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
+                .timeRange(Result.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
                 .score(Bucket.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreFilter())
                 .interim(Bucket.IS_INTERIM.getPreferredName(), query.isIncludeInterim())
                 .build();
@@ -1039,7 +1039,7 @@ public class JobProvider {
             fb = new ResultsFilterBuilder();
         }
 
-        QueryBuilder qb = fb.timeRange(Bucket.TIMESTAMP.getPreferredName(), startEpochMs, endEpochMs).build();
+        QueryBuilder qb = fb.timeRange(Result.TIMESTAMP.getPreferredName(), startEpochMs, endEpochMs).build();
         modelSnapshots(jobId, from, size, sortField, sortDescending, qb, handler, errorHandler);
     }
 
@@ -1073,13 +1073,7 @@ public class JobProvider {
         client.search(searchRequest, ActionListener.wrap(searchResponse -> {
             List<ModelSnapshot> results = new ArrayList<>();
             for (SearchHit hit : searchResponse.getHits().getHits()) {
-                BytesReference source = hit.getSourceRef();
-                try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
-                    ModelSnapshot modelSnapshot = ModelSnapshot.PARSER.apply(parser, null);
-                    results.add(modelSnapshot);
-                } catch (IOException e) {
-                    throw new ElasticsearchParseException("failed to parse modelSnapshot", e);
-                }
+                results.add(ModelSnapshot.fromJson(hit.getSourceRef()));
             }
 
             QueryPage<ModelSnapshot> result =

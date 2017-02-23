@@ -5,15 +5,22 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.state;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
@@ -287,5 +294,13 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
 
     public static String documentId(String jobId, String snapshotId) {
         return jobId + "-" + snapshotId;
+    }
+
+    public static ModelSnapshot fromJson(BytesReference bytesReference) {
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, bytesReference)) {
+            return PARSER.apply(parser, null);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("failed to parse modelSnapshot", e);
+        }
     }
 }

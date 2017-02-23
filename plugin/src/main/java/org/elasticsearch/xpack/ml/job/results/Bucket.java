@@ -36,7 +36,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
      */
     private static final ParseField JOB_ID = Job.ID;
 
-    public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField ANOMALY_SCORE = new ParseField("anomaly_score");
     public static final ParseField INITIAL_ANOMALY_SCORE = new ParseField("initial_anomaly_score");
     public static final ParseField MAX_NORMALIZED_PROBABILITY = new ParseField("max_normalized_probability");
@@ -69,8 +68,9 @@ public class Bucket extends ToXContentToBytes implements Writeable {
             } else if (p.currentToken() == Token.VALUE_STRING) {
                 return new Date(TimeUtils.dateStringToEpoch(p.text()));
             }
-            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + TIMESTAMP.getPreferredName() + "]");
-        }, TIMESTAMP, ValueType.VALUE);
+            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
+                    + Result.TIMESTAMP.getPreferredName() + "]");
+        }, Result.TIMESTAMP, ValueType.VALUE);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         PARSER.declareDouble(Bucket::setAnomalyScore, ANOMALY_SCORE);
         PARSER.declareDouble(Bucket::setInitialAnomalyScore, INITIAL_ANOMALY_SCORE);
@@ -102,7 +102,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
 
     public Bucket(String jobId, Date timestamp, long bucketSpan) {
         this.jobId = jobId;
-        this.timestamp = ExceptionsHelper.requireNonNull(timestamp, TIMESTAMP.getPreferredName());
+        this.timestamp = ExceptionsHelper.requireNonNull(timestamp, Result.TIMESTAMP.getPreferredName());
         this.bucketSpan = bucketSpan;
     }
 
@@ -163,7 +163,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(JOB_ID.getPreferredName(), jobId);
-        builder.dateField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
+        builder.dateField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScore);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(INITIAL_ANOMALY_SCORE.getPreferredName(), initialAnomalyScore);

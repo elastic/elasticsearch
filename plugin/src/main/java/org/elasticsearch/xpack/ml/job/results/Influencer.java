@@ -34,7 +34,6 @@ public class Influencer extends ToXContentToBytes implements Writeable {
      */
     public static final ParseField PROBABILITY = new ParseField("probability");
     public static final ParseField SEQUENCE_NUM = new ParseField("sequence_num");
-    public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
     public static final ParseField INFLUENCER_FIELD_NAME = new ParseField("influencer_field_name");
     public static final ParseField INFLUENCER_FIELD_VALUE = new ParseField("influencer_field_value");
@@ -58,8 +57,9 @@ public class Influencer extends ToXContentToBytes implements Writeable {
             } else if (p.currentToken() == Token.VALUE_STRING) {
                 return new Date(TimeUtils.dateStringToEpoch(p.text()));
             }
-            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + TIMESTAMP.getPreferredName() + "]");
-        }, TIMESTAMP, ValueType.VALUE);
+            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
+                    + Result.TIMESTAMP.getPreferredName() + "]");
+        }, Result.TIMESTAMP, ValueType.VALUE);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), SEQUENCE_NUM);
         PARSER.declareString((influencer, s) -> {}, Result.RESULT_TYPE);
@@ -84,7 +84,7 @@ public class Influencer extends ToXContentToBytes implements Writeable {
         this.jobId = jobId;
         influenceField = fieldName;
         influenceValue = fieldValue;
-        this.timestamp = ExceptionsHelper.requireNonNull(timestamp, TIMESTAMP.getPreferredName());
+        this.timestamp = ExceptionsHelper.requireNonNull(timestamp, Result.TIMESTAMP.getPreferredName());
         this.bucketSpan = bucketSpan;
         this.sequenceNum = sequenceNum;
     }
@@ -132,7 +132,7 @@ public class Influencer extends ToXContentToBytes implements Writeable {
         builder.field(SEQUENCE_NUM.getPreferredName(), sequenceNum);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(Bucket.IS_INTERIM.getPreferredName(), isInterim);
-        builder.dateField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
+        builder.dateField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         builder.endObject();
         return builder;
     }

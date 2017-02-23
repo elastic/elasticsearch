@@ -14,9 +14,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.GetBucketsAction;
-import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
+import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.results.Result;
 
 import java.io.IOException;
 
@@ -26,10 +26,10 @@ public class RestGetBucketsAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET,
                 MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                        + "}/results/buckets/{" + Bucket.TIMESTAMP.getPreferredName() + "}", this);
+                        + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", this);
         controller.registerHandler(RestRequest.Method.POST,
                 MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                        + "}/results/buckets/{" + Bucket.TIMESTAMP.getPreferredName() + "}", this);
+                        + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", this);
 
         controller.registerHandler(RestRequest.Method.GET,
                 MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/buckets", this);

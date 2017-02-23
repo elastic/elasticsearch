@@ -58,8 +58,8 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
                 return new Date(TimeUtils.dateStringToEpoch(p.text()));
             }
             throw new IllegalArgumentException(
-                    "unexpected token [" + p.currentToken() + "] for [" + Bucket.TIMESTAMP.getPreferredName() + "]");
-        }, Bucket.TIMESTAMP, ObjectParser.ValueType.VALUE);
+                    "unexpected token [" + p.currentToken() + "] for [" + Result.TIMESTAMP.getPreferredName() + "]");
+        }, Result.TIMESTAMP, ObjectParser.ValueType.VALUE);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), Bucket.BUCKET_SPAN);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), PartitionProbability.PARSER, PER_PARTITION_MAX_PROBABILITIES);
         PARSER.declareString((p, s) -> {}, Result.RESULT_TYPE);
@@ -168,7 +168,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
-        builder.dateField(Bucket.TIMESTAMP.getPreferredName(), Bucket.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
+        builder.dateField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         builder.field(Bucket.BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(PER_PARTITION_MAX_PROBABILITIES.getPreferredName(), perPartitionMaxProbabilities);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);

@@ -275,8 +275,8 @@ UpdateModelSnapshotAction.RequestBuilder> {
             getModelSnapshots(request.getJobId(), request.getSnapshotId(), null,
                     changeCandidates -> {
                         if (changeCandidates == null || changeCandidates.isEmpty()) {
-                            errorHandler.accept(new ResourceNotFoundException(
-                                    Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getJobId())));
+                            errorHandler.accept(new ResourceNotFoundException(Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT,
+                                    request.getSnapshotId(), request.getJobId())));
                         } else {
                             handler.accept(changeCandidates);
                         }

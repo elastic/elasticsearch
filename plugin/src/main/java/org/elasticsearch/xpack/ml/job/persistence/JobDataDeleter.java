@@ -69,7 +69,7 @@ public class JobDataDeleter {
     public void deleteResultsFromTime(long cutoffEpochMs, ActionListener<Boolean> listener) {
         String index = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
 
-        RangeQueryBuilder timeRange = QueryBuilders.rangeQuery(Bucket.TIMESTAMP.getPreferredName());
+        RangeQueryBuilder timeRange = QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName());
         timeRange.gte(cutoffEpochMs);
         timeRange.lt(new Date().getTime());
 

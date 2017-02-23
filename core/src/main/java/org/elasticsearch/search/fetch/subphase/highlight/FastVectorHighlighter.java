@@ -21,6 +21,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.vectorhighlight.BaseFragmentsBuilder;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
+import org.apache.lucene.search.vectorhighlight.BreakIteratorBoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.CustomFieldQuery;
 import org.apache.lucene.search.vectorhighlight.FieldFragList;
 import org.apache.lucene.search.vectorhighlight.FieldPhraseList.WeightedPhraseInfo;
@@ -38,15 +39,23 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.Field;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.FieldOptions;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.text.BreakIterator;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class FastVectorHighlighter implements Highlighter {
 
-    private static final SimpleBoundaryScanner DEFAULT_BOUNDARY_SCANNER = new SimpleBoundaryScanner();
+    private static final BoundaryScanner DEFAULT_SIMPLE_BOUNDARY_SCANNER = new SimpleBoundaryScanner();
+    private static final BoundaryScanner DEFAULT_SENTENCE_BOUNDARY_SCANNER = new BreakIteratorBoundaryScanner(
+            BreakIterator.getSentenceInstance(Locale.ROOT));
+    private static final BoundaryScanner DEFAULT_WORD_BOUNDARY_SCANNER = new BreakIteratorBoundaryScanner(
+            BreakIterator.getWordInstance(Locale.ROOT));
 
     public static final Setting<Boolean> SETTING_TV_HIGHLIGHT_MULTI_VALUE = Setting.boolSetting("search.highlight.term_vector_multi_value",
         true, Setting.Property.NodeScope);
@@ -105,12 +114,7 @@ public class FastVectorHighlighter implements Highlighter {
                 FragListBuilder fragListBuilder;
                 BaseFragmentsBuilder fragmentsBuilder;
 
-                BoundaryScanner boundaryScanner = DEFAULT_BOUNDARY_SCANNER;
-                if (field.fieldOptions().boundaryMaxScan() != SimpleBoundaryScanner.DEFAULT_MAX_SCAN
-                        || field.fieldOptions().boundaryChars() != SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS) {
-                    boundaryScanner = new SimpleBoundaryScanner(field.fieldOptions().boundaryMaxScan(),
-                            field.fieldOptions().boundaryChars());
-                }
+                final BoundaryScanner boundaryScanner = getBoundaryScanner(field);
                 boolean forceSource = context.highlight().forceSource(field);
                 if (field.fieldOptions().numberOfFragments() == 0) {
                     fragListBuilder = new SingleFragListBuilder();
@@ -204,6 +208,29 @@ public class FastVectorHighlighter implements Highlighter {
     public boolean canHighlight(FieldMapper fieldMapper) {
         return fieldMapper.fieldType().storeTermVectors() && fieldMapper.fieldType().storeTermVectorOffsets()
                 && fieldMapper.fieldType().storeTermVectorPositions();
+    }
+
+    private static BoundaryScanner getBoundaryScanner(Field field) {
+        final FieldOptions fieldOptions = field.fieldOptions();
+        final Locale boundaryScannerLocale = fieldOptions.boundaryScannerLocale();
+        switch(fieldOptions.boundaryScannerType()) {
+        case SENTENCE:
+            if (boundaryScannerLocale != null) {
+                return new BreakIteratorBoundaryScanner(BreakIterator.getSentenceInstance(boundaryScannerLocale));
+            }
+            return DEFAULT_SENTENCE_BOUNDARY_SCANNER;
+        case WORD:
+            if (boundaryScannerLocale != null) {
+                return new BreakIteratorBoundaryScanner(BreakIterator.getWordInstance(boundaryScannerLocale));
+            }
+            return DEFAULT_WORD_BOUNDARY_SCANNER;
+        default:
+            if (fieldOptions.boundaryMaxScan() != SimpleBoundaryScanner.DEFAULT_MAX_SCAN
+                    || fieldOptions.boundaryChars() != SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS) {
+                return new SimpleBoundaryScanner(fieldOptions.boundaryMaxScan(), fieldOptions.boundaryChars());
+            }
+            return DEFAULT_SIMPLE_BOUNDARY_SCANNER;
+        }
     }
 
     private class MapperHighlightEntry {

@@ -440,6 +440,10 @@ you are likely to find. This should allow you to upgrade from any version of
 Elasticsearch to the current version by reindexing from a cluster of the old
 version.
 
+Note:  On 5.2.0, when reindexing from a pre-2.0 Elasticsearch cluster, you must
+add `"_source": true` under the `source` setting of the reindexing request body.
+This is no longer required starting in 5.2.1+.
+
 To enable queries sent to older versions of Elasticsearch the `query` parameter
 is sent directly to the remote host without validation or modification.
 

@@ -25,6 +25,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -32,6 +36,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -438,6 +443,82 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             });
             assertEquals("Update request cannot have different content types for doc [JSON] and upsert [YAML] documents",
                     exception.getMessage());
+        }
+    }
+
+    public void testBulk() throws IOException {
+        int nbItems = randomIntBetween(10, 100);
+        boolean[] errors = new boolean[nbItems];
+
+        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < nbItems; i++) {
+            String id = String.valueOf(i);
+            boolean erroneous = randomBoolean();
+            errors[i] = erroneous;
+
+            DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
+            if (opType == DocWriteRequest.OpType.DELETE) {
+                if (erroneous == false) {
+                    assertEquals(RestStatus.CREATED,
+                            highLevelClient().index(new IndexRequest("index", "test", id).source("field", -1)).status());
+                }
+                DeleteRequest deleteRequest = new DeleteRequest("index", "test", id);
+                bulkRequest.add(deleteRequest);
+
+            } else {
+                BytesReference source = XContentBuilder.builder(xContentType.xContent()).startObject().field("id", i).endObject().bytes();
+                if (opType == DocWriteRequest.OpType.INDEX) {
+                    IndexRequest indexRequest = new IndexRequest("index", "test", id).source(source, xContentType);
+                    if (erroneous) {
+                        indexRequest.version(12L);
+                    }
+                    bulkRequest.add(indexRequest);
+
+                } else if (opType == DocWriteRequest.OpType.CREATE) {
+                    IndexRequest createRequest = new IndexRequest("index", "test", id).source(source, xContentType).create(true);
+                    if (erroneous) {
+                        assertEquals(RestStatus.CREATED, highLevelClient().index(createRequest).status());
+                    }
+                    bulkRequest.add(createRequest);
+
+                } else if (opType == DocWriteRequest.OpType.UPDATE) {
+                    UpdateRequest updateRequest = new UpdateRequest("index", "test", id)
+                            .doc(new IndexRequest().source(source, xContentType));
+                    if (erroneous == false) {
+                        assertEquals(RestStatus.CREATED,
+                                highLevelClient().index(new IndexRequest("index", "test", id).source("field", -1)).status());
+                    }
+                    bulkRequest.add(updateRequest);
+                }
+            }
+        }
+
+        BulkResponse bulkResponse = execute(bulkRequest, highLevelClient()::bulk, highLevelClient()::bulkAsync);
+        assertEquals(RestStatus.OK, bulkResponse.status());
+        assertTrue(bulkResponse.getTookInMillis() > 0);
+        assertEquals(nbItems, bulkResponse.getItems().length);
+
+        for (int i = 0; i < nbItems; i++) {
+            BulkItemResponse bulkItemResponse = bulkResponse.getItems()[i];
+
+            assertEquals(i, bulkItemResponse.getItemId());
+            assertEquals("index", bulkItemResponse.getIndex());
+            assertEquals("test", bulkItemResponse.getType());
+            assertEquals(String.valueOf(i), bulkItemResponse.getId());
+
+            DocWriteRequest.OpType requestOpType = bulkRequest.requests().get(i).opType();
+            if (requestOpType == DocWriteRequest.OpType.INDEX || requestOpType == DocWriteRequest.OpType.CREATE) {
+                assertEquals(errors[i], bulkItemResponse.isFailed());
+                assertEquals(errors[i] ? RestStatus.INTERNAL_SERVER_ERROR : RestStatus.CREATED, bulkItemResponse.status());
+            } else if (requestOpType == DocWriteRequest.OpType.UPDATE) {
+                assertEquals(errors[i], bulkItemResponse.isFailed());
+                assertEquals(errors[i] ? RestStatus.INTERNAL_SERVER_ERROR : RestStatus.OK, bulkItemResponse.status());
+            } else if (requestOpType == DocWriteRequest.OpType.DELETE) {
+                assertFalse(bulkItemResponse.isFailed());
+                assertEquals(errors[i] ? RestStatus.NOT_FOUND : RestStatus.OK, bulkItemResponse.status());
+            }
         }
     }
 }

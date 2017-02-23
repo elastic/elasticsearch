@@ -20,16 +20,14 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
-public abstract class InternalNumericMetricsAggregation extends InternalMetricsAggregation {
+public abstract class InternalNumericMetricsAggregation extends InternalAggregation {
 
     private static final DocValueFormat DEFAULT_FORMAT = DocValueFormat.RAW;
 

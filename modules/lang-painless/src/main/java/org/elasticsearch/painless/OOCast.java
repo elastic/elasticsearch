@@ -157,4 +157,38 @@ public abstract class OOCast { // NOCOMMIT rename
             return "(Box " + from + ")";
         }
     }
+
+    /**
+     * Unbox some boxable type.
+     */
+    static class Unbox extends OOCast {
+        private final Type to;
+
+        Unbox(Type to) {
+            if (to.sort.boxed == null) {
+                throw new IllegalArgumentException("To must be a boxable type but was [" + to + "]");
+            }
+            this.to = to;
+        }
+
+        @Override
+        public boolean castRequired() {
+            return true;
+        }
+
+        @Override
+        public void write(MethodWriter writer) {
+            writer.unbox(to.type);
+        }
+
+        @Override
+        public Object castConstant(Location location, Object constant) {
+            return constant;
+        }
+
+        @Override
+        public String toString() {
+            return "(Unbox " + to + ")";
+        }
+    }
 }

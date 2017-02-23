@@ -22,7 +22,7 @@ package org.elasticsearch.painless;
 /**
  * Tests casting behavior around function return values. This amounts to tests of implicit casting.
  */
-public class FunctionReturnsTests extends ScriptTestCase {
+public class FunctionReturnTests extends ScriptTestCase {
     public void testReturnsAreUnboxedIfNeeded() {
         assertEquals((byte) 5, exec(   "byte get() {Byte.valueOf(5)} get()"));
         assertEquals((short) 5, exec( "short get() {Byte.valueOf(5)} get()"));

@@ -22,7 +22,6 @@ package org.elasticsearch.ingest.geoip;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.maxmind.db.NoCache;
 import com.maxmind.db.NodeCache;
-import com.maxmind.geoip2.DatabaseReader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.test.ESTestCase;
@@ -48,7 +47,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class GeoIpProcessorFactoryTests extends ESTestCase {
 
-    private static Map<String, DatabaseReader> databaseReaders;
+    private static Map<String, DatabaseReaderLazyLoader> databaseReaders;
 
     @BeforeClass
     public static void loadDatabaseReaders() throws IOException {
@@ -66,7 +65,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     @AfterClass
     public static void closeDatabaseReaders() throws IOException {
-        for (DatabaseReader reader : databaseReaders.values()) {
+        for (DatabaseReaderLazyLoader reader : databaseReaders.values()) {
             reader.close();
         }
         databaseReaders = null;
@@ -220,6 +219,39 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             fail("exception expected");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));
+        }
+    }
+
+    public void testLazyLoading() throws Exception {
+        Path configDir = createTempDir();
+        Path geoIpConfigDir = configDir.resolve("ingest-geoip");
+        Files.createDirectories(geoIpConfigDir);
+        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb.gz")),
+            geoIpConfigDir.resolve("GeoLite2-City.mmdb.gz"));
+        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb.gz")),
+            geoIpConfigDir.resolve("GeoLite2-Country.mmdb.gz"));
+
+        // Loading another database reader instances, because otherwise we can't test lazy loading as the the
+        // database readers used at class level are reused between tests. (we want to keep that otherwise running this
+        // test will take roughly 4 times more time)
+        Map<String, DatabaseReaderLazyLoader> databaseReaders =
+            IngestGeoIpPlugin.loadDatabaseReaders(geoIpConfigDir, NoCache.getInstance());
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseReaders);
+        for (DatabaseReaderLazyLoader lazyLoader : databaseReaders.values()) {
+            assertNull(lazyLoader.databaseReader.get());
+        }
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("database_file", "GeoLite2-City.mmdb.gz");
+        factory.create(null, "_tag", config);
+        config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("database_file", "GeoLite2-Country.mmdb.gz");
+        factory.create(null, "_tag", config);
+
+        for (DatabaseReaderLazyLoader lazyLoader : databaseReaders.values()) {
+            assertNotNull(lazyLoader.databaseReader.get());
         }
     }
 }

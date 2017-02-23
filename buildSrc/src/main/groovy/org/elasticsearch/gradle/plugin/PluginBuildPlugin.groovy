@@ -253,19 +253,15 @@ public class PluginBuildPlugin extends BuildPlugin {
     protected void addNoticeGeneration(Project project) {
         File licenseFile = project.pluginProperties.extension.licenseFile
         if (licenseFile != null) {
-            project.bundlePlugin.into('/') {
-                from(licenseFile.parentFile) {
-                    include(licenseFile.name)
-                }
+            project.bundlePlugin.from(licenseFile.parentFile) {
+                include(licenseFile.name)
             }
         }
         File noticeFile = project.pluginProperties.extension.licenseFile
         if (noticeFile != null) {
             NoticeTask generateNotice = project.tasks.create('generateNotice', NoticeTask.class)
             generateNotice.dependencies(project)
-            project.bundlePlugin.into('/') {
-                from(generateNotice)
-            }
+            project.bundlePlugin.from(generateNotice)
         }
     }
 }

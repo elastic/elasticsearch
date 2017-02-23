@@ -45,6 +45,7 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
     private int readSequence;
     private int writeSequence;
 
+    // we use a priority queue so that responses are ordered by their sequence number
     private final PriorityQueue<HttpPipelinedResponse> holdingQueue;
 
     /**
@@ -55,7 +56,6 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
      */
     public HttpPipeliningHandler(final int maxEventsHeld) {
         this.maxEventsHeld = maxEventsHeld;
-        // we use a priority queue so that responses are ordered by their sequence number
         this.holdingQueue = new PriorityQueue<>(INITIAL_EVENTS_HELD);
     }
 

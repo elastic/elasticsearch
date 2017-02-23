@@ -24,8 +24,8 @@ import org.junit.Before;
 
 /**
  * This will only run if you define in your `elasticsearch.yml` file a s3 specific proxy
- * cloud.aws.s3.proxy_host: mys3proxy.company.com
- * cloud.aws.s3.proxy_port: 8080
+ * s3.client.default.proxy_host: mys3proxy.company.com
+ * s3.client.default.proxy_port: 8080
  */
 public class S3ProxiedSnapshotRestoreOverHttpsTests extends AbstractS3SnapshotRestoreTest {
 
@@ -34,7 +34,7 @@ public class S3ProxiedSnapshotRestoreOverHttpsTests extends AbstractS3SnapshotRe
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         Settings settings = super.nodeSettings(nodeOrdinal);
-        String proxyHost = settings.get("cloud.aws.s3.proxy_host");
+        String proxyHost = settings.get("s3.client.default.proxy_host");
         proxySet = proxyHost != null;
         return settings;
     }

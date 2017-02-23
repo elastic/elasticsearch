@@ -19,14 +19,11 @@
 
 package org.elasticsearch.repositories.s3;
 
-import java.io.IOException;
-
 import com.amazonaws.services.s3.AbstractAmazonS3;
 import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -35,9 +32,9 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
-import static org.elasticsearch.repositories.s3.S3Repository.Repositories;
+import java.io.IOException;
+
 import static org.elasticsearch.repositories.s3.S3Repository.Repository;
-import static org.elasticsearch.repositories.s3.S3Repository.getValue;
 import static org.hamcrest.Matchers.containsString;
 
 public class S3RepositoryTests extends ESTestCase {
@@ -64,22 +61,6 @@ public class S3RepositoryTests extends ESTestCase {
                                boolean useThrottleRetries, Boolean pathStyleAccess) {
             return new DummyS3Client();
         }
-    }
-
-    public void testSettingsResolution() throws Exception {
-        Settings localSettings = Settings.builder().put(Repository.KEY_SETTING.getKey(), "key1").build();
-        Settings globalSettings = Settings.builder().put(Repositories.KEY_SETTING.getKey(), "key2").build();
-
-        assertEquals(new SecureString("key1".toCharArray()),
-                     getValue(localSettings, globalSettings, Repository.KEY_SETTING, Repositories.KEY_SETTING));
-        assertEquals(new SecureString("key1".toCharArray()),
-                     getValue(localSettings, Settings.EMPTY, Repository.KEY_SETTING, Repositories.KEY_SETTING));
-        assertEquals(new SecureString("key2".toCharArray()),
-                     getValue(Settings.EMPTY, globalSettings, Repository.KEY_SETTING, Repositories.KEY_SETTING));
-        assertEquals(new SecureString("".toCharArray()),
-                     getValue(Settings.EMPTY, Settings.EMPTY, Repository.KEY_SETTING, Repositories.KEY_SETTING));
-        assertWarnings("[" + Repository.KEY_SETTING.getKey() + "] setting was deprecated",
-                       "[" + Repositories.KEY_SETTING.getKey() + "] setting was deprecated");
     }
 
     public void testInvalidChunkBufferSizeSettings() throws IOException {
@@ -121,20 +102,11 @@ public class S3RepositoryTests extends ESTestCase {
         assertEquals("foo/bar/", s3repo.basePath().buildAsString()); // make sure leading `/` is removed and trailing is added
         assertWarnings("S3 repository base_path" +
                 " trimming the leading `/`, and leading `/` will not be supported for the S3 repository in future releases");
-        metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.EMPTY);
-        Settings settings = Settings.builder().put(Repositories.BASE_PATH_SETTING.getKey(), "/foo/bar").build();
-        s3repo = new S3Repository(metadata, settings, NamedXContentRegistry.EMPTY, new DummyS3Service());
-        assertEquals("foo/bar/", s3repo.basePath().buildAsString()); // make sure leading `/` is removed and trailing is added
-        assertWarnings("S3 repository base_path" +
-                " trimming the leading `/`, and leading `/` will not be supported for the S3 repository in future releases");
     }
 
     public void testDefaultBufferSize() {
         ByteSizeValue defaultBufferSize = S3Repository.Repository.BUFFER_SIZE_SETTING.get(Settings.EMPTY);
         assertThat(defaultBufferSize, Matchers.lessThanOrEqualTo(new ByteSizeValue(100, ByteSizeUnit.MB)));
         assertThat(defaultBufferSize, Matchers.greaterThanOrEqualTo(new ByteSizeValue(5, ByteSizeUnit.MB)));
-
-        ByteSizeValue defaultNodeBufferSize = S3Repository.Repositories.BUFFER_SIZE_SETTING.get(Settings.EMPTY);
-        assertEquals(defaultBufferSize, defaultNodeBufferSize);
     }
 }

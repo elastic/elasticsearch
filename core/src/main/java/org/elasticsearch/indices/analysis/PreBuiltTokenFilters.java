@@ -51,6 +51,7 @@ import org.apache.lucene.analysis.miscellaneous.TrimFilter;
 import org.apache.lucene.analysis.miscellaneous.TruncateTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.UniqueTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
+import org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
 import org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilter;
@@ -87,6 +88,18 @@ public enum PreBuiltTokenFilters {
                        WordDelimiterFilter.SPLIT_ON_CASE_CHANGE |
                        WordDelimiterFilter.SPLIT_ON_NUMERICS |
                        WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null);
+        }
+    },
+
+    WORD_DELIMITER_GRAPH(CachingStrategy.ONE) {
+        @Override
+        public TokenStream create(TokenStream tokenStream, Version version) {
+            return new WordDelimiterGraphFilter(tokenStream,
+                WordDelimiterGraphFilter.GENERATE_WORD_PARTS |
+                    WordDelimiterGraphFilter.GENERATE_NUMBER_PARTS |
+                    WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE |
+                    WordDelimiterGraphFilter.SPLIT_ON_NUMERICS |
+                    WordDelimiterGraphFilter.STEM_ENGLISH_POSSESSIVE, null);
         }
     },
 

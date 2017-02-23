@@ -140,6 +140,7 @@ import org.elasticsearch.index.analysis.UniqueTokenFilterFactory;
 import org.elasticsearch.index.analysis.UpperCaseTokenFilterFactory;
 import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
 import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
+import org.elasticsearch.index.analysis.WordDelimiterGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.WordDelimiterTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
@@ -225,6 +226,7 @@ public final class AnalysisModule {
         tokenFilters.register("snowball", SnowballTokenFilterFactory::new);
         tokenFilters.register("stemmer", StemmerTokenFilterFactory::new);
         tokenFilters.register("word_delimiter", WordDelimiterTokenFilterFactory::new);
+        tokenFilters.register("word_delimiter_graph", WordDelimiterGraphTokenFilterFactory::new);
         tokenFilters.register("delimited_payload_filter", DelimitedPayloadTokenFilterFactory::new);
         tokenFilters.register("elision", ElisionTokenFilterFactory::new);
         tokenFilters.register("flatten_graph", FlattenGraphTokenFilterFactory::new);

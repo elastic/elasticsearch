@@ -120,7 +120,14 @@ public class CertificateToolTests extends ESTestCase {
         final int numberOfInstances = scaledRandomIntBetween(1, 12);
         Map<String, Map<String, String>> instanceInput = new HashMap<>(numberOfInstances);
         for (int i = 0; i < numberOfInstances; i++) {
-            final String name = getValidRandomInstanceName();
+            final String name;
+            while (true) {
+                String randomName = getValidRandomInstanceName();
+                if (instanceInput.containsKey(randomName) == false) {
+                    name = randomName;
+                    break;
+                }
+            }
             Map<String, String> instanceInfo = new HashMap<>();
             instanceInput.put(name, instanceInfo);
             instanceInfo.put("ip", randomFrom("127.0.0.1", "::1", "192.168.1.1,::1", ""));

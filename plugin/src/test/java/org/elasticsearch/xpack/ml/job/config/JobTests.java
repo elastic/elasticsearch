@@ -397,7 +397,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             outputs = new String[] {ac.getDetectors().get(0).getFieldName()};
         }
         if (randomBoolean()) {
-            builder.setModelDebugConfig(new ModelDebugConfig(randomDouble(), randomAsciiOfLength(10)));
+            builder.setModelDebugConfig(new ModelDebugConfig(randomBoolean(), randomAsciiOfLength(10)));
         }
         if (randomBoolean()) {
             builder.setRenormalizationWindowDays(randomNonNegativeLong());

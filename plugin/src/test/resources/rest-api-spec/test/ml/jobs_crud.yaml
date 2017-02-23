@@ -198,7 +198,8 @@
               "field_delimiter":","
             },
             "model_debug_config": {
-              "bounds_percentile": 95.0
+              "enabled": true,
+              "terms": "foo,bar"
             },
             "analysis_limits": {
               "model_memory_limit": 10
@@ -229,7 +230,8 @@
                                                              "condition": {"operator": "gt", "value": "10" } } ] } },
                           {"index": 1, "description": "updated description"}],
             "model_debug_config": {
-              "bounds_percentile": 99.0
+              "enabled": false,
+              "terms": "foobar"
             },
             "analysis_limits": {
               "model_memory_limit": 20
@@ -245,7 +247,8 @@
           }
   - match: { job_id: "to-update" }
   - match: { description: "Post update description" }
-  - match: { model_debug_config.bounds_percentile: 99.0 }
+  - match: { model_debug_config.enabled: false }
+  - match: { model_debug_config.terms: "foobar" }
   - match: { analysis_limits.model_memory_limit: 20 }
   - match: { analysis_config.categorization_filters: ["cat3.*"] }
   - match: { analysis_config.detectors.0.detector_rules.0.target_field_name: "airline" }

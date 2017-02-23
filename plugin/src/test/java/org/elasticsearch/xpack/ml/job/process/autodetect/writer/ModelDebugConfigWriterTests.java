@@ -5,17 +5,17 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
+import org.junit.After;
+import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 
-import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
-import org.junit.Before;
-import org.mockito.Mockito;
-import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class ModelDebugConfigWriterTests extends ESTestCase {
     private OutputStreamWriter writer;
@@ -29,12 +29,31 @@ public class ModelDebugConfigWriterTests extends ESTestCase {
     public void verifyNoMoreWriterInteractions() {
         verifyNoMoreInteractions(writer);
     }
-    public void testWrite_GivenFullConfig() throws IOException {
-        ModelDebugConfig modelDebugConfig = new ModelDebugConfig(65.0, "foo,bar");
+
+    public void testWrite_GivenEnabledConfigWithoutTerms() throws IOException {
+        ModelDebugConfig modelDebugConfig = new ModelDebugConfig();
         ModelDebugConfigWriter writer = new ModelDebugConfigWriter(modelDebugConfig, this.writer);
 
         writer.write();
 
-        verify(this.writer).write("boundspercentile = 65.0\nterms = foo,bar\n");
+        verify(this.writer).write("boundspercentile = 95.0\nterms = \n");
+    }
+
+    public void testWrite_GivenEnabledConfigWithTerms() throws IOException {
+        ModelDebugConfig modelDebugConfig = new ModelDebugConfig(true, "foo,bar");
+        ModelDebugConfigWriter writer = new ModelDebugConfigWriter(modelDebugConfig, this.writer);
+
+        writer.write();
+
+        verify(this.writer).write("boundspercentile = 95.0\nterms = foo,bar\n");
+    }
+
+    public void testWrite_GivenDisabledConfigWithTerms() throws IOException {
+        ModelDebugConfig modelDebugConfig = new ModelDebugConfig(false, "foo,bar");
+        ModelDebugConfigWriter writer = new ModelDebugConfigWriter(modelDebugConfig, this.writer);
+
+        writer.write();
+
+        verify(this.writer).write("boundspercentile = -1.0\nterms = foo,bar\n");
     }
 }

@@ -56,7 +56,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
     public void tesWriteUpdateModelDebugMessage() throws IOException {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class))) {
-            ModelDebugConfig config = new ModelDebugConfig(10.0, "apple,peach");
+            ModelDebugConfig config = new ModelDebugConfig();
             communicator.writeUpdateModelDebugMessage(config);
             Mockito.verify(process).writeUpdateModelDebugMessage(config);
         }

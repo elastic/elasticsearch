@@ -105,8 +105,6 @@ public final class Messages {
     public static final String JOB_CONFIG_INVALID_TIMEFORMAT = "job.config.invalid.timeformat";
     public static final String JOB_CONFIG_FUNCTION_INCOMPATIBLE_PRESUMMARIZED = "job.config.function.incompatible.presummarized";
     public static final String JOB_CONFIG_MISSING_ANALYSISCONFIG = "job.config.missing.analysisconfig";
-    public static final String JOB_CONFIG_MODEL_DEBUG_CONFIG_INVALID_BOUNDS_PERCENTILE = "job.config.model.debug.config.invalid.bounds."
-            + "percentile";
     public static final String JOB_CONFIG_FIELD_VALUE_TOO_LOW = "job.config.field.value.too.low";
     public static final String JOB_CONFIG_NO_ANALYSIS_FIELD = "job.config.no.analysis.field";
     public static final String JOB_CONFIG_NO_ANALYSIS_FIELD_NOT_COUNT = "job.config.no.analysis.field.not.count";

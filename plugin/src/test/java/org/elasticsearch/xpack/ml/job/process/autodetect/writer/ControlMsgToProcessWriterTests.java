@@ -151,12 +151,12 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
     public void testWriteUpdateModelDebugMessage() throws IOException {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
 
-        writer.writeUpdateModelDebugMessage(new ModelDebugConfig(10.0, "foo,bar"));
+        writer.writeUpdateModelDebugMessage(new ModelDebugConfig(true, "foo,bar"));
 
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
-        inOrder.verify(lengthEncodedWriter).writeField("u[modelDebugConfig]\nboundspercentile = 10.0\nterms = foo,bar\n");
+        inOrder.verify(lengthEncodedWriter).writeField("u[modelDebugConfig]\nboundspercentile = 95.0\nterms = foo,bar\n");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 

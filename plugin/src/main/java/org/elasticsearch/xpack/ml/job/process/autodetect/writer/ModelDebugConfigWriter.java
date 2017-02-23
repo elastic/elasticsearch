@@ -16,6 +16,9 @@ import static org.elasticsearch.xpack.ml.job.process.autodetect.writer.WriterCon
 
 public class ModelDebugConfigWriter {
 
+    private static final double BOUNDS_PERCENTILE_DEFAULT = 95.0;
+    private static final double BOUNDS_PERCENTILE_DISABLE_VALUE = -1.0;
+
     private final ModelDebugConfig modelDebugConfig;
     private final Writer writer;
 
@@ -29,7 +32,7 @@ public class ModelDebugConfigWriter {
 
         contents.append("boundspercentile")
                 .append(EQUALS)
-                .append(modelDebugConfig.getBoundsPercentile())
+                .append(modelDebugConfig.isEnabled() ? BOUNDS_PERCENTILE_DEFAULT : BOUNDS_PERCENTILE_DISABLE_VALUE)
                 .append(NEW_LINE);
 
         String terms = modelDebugConfig.getTerms();

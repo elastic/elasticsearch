@@ -11,57 +11,56 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.job.messages.Messages;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
 
 public class ModelDebugConfig extends ToXContentToBytes implements Writeable {
 
-    private static final double MAX_PERCENTILE = 100.0;
-
     private static final ParseField TYPE_FIELD = new ParseField("model_debug_config");
-    public static final ParseField BOUNDS_PERCENTILE_FIELD = new ParseField("bounds_percentile");
+    private static final ParseField ENABLED_FIELD = new ParseField("enabled");
     public static final ParseField TERMS_FIELD = new ParseField("terms");
 
     public static final ConstructingObjectParser<ModelDebugConfig, Void> PARSER = new ConstructingObjectParser<>(
-            TYPE_FIELD.getPreferredName(), a -> new ModelDebugConfig((Double) a[0], (String) a[1]));
+            TYPE_FIELD.getPreferredName(), a -> new ModelDebugConfig((boolean) a[0], (String) a[1]));
 
     static {
-        PARSER.declareDouble(ConstructingObjectParser.constructorArg(), BOUNDS_PERCENTILE_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TERMS_FIELD);
     }
 
-    private final double boundsPercentile;
+    private final boolean enabled;
     private final String terms;
 
-    public ModelDebugConfig(double boundsPercentile, String terms) {
-        if (boundsPercentile < 0.0 || boundsPercentile > MAX_PERCENTILE) {
-            String msg = Messages.getMessage(Messages.JOB_CONFIG_MODEL_DEBUG_CONFIG_INVALID_BOUNDS_PERCENTILE);
-            throw new IllegalArgumentException(msg);
-        }
-        this.boundsPercentile = boundsPercentile;
+    public ModelDebugConfig() {
+        this(true, null);
+    }
+
+    public ModelDebugConfig(boolean enabled) {
+        this(false, null);
+    }
+
+    public ModelDebugConfig(boolean enabled, String terms) {
+        this.enabled = enabled;
         this.terms = terms;
     }
 
     public ModelDebugConfig(StreamInput in) throws IOException {
-        boundsPercentile = in.readDouble();
+        enabled = in.readBoolean();
         terms = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeDouble(boundsPercentile);
+        out.writeBoolean(enabled);
         out.writeOptionalString(terms);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(BOUNDS_PERCENTILE_FIELD.getPreferredName(), boundsPercentile);
+        builder.field(ENABLED_FIELD.getPreferredName(), enabled);
         if (terms != null) {
             builder.field(TERMS_FIELD.getPreferredName(), terms);
         }
@@ -69,8 +68,8 @@ public class ModelDebugConfig extends ToXContentToBytes implements Writeable {
         return builder;
     }
 
-    public double getBoundsPercentile() {
-        return this.boundsPercentile;
+    public boolean isEnabled() {
+        return enabled;
     }
 
     public String getTerms() {
@@ -88,11 +87,11 @@ public class ModelDebugConfig extends ToXContentToBytes implements Writeable {
         }
 
         ModelDebugConfig that = (ModelDebugConfig) other;
-        return Objects.equals(this.boundsPercentile, that.boundsPercentile) && Objects.equals(this.terms, that.terms);
+        return this.enabled == that.enabled && Objects.equals(this.terms, that.terms);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(boundsPercentile, terms);
+        return Objects.hash(enabled, terms);
     }
 }

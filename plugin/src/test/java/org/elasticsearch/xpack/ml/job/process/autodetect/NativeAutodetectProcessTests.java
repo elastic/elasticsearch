@@ -145,7 +145,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
                 new AutodetectResultsParser(Settings.EMPTY))) {
             process.start(executorService, mock(StateProcessor.class), mock(InputStream.class));
 
-            process.writeUpdateModelDebugMessage(new ModelDebugConfig(1.0, "term,s"));
+            process.writeUpdateModelDebugMessage(new ModelDebugConfig());
             process.flushStream();
 
             String message = new String(bos.toByteArray(), StandardCharsets.UTF_8);

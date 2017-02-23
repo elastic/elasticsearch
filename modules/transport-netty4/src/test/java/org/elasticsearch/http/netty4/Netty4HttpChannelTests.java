@@ -228,7 +228,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
         final Settings settings = Settings.builder().build();
         final NamedXContentRegistry registry = xContentRegistry();
         try (Netty4HttpServerTransport httpServerTransport =
-                     new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, registry)) {
+                     new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, registry, new NullDispatcher())) {
             final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
             final EmbeddedChannel embeddedChannel = new EmbeddedChannel();
             final Netty4HttpRequest request = new Netty4HttpRequest(registry, httpRequest, embeddedChannel);

@@ -72,6 +72,12 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
     public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) throws Exception {
         if (msg instanceof HttpPipelinedResponse) {
             final HttpPipelinedResponse current = (HttpPipelinedResponse) msg;
+            /*
+             * We attach the promise to the response. When we invoke a write on the channel with the response, we must ensure that we invoke
+             * the write methods that accept the same promise that we have attached to the response otherwise as the response proceeds
+             * through the handler pipeline a different promise will be used until reaching this handler. Therefore, we assert here that the
+             * attached promise is identical to the provided promise as a safety mechanism that we are respecting this.
+             */
             assert current.promise() == promise;
 
             boolean channelShouldClose = false;
@@ -107,7 +113,7 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
                 try {
                     Netty4Utils.closeChannels(Collections.singletonList(ctx.channel()));
                 } finally {
-                    ((HttpPipelinedResponse) msg).release();
+                    current.release();
                     promise.setSuccess();
                 }
             }

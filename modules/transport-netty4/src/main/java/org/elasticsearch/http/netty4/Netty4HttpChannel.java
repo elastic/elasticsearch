@@ -135,7 +135,7 @@ final class Netty4HttpChannel extends AbstractRestChannel {
 
             final Object msg;
             if (pipelinedRequest != null) {
-                msg = pipelinedRequest.createHttpResponse(resp);
+                msg = pipelinedRequest.createHttpResponse(resp, promise);
             } else {
                 msg = resp;
             }

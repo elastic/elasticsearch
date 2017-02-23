@@ -95,7 +95,6 @@ public class MlFullClusterRestartIT extends BaseMlIntegTestCase {
             assertEquals(numDocs1 + numDocs2, dataCounts.getProcessedRecordCount());
             assertEquals(0L, dataCounts.getOutOfOrderTimeStampCount());
         }, 30, TimeUnit.SECONDS);
-        cleanupWorkaround(3);
     }
 
 }

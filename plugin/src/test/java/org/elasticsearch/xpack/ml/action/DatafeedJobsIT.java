@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.persistent.PersistentActionResponse;
 import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
-import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -28,11 +27,6 @@ public class DatafeedJobsIT extends BaseMlIntegTestCase {
     @Before
     public void startNode() {
         internalCluster().ensureAtLeastNumDataNodes(1);
-    }
-
-    @After
-    public void stopNode() throws Exception {
-        cleanupWorkaround(1);
     }
 
     public void testLookbackOnly() throws Exception {

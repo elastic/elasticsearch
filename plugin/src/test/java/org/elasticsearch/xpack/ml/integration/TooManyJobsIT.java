@@ -58,7 +58,6 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         assertEquals(JobState.OPENED, task.getStatus());
         OpenJobAction.Request openJobRequest = (OpenJobAction.Request) task.getRequest();
         assertEquals("1", openJobRequest.getJobId());
-        cleanupWorkaround(1);
     }
 
     public void testSingleNode() throws Exception {
@@ -104,11 +103,9 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                             client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
                     assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.OPENED);
                 });
-                cleanupWorkaround(numNodes);
                 return;
             }
         }
-        cleanupWorkaround(numNodes);
         fail("shouldn't be able to add more than [" + clusterWideMaxNumberOfJobs + "] jobs");
     }
 

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
+import org.junit.After;
 
 import java.util.Collections;
 import java.util.Date;
@@ -121,9 +122,11 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
     // Due to the fact that ml plugin creates the state, notifications and meta indices automatically
     // when the test framework removes all indices then ml plugin adds them back. Causing validation to fail
     // we should move to templates instead as that will fix the test problem
-    protected void cleanupWorkaround(int numNodes) throws Exception {
+    @After
+    public void cleanupWorkaround() throws Exception {
         deleteAllDatafeeds(client());
         deleteAllJobs(client());
+        int numNodes = internalCluster().size();
         for (int i = 0; i < numNodes; i++) {
             internalCluster().stopRandomNode(settings -> true);
         }

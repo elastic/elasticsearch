@@ -145,7 +145,7 @@ public class SecuritySettingsTests extends ESTestCase {
             Security.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", false).build());
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString(SecurityTemplateService.SECURITY_INDEX_NAME));
+            assertThat(e.getMessage(), containsString(SecurityLifecycleService.SECURITY_INDEX_NAME));
             assertThat(e.getMessage(), not(containsString(IndexAuditTrail.INDEX_NAME_PREFIX)));
         }
 
@@ -157,7 +157,7 @@ public class SecuritySettingsTests extends ESTestCase {
             Security.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", "foo").build());
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString(SecurityTemplateService.SECURITY_INDEX_NAME));
+            assertThat(e.getMessage(), containsString(SecurityLifecycleService.SECURITY_INDEX_NAME));
             assertThat(e.getMessage(), not(containsString(IndexAuditTrail.INDEX_NAME_PREFIX)));
         }
 
@@ -165,7 +165,7 @@ public class SecuritySettingsTests extends ESTestCase {
             Security.validateAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".security_audit_log*").build());
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString(SecurityTemplateService.SECURITY_INDEX_NAME));
+            assertThat(e.getMessage(), containsString(SecurityLifecycleService.SECURITY_INDEX_NAME));
         }
 
         Security.validateAutoCreateIndex(Settings.builder()
@@ -181,7 +181,7 @@ public class SecuritySettingsTests extends ESTestCase {
                     .build());
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString(SecurityTemplateService.SECURITY_INDEX_NAME));
+            assertThat(e.getMessage(), containsString(SecurityLifecycleService.SECURITY_INDEX_NAME));
             assertThat(e.getMessage(), containsString(IndexAuditTrail.INDEX_NAME_PREFIX));
         }
 

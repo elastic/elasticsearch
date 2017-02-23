@@ -33,7 +33,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.security.SecurityTemplateService;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.security.action.user.UserRequest;
@@ -234,15 +234,15 @@ public class AuthorizationService extends AbstractComponent {
         IndicesAccessControl indicesAccessControl = permission.authorize(action, indexNames, metaData, fieldPermissionsCache);
         if (!indicesAccessControl.isGranted()) {
             throw denial(authentication, action, request);
-        } else if (indicesAccessControl.getIndexPermissions(SecurityTemplateService.SECURITY_INDEX_NAME) != null
-                && indicesAccessControl.getIndexPermissions(SecurityTemplateService.SECURITY_INDEX_NAME).isGranted()
+        } else if (indicesAccessControl.getIndexPermissions(SecurityLifecycleService.SECURITY_INDEX_NAME) != null
+                && indicesAccessControl.getIndexPermissions(SecurityLifecycleService.SECURITY_INDEX_NAME).isGranted()
                 && XPackUser.is(authentication.getRunAsUser()) == false
                 && MONITOR_INDEX_PREDICATE.test(action) == false
                 && Arrays.binarySearch(authentication.getRunAsUser().roles(), ReservedRolesStore.SUPERUSER_ROLE.name()) < 0) {
             // only the XPackUser is allowed to work with this index, but we should allow indices monitoring actions through for debugging
             // purposes. These monitor requests also sometimes resolve indices concretely and then requests them
             logger.debug("user [{}] attempted to directly perform [{}] against the security index [{}]",
-                    authentication.getRunAsUser().principal(), action, SecurityTemplateService.SECURITY_INDEX_NAME);
+                    authentication.getRunAsUser().principal(), action, SecurityLifecycleService.SECURITY_INDEX_NAME);
             throw denial(authentication, action, request);
         } else {
             setIndicesAccessControl(indicesAccessControl);

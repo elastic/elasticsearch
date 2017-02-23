@@ -9,7 +9,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -22,10 +21,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -33,14 +28,13 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.security.SecurityTemplateService;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordRequest;
@@ -60,13 +54,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
-
-import static org.elasticsearch.xpack.security.SecurityTemplateService.oldestSecurityIndexMappingVersion;
-import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingAndTemplateSufficientToRead;
-import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingAndTemplateUpToDate;
 
 /**
  * NativeUsersStore is a store for users that reads from an Elasticsearch index. This store is responsible for fetching the full
@@ -75,58 +63,37 @@ import static org.elasticsearch.xpack.security.SecurityTemplateService.securityI
  * No caching is done by this class, it is handled at a higher level and no polling for changes is done by this class. Modification
  * operations make a best effort attempt to clear the cache on all nodes for the user that was modified.
  */
-public class NativeUsersStore extends AbstractComponent implements ClusterStateListener {
-
-    public enum State {
-        INITIALIZED,
-        STARTING,
-        STARTED,
-        STOPPING,
-        STOPPED,
-        FAILED
-    }
+public class NativeUsersStore extends AbstractComponent {
 
     private static final String USER_DOC_TYPE = "user";
-    static final String RESERVED_USER_DOC_TYPE = "reserved-user";
+    public static final String RESERVED_USER_DOC_TYPE = "reserved-user";
 
     private final Hasher hasher = Hasher.BCRYPT;
-    private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final InternalClient client;
     private final boolean isTribeNode;
 
-    private volatile boolean securityIndexExists = false;
-    private volatile boolean canWrite = false;
-    private volatile Version mappingVersion = null;
+    private volatile SecurityLifecycleService securityLifecycleService;
 
-    public NativeUsersStore(Settings settings, InternalClient client) {
+    public NativeUsersStore(Settings settings, InternalClient client, SecurityLifecycleService securityLifecycleService) {
         super(settings);
         this.client = client;
         this.isTribeNode = settings.getGroups("tribe", true).isEmpty() == false;
+        this.securityLifecycleService = securityLifecycleService;
     }
 
     /**
      * Blocking version of {@code getUser} that blocks until the User is returned
      */
     public void getUser(String username, ActionListener<User> listener) {
-        if (state() != State.STARTED) {
-            logger.trace("attempted to get user [{}] before service was started", username);
-            listener.onResponse(null);
-        } else {
-            getUserAndPassword(username, ActionListener.wrap((uap) -> {
-                listener.onResponse(uap == null ? null : uap.user());
-            }, listener::onFailure));
-        }
+        getUserAndPassword(username, ActionListener.wrap((uap) -> {
+            listener.onResponse(uap == null ? null : uap.user());
+        }, listener::onFailure));
     }
 
     /**
      * Retrieve a list of users, if userNames is null or empty, fetch all users
      */
     public void getUsers(String[] userNames, final ActionListener<Collection<User>> listener) {
-        if (state() != State.STARTED) {
-            logger.trace("attempted to get users before service was started");
-            listener.onFailure(new IllegalStateException("users cannot be retrieved as native user service has not been started"));
-            return;
-        }
         final Consumer<Exception> handleException = (t) -> {
             if (t instanceof IndexNotFoundException) {
                 logger.trace("could not retrieve users because security index does not exist");
@@ -149,7 +116,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                 } else {
                     query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(USER_DOC_TYPE).addIds(userNames));
                 }
-                SearchRequest request = client.prepareSearch(SecurityTemplateService.SECURITY_INDEX_NAME)
+                SearchRequest request = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
                         .setScroll(TimeValue.timeValueSeconds(10L))
                         .setTypes(USER_DOC_TYPE)
                         .setQuery(query)
@@ -173,7 +140,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
      */
     private void getUserAndPassword(final String user, final ActionListener<UserAndPassword> listener) {
         try {
-            GetRequest request = client.prepareGet(SecurityTemplateService.SECURITY_INDEX_NAME, USER_DOC_TYPE, user).request();
+            GetRequest request = client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, USER_DOC_TYPE, user).request();
             client.get(request, new ActionListener<GetResponse>() {
                 @Override
                 public void onResponse(GetResponse response) {
@@ -210,13 +177,10 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     public void changePassword(final ChangePasswordRequest request, final ActionListener<Void> listener) {
         final String username = request.username();
         assert SystemUser.NAME.equals(username) == false && XPackUser.NAME.equals(username) == false : username + "is internal!";
-        if (state() != State.STARTED) {
-            listener.onFailure(new IllegalStateException("password cannot be changed as user service has not been started"));
-            return;
-        } else if (isTribeNode) {
+        if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("users may not be created or modified using a tribe node"));
             return;
-        } else if (canWrite == false) {
+        } else if (securityLifecycleService.canWriteToSecurityIndex() == false) {
             listener.onFailure(new IllegalStateException("password cannot be changed as user service cannot write until template and " +
                     "mappings are up to date"));
             return;
@@ -229,7 +193,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             docType = USER_DOC_TYPE;
         }
 
-        client.prepareUpdate(SecurityTemplateService.SECURITY_INDEX_NAME, docType, username)
+        client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, docType, username)
                 .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.PASSWORD.getPreferredName(), String.valueOf(request.passwordHash()))
                 .setRefreshPolicy(request.getRefreshPolicy())
                 .execute(new ActionListener<UpdateResponse>() {
@@ -263,7 +227,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
      * has been indexed
      */
     private void createReservedUser(String username, char[] passwordHash, RefreshPolicy refresh, ActionListener<Void> listener) {
-        client.prepareIndex(SecurityTemplateService.SECURITY_INDEX_NAME, RESERVED_USER_DOC_TYPE, username)
+        client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, RESERVED_USER_DOC_TYPE, username)
                 .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash), Fields.ENABLED.getPreferredName(), true)
                 .setRefreshPolicy(refresh)
                 .execute(new ActionListener<IndexResponse>() {
@@ -286,13 +250,10 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
      * method will not modify the enabled value.
      */
     public void putUser(final PutUserRequest request, final ActionListener<Boolean> listener) {
-        if (state() != State.STARTED) {
-            listener.onFailure(new IllegalStateException("user cannot be added as native user service has not been started"));
-            return;
-        } else if (isTribeNode) {
+        if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("users may not be created or modified using a tribe node"));
             return;
-        }  else if (canWrite == false) {
+        }  else if (securityLifecycleService.canWriteToSecurityIndex() == false) {
             listener.onFailure(new IllegalStateException("user cannot be created or changed as the user service cannot write until " +
                     "template and mappings are up to date"));
             return;
@@ -316,7 +277,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     private void updateUserWithoutPassword(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
         assert putUserRequest.passwordHash() == null;
         // We must have an existing document
-        client.prepareUpdate(SecurityTemplateService.SECURITY_INDEX_NAME, USER_DOC_TYPE, putUserRequest.username())
+        client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, USER_DOC_TYPE, putUserRequest.username())
                 .setDoc(Requests.INDEX_CONTENT_TYPE,
                         User.Fields.USERNAME.getPreferredName(), putUserRequest.username(),
                         User.Fields.ROLES.getPreferredName(), putUserRequest.roles(),
@@ -351,7 +312,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
 
     private void indexUser(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
         assert putUserRequest.passwordHash() != null;
-        client.prepareIndex(SecurityTemplateService.SECURITY_INDEX_NAME,
+        client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME,
                 USER_DOC_TYPE, putUserRequest.username())
                 .setSource(User.Fields.USERNAME.getPreferredName(), putUserRequest.username(),
                         User.Fields.PASSWORD.getPreferredName(), String.valueOf(putUserRequest.passwordHash()),
@@ -380,13 +341,10 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
      */
     public void setEnabled(final String username, final boolean enabled, final RefreshPolicy refreshPolicy,
                            final ActionListener<Void> listener) {
-        if (state() != State.STARTED) {
-            listener.onFailure(new IllegalStateException("enabled status cannot be changed as native user service has not been started"));
-            return;
-        } else if (isTribeNode) {
+        if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("users may not be created or modified using a tribe node"));
             return;
-        }  else if (canWrite == false) {
+        }  else if (securityLifecycleService.canWriteToSecurityIndex() == false) {
             listener.onFailure(new IllegalStateException("enabled status cannot be changed as user service cannot write until template " +
                     "and mappings are up to date"));
             return;
@@ -402,7 +360,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     private void setRegularUserEnabled(final String username, final boolean enabled, final RefreshPolicy refreshPolicy,
                             final ActionListener<Void> listener) {
         try {
-            client.prepareUpdate(SecurityTemplateService.SECURITY_INDEX_NAME, USER_DOC_TYPE, username)
+            client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, USER_DOC_TYPE, username)
                     .setDoc(Requests.INDEX_CONTENT_TYPE, User.Fields.ENABLED.getPreferredName(), enabled)
                     .setRefreshPolicy(refreshPolicy)
                     .execute(new ActionListener<UpdateResponse>() {
@@ -434,7 +392,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     private void setReservedUserEnabled(final String username, final boolean enabled, final RefreshPolicy refreshPolicy,
                                         boolean clearCache, final ActionListener<Void> listener) {
         try {
-            client.prepareUpdate(SecurityTemplateService.SECURITY_INDEX_NAME, RESERVED_USER_DOC_TYPE, username)
+            client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, RESERVED_USER_DOC_TYPE, username)
                     .setDoc(Requests.INDEX_CONTENT_TYPE, User.Fields.ENABLED.getPreferredName(), enabled)
                     .setUpsert(XContentType.JSON,
                             User.Fields.PASSWORD.getPreferredName(), "",
@@ -461,20 +419,17 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     }
 
     public void deleteUser(final DeleteUserRequest deleteUserRequest, final ActionListener<Boolean> listener) {
-        if (state() != State.STARTED) {
-            listener.onFailure(new IllegalStateException("user cannot be deleted as native user service has not been started"));
-            return;
-        } else if (isTribeNode) {
+        if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("users may not be deleted using a tribe node"));
             return;
-        }  else if (canWrite == false) {
+        }  else if (securityLifecycleService.canWriteToSecurityIndex() == false) {
             listener.onFailure(new IllegalStateException("user cannot be deleted as user service cannot write until template and " +
                     "mappings are up to date"));
             return;
         }
 
         try {
-            DeleteRequest request = client.prepareDelete(SecurityTemplateService.SECURITY_INDEX_NAME,
+            DeleteRequest request = client.prepareDelete(SecurityLifecycleService.SECURITY_INDEX_NAME,
                     USER_DOC_TYPE, deleteUserRequest.username()).request();
             request.indicesOptions().ignoreUnavailable();
             request.setRefreshPolicy(deleteUserRequest.getRefreshPolicy());
@@ -496,64 +451,6 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         }
     }
 
-    public boolean canStart(ClusterState clusterState, boolean master) {
-        if (state() != State.INITIALIZED) {
-            return false;
-        }
-
-        if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            // wait until the gateway has recovered from disk, otherwise we
-            // think may not have the .security index but they it may not have
-            // been restored from the cluster state on disk yet
-            logger.debug("native users store waiting until gateway has recovered from disk");
-            return false;
-        }
-
-        if (isTribeNode) {
-            return true;
-        }
-
-        if (securityIndexMappingAndTemplateUpToDate(clusterState, logger)) {
-            canWrite = true;
-        } else if (securityIndexMappingAndTemplateSufficientToRead(clusterState, logger)) {
-            mappingVersion = oldestSecurityIndexMappingVersion(clusterState, logger);
-            canWrite = false;
-        } else {
-            canWrite = false;
-            return false;
-        }
-
-        final IndexRoutingTable routingTable = SecurityTemplateService.getSecurityIndexRoutingTable(clusterState);
-        if (routingTable == null) {
-            logger.debug("security index [{}] does not exist, so service can start", SecurityTemplateService.SECURITY_INDEX_NAME);
-            return true;
-        }
-        if (routingTable.allPrimaryShardsActive()) {
-            logger.debug("security index [{}] all primary shards started, so service can start",
-                    SecurityTemplateService.SECURITY_INDEX_NAME);
-            securityIndexExists = true;
-            return true;
-        }
-        return false;
-    }
-
-    public void start() {
-        try {
-            if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
-                state.set(State.STARTED);
-            }
-        } catch (Exception e) {
-            logger.error("failed to start native user store", e);
-            state.set(State.FAILED);
-        }
-    }
-
-    public void stop() {
-        if (state.compareAndSet(State.STARTED, State.STOPPING)) {
-            state.set(State.STOPPED);
-        }
-    }
-
     /**
      * This method is used to verify the username and credentials against those stored in the system.
      *
@@ -561,46 +458,23 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
      * @param password the plaintext password to verify
      */
     void verifyPassword(String username, final SecuredString password, ActionListener<User> listener) {
-        if (state() != State.STARTED) {
-            logger.trace("attempted to verify user credentials for [{}] but service was not started", username);
-            listener.onResponse(null);
-        } else {
-            getUserAndPassword(username, ActionListener.wrap((userAndPassword) -> {
-                if (userAndPassword == null || userAndPassword.passwordHash() == null) {
-                    listener.onResponse(null);
-                } else if (hasher.verify(password, userAndPassword.passwordHash())) {
-                    listener.onResponse(userAndPassword.user());
-                } else {
-                    listener.onResponse(null);
-                }
-            }, listener::onFailure));
-        }
-    }
-
-    public boolean started() {
-        return state() == State.STARTED;
-    }
-
-    boolean securityIndexExists() {
-        return securityIndexExists;
-    }
-
-    /**
-     * Test whether the effective (active) version of the security mapping meets the <code>requiredVersion</code>.
-     *
-     * @return <code>true</code> if the effective version passes the predicate, or the security mapping does not exist (<code>null</code>
-     * version). Otherwise, <code>false</code>.
-     */
-    public boolean checkMappingVersion(Predicate<Version> requiredVersion) {
-        return this.mappingVersion == null || requiredVersion.test(this.mappingVersion);
+        getUserAndPassword(username, ActionListener.wrap((userAndPassword) -> {
+            if (userAndPassword == null || userAndPassword.passwordHash() == null) {
+                listener.onResponse(null);
+            } else if (hasher.verify(password, userAndPassword.passwordHash())) {
+                listener.onResponse(userAndPassword.user());
+            } else {
+                listener.onResponse(null);
+            }
+        }, listener::onFailure));
     }
 
     void getReservedUserInfo(String username, ActionListener<ReservedUserInfo> listener) {
-        if (!started() && !securityIndexExists()) {
-            listener.onFailure(new IllegalStateException("Attempt to get reserved user info - started=" + started() +
-                    " index-exists=" + securityIndexExists()));
+        if (!securityLifecycleService.securityIndexExists()) {
+            listener.onFailure(new IllegalStateException("Attempt to get reserved user info but the security index does not exist"));
+            return;
         }
-        client.prepareGet(SecurityTemplateService.SECURITY_INDEX_NAME, RESERVED_USER_DOC_TYPE, username)
+        client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, RESERVED_USER_DOC_TYPE, username)
                 .execute(new ActionListener<GetResponse>() {
                     @Override
                     public void onResponse(GetResponse getResponse) {
@@ -639,8 +513,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     }
 
     void getAllReservedUserInfo(ActionListener<Map<String, ReservedUserInfo>> listener) {
-        assert started();
-        client.prepareSearch(SecurityTemplateService.SECURITY_INDEX_NAME)
+        client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
                 .setTypes(RESERVED_USER_DOC_TYPE)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setFetchSource(true)
@@ -702,29 +575,6 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         });
     }
 
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        securityIndexExists = event.state().metaData().indices().get(SecurityTemplateService.SECURITY_INDEX_NAME) != null;
-        canWrite = securityIndexMappingAndTemplateUpToDate(event.state(), logger);
-        mappingVersion = oldestSecurityIndexMappingVersion(event.state(), logger);
-    }
-
-    public State state() {
-        return state.get();
-    }
-
-    // FIXME hack for testing
-    public void reset() {
-        final State state = state();
-        if (state != State.STOPPED && state != State.FAILED) {
-            throw new IllegalStateException("can only reset if stopped!!!");
-        }
-        this.securityIndexExists = false;
-        this.canWrite = false;
-        this.mappingVersion = null;
-        this.state.set(State.INITIALIZED);
-    }
-
     @Nullable
     private UserAndPassword transformUser(String username, Map<String, Object> sourceMap) {
         if (sourceMap == null) {
@@ -760,9 +610,9 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
 
     static class ReservedUserInfo {
 
-        final char[] passwordHash;
-        final boolean enabled;
-        final boolean hasDefaultPassword;
+        public final char[] passwordHash;
+        public final boolean enabled;
+        public final boolean hasDefaultPassword;
 
         ReservedUserInfo(char[] passwordHash, boolean enabled, boolean hasDefaultPassword) {
             this.passwordHash = passwordHash;

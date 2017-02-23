@@ -38,6 +38,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTransportClient;
+import org.elasticsearch.xpack.security.SecurityLifecycleService.UpgradeState;
+import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealmMigrator;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.elasticsearch.xpack.template.TemplateUtils;
@@ -45,12 +47,11 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
 
-import static org.elasticsearch.xpack.security.SecurityTemplateService.SECURITY_INDEX_NAME;
-import static org.elasticsearch.xpack.security.SecurityTemplateService.SECURITY_INDEX_TEMPLATE_VERSION_PATTERN;
-import static org.elasticsearch.xpack.security.SecurityTemplateService.SECURITY_TEMPLATE_NAME;
-import static org.elasticsearch.xpack.security.SecurityTemplateService.UpgradeState;
-import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingVersionMatches;
-import static org.elasticsearch.xpack.security.SecurityTemplateService.securityTemplateExistsAndVersionMatches;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_TEMPLATE_VERSION_PATTERN;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.securityIndexMappingVersionMatches;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.securityTemplateExistsAndVersionMatches;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -58,13 +59,13 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class SecurityTemplateServiceTests extends ESTestCase {
+public class SecurityLifecycleServiceTests extends ESTestCase {
     private InternalClient client;
     private TransportClient transportClient;
     private ThreadPool threadPool;
     private ClusterService clusterService;
     private NativeRealmMigrator nativeRealmMigrator;
-    SecurityTemplateService securityTemplateService;
+    SecurityLifecycleService securityLifecycleService;
     private static final ClusterState EMPTY_CLUSTER_STATE =
             new ClusterState.Builder(new ClusterName("test-cluster")).build();
 
@@ -101,7 +102,8 @@ public class SecurityTemplateServiceTests extends ESTestCase {
         }).when(nativeRealmMigrator).performUpgrade(any(Version.class), any(ActionListener.class));
 
         client = new IClient(transportClient);
-        securityTemplateService = new SecurityTemplateService(Settings.EMPTY, client, nativeRealmMigrator);
+        securityLifecycleService = new SecurityLifecycleService(Settings.EMPTY, clusterService, threadPool,
+                                                                client, nativeRealmMigrator, mock(IndexAuditTrail.class));
         listeners = new CopyOnWriteArrayList<>();
     }
 
@@ -116,8 +118,8 @@ public class SecurityTemplateServiceTests extends ESTestCase {
     public void testIndexTemplateIsIdentifiedAsUpToDate() throws IOException {
         String templateString = "/" + SECURITY_TEMPLATE_NAME + ".json";
         ClusterState.Builder clusterStateBuilder = createClusterStateWithTemplate(templateString);
-        assertTrue(SecurityTemplateService.securityTemplateExistsAndIsUpToDate(clusterStateBuilder.build(), logger));
-        securityTemplateService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
+        assertTrue(SecurityLifecycleService.securityTemplateExistsAndIsUpToDate(clusterStateBuilder.build(), logger));
+        securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
                 , EMPTY_CLUSTER_STATE));
         assertThat(listeners.size(), equalTo(0));
     }
@@ -125,7 +127,7 @@ public class SecurityTemplateServiceTests extends ESTestCase {
     public void testFaultyIndexTemplateIsIdentifiedAsNotUpToDate() throws IOException {
         String templateString = "/wrong-version-" + SECURITY_TEMPLATE_NAME + ".json";
         ClusterState.Builder clusterStateBuilder = createClusterStateWithTemplate(templateString);
-        assertFalse(SecurityTemplateService.securityTemplateExistsAndIsUpToDate(clusterStateBuilder.build(), logger));
+        assertFalse(SecurityLifecycleService.securityTemplateExistsAndIsUpToDate(clusterStateBuilder.build(), logger));
         checkTemplateUpdateWorkCorrectly(clusterStateBuilder);
     }
 
@@ -137,28 +139,28 @@ public class SecurityTemplateServiceTests extends ESTestCase {
     }
 
     private void checkTemplateUpdateWorkCorrectly(ClusterState.Builder clusterStateBuilder) throws IOException {
-        securityTemplateService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
+        securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
                 , EMPTY_CLUSTER_STATE));
         assertThat(listeners.size(), equalTo(1));
-        assertTrue(securityTemplateService.templateCreationPending.get());
+        assertTrue(securityLifecycleService.templateCreationPending.get());
 
         // if we do it again this should not send an update
         ActionListener listener = listeners.get(0);
         listeners.clear();
-        securityTemplateService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
+        securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
                 , EMPTY_CLUSTER_STATE));
         assertThat(listeners.size(), equalTo(0));
-        assertTrue(securityTemplateService.templateCreationPending.get());
+        assertTrue(securityLifecycleService.templateCreationPending.get());
 
         // if we now simulate an error...
         listener.onFailure(new Exception());
-        assertFalse(securityTemplateService.templateCreationPending.get());
+        assertFalse(securityLifecycleService.templateCreationPending.get());
 
         // ... we should be able to send a new update
-        securityTemplateService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
+        securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
                 , EMPTY_CLUSTER_STATE));
         assertThat(listeners.size(), equalTo(1));
-        assertTrue(securityTemplateService.templateCreationPending.get());
+        assertTrue(securityLifecycleService.templateCreationPending.get());
 
         // now check what happens if we get back an unacknowledged response
         try {
@@ -166,16 +168,16 @@ public class SecurityTemplateServiceTests extends ESTestCase {
             fail("this should have failed because request was not acknowledged");
         } catch (ElasticsearchException e) {
         }
-        assertFalse(securityTemplateService.updateMappingPending.get());
+        assertFalse(securityLifecycleService.updateMappingPending.get());
 
         // and now let's see what happens if we get back a response
         listeners.clear();
-        securityTemplateService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
+        securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
                 , EMPTY_CLUSTER_STATE));
-        assertTrue(securityTemplateService.templateCreationPending.get());
+        assertTrue(securityLifecycleService.templateCreationPending.get());
         assertThat(listeners.size(), equalTo(1));
         listeners.get(0).onResponse(new TestPutIndexTemplateResponse(true));
-        assertFalse(securityTemplateService.templateCreationPending.get());
+        assertFalse(securityLifecycleService.templateCreationPending.get());
     }
 
     public void testMissingIndexTemplateIsIdentifiedAsMissing() throws IOException {
@@ -186,14 +188,14 @@ public class SecurityTemplateServiceTests extends ESTestCase {
         MetaData.Builder builder = new MetaData.Builder(clusterStateBuilder.build().getMetaData());
         builder.put(indexMeta);
         clusterStateBuilder.metaData(builder);
-        assertFalse(SecurityTemplateService.securityTemplateExistsAndIsUpToDate(clusterStateBuilder.build(), logger));
+        assertFalse(SecurityLifecycleService.securityTemplateExistsAndIsUpToDate(clusterStateBuilder.build(), logger));
         checkTemplateUpdateWorkCorrectly(clusterStateBuilder);
     }
 
     public void testMissingVersionIndexTemplateIsIdentifiedAsNotUpToDate() throws IOException {
         String templateString = "/missing-version-" + SECURITY_TEMPLATE_NAME + ".json";
         ClusterState.Builder clusterStateBuilder = createClusterStateWithTemplate(templateString);
-        assertFalse(SecurityTemplateService.securityTemplateExistsAndIsUpToDate(clusterStateBuilder.build(), logger));
+        assertFalse(SecurityLifecycleService.securityTemplateExistsAndIsUpToDate(clusterStateBuilder.build(), logger));
         checkTemplateUpdateWorkCorrectly(clusterStateBuilder);
     }
 
@@ -201,8 +203,8 @@ public class SecurityTemplateServiceTests extends ESTestCase {
         String templateString = "/wrong-version-" + SECURITY_TEMPLATE_NAME + ".json";
         final Version wrongVersion = Version.fromString("4.0.0");
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMapping(templateString);
-        assertFalse(SecurityTemplateService.securityIndexMappingUpToDate(clusterStateBuilder.build(), logger));
-        assertThat(SecurityTemplateService.oldestSecurityIndexMappingVersion(clusterStateBuilder.build(), logger), equalTo(wrongVersion));
+        assertFalse(SecurityLifecycleService.securityIndexMappingUpToDate(clusterStateBuilder.build(), logger));
+        assertThat(SecurityLifecycleService.oldestSecurityIndexMappingVersion(clusterStateBuilder.build(), logger), equalTo(wrongVersion));
         checkMappingUpdateWorkCorrectly(clusterStateBuilder, wrongVersion);
     }
 
@@ -215,40 +217,40 @@ public class SecurityTemplateServiceTests extends ESTestCase {
             return null;
         }).when(nativeRealmMigrator).performUpgrade(any(Version.class), any(ActionListener.class));
 
-        assertThat(securityTemplateService.upgradeDataState.get(), equalTo(UpgradeState.NOT_STARTED));
+        assertThat(securityLifecycleService.upgradeDataState.get(), equalTo(UpgradeState.NOT_STARTED));
 
-        securityTemplateService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build(),
+        securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build(),
                 EMPTY_CLUSTER_STATE));
 
         assertThat(migratorVersionRef.get(), equalTo(expectedOldVersion));
         assertThat(migratorListenerRef.get(), notNullValue());
         assertThat(listeners.size(), equalTo(0)); // migrator has not responded yet
-        assertThat(securityTemplateService.updateMappingPending.get(), equalTo(false));
-        assertThat(securityTemplateService.upgradeDataState.get(), equalTo(UpgradeState.IN_PROGRESS));
+        assertThat(securityLifecycleService.updateMappingPending.get(), equalTo(false));
+        assertThat(securityLifecycleService.upgradeDataState.get(), equalTo(UpgradeState.IN_PROGRESS));
 
         migratorListenerRef.get().onResponse(true);
 
         assertThat(listeners.size(), equalTo(3)); // we have three types in the mapping
-        assertTrue(securityTemplateService.updateMappingPending.get());
-        assertThat(securityTemplateService.upgradeDataState.get(), equalTo(UpgradeState.COMPLETE));
+        assertTrue(securityLifecycleService.updateMappingPending.get());
+        assertThat(securityLifecycleService.upgradeDataState.get(), equalTo(UpgradeState.COMPLETE));
 
         // if we do it again this should not send an update
         ActionListener listener = listeners.get(0);
         listeners.clear();
-        securityTemplateService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
+        securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
                 , EMPTY_CLUSTER_STATE));
         assertThat(listeners.size(), equalTo(0));
-        assertTrue(securityTemplateService.updateMappingPending.get());
+        assertTrue(securityLifecycleService.updateMappingPending.get());
 
         // if we now simulate an error...
         listener.onFailure(new Exception("Testing failure handling"));
-        assertFalse(securityTemplateService.updateMappingPending.get());
+        assertFalse(securityLifecycleService.updateMappingPending.get());
 
         // ... we should be able to send a new update
-        securityTemplateService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
+        securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
                 , EMPTY_CLUSTER_STATE));
         assertThat(listeners.size(), equalTo(3));
-        assertTrue(securityTemplateService.updateMappingPending.get());
+        assertTrue(securityLifecycleService.updateMappingPending.get());
 
         // now check what happens if we get back an unacknowledged response
         try {
@@ -256,20 +258,20 @@ public class SecurityTemplateServiceTests extends ESTestCase {
             fail("this hould have failed because request was not acknowledged");
         } catch (ElasticsearchException e) {
         }
-        assertFalse(securityTemplateService.updateMappingPending.get());
+        assertFalse(securityLifecycleService.updateMappingPending.get());
 
         // and now check what happens if we get back an acknowledged response
         listeners.clear();
-        securityTemplateService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
+        securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
                 , EMPTY_CLUSTER_STATE));
         assertThat(listeners.size(), equalTo(3)); // we have three types in the mapping
         int counter = 0;
         for (ActionListener actionListener : listeners) {
             actionListener.onResponse(new TestPutMappingResponse(true));
             if (counter++ < 2) {
-                assertTrue(securityTemplateService.updateMappingPending.get());
+                assertTrue(securityLifecycleService.updateMappingPending.get());
             } else {
-                assertFalse(securityTemplateService.updateMappingPending.get());
+                assertFalse(securityLifecycleService.updateMappingPending.get());
             }
         }
     }
@@ -277,8 +279,8 @@ public class SecurityTemplateServiceTests extends ESTestCase {
     public void testUpToDateMappingIsIdentifiedAstUpToDate() throws IOException {
         String templateString = "/" + SECURITY_TEMPLATE_NAME + ".json";
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMapping(templateString);
-        assertTrue(SecurityTemplateService.securityIndexMappingUpToDate(clusterStateBuilder.build(), logger));
-        securityTemplateService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
+        assertTrue(SecurityLifecycleService.securityIndexMappingUpToDate(clusterStateBuilder.build(), logger));
+        securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
                 , EMPTY_CLUSTER_STATE));
         assertThat(listeners.size(), equalTo(0));
     }
@@ -293,8 +295,8 @@ public class SecurityTemplateServiceTests extends ESTestCase {
     public void testMissingVersionMappingIsIdentifiedAsNotUpToDate() throws IOException {
         String templateString = "/missing-version-" + SECURITY_TEMPLATE_NAME + ".json";
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMapping(templateString);
-        assertFalse(SecurityTemplateService.securityIndexMappingUpToDate(clusterStateBuilder.build(), logger));
-        assertThat(SecurityTemplateService.oldestSecurityIndexMappingVersion(clusterStateBuilder.build(), logger),
+        assertFalse(SecurityLifecycleService.securityIndexMappingUpToDate(clusterStateBuilder.build(), logger));
+        assertThat(SecurityLifecycleService.oldestSecurityIndexMappingVersion(clusterStateBuilder.build(), logger),
                 equalTo(Version.V_2_3_0));
         checkMappingUpdateWorkCorrectly(clusterStateBuilder, Version.V_2_3_0);
     }
@@ -306,10 +308,10 @@ public class SecurityTemplateServiceTests extends ESTestCase {
         MetaData.Builder builder = new MetaData.Builder(clusterStateBuilder.build().getMetaData());
         builder.put(templateMeta);
         clusterStateBuilder.metaData(builder);
-        assertTrue(SecurityTemplateService.securityIndexMappingUpToDate(clusterStateBuilder.build(), logger));
-        securityTemplateService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
+        assertTrue(SecurityLifecycleService.securityIndexMappingUpToDate(clusterStateBuilder.build(), logger));
+        securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
                 , EMPTY_CLUSTER_STATE));
-        assertThat(SecurityTemplateService.oldestSecurityIndexMappingVersion(clusterStateBuilder.build(), logger), nullValue());
+        assertThat(SecurityLifecycleService.oldestSecurityIndexMappingVersion(clusterStateBuilder.build(), logger), nullValue());
         assertThat(listeners.size(), equalTo(0));
     }
 
@@ -328,8 +330,7 @@ public class SecurityTemplateServiceTests extends ESTestCase {
     }
 
     private IndexMetaData.Builder createIndexMetadata(String templateString) throws IOException {
-        String template = TemplateUtils.loadTemplate(templateString, Version.CURRENT.toString()
-                , SECURITY_INDEX_TEMPLATE_VERSION_PATTERN);
+        String template = TemplateUtils.loadTemplate(templateString, Version.CURRENT.toString(), SECURITY_INDEX_TEMPLATE_VERSION_PATTERN);
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(template, XContentType.JSON);
         IndexMetaData.Builder indexMetaData = IndexMetaData.builder(SECURITY_INDEX_NAME);

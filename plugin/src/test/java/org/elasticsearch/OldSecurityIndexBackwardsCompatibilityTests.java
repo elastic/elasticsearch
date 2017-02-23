@@ -23,11 +23,9 @@ import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.security.action.user.PutUserResponse;
-import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
-import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.user.User;
 
@@ -77,11 +75,9 @@ public class OldSecurityIndexBackwardsCompatibilityTests extends AbstractOldXPac
     }
 
     protected void checkVersion(Version version) throws Exception {
-       // wait for service to start
+        // wait for service to start
         SecurityClient securityClient = new SecurityClient(client());
-        assertBusy(() -> {
-            assertEquals(NativeRolesStore.State.STARTED, internalCluster().getInstance(NativeRolesStore.class).state());
-        });
+        assertSecurityIndexActive();
 
         // make sure usage stats are still working even with old fls format
         ClearRolesCacheResponse clearResponse = new ClearRolesCacheRequestBuilder(client()).get();
@@ -124,9 +120,7 @@ public class OldSecurityIndexBackwardsCompatibilityTests extends AbstractOldXPac
         assertThat(builder.string(), containsString("\"field_security\":{\"grant\":[\"title\",\"body\"]}"));
 
         logger.info("Getting users...");
-        assertBusy(() -> {
-            assertEquals(NativeUsersStore.State.STARTED, internalCluster().getInstance(NativeUsersStore.class).state());
-        });
+        assertSecurityIndexActive();
         GetUsersResponse getUsersResponse = securityClient.prepareGetUsers("bwc_test_user").get();
         assertThat(getUsersResponse.users(), arrayWithSize(1));
         User user = getUsersResponse.users()[0];

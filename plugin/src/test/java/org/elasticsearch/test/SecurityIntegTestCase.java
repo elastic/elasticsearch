@@ -12,16 +12,21 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.AfterClass;
@@ -41,6 +46,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.securityIndexMappingAndTemplateSufficientToRead;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.securityIndexMappingAndTemplateUpToDate;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsCollectionContaining.hasItem;
@@ -423,5 +430,33 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         TransportAddress publishAddress = ni.getHttp().address().publishAddress();
         InetSocketAddress address = publishAddress.address();
         return (useSSL ? "https://" : "http://") + NetworkAddress.format(address.getAddress()) + ":" + address.getPort();
+    }
+
+    public void assertSecurityIndexActive() throws Exception {
+        for (ClusterService clusterService : internalCluster().getInstances(ClusterService.class)) {
+            assertBusy(() -> {
+                ClusterState clusterState = clusterService.state();
+                assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
+                assertTrue(securityIndexMappingAndTemplateSufficientToRead(clusterState, logger));
+                IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(SecurityLifecycleService.SECURITY_INDEX_NAME);
+                if (indexRoutingTable != null) {
+                    assertTrue(indexRoutingTable.allPrimaryShardsActive());
+                }
+            });
+        }
+    }
+
+    public void assertSecurityIndexWriteable() throws Exception {
+        for (ClusterService clusterService : internalCluster().getInstances(ClusterService.class)) {
+            assertBusy(() -> {
+                ClusterState clusterState = clusterService.state();
+                assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
+                assertTrue(securityIndexMappingAndTemplateUpToDate(clusterState, logger));
+                IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(SecurityLifecycleService.SECURITY_INDEX_NAME);
+                if (indexRoutingTable != null) {
+                    assertTrue(indexRoutingTable.allPrimaryShardsActive());
+                }
+            });
+        }
     }
 }

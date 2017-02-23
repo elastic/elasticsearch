@@ -17,7 +17,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.security.SecurityTemplateService;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.role.DeleteRoleResponse;
 import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
@@ -123,7 +123,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         logger.error("--> creating user");
         c.preparePutUser("joe", "s3kirt".toCharArray(), "role1", "user").get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SecurityTemplateService.SECURITY_INDEX_NAME);
+        ensureGreen(SecurityLifecycleService.SECURITY_INDEX_NAME);
         logger.info("--> retrieving user");
         GetUsersResponse resp = c.prepareGetUsers("joe").get();
         assertTrue("user should exist", resp.hasUsers());
@@ -178,7 +178,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 .metadata(metadata)
                 .get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SecurityTemplateService.SECURITY_INDEX_NAME);
+        ensureGreen(SecurityLifecycleService.SECURITY_INDEX_NAME);
         logger.info("--> retrieving role");
         GetRolesResponse resp = c.prepareGetRoles().names("test_role").get();
         assertTrue("role should exist", resp.hasRoles());
@@ -229,7 +229,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         logger.error("--> creating user");
         c.preparePutUser("joe", "s3krit".toCharArray(), "test_role").get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SecurityTemplateService.SECURITY_INDEX_NAME);
+        ensureGreen(SecurityLifecycleService.SECURITY_INDEX_NAME);
         logger.info("--> retrieving user");
         GetUsersResponse resp = c.prepareGetUsers("joe").get();
         assertTrue("user should exist", resp.hasUsers());
@@ -250,7 +250,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         logger.error("--> creating user");
         c.preparePutUser("joe", "s3krit".toCharArray(), SecuritySettingsSource.DEFAULT_ROLE).get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SecurityTemplateService.SECURITY_INDEX_NAME);
+        ensureGreen(SecurityLifecycleService.SECURITY_INDEX_NAME);
         logger.info("--> retrieving user");
         GetUsersResponse resp = c.prepareGetUsers("joe").get();
         assertTrue("user should exist", resp.hasUsers());
@@ -285,7 +285,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         logger.error("--> creating user");
         c.preparePutUser("joe", "s3krit".toCharArray(), SecuritySettingsSource.DEFAULT_ROLE).get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SecurityTemplateService.SECURITY_INDEX_NAME);
+        ensureGreen(SecurityLifecycleService.SECURITY_INDEX_NAME);
         logger.info("--> retrieving user");
         GetUsersResponse resp = c.prepareGetUsers("joe").get();
         assertTrue("user should exist", resp.hasUsers());
@@ -323,7 +323,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         logger.error("--> creating user");
         c.preparePutUser("joe", "s3krit".toCharArray(), "test_role").get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SecurityTemplateService.SECURITY_INDEX_NAME);
+        ensureGreen(SecurityLifecycleService.SECURITY_INDEX_NAME);
 
         if (authenticate) {
             final String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
@@ -372,7 +372,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 .get();
         c.preparePutUser("joe", "s3krit".toCharArray(), "test_role").get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SecurityTemplateService.SECURITY_INDEX_NAME);
+        ensureGreen(SecurityLifecycleService.SECURITY_INDEX_NAME);
 
         final String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
         ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster()
@@ -498,12 +498,12 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                     .get();
         }
 
-        IndicesStatsResponse response = client().admin().indices().prepareStats("foo", SecurityTemplateService.SECURITY_INDEX_NAME).get();
+        IndicesStatsResponse response = client().admin().indices().prepareStats("foo", SecurityLifecycleService.SECURITY_INDEX_NAME).get();
         assertThat(response.getFailedShards(), is(0));
         assertThat(response.getIndices().size(), is(2));
-        assertThat(response.getIndices().get(SecurityTemplateService.SECURITY_INDEX_NAME), notNullValue());
-        assertThat(response.getIndices().get(SecurityTemplateService.SECURITY_INDEX_NAME).getIndex(),
-                is(SecurityTemplateService.SECURITY_INDEX_NAME));
+        assertThat(response.getIndices().get(SecurityLifecycleService.SECURITY_INDEX_NAME), notNullValue());
+        assertThat(response.getIndices().get(SecurityLifecycleService.SECURITY_INDEX_NAME).getIndex(),
+                is(SecurityLifecycleService.SECURITY_INDEX_NAME));
     }
 
     public void testOperationsOnReservedUsers() throws Exception {

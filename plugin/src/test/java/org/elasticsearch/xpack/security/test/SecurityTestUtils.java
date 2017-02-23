@@ -24,7 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.security.SecurityTemplateService;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStoreTests;
 
 import java.io.IOException;
@@ -79,9 +79,9 @@ public class SecurityTestUtils {
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build();
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder(SecurityTemplateService.SECURITY_INDEX_NAME).settings(settings))
-                .put(new IndexTemplateMetaData(SecurityTemplateService.SECURITY_TEMPLATE_NAME, 0, 0,
-                        Collections.singletonList(SecurityTemplateService.SECURITY_INDEX_NAME), Settings.EMPTY, ImmutableOpenMap.of(),
+                .put(IndexMetaData.builder(SecurityLifecycleService.SECURITY_INDEX_NAME).settings(settings))
+                .put(new IndexTemplateMetaData(SecurityLifecycleService.SECURITY_TEMPLATE_NAME, 0, 0,
+                        Collections.singletonList(SecurityLifecycleService.SECURITY_INDEX_NAME), Settings.EMPTY, ImmutableOpenMap.of(),
                         ImmutableOpenMap.of(), ImmutableOpenMap.of()))
                 .build();
         RoutingTable routingTable = buildSecurityIndexRoutingTable();
@@ -93,7 +93,7 @@ public class SecurityTestUtils {
     }
 
     public static RoutingTable buildSecurityIndexRoutingTable() {
-        Index index = new Index(SecurityTemplateService.SECURITY_INDEX_NAME, UUID.randomUUID().toString());
+        Index index = new Index(SecurityLifecycleService.SECURITY_INDEX_NAME, UUID.randomUUID().toString());
         ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, 0), true, EXISTING_STORE_INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
         String nodeId = ESTestCase.randomAsciiOfLength(8);

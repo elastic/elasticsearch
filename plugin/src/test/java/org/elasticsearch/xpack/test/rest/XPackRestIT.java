@@ -9,7 +9,7 @@ import org.apache.http.HttpStatus;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.xpack.ml.integration.MlRestTestStateCleaner;
-import org.elasticsearch.xpack.security.SecurityTemplateService;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -34,12 +34,12 @@ public class XPackRestIT extends XPackRestTestCase {
     }
 
     /**
-     * Waits for the Security template to be created by the {@link SecurityTemplateService}.
+     * Waits for the Security template to be created by the {@link SecurityLifecycleService}.
      */
     @Before
     public void waitForSecurityTemplate() throws Exception {
         String templateApi = "indices.exists_template";
-        Map<String, String> params = singletonMap("name", SecurityTemplateService.SECURITY_TEMPLATE_NAME);
+        Map<String, String> params = singletonMap("name", SecurityLifecycleService.SECURITY_TEMPLATE_NAME);
 
         AtomicReference<IOException> exceptionHolder = new AtomicReference<>();
         awaitBusy(() -> {

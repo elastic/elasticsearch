@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
@@ -256,25 +255,6 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         securityContext.set(new SecurityContext(settings, threadPool.getThreadContext()));
         components.add(securityContext.get());
 
-        // realms construction
-        final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client);
-        final AnonymousUser anonymousUser = new AnonymousUser(settings);
-        final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore, anonymousUser);
-        Map<String, Realm.Factory> realmFactories = new HashMap<>();
-        realmFactories.putAll(InternalRealms.getFactories(threadPool, resourceWatcherService, sslService, nativeUsersStore));
-        for (XPackExtension extension : extensions) {
-            Map<String, Realm.Factory> newRealms = extension.getRealms(resourceWatcherService);
-            for (Map.Entry<String, Realm.Factory> entry : newRealms.entrySet()) {
-                if (realmFactories.put(entry.getKey(), entry.getValue()) != null) {
-                    throw new IllegalArgumentException("Realm type [" + entry.getKey() + "] is already registered");
-                }
-            }
-        }
-        final Realms realms = new Realms(settings, env, realmFactories, licenseState, reservedRealm);
-        components.add(nativeUsersStore);
-        components.add(realms);
-        components.add(reservedRealm);
-
         // audit trails construction
         IndexAuditTrail indexAuditTrail = null;
         Set<AuditTrail> auditTrails = new LinkedHashSet<>();
@@ -303,6 +283,28 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
             new AuditTrailService(settings, auditTrails.stream().collect(Collectors.toList()), licenseState);
         components.add(auditTrailService);
 
+        SecurityLifecycleService securityLifecycleService =
+            new SecurityLifecycleService(settings, clusterService, threadPool, client, licenseState, indexAuditTrail);
+
+        // realms construction
+        final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityLifecycleService);
+        final AnonymousUser anonymousUser = new AnonymousUser(settings);
+        final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore, anonymousUser, securityLifecycleService);
+        Map<String, Realm.Factory> realmFactories = new HashMap<>();
+        realmFactories.putAll(InternalRealms.getFactories(threadPool, resourceWatcherService, sslService, nativeUsersStore));
+        for (XPackExtension extension : extensions) {
+            Map<String, Realm.Factory> newRealms = extension.getRealms(resourceWatcherService);
+            for (Map.Entry<String, Realm.Factory> entry : newRealms.entrySet()) {
+                if (realmFactories.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Realm type [" + entry.getKey() + "] is already registered");
+                }
+            }
+        }
+        final Realms realms = new Realms(settings, env, realmFactories, licenseState, reservedRealm);
+        components.add(nativeUsersStore);
+        components.add(realms);
+        components.add(reservedRealm);
+
         AuthenticationFailureHandler failureHandler = null;
         String extensionName = null;
         for (XPackExtension extension : extensions) {
@@ -325,7 +327,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         components.add(authcService.get());
 
         final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService, licenseState);
-        final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, licenseState);
+        final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, licenseState, securityLifecycleService);
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
         final CompositeRolesStore allRolesStore =
                 new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore, licenseState);
@@ -339,8 +341,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         components.add(allRolesStore); // for SecurityFeatureSet and clear roles cache
         components.add(authzService);
 
-        components.add(new SecurityLifecycleService(settings, clusterService, threadPool, indexAuditTrail,
-            nativeUsersStore, nativeRolesStore, licenseState, client));
+        components.add(securityLifecycleService);
 
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), licenseState));
         components.add(ipFilter.get());
@@ -653,7 +654,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         final String auditIndex = indexAuditingEnabled ? "," + IndexAuditTrail.INDEX_NAME_PREFIX + "*" : "";
         String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
                 " restrictive. disable [action.auto_create_index] or set it to " +
-                "[{}{}]", (Object) value, SecurityTemplateService.SECURITY_INDEX_NAME, auditIndex);
+                "[{}{}]", (Object) value, SecurityLifecycleService.SECURITY_INDEX_NAME, auditIndex);
         if (Booleans.isFalse(value)) {
             throw new IllegalArgumentException(errorMessage);
         }
@@ -664,7 +665,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
 
         String[] matches = Strings.commaDelimitedListToStringArray(value);
         List<String> indices = new ArrayList<>();
-        indices.add(SecurityTemplateService.SECURITY_INDEX_NAME);
+        indices.add(SecurityLifecycleService.SECURITY_INDEX_NAME);
         if (indexAuditingEnabled) {
             DateTime now = new DateTime(DateTimeZone.UTC);
             // just use daily rollover

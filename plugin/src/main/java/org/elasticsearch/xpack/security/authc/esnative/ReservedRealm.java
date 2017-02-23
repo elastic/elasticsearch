@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
@@ -41,7 +42,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public static final String TYPE = "reserved";
 
-    static final SecuredString DEFAULT_PASSWORD_TEXT = new SecuredString("changeme".toCharArray());
+    public static final SecuredString DEFAULT_PASSWORD_TEXT = new SecuredString("changeme".toCharArray());
     static final char[] DEFAULT_PASSWORD_HASH = Hasher.BCRYPT.hash(DEFAULT_PASSWORD_TEXT);
 
     private static final ReservedUserInfo DEFAULT_USER_INFO = new ReservedUserInfo(DEFAULT_PASSWORD_HASH, true, true);
@@ -55,14 +56,17 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private final boolean realmEnabled;
     private final boolean anonymousEnabled;
     private final boolean defaultPasswordEnabled;
+    private final SecurityLifecycleService securityLifecycleService;
 
-    public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser) {
+    public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser,
+                         SecurityLifecycleService securityLifecycleService) {
         super(TYPE, new RealmConfig(TYPE, Settings.EMPTY, settings, env));
         this.nativeUsersStore = nativeUsersStore;
         this.realmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         this.anonymousUser = anonymousUser;
         this.anonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.defaultPasswordEnabled = ACCEPT_DEFAULT_PASSWORD_SETTING.get(settings);
+        this.securityLifecycleService = securityLifecycleService;
     }
 
     @Override
@@ -162,7 +166,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
 
     public void users(ActionListener<Collection<User>> listener) {
-        if (nativeUsersStore.started() == false || realmEnabled == false) {
+        if (realmEnabled == false) {
             listener.onResponse(anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList());
         } else {
             nativeUsersStore.getAllReservedUserInfo(ActionListener.wrap((reservedUserInfos) -> {
@@ -190,13 +194,10 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     }
 
     private void getUserInfo(final String username, ActionListener<ReservedUserInfo> listener) {
-        if (nativeUsersStore.started() == false) {
-            // we need to be able to check for the user store being started...
-            listener.onResponse(null);
-        } else if (userIsDefinedForCurrentSecurityMapping(username) == false) {
+        if (userIsDefinedForCurrentSecurityMapping(username) == false) {
             logger.debug("Marking user [{}] as disabled because the security mapping is not at the required version", username);
             listener.onResponse(DISABLED_USER_INFO);
-        } else if (nativeUsersStore.securityIndexExists() == false) {
+        } else if (securityLifecycleService.securityIndexExists() == false) {
             listener.onResponse(DEFAULT_USER_INFO);
         } else {
             nativeUsersStore.getReservedUserInfo(username, ActionListener.wrap((userInfo) -> {
@@ -215,7 +216,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     private boolean userIsDefinedForCurrentSecurityMapping(String username) {
         final Version requiredVersion = getDefinedVersion(username);
-        return nativeUsersStore.checkMappingVersion(requiredVersion::onOrBefore);
+        return securityLifecycleService.checkMappingVersion(requiredVersion::onOrBefore);
     }
 
     private Version getDefinedVersion(String username) {

@@ -109,7 +109,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
                 try {
                     // this is a hack to clean up the .security index since only the XPack user or superusers can delete it
                     cluster2.getInstance(InternalClient.class)
-                            .admin().indices().prepareDelete(SecurityTemplateService.SECURITY_INDEX_NAME).get();
+                            .admin().indices().prepareDelete(SecurityLifecycleService.SECURITY_INDEX_NAME).get();
                 } catch (IndexNotFoundException e) {
                     // ignore it since not all tests create this index...
                 }
@@ -241,9 +241,9 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         List<String> shouldFailUsers = new ArrayList<>();
         final Client preferredClient = "t1".equals(preferredTribe) ? cluster1Client : cluster2Client;
         // always ensure the index exists on all of the clusters in this test
-        assertAcked(internalClient().admin().indices().prepareCreate(SecurityTemplateService.SECURITY_INDEX_NAME).get());
+        assertAcked(internalClient().admin().indices().prepareCreate(SecurityLifecycleService.SECURITY_INDEX_NAME).get());
         assertAcked(cluster2.getInstance(InternalClient.class).admin().indices()
-                .prepareCreate(SecurityTemplateService.SECURITY_INDEX_NAME).get());
+                .prepareCreate(SecurityLifecycleService.SECURITY_INDEX_NAME).get());
         for (int i = 0; i < randomUsers; i++) {
             final String username = "user" + i;
             Client clusterClient = randomBoolean() ? cluster1Client : cluster2Client;
@@ -329,9 +329,9 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         List<String> shouldFailRoles = new ArrayList<>();
         final Client preferredClient = "t1".equals(preferredTribe) ? cluster1Client : cluster2Client;
         // always ensure the index exists on all of the clusters in this test
-        assertAcked(internalClient().admin().indices().prepareCreate(SecurityTemplateService.SECURITY_INDEX_NAME).get());
+        assertAcked(internalClient().admin().indices().prepareCreate(SecurityLifecycleService.SECURITY_INDEX_NAME).get());
         assertAcked(cluster2.getInstance(InternalClient.class).admin().indices()
-                .prepareCreate(SecurityTemplateService.SECURITY_INDEX_NAME).get());
+                .prepareCreate(SecurityLifecycleService.SECURITY_INDEX_NAME).get());
 
         for (int i = 0; i < randomRoles; i++) {
             final String rolename = "role" + i;

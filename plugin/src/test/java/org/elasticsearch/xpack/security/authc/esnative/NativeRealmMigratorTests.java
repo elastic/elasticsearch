@@ -40,7 +40,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.security.SecurityTemplateService;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
@@ -84,7 +84,7 @@ public class NativeRealmMigratorTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             SearchRequest request = (SearchRequest) invocationOnMock.getArguments()[1];
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
-            if (request.indices().length == 1 && request.indices()[0].equals(SecurityTemplateService.SECURITY_INDEX_NAME)) {
+            if (request.indices().length == 1 && request.indices()[0].equals(SecurityLifecycleService.SECURITY_INDEX_NAME)) {
                 SearchResponse response = new SearchResponse() {
                     @Override
                     public SearchHits getHits() {
@@ -111,10 +111,10 @@ public class NativeRealmMigratorTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             GetRequest request = (GetRequest) invocationOnMock.getArguments()[1];
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
-            if (request.indices().length == 1 && request.indices()[0].equals(SecurityTemplateService.SECURITY_INDEX_NAME)
+            if (request.indices().length == 1 && request.indices()[0].equals(SecurityLifecycleService.SECURITY_INDEX_NAME)
                     && request.type().equals(NativeUsersStore.RESERVED_USER_DOC_TYPE)) {
                 final boolean exists = reservedUsers.get(request.id()) != null;
-                GetResult getResult = new GetResult(SecurityTemplateService.SECURITY_INDEX_NAME, NativeUsersStore.RESERVED_USER_DOC_TYPE,
+                GetResult getResult = new GetResult(SecurityLifecycleService.SECURITY_INDEX_NAME, NativeUsersStore.RESERVED_USER_DOC_TYPE,
                         request.id(), randomLong(), exists, JsonXContent.contentBuilder().map(reservedUsers.get(request.id())).bytes(),
                         emptyMap());
                 listener.onResponse(new GetResponse(getResult));

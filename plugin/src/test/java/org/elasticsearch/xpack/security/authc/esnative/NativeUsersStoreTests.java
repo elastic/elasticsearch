@@ -26,8 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.security.SecurityTemplateService;
-import org.elasticsearch.xpack.security.test.SecurityTestUtils;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.LogstashSystemUser;
@@ -37,6 +36,8 @@ import org.junit.Before;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class NativeUsersStoreTests extends ESTestCase {
 
@@ -92,7 +93,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         values.put(PASSWORD_FIELD, BLANK_PASSWORD);
 
         final GetResult result = new GetResult(
-                SecurityTemplateService.SECURITY_INDEX_NAME,
+                SecurityLifecycleService.SECURITY_INDEX_NAME,
                 NativeUsersStore.RESERVED_USER_DOC_TYPE,
                 randomAsciiOfLength(12),
                 1L,
@@ -127,10 +128,11 @@ public class NativeUsersStoreTests extends ESTestCase {
     }
 
     private NativeUsersStore startNativeUsersStore() {
-        final NativeUsersStore nativeUsersStore = new NativeUsersStore(Settings.EMPTY, internalClient);
-        assertTrue(nativeUsersStore + " should be ready to start",
-                nativeUsersStore.canStart(SecurityTestUtils.getClusterStateWithSecurityIndex(), true));
-        nativeUsersStore.start();
+        SecurityLifecycleService securityLifecycleService = mock(SecurityLifecycleService.class);
+        when(securityLifecycleService.securityIndexAvailable()).thenReturn(true);
+        when(securityLifecycleService.securityIndexExists()).thenReturn(true);
+        when(securityLifecycleService.canWriteToSecurityIndex()).thenReturn(true);
+        final NativeUsersStore nativeUsersStore = new NativeUsersStore(Settings.EMPTY, internalClient, securityLifecycleService);
         return nativeUsersStore;
     }
 

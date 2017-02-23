@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealmTests;
@@ -71,9 +72,11 @@ public class TransportGetUsersActionTests extends ESTestCase {
 
     public void testAnonymousUser() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        when(usersStore.started()).thenReturn(true);
+        SecurityLifecycleService securityLifecycleService = mock(SecurityLifecycleService.class);
+        when(securityLifecycleService.securityIndexAvailable()).thenReturn(true);
         AnonymousUser anonymousUser = new AnonymousUser(settings);
-        ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser);
+        ReservedRealm reservedRealm =
+            new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser, securityLifecycleService);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null);
         TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
@@ -139,11 +142,13 @@ public class TransportGetUsersActionTests extends ESTestCase {
 
     public void testReservedUsersOnly() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        when(usersStore.started()).thenReturn(true);
-        when(usersStore.checkMappingVersion(any())).thenReturn(true);
+        SecurityLifecycleService securityLifecycleService = mock(SecurityLifecycleService.class);
+        when(securityLifecycleService.securityIndexAvailable()).thenReturn(true);
+        when(securityLifecycleService.checkMappingVersion(any())).thenReturn(true);
 
         ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
-        ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings));
+        ReservedRealm reservedRealm =
+            new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings), securityLifecycleService);
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
         final Collection<User> allReservedUsers = userFuture.actionGet();
@@ -183,9 +188,11 @@ public class TransportGetUsersActionTests extends ESTestCase {
         final List<User> storeUsers = randomFrom(Collections.<User>emptyList(), Collections.singletonList(new User("joe")),
                 Arrays.asList(new User("jane"), new User("fred")), randomUsers());
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        when(usersStore.started()).thenReturn(true);
+        SecurityLifecycleService securityLifecycleService = mock(SecurityLifecycleService.class);
+        when(securityLifecycleService.securityIndexAvailable()).thenReturn(true);
         ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
-        ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings));
+        ReservedRealm reservedRealm =
+            new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings), securityLifecycleService);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 x -> null, null);
         TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),

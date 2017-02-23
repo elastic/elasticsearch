@@ -8,15 +8,12 @@ package org.elasticsearch.license;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
@@ -28,9 +25,6 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRespo
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -53,7 +47,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.TestXPackTransportClient;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.SecurityTemplateService;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
@@ -275,11 +269,11 @@ public class LicensingTests extends SecurityIntegTestCase {
         final String expectedVersionAfterMigration = Version.CURRENT.toString();
 
         final Client client = internalCluster().transportClient();
-        final String template = TemplateUtils.loadTemplate("/" + SecurityTemplateService.SECURITY_TEMPLATE_NAME + ".json",
+        final String template = TemplateUtils.loadTemplate("/" + SecurityLifecycleService.SECURITY_TEMPLATE_NAME + ".json",
                 oldVersionThatRequiresMigration, Pattern.quote("${security.template.version}"));
 
         PutIndexTemplateRequest putTemplateRequest = client.admin().indices()
-                .preparePutTemplate(SecurityTemplateService.SECURITY_TEMPLATE_NAME)
+                .preparePutTemplate(SecurityLifecycleService.SECURITY_TEMPLATE_NAME)
                 .setSource(new BytesArray(template.getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
                 .request();
         final PutIndexTemplateResponse putTemplateResponse = client.admin().indices().putTemplate(putTemplateRequest).actionGet();

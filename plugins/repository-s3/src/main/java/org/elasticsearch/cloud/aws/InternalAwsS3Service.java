@@ -150,7 +150,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
 
             if (key.length() == 0 && secret.length() == 0) {
                 logger.debug("Using instance profile credentials");
-                return new PrivilegedInstanceProfileCredentialsProvider(new InstanceProfileCredentialsProvider());
+                return new PrivilegedInstanceProfileCredentialsProvider();
             } else {
                 logger.debug("Using basic key/secret credentials");
                 return new StaticCredentialsProvider(new BasicAWSCredentials(key.toString(), secret.toString()));
@@ -214,8 +214,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
     static class PrivilegedInstanceProfileCredentialsProvider implements AWSCredentialsProvider {
         private final InstanceProfileCredentialsProvider credentials;
 
-        private PrivilegedInstanceProfileCredentialsProvider(InstanceProfileCredentialsProvider credentials) {
-            this.credentials = credentials;
+        private PrivilegedInstanceProfileCredentialsProvider() {
+            this.credentials = new InstanceProfileCredentialsProvider();
         }
 
         @Override

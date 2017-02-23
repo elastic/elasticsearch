@@ -48,8 +48,10 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
@@ -88,16 +90,76 @@ final class Request {
         parameters.withTimeout(bulkRequest.timeout());
         parameters.withRefreshPolicy(bulkRequest.getRefreshPolicy());
 
-        // Bulk API only supports newline delimited JSON
-        XContentType xContentType = XContentType.JSON;
-        byte separator = xContentType.xContent().streamSeparator();
-        ContentType requestContentType = ContentType.create("application/x-ndjson");
+        // Bulk API only supports newline delimited JSON or Smile. Before executing
+        // the bulk, we need to check that all requests have the same content-type
+        // and this content-type is supported by the Bulk API.
+        List<XContentType> allowedContentTypes = Arrays.asList(XContentType.JSON, XContentType.SMILE);
+
+        XContentType bulkContentType = null;
+        for (int i = 0; i < bulkRequest.numberOfActions(); i++) {
+            DocWriteRequest<?> request = bulkRequest.requests().get(i);
+            XContentType requestContentType = null;
+
+            boolean supported = true;
+            boolean match = true;
+
+            DocWriteRequest.OpType opType = request.opType();
+            if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
+                IndexRequest indexRequest = (IndexRequest) request;
+                requestContentType = indexRequest.getContentType();
+
+                supported = allowedContentTypes.contains(requestContentType);
+                if (bulkContentType == null) {
+                    bulkContentType = requestContentType;
+                } else {
+                    match = (requestContentType == bulkContentType);
+                }
+
+            } else if (opType == DocWriteRequest.OpType.UPDATE) {
+                UpdateRequest updateRequest = (UpdateRequest) request;
+                if (updateRequest.doc() != null) {
+                    requestContentType = updateRequest.doc().getContentType();
+
+                    supported = allowedContentTypes.contains(requestContentType);
+                    if (bulkContentType == null) {
+                        bulkContentType = requestContentType;
+                    } else {
+                        match = (requestContentType == bulkContentType);
+                    }
+                }
+                if (updateRequest.upsertRequest() != null && supported && match) {
+                    requestContentType = updateRequest.upsertRequest().getContentType();
+
+                    supported = allowedContentTypes.contains(requestContentType);
+                    if (bulkContentType == null) {
+                        bulkContentType = requestContentType;
+                    } else {
+                        match = (requestContentType == bulkContentType);
+                    }
+                }
+            }
+
+            if (supported == false) {
+                throw new IllegalStateException("Unsupported content-type found for " + opType.getLowercase() + " request at [" + i +
+                        "] with content-type [" + requestContentType + "], only " + allowedContentTypes + " are supported");
+            } else if (match == false) {
+                throw new IllegalStateException("Mismatching content-type found for " + opType.getLowercase() + " request at [" + i +
+                        "] with content-type [" + requestContentType + "], previous requests have content-type [" + bulkContentType + "]");
+            }
+        }
+
+        if (bulkContentType == null) {
+            bulkContentType = XContentType.JSON;
+        }
+
+        byte separator = bulkContentType.xContent().streamSeparator();
+        ContentType requestContentType = ContentType.create(bulkContentType.mediaType());
 
         ByteArrayOutputStream content = new ByteArrayOutputStream();
         for (DocWriteRequest<?> request : bulkRequest.requests()) {
             DocWriteRequest.OpType opType = request.opType();
 
-            try (XContentBuilder metadata = XContentBuilder.builder(xContentType.xContent())) {
+            try (XContentBuilder metadata = XContentBuilder.builder(bulkContentType.xContent())) {
                 metadata.startObject();
                 {
                     metadata.startObject(opType.getLowercase());
@@ -161,13 +223,13 @@ final class Request {
                 XContentType indexXContentType = indexRequest.getContentType();
 
                 try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, indexSource, indexXContentType)) {
-                    try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+                    try (XContentBuilder builder = XContentBuilder.builder(bulkContentType.xContent())) {
                         builder.copyCurrentStructure(parser);
                         source = builder.bytes().toBytesRef();
                     }
                 }
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
-                source = XContentHelper.toXContent((UpdateRequest) request, xContentType, false).toBytesRef();
+                source = XContentHelper.toXContent((UpdateRequest) request, bulkContentType, false).toBytesRef();
             }
 
             if (source != null) {

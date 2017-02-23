@@ -34,7 +34,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -46,13 +45,13 @@ import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class RequestTests extends ESTestCase {
@@ -367,8 +366,8 @@ public class RequestTests extends ESTestCase {
     public void testUpdateWithDifferentContentTypes() throws IOException {
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
             UpdateRequest updateRequest = new UpdateRequest();
-            updateRequest.doc(new IndexRequest().source(Collections.singletonMap("field", "doc"), XContentType.JSON));
-            updateRequest.upsert(new IndexRequest().source(Collections.singletonMap("field", "upsert"), XContentType.YAML));
+            updateRequest.doc(new IndexRequest().source(singletonMap("field", "doc"), XContentType.JSON));
+            updateRequest.upsert(new IndexRequest().source(singletonMap("field", "upsert"), XContentType.YAML));
             Request.update(updateRequest);
         });
         assertEquals("Update request cannot have different content types for doc [JSON] and upsert [YAML] documents",
@@ -395,13 +394,14 @@ public class RequestTests extends ESTestCase {
             }
         }
 
+        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+
         int nbItems = randomIntBetween(10, 100);
         for (int i = 0; i < nbItems; i++) {
             String index = randomAsciiOfLength(5);
             String type = randomAsciiOfLength(5);
             String id = randomAsciiOfLength(5);
 
-            XContentType xContentType = randomFrom(XContentType.values());
             BytesReference source = RandomObjects.randomSource(random(), xContentType);
             DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
 
@@ -422,7 +422,7 @@ public class RequestTests extends ESTestCase {
                     createRequest.parent(randomAsciiOfLength(5));
                 }
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
-                final UpdateRequest updateRequest = new UpdateRequest(index, type, id).doc(source, xContentType);
+                final UpdateRequest updateRequest = new UpdateRequest(index, type, id).doc(new IndexRequest().source(source, xContentType));
                 docWriteRequest = updateRequest;
                 if (randomBoolean()) {
                     updateRequest.retryOnConflict(randomIntBetween(1, 5));
@@ -460,7 +460,7 @@ public class RequestTests extends ESTestCase {
         }
 
         BulkRequest parsedBulkRequest = new BulkRequest();
-        parsedBulkRequest.add(content, 0, content.length, XContentType.JSON);
+        parsedBulkRequest.add(content, 0, content.length, xContentType);
         assertEquals(bulkRequest.numberOfActions(), parsedBulkRequest.numberOfActions());
 
         for (int i = 0; i < bulkRequest.numberOfActions(); i++) {
@@ -482,6 +482,7 @@ public class RequestTests extends ESTestCase {
                 IndexRequest parsedIndexRequest = (IndexRequest) parsedRequest;
 
                 assertEquals(indexRequest.getPipeline(), parsedIndexRequest.getPipeline());
+                assertToXContentEquivalent(indexRequest.source(), parsedIndexRequest.source(), xContentType);
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
                 UpdateRequest updateRequest = (UpdateRequest) originalRequest;
                 UpdateRequest parsedUpdateRequest = (UpdateRequest) parsedRequest;
@@ -489,25 +490,81 @@ public class RequestTests extends ESTestCase {
                 assertEquals(updateRequest.retryOnConflict(), parsedUpdateRequest.retryOnConflict());
                 assertEquals(updateRequest.fetchSource(), parsedUpdateRequest.fetchSource());
                 if (updateRequest.doc() != null) {
-                    BytesReference originalBytes = updateRequest.doc().source();
-                    XContentType originalContentType = updateRequest.doc().getContentType();
-
-                    BytesReference finalBytes = parsedUpdateRequest.doc().source();
-                    XContentType finalContentType = parsedUpdateRequest.doc().getContentType();
-
-                    if (finalContentType != originalContentType) {
-                        try (XContentParser parser = finalContentType.xContent().createParser(NamedXContentRegistry.EMPTY, finalBytes)) {
-                            try (XContentBuilder builder = XContentBuilder.builder(originalContentType.xContent())) {
-                                builder.copyCurrentStructure(parser);
-                                finalBytes = builder.bytes();
-                            }
-                        }
-                    }
-                    assertToXContentEquivalent(originalBytes, finalBytes, originalContentType);
+                    assertToXContentEquivalent(updateRequest.doc().source(), parsedUpdateRequest.doc().source(), xContentType);
                 } else {
                     assertNull(parsedUpdateRequest.doc());
                 }
             }
+        }
+    }
+
+    public void testBulkWithDifferentContentTypes() throws IOException {
+        {
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.add(new DeleteRequest("index", "type", "0"));
+            bulkRequest.add(new UpdateRequest("index", "type", "1").script(new Script("test")));
+            bulkRequest.add(new DeleteRequest("index", "type", "2"));
+
+            Request request = Request.bulk(bulkRequest);
+            assertEquals(XContentType.JSON.mediaType(), request.entity.getContentType().getValue());
+        }
+        {
+            XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.add(new DeleteRequest("index", "type", "0"));
+            bulkRequest.add(new IndexRequest("index", "type", "0").source(singletonMap("field", "value"), xContentType));
+            bulkRequest.add(new DeleteRequest("index", "type", "2"));
+
+            Request request = Request.bulk(bulkRequest);
+            assertEquals(xContentType.mediaType(), request.entity.getContentType().getValue());
+        }
+        {
+            XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+            UpdateRequest updateRequest = new UpdateRequest("index", "type", "0");
+            if (randomBoolean()) {
+                updateRequest.doc(new IndexRequest().source(singletonMap("field", "value"), xContentType));
+            }
+            if (randomBoolean()) {
+                updateRequest.upsert(new IndexRequest().source(singletonMap("field", "value"), xContentType));
+            }
+
+            Request request = Request.bulk(new BulkRequest().add(updateRequest));
+            assertEquals(xContentType.mediaType(), request.entity.getContentType().getValue());
+        }
+        {
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.add(new IndexRequest("index", "type", "0").source(singletonMap("field", "value"), XContentType.SMILE));
+            bulkRequest.add(new IndexRequest("index", "type", "1").source(singletonMap("field", "value"), XContentType.JSON));
+            IllegalStateException exception = expectThrows(IllegalStateException.class, () -> Request.bulk(bulkRequest));
+            assertEquals("Mismatching content-type found for index request at [1] with content-type [JSON], " +
+                            "previous requests have content-type [SMILE]", exception.getMessage());
+        }
+        {
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.add(new IndexRequest("index", "type", "0")
+                    .source(singletonMap("field", "value"), XContentType.JSON));
+            bulkRequest.add(new IndexRequest("index", "type", "1")
+                    .source(singletonMap("field", "value"), XContentType.JSON));
+            bulkRequest.add(new UpdateRequest("index", "type", "2")
+                    .doc(new IndexRequest().source(singletonMap("field", "value"), XContentType.JSON))
+                    .upsert(new IndexRequest().source(singletonMap("field", "value"), XContentType.SMILE))
+            );
+            IllegalStateException exception = expectThrows(IllegalStateException.class, () -> Request.bulk(bulkRequest));
+            assertEquals("Mismatching content-type found for update request at [2] with content-type [SMILE], " +
+                            "previous requests have content-type [JSON]", exception.getMessage());
+        }
+        {
+            XContentType xContentType = randomFrom(XContentType.CBOR, XContentType.YAML);
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.add(new DeleteRequest("index", "type", "0"));
+            bulkRequest.add(new IndexRequest("index", "type", "1").source(singletonMap("field", "value"), XContentType.JSON));
+            bulkRequest.add(new DeleteRequest("index", "type", "2"));
+            bulkRequest.add(new DeleteRequest("index", "type", "3"));
+            bulkRequest.add(new IndexRequest("index", "type", "4").source(singletonMap("field", "value"), XContentType.JSON));
+            bulkRequest.add(new IndexRequest("index", "type", "1").source(singletonMap("field", "value"), xContentType));
+            IllegalStateException exception = expectThrows(IllegalStateException.class, () -> Request.bulk(bulkRequest));
+            assertEquals("Unsupported content-type found for index request at [5] with content-type [CBOR], " +
+                    "only [JSON, SMILE] are supported", exception.getMessage());
         }
     }
 

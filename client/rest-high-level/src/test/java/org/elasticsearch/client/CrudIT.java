@@ -450,6 +450,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         int nbItems = randomIntBetween(10, 100);
         boolean[] errors = new boolean[nbItems];
 
+        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < nbItems; i++) {
             String id = String.valueOf(i);
@@ -466,7 +468,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 bulkRequest.add(deleteRequest);
 
             } else {
-                XContentType xContentType = randomFrom(XContentType.values());
                 BytesReference source = XContentBuilder.builder(xContentType.xContent()).startObject().field("id", i).endObject().bytes();
                 if (opType == DocWriteRequest.OpType.INDEX) {
                     IndexRequest indexRequest = new IndexRequest("index", "test", id).source(source, xContentType);
@@ -483,7 +484,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                     bulkRequest.add(createRequest);
 
                 } else if (opType == DocWriteRequest.OpType.UPDATE) {
-                    UpdateRequest updateRequest = new UpdateRequest("index", "test", id).doc(source, xContentType);
+                    UpdateRequest updateRequest = new UpdateRequest("index", "test", id)
+                            .doc(new IndexRequest().source(source, xContentType));
                     if (erroneous == false) {
                         assertEquals(RestStatus.CREATED,
                                 highLevelClient().index(new IndexRequest("index", "test", id).source("field", -1)).status());

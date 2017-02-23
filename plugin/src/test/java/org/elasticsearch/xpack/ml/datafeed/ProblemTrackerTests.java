@@ -59,7 +59,7 @@ public class ProblemTrackerTests extends ESTestCase {
 
     public void testUpdateEmptyDataCount_GivenEmptyNineTimes() {
         for (int i = 0; i < 9; i++) {
-            problemTracker.updateEmptyDataCount(true);
+            problemTracker.reportEmptyDataCount();
         }
 
         Mockito.verifyNoMoreInteractions(auditor);
@@ -67,7 +67,7 @@ public class ProblemTrackerTests extends ESTestCase {
 
     public void testUpdateEmptyDataCount_GivenEmptyTenTimes() {
         for (int i = 0; i < 10; i++) {
-            problemTracker.updateEmptyDataCount(true);
+            problemTracker.reportEmptyDataCount();
         }
 
         verify(auditor).warning("Datafeed has been retrieving no data for a while");
@@ -75,7 +75,7 @@ public class ProblemTrackerTests extends ESTestCase {
 
     public void testUpdateEmptyDataCount_GivenEmptyElevenTimes() {
         for (int i = 0; i < 11; i++) {
-            problemTracker.updateEmptyDataCount(true);
+            problemTracker.reportEmptyDataCount();
         }
 
         verify(auditor, times(1)).warning("Datafeed has been retrieving no data for a while");
@@ -83,18 +83,18 @@ public class ProblemTrackerTests extends ESTestCase {
 
     public void testUpdateEmptyDataCount_GivenNonEmptyAfterNineEmpty() {
         for (int i = 0; i < 9; i++) {
-            problemTracker.updateEmptyDataCount(true);
+            problemTracker.reportEmptyDataCount();
         }
-        problemTracker.updateEmptyDataCount(false);
+        problemTracker.reportNoneEmptyCount();
 
         Mockito.verifyNoMoreInteractions(auditor);
     }
 
     public void testUpdateEmptyDataCount_GivenNonEmptyAfterTenEmpty() {
         for (int i = 0; i < 10; i++) {
-            problemTracker.updateEmptyDataCount(true);
+            problemTracker.reportEmptyDataCount();
         }
-        problemTracker.updateEmptyDataCount(false);
+        problemTracker.reportNoneEmptyCount();
 
         verify(auditor).warning("Datafeed has been retrieving no data for a while");
         verify(auditor).info("Datafeed has started retrieving data again");

@@ -47,10 +47,12 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doAnswer;
@@ -64,6 +66,7 @@ import static org.mockito.Mockito.when;
 public class DatafeedJobRunnerTests extends ESTestCase {
 
     private Client client;
+    private Auditor auditor;
     private ActionFuture<PostDataAction.Response> jobDataFuture;
     private ActionFuture<FlushJobAction.Response> flushJobFuture;
     private ClusterService clusterService;
@@ -89,7 +92,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
             return null;
         }).when(jobProvider).dataCounts(any(), any(), any());
         dataExtractorFactory = mock(DataExtractorFactory.class);
-        Auditor auditor = mock(Auditor.class);
+        auditor = mock(Auditor.class);
         threadPool = mock(ThreadPool.class);
         ExecutorService executorService = mock(ExecutorService.class);
         doAnswer(invocation -> {
@@ -187,6 +190,42 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
         verify(client, never()).execute(same(PostDataAction.INSTANCE), eq(new PostDataAction.Request("foo")));
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+    }
+
+    public void testStart_emptyDataCountException() throws Exception {
+        currentTime = 6000000;
+        Job.Builder jobBuilder = createDatafeedJob();
+        DatafeedConfig datafeedConfig = createDatafeedConfig("datafeed1", "foo").build();
+        Job job = jobBuilder.build();
+        MlMetadata mlMetadata = new MlMetadata.Builder()
+                .putJob(job, false)
+                .putDatafeed(datafeedConfig)
+                .build();
+        when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata))
+                .build());
+        int[] counter = new int[] {0};
+        doAnswer(invocationOnMock -> {
+            if (counter[0]++ < 10) {
+                Runnable r = (Runnable) invocationOnMock.getArguments()[2];
+                currentTime += 600000;
+                r.run();
+            }
+            return mock(ScheduledFuture.class);
+        }).when(threadPool).schedule(any(), any(), any());
+
+        DataExtractor dataExtractor = mock(DataExtractor.class);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        when(dataExtractor.hasNext()).thenReturn(false);
+        Consumer<Exception> handler = mockConsumer();
+        StartDatafeedAction.DatafeedTask task = createDatafeedTask("datafeed1", 0L, null);
+        DatafeedJobRunner.Holder holder = datafeedJobRunner.createJobDatafeed(datafeedConfig, job, 100, 100, handler, task);
+        datafeedJobRunner.doDatafeedRealtime(10L, "foo", holder);
+
+        verify(threadPool, times(11)).schedule(any(), eq(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME), any());
+        verify(auditor, times(1)).warning(anyString());
+        verify(client, never()).execute(same(PostDataAction.INSTANCE), any());
         verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
     }
 

@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
-import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -72,26 +72,22 @@ class ProblemTracker {
 
     /**
      * Updates the tracking of empty data cycles. If the number of consecutive empty data
-     * cycles reaches {@code EMPTY_DATA_WARN_COUNT}, a warning is reported. If non-empty
-     * is reported and a warning was issued previously, a recovery info is reported.
-     *
-     * @param empty Whether data was seen since last report
-     * @return {@code true} if an empty data warning was issued, {@code false} otherwise
+     * cycles reaches {@code EMPTY_DATA_WARN_COUNT}, a warning is reported.
      */
-    public boolean updateEmptyDataCount(boolean empty) {
-        if (empty && emptyDataCount < EMPTY_DATA_WARN_COUNT) {
+    public void reportEmptyDataCount() {
+        if (emptyDataCount < EMPTY_DATA_WARN_COUNT) {
             emptyDataCount++;
             if (emptyDataCount == EMPTY_DATA_WARN_COUNT) {
                 auditor.get().warning(Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_NO_DATA));
-                return true;
             }
-        } else if (!empty) {
-            if (emptyDataCount >= EMPTY_DATA_WARN_COUNT) {
-                auditor.get().info(Messages.getMessage(Messages.JOB_AUDIR_DATAFEED_DATA_SEEN_AGAIN));
-            }
-            emptyDataCount = 0;
         }
-        return false;
+    }
+
+    public void reportNoneEmptyCount() {
+        if (emptyDataCount >= EMPTY_DATA_WARN_COUNT) {
+            auditor.get().info(Messages.getMessage(Messages.JOB_AUDIR_DATAFEED_DATA_SEEN_AGAIN));
+        }
+        emptyDataCount = 0;
     }
 
     public boolean hasProblems() {

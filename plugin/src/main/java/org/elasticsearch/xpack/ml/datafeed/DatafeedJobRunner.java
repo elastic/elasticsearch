@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.DefaultFrequency;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
@@ -110,7 +110,8 @@ public class DatafeedJobRunner extends AbstractComponent {
                 }
                 holder.problemTracker.reportAnalysisProblem(e.getCause().getMessage());
             } catch (DatafeedJob.EmptyDataCountException e) {
-                if (endTime == null && holder.problemTracker.updateEmptyDataCount(true) == false) {
+                if (endTime == null) {
+                    holder.problemTracker.reportEmptyDataCount();
                     next = e.nextDelayInMsSinceEpoch;
                 }
             } catch (Exception e) {
@@ -127,7 +128,7 @@ public class DatafeedJobRunner extends AbstractComponent {
         });
     }
 
-    private void doDatafeedRealtime(long delayInMsSinceEpoch, String jobId, Holder holder) {
+    void doDatafeedRealtime(long delayInMsSinceEpoch, String jobId, Holder holder) {
         if (holder.isRunning()) {
             TimeValue delay = computeNextDelay(delayInMsSinceEpoch);
             logger.debug("Waiting [{}] before executing next realtime import for job [{}]", delay, jobId);
@@ -135,6 +136,7 @@ public class DatafeedJobRunner extends AbstractComponent {
                 long nextDelayInMsSinceEpoch;
                 try {
                     nextDelayInMsSinceEpoch = holder.datafeedJob.runRealtime();
+                    holder.problemTracker.reportNoneEmptyCount();
                 } catch (DatafeedJob.ExtractionProblemException e) {
                     nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
                     holder.problemTracker.reportExtractionProblem(e.getCause().getMessage());
@@ -143,11 +145,7 @@ public class DatafeedJobRunner extends AbstractComponent {
                     holder.problemTracker.reportAnalysisProblem(e.getCause().getMessage());
                 } catch (DatafeedJob.EmptyDataCountException e) {
                     nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
-                    if (holder.problemTracker.updateEmptyDataCount(true)) {
-                        holder.problemTracker.finishReport();
-                        holder.stop("empty_data", e);
-                        return;
-                    }
+                    holder.problemTracker.reportEmptyDataCount();
                 } catch (Exception e) {
                     logger.error("Unexpected datafeed failure for job [" + jobId + "] stopping...", e);
                     holder.stop("general_realtime_error", e);
@@ -159,7 +157,7 @@ public class DatafeedJobRunner extends AbstractComponent {
         }
     }
 
-    private Holder createJobDatafeed(DatafeedConfig datafeed, Job job, long finalBucketEndMs, long latestRecordTimeMs,
+    Holder createJobDatafeed(DatafeedConfig datafeed, Job job, long finalBucketEndMs, long latestRecordTimeMs,
                                       Consumer<Exception> handler, StartDatafeedAction.DatafeedTask task) {
         Auditor auditor = jobProvider.audit(job.getId());
         Duration frequency = getFrequencyOrDefault(datafeed, job);
@@ -232,7 +230,7 @@ public class DatafeedJobRunner extends AbstractComponent {
         private final Consumer<Exception> handler;
         volatile Future<?> future;
 
-        private Holder(DatafeedConfig datafeed, DatafeedJob datafeedJob, boolean autoCloseJob, ProblemTracker problemTracker,
+        Holder(DatafeedConfig datafeed, DatafeedJob datafeedJob, boolean autoCloseJob, ProblemTracker problemTracker,
                        Consumer<Exception> handler) {
             this.datafeed = datafeed;
             this.datafeedJob = datafeedJob;

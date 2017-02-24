@@ -37,7 +37,4 @@ subprojects {
   if (project.file('src/main/bin').exists()) {
     throw new InvalidModelException("Modules cannot contain bin files") 
   }
-  if (project.file('src/main/config').exists()) {
-    throw new InvalidModelException("Modules cannot contain config files") 
-  }
 }

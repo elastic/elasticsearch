@@ -153,6 +153,11 @@ setup() {
     assert_file_exist "/etc/elasticsearch/jvm.options"
     assert_file_exist "/etc/elasticsearch/log4j2.properties"
 
+    # Those directories are removed by the package manager
+    assert_file_not_exist "/etc/elasticsearch/ingest-geoip"
+    assert_file_not_exist "/etc/elasticsearch/ingest-geoip/GeoLite2-City.mmdb.gz"
+    assert_file_not_exist "/etc/elasticsearch/ingest-geoip/GeoLite2-Country.mmdb.gz"
+
     # The env file is still here
     assert_file_exist "/etc/default/elasticsearch"
 
@@ -174,6 +179,9 @@ setup() {
     assert_file_not_exist "/etc/elasticsearch/elasticsearch.yml"
     assert_file_not_exist "/etc/elasticsearch/jvm.options"
     assert_file_not_exist "/etc/elasticsearch/log4j2.properties"
+    assert_file_not_exist "/etc/elasticsearch/ingest-geoip"
+    assert_file_not_exist "/etc/elasticsearch/ingest-geoip/GeoLite2-City.mmdb.gz"
+    assert_file_not_exist "/etc/elasticsearch/ingest-geoip/GeoLite2-Country.mmdb.gz"
 
     assert_file_not_exist "/etc/default/elasticsearch"
 

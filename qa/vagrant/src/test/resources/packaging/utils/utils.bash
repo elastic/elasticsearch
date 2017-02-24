@@ -512,6 +512,24 @@ run_elasticsearch_tests() {
       "file": "is_guide"
     }' | grep \"total\"\ :\ 1
 
+    curl -s -H "Content-Type: application/json" -XPUT 'http://localhost:9200/_ingest/pipeline/test-geoip' -d '{
+        "description": "Simple ingest pipeline with GeoIP processor",
+        "processors": [
+          {
+            "geoip" : {
+              "field" : "field1"
+            }
+          }
+        ]
+      }'
+
+    curl -s -H "Content-Type: application/json" -XPUT 'http://localhost:9200/index/test/0?refresh=true&pipeline=test-geoip&pretty' -d '{
+      "field1": "128.101.101.10"
+    }'
+
+    curl -s -XGET 'http://localhost:9200/index/test/0?pretty&filter_path=_source.geoip.continent_name' |
+      grep \"continent_name\"\ :\ \"North\ America\"
+
     curl -s -XDELETE 'http://localhost:9200/_all'
 }
 

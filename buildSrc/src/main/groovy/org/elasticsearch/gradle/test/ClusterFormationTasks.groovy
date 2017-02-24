@@ -24,12 +24,7 @@ import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
-import org.gradle.api.AntBuilder
-import org.gradle.api.DefaultTask
-import org.gradle.api.GradleException
-import org.gradle.api.InvalidUserDataException
-import org.gradle.api.Project
-import org.gradle.api.Task
+import org.gradle.api.*
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.Dependency
 import org.gradle.api.file.FileCollection
@@ -408,10 +403,24 @@ class ClusterFormationTasks {
         if (module.plugins.hasPlugin(PluginBuildPlugin) == false) {
             throw new GradleException("Task ${name} cannot include module ${module.path} which is not an esplugin")
         }
+        Closure moduleFiles = {
+            project.zipTree(module.tasks.bundlePlugin.outputs.files.singleFile)
+        }
         Copy installModule = project.tasks.create(name, Copy.class)
         installModule.dependsOn(setup)
-        installModule.into(new File(node.homeDir, "modules/${module.name}"))
-        installModule.from({ project.zipTree(module.tasks.bundlePlugin.outputs.files.singleFile) })
+        installModule.into(node.homeDir)
+        installModule.from(moduleFiles, {
+            includeEmptyDirs false
+            eachFile {  file ->
+                if (file.sourcePath.startsWith('config/')) {
+                    // Remove the config/ folder at the root of the zip archive
+                    String configPath = file.sourcePath - 'config/'
+                    file.setPath("config/${module.name}/${configPath}")
+                } else {
+                    file.setPath("modules/${module.name}/${file.relativePath}")
+                }
+            }
+        })
         return installModule
     }
 

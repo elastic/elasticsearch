@@ -35,14 +35,6 @@
   - match: { job_id: "farequote" }
 
   - do:
-      indices.get:
-        index: ".ml-anomalies-farequote"
-
-  - do:
-      indices.get:
-        index: ".ml-state"
-
-  - do:
       xpack.ml.get_jobs:
         job_id: "farequote"
   - match: { count: 1 }

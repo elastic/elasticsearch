@@ -115,13 +115,10 @@ public class ElasticsearchMappings {
      *     <li>Influencer.influencer_field_value</li>
      * </ul>
      *
-     * @param termFieldNames All the term fields (by, over, partition) and influencers
-     *                       included in the mapping
-     *
      * @return The mapping
      * @throws IOException On write error
      */
-    public static XContentBuilder resultsMapping(Collection<String> termFieldNames) throws IOException {
+    public static XContentBuilder resultsMapping() throws IOException {
         XContentBuilder builder = jsonBuilder()
                 .startObject()
                     .startObject(Result.TYPE.getPreferredName())
@@ -257,8 +254,6 @@ public class ElasticsearchMappings {
         addAnomalyRecordFieldsToMapping(builder);
         addInfluencerFieldsToMapping(builder);
         addModelSizeStatsFieldsToMapping(builder);
-
-        addTermFields(builder, termFieldNames);
 
         // End result properties
         builder.endObject();

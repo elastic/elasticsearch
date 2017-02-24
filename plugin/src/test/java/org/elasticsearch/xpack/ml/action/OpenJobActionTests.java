@@ -262,7 +262,7 @@ public class OpenJobActionTests extends ESTestCase {
         assertNull("no node selected, because null state", result);
     }
 
-    public void testVerifyIndicesExistAndPrimaryShardsAreActive() {
+    public void testVerifyIndicesPrimaryShardsAreActive() {
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addJobAndIndices(metaData, routingTable, "job_id");
@@ -272,14 +272,14 @@ public class OpenJobActionTests extends ESTestCase {
         csBuilder.metaData(metaData);
 
         ClusterState cs = csBuilder.build();
-        assertTrue(OpenJobAction.verifyIndicesExistAndPrimaryShardsAreActive(logger, "job_id", cs));
+        assertTrue(OpenJobAction.verifyIndicesPrimaryShardsAreActive(logger, "job_id", cs));
 
         metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
         String indexToRemove = randomFrom(cs.metaData().getConcreteAllIndices());
         if (randomBoolean()) {
             routingTable.remove(indexToRemove);
-        } else if (randomBoolean()) {
+        } else {
             Index index = new Index(indexToRemove, "_uuid");
             ShardId shardId = new ShardId(index, 0);
             ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE,
@@ -287,12 +287,11 @@ public class OpenJobActionTests extends ESTestCase {
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             routingTable.add(IndexRoutingTable.builder(index)
                     .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
-        } else {
-            metaData.remove(indexToRemove);
         }
+
         csBuilder.routingTable(routingTable.build());
         csBuilder.metaData(metaData);
-        assertFalse(OpenJobAction.verifyIndicesExistAndPrimaryShardsAreActive(logger, "job_id", csBuilder.build()));
+        assertFalse(OpenJobAction.verifyIndicesPrimaryShardsAreActive(logger, "job_id", csBuilder.build()));
     }
 
     public static PersistentTaskInProgress<OpenJobAction.Request> createJobTask(long id, String jobId, String nodeId, JobState jobState) {

@@ -153,6 +153,8 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
         assertThat(e.getMessage(), containsString("No known job with id '1'"));
 
+        createFarequoteJob("1");
+
         addBucketResult("1", "1234", 1);
         addBucketResult("1", "1235", 1);
         addBucketResult("1", "1236", 1);
@@ -191,6 +193,8 @@ public class MlJobIT extends ESRestTestCase {
                 () -> client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/1/results/records", params));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
         assertThat(e.getMessage(), containsString("No known job with id '1'"));
+
+        createFarequoteJob("1");
 
         addRecordResult("1", "1234", 1, 1);
         addRecordResult("1", "1235", 1, 2);

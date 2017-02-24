@@ -84,7 +84,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
         // Only the mappings for the results index should be added below.  Do NOT add mappings for other indexes here.
 
-        XContentBuilder builder = ElasticsearchMappings.resultsMapping(Collections.emptyList());
+        XContentBuilder builder = ElasticsearchMappings.resultsMapping();
         BufferedInputStream inputStream =
                 new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
         JsonParser parser = new JsonFactory().createParser(inputStream);
@@ -124,28 +124,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             String reserved = ReservedFieldNames.RESERVED_FIELD_NAMES.contains(s) ? s : null;
             assertEquals(s, reserved);
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testResultMapping_WithExtraTermFields() throws IOException {
-
-        XContentBuilder builder = ElasticsearchMappings.resultsMapping(
-                Arrays.asList("instance", AnomalyRecord.ANOMALY_SCORE.getPreferredName()));
-        XContentParser parser = createParser(builder);
-        Map<String, Object> type = (Map<String, Object>) parser.map().get(Result.TYPE.getPreferredName());
-        Map<String, Object> properties = (Map<String, Object>) type.get(ElasticsearchMappings.PROPERTIES);
-
-        // check a keyword mapping for the 'instance' field was created
-        Map<String, Object> instanceMapping = (Map<String, Object>) properties.get("instance");
-        assertNotNull(instanceMapping);
-        String dataType = (String)instanceMapping.get(ElasticsearchMappings.TYPE);
-        assertEquals(ElasticsearchMappings.KEYWORD, dataType);
-
-        // check anomaly score wasn't overwritten
-        Map<String, Object> anomalyScoreMapping = (Map<String, Object>) properties.get(AnomalyRecord.ANOMALY_SCORE.getPreferredName());
-        assertNotNull(anomalyScoreMapping);
-        dataType = (String)anomalyScoreMapping.get(ElasticsearchMappings.TYPE);
-        assertEquals(ElasticsearchMappings.DOUBLE, dataType);
     }
 
     @SuppressWarnings("unchecked")

@@ -18,6 +18,10 @@ public final class AnomalyDetectorsIndex {
     private AnomalyDetectorsIndex() {
     }
 
+    public static String jobResultsIndexPrefix() {
+        return RESULTS_INDEX_PREFIX;
+    }
+
     /**
      * The name of the default index where the job's results are stored
      * @param jobId Job Id

@@ -1,17 +1,17 @@
 setup:
   - do:
-      indices.create:
-        index:  .ml-anomalies-farequote
-        body:
-          mappings:
-            results:
-              properties:
-                "job_id":
-                  type: keyword
-                "result_type":
-                  type: keyword
-                "timestamp":
-                  type: date
+      xpack.ml.put_job:
+        job_id: farequote
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"JSON",
+                "time_field":"time"
+            }
+          }
 
   - do:
       index:

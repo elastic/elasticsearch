@@ -124,6 +124,7 @@ public abstract class BatchedDocumentsIterator<T>  {
         isScrollInitialised = true;
 
         SearchRequest searchRequest = new SearchRequest(index);
+        searchRequest.indicesOptions(JobProvider.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
         searchRequest.types(getType());
         searchRequest.scroll(CONTEXT_ALIVE_DURATION);
         searchRequest.source(new SearchSourceBuilder()

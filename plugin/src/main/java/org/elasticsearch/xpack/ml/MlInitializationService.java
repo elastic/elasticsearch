@@ -35,9 +35,10 @@ public class MlInitializationService extends AbstractComponent implements Cluste
     private final JobProvider jobProvider;
 
     private final AtomicBoolean installMlMetadataCheck = new AtomicBoolean(false);
-    private final AtomicBoolean createMlAuditIndexCheck = new AtomicBoolean(false);
-    private final AtomicBoolean createMlMetaIndexCheck = new AtomicBoolean(false);
-    private final AtomicBoolean createStateIndexCheck = new AtomicBoolean(false);
+    private final AtomicBoolean putMlNotificationsIndexTemplateCheck = new AtomicBoolean(false);
+    private final AtomicBoolean putMlMetaIndexTemplateCheck = new AtomicBoolean(false);
+    private final AtomicBoolean putStateIndexTemplateCheck = new AtomicBoolean(false);
+    private final AtomicBoolean putResultsIndexTemplateCheck = new AtomicBoolean(false);
 
     private volatile MlDailyManagementService mlDailyManagementService;
 
@@ -62,9 +63,10 @@ public class MlInitializationService extends AbstractComponent implements Cluste
         if (event.localNodeMaster()) {
             MetaData metaData = event.state().metaData();
             installMlMetadata(metaData);
-            createMlAuditIndex(metaData);
-            createMlMetaIndex(metaData);
-            createStateIndex(metaData);
+            putMlNoficationsIndexTemplate(metaData);
+            putMlMetaIndexTemplate(metaData);
+            putStateIndexTemplate(metaData);
+            putResultsIndexTemplate(metaData);
             installDailyManagementService();
         } else {
             uninstallDailyManagementService();
@@ -97,67 +99,80 @@ public class MlInitializationService extends AbstractComponent implements Cluste
         }
     }
 
-    private void createMlAuditIndex(MetaData metaData) {
-        if (metaData.hasIndex(Auditor.NOTIFICATIONS_INDEX) == false) {
-            if (createMlAuditIndexCheck.compareAndSet(false, true)) {
+    private void putMlNoficationsIndexTemplate(MetaData metaData) {
+        if (metaData.templates().containsKey(Auditor.NOTIFICATIONS_INDEX) == false) {
+            if (putMlNotificationsIndexTemplateCheck.compareAndSet(false, true)) {
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                    jobProvider.createNotificationMessageIndex((result, error) -> {
+                    jobProvider.putNotificationMessageIndexTemplate((result, error) -> {
                         if (result) {
-                            logger.info("successfully created {} index", Auditor.NOTIFICATIONS_INDEX);
+                            logger.info("successfully created {} index template", Auditor.NOTIFICATIONS_INDEX);
                         } else {
-                            if (error instanceof ResourceAlreadyExistsException) {
-                                logger.debug("not able to create {} index as it already exists", Auditor.NOTIFICATIONS_INDEX);
-                            } else {
-                                logger.error(
-                                        new ParameterizedMessage("not able to create {} index", Auditor.NOTIFICATIONS_INDEX), error);
-                            }
+                            logger.error(
+                                    new ParameterizedMessage("not able to create {} index template", Auditor.NOTIFICATIONS_INDEX), error);
                         }
-                        createMlAuditIndexCheck.set(false);
                     });
                 });
+            } else {
+                putMlNotificationsIndexTemplateCheck.set(false);
             }
         }
     }
 
-    private void createMlMetaIndex(MetaData metaData) {
-        if (metaData.hasIndex(JobProvider.ML_META_INDEX) == false) {
-            if (createMlMetaIndexCheck.compareAndSet(false, true)) {
+    private void putMlMetaIndexTemplate(MetaData metaData) {
+        if (metaData.templates().containsKey(JobProvider.ML_META_INDEX) == false) {
+            if (putMlMetaIndexTemplateCheck.compareAndSet(false, true)) {
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                    jobProvider.createMetaIndex((result, error) -> {
+                    jobProvider.putMetaIndexTemplate((result, error) -> {
                         if (result) {
-                            logger.info("successfully created {} index", JobProvider.ML_META_INDEX);
+                            logger.info("successfully created {} index template", JobProvider.ML_META_INDEX);
                         } else {
-                            if (error instanceof ResourceAlreadyExistsException) {
-                                logger.debug("not able to create {} index as it already exists", JobProvider.ML_META_INDEX);
-                            } else {
-                                logger.error(new ParameterizedMessage("not able to create {} index", JobProvider.ML_META_INDEX), error);
-                            }
+                            logger.error(
+                                new ParameterizedMessage("not able to create {} index template", JobProvider.ML_META_INDEX), error);
                         }
-                        createMlMetaIndexCheck.set(false);
                     });
                 });
+            } else {
+                putMlMetaIndexTemplateCheck.set(false);
             }
+
         }
     }
 
-    private void createStateIndex(MetaData metaData) {
+    private void putStateIndexTemplate(MetaData metaData) {
         String stateIndexName = AnomalyDetectorsIndex.jobStateIndexName();
-        if (metaData.hasIndex(stateIndexName) == false) {
-            if (createStateIndexCheck.compareAndSet(false, true)) {
+        if (metaData.templates().containsKey(stateIndexName) == false) {
+            if (putStateIndexTemplateCheck.compareAndSet(false, true)) {
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                    jobProvider.createJobStateIndex((result, error) -> {
+                    jobProvider.putJobStateIndexTemplate((result, error) -> {
                         if (result) {
-                            logger.info("successfully created {} index", stateIndexName);
+                            logger.info("successfully created {} index template", stateIndexName);
                         } else {
-                            if (error instanceof ResourceAlreadyExistsException) {
-                                logger.debug("not able to create {} index as it already exists", stateIndexName);
-                            } else {
-                                logger.error("not able to create " + stateIndexName + " index", error);
-                            }
+                            logger.error("not able to create " + stateIndexName + " index template", error);
                         }
-                        createStateIndexCheck.set(false);
                     });
                 });
+            } else {
+                putStateIndexTemplateCheck.set(false);
+            }
+        }
+    }
+
+    private void putResultsIndexTemplate(MetaData metaData) {
+        if (metaData.templates().containsKey(AnomalyDetectorsIndex.jobResultsIndexPrefix()) == false) {
+            if (putResultsIndexTemplateCheck.compareAndSet(false, true)) {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                    jobProvider.putJobResultsIndexTemplate((result, error) -> {
+                        if (result) {
+                            logger.info("successfully created {} index template", AnomalyDetectorsIndex.jobResultsIndexPrefix());
+                        } else {
+                            logger.error(
+                                    new ParameterizedMessage("not able to create {} index template",
+                                            AnomalyDetectorsIndex.jobResultsIndexPrefix()), error);
+                        }
+                    });
+                });
+            } else {
+                putResultsIndexTemplateCheck.set(false);
             }
         }
     }
@@ -196,3 +211,4 @@ public class MlInitializationService extends AbstractComponent implements Cluste
         mlDailyManagementService = service;
     }
 }
+

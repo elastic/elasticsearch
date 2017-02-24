@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
@@ -385,17 +386,21 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         private final JobProvider jobProvider;
+        private final JobManager jobManager;
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                JobProvider jobProvider) {
+                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                               JobProvider jobProvider, JobManager jobManager) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.jobProvider = jobProvider;
+            this.jobManager = jobManager;
         }
 
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
+            jobManager.getJobOrThrowIfUnknown(request.getJobId());
+
             BucketsQueryBuilder query =
                     new BucketsQueryBuilder().expand(request.expand)
                             .includeInterim(request.includeInterim)

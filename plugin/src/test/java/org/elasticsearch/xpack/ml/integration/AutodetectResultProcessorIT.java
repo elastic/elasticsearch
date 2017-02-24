@@ -5,14 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -21,11 +14,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.config.Detector;
-import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
@@ -64,9 +54,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -83,6 +70,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     protected Settings nodeSettings() {
         return Settings.builder().put(super.nodeSettings())
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+                .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
                 .build();
     }
 
@@ -108,7 +96,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     }
 
     public void testProcessResults() throws Exception {
-        createJob();
+        putResultsIndexMappingTemplate();
 
         ResultsBuilder builder = new ResultsBuilder();
         Bucket bucket = createBucket(false);
@@ -168,7 +156,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     }
 
     public void testDeleteInterimResults() throws Exception {
-        createJob();
+        putResultsIndexMappingTemplate();
         Bucket nonInterimBucket = createBucket(false);
         Bucket interimBucket = createBucket(true);
 
@@ -197,7 +185,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     }
 
     public void testMultipleFlushesBetweenPersisting() throws Exception {
-        createJob();
+        putResultsIndexMappingTemplate();
         Bucket finalBucket = createBucket(true);
         List<AnomalyRecord> finalAnomalyRecords = createRecords(true);
 
@@ -227,7 +215,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     }
 
     public void testEndOfStreamTriggersPersisting() throws Exception {
-        createJob();
+        putResultsIndexMappingTemplate();
         Bucket bucket = createBucket(false);
         List<AnomalyRecord> firstSetOfRecords = createRecords(false);
         List<AnomalyRecord> secondSetOfRecords = createRecords(false);
@@ -249,36 +237,10 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         assertResultsAreSame(allRecords, persistedRecords);
     }
 
-    @SuppressWarnings("unchecked")
-    private void createJob() {
-        Detector.Builder detectorBuilder = new Detector.Builder("avg", "metric_field");
-        detectorBuilder.setByFieldName("by_instance");
-        Job.Builder jobBuilder = new Job.Builder(JOB_ID);
-        AnalysisConfig.Builder analysisConfBuilder = new AnalysisConfig.Builder(Collections.singletonList(detectorBuilder.build()));
-        analysisConfBuilder.setInfluencers(Collections.singletonList("influence_field"));
-        jobBuilder.setAnalysisConfig(analysisConfBuilder);
-        jobBuilder.setCreateTime(new Date());
-
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, MlMetadata.EMPTY_METADATA).indices(ImmutableOpenMap.of())).build();
-
-        ClusterService clusterService = mock(ClusterService.class);
-
-        doAnswer(invocationOnMock -> {
-            AckedClusterStateUpdateTask<Boolean> task = (AckedClusterStateUpdateTask<Boolean>) invocationOnMock.getArguments()[1];
-            task.execute(cs);
-            return null;
-        }).when(clusterService).submitStateUpdateTask(eq("put-job-" + JOB_ID), any(AckedClusterStateUpdateTask.class));
-
-        jobProvider.createJobResultIndex(jobBuilder.build(), cs, new ActionListener<Boolean>() {
-            @Override
-            public void onResponse(Boolean aBoolean) {
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-            }
-        });
+    private void putResultsIndexMappingTemplate() throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        jobProvider.putJobResultsIndexTemplate((aBoolean, e) -> {latch.countDown();});
+        latch.await();
     }
 
     private Bucket createBucket(boolean isInterim) {

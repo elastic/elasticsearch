@@ -70,6 +70,7 @@ public class JobStorageDeletionTask extends Task {
         // Step 1. DeleteByQuery on the index, matching all docs with the right job_id
         // -------
         SearchRequest searchRequest = new SearchRequest(indexPattern);
+        searchRequest.indicesOptions(JobProvider.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
         DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
         searchRequest.source(new SearchSourceBuilder().query(new TermQueryBuilder(Job.ID.getPreferredName(), jobId)));
         request.setSlices(5);
@@ -96,5 +97,4 @@ public class JobStorageDeletionTask extends Task {
             }
         };
     }
-
 }

@@ -386,7 +386,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
 
     static DiscoveryNode selectLeastLoadedMlNode(String jobId, ClusterState clusterState, int maxConcurrentJobAllocations,
                                                  Logger logger) {
-        if (verifyIndicesExistAndPrimaryShardsAreActive(logger, jobId, clusterState) == false) {
+        if (verifyIndicesPrimaryShardsAreActive(logger, jobId, clusterState) == false) {
             return null;
         }
 
@@ -454,16 +454,16 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         return minLoadedNode;
     }
 
-    static boolean verifyIndicesExistAndPrimaryShardsAreActive(Logger logger, String jobId, ClusterState clusterState) {
+    static boolean verifyIndicesPrimaryShardsAreActive(Logger logger, String jobId, ClusterState clusterState) {
         MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
         Job job = mlMetadata.getJobs().get(jobId);
         String jobResultIndex = AnomalyDetectorsIndex.jobResultsIndexName(job.getResultsIndexName());
-        String[] indices = new String[]{AnomalyDetectorsIndex.jobStateIndexName(), jobResultIndex, JobProvider.ML_META_INDEX,
-                Auditor.NOTIFICATIONS_INDEX};
+        String[] indices = new String[]{AnomalyDetectorsIndex.jobStateIndexName(), jobResultIndex, JobProvider.ML_META_INDEX};
         for (String index : indices) {
+            // Indices are created on demand from templates.
+            // It is not an error if the index doesn't exist yet
             if (clusterState.metaData().hasIndex(index) == false) {
-                logger.warn("Not opening job [{}], because [{}] index is missing.", jobId, index);
-                return false;
+                continue;
             }
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
             if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {

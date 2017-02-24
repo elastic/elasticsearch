@@ -300,6 +300,7 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
                     .size(pageParams.getSize());
 
             SearchRequest searchRequest = new SearchRequest(new String[]{JobProvider.ML_META_INDEX}, sourceBuilder)
+                    .indicesOptions(JobProvider.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS))
                     .types(MlFilter.TYPE.getPreferredName());
 
             transportSearchAction.execute(searchRequest, new ActionListener<SearchResponse>() {

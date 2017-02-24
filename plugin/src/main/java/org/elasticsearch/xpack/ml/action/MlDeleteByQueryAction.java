@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.byscroll.DeleteByQueryRequest;
 import org.elasticsearch.action.bulk.byscroll.ParentBulkByScrollTask;
 import org.elasticsearch.action.bulk.byscroll.WorkingBulkByScrollTask;
 import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -30,6 +31,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 
 public class MlDeleteByQueryAction extends Action<DeleteByQueryRequest, BulkByScrollResponse,
         MlDeleteByQueryAction.MlDeleteByQueryRequestBuilder> {
@@ -54,7 +56,7 @@ public class MlDeleteByQueryAction extends Action<DeleteByQueryRequest, BulkBySc
     public static class MlDeleteByQueryRequestBuilder extends
             AbstractBulkByScrollRequestBuilder<DeleteByQueryRequest, MlDeleteByQueryRequestBuilder> {
 
-        public MlDeleteByQueryRequestBuilder(ElasticsearchClient client,
+        private MlDeleteByQueryRequestBuilder(ElasticsearchClient client,
                                            Action<DeleteByQueryRequest, BulkByScrollResponse, MlDeleteByQueryRequestBuilder> action) {
             this(client, action, new SearchRequestBuilder(client, SearchAction.INSTANCE));
         }
@@ -62,7 +64,9 @@ public class MlDeleteByQueryAction extends Action<DeleteByQueryRequest, BulkBySc
         private MlDeleteByQueryRequestBuilder(ElasticsearchClient client,
                                             Action<DeleteByQueryRequest, BulkByScrollResponse, MlDeleteByQueryRequestBuilder> action,
                                             SearchRequestBuilder search) {
-            super(client, action, search, new DeleteByQueryRequest(search.request()));
+            super(client, action, search,
+                    new DeleteByQueryRequest(search.setIndicesOptions(
+                            JobProvider.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS)).request()));
         }
 
         @Override

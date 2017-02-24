@@ -198,7 +198,7 @@ def provision(config,
     v.memory = Integer(ENV['VAGRANT_MEMORY'] || 8192)
     v.cpus = Integer(ENV['VAGRANT_CPUS'] || 4)
   end
-  config.vm.synced_folder "#{Dir.home}/.vagrant/gradle/caches", "/home/vagrant/.gradle/caches",
+  config.vm.synced_folder "#{Dir.home}/.gradle/caches", "/home/vagrant/.gradle/caches",
     create: true,
     owner: "vagrant"
   config.vm.provision "dependencies", type: "shell", inline: <<-SHELL

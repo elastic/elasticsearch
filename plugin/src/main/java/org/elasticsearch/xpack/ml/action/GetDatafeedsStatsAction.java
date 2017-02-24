@@ -18,7 +18,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlMetadata;
+import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction.Response.DatafeedStats;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
@@ -40,12 +43,9 @@ import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTa
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Predicate;
 
 public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Request, GetDatafeedsStatsAction.Response,
         GetDatafeedsStatsAction.RequestBuilder> {
@@ -132,15 +132,24 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
 
             private final String datafeedId;
             private final DatafeedState datafeedState;
+            @Nullable
+            private DiscoveryNode node;
+            @Nullable
+            private String assignmentExplanation;
 
-            DatafeedStats(String datafeedId, DatafeedState datafeedState) {
+            DatafeedStats(String datafeedId, DatafeedState datafeedState, @Nullable DiscoveryNode node,
+                          @Nullable String assignmentExplanation) {
                 this.datafeedId = Objects.requireNonNull(datafeedId);
                 this.datafeedState = Objects.requireNonNull(datafeedState);
+                this.node = node;
+                this.assignmentExplanation = assignmentExplanation;
             }
 
             DatafeedStats(StreamInput in) throws IOException {
                 datafeedId = in.readString();
                 datafeedState = DatafeedState.fromStream(in);
+                node = in.readOptionalWriteable(DiscoveryNode::new);
+                assignmentExplanation = in.readOptionalString();
             }
 
             public String getDatafeedId() {
@@ -151,13 +160,37 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
                 return datafeedState;
             }
 
+            public DiscoveryNode getNode() {
+                return node;
+            }
+
+            public String getAssignmentExplanation() {
+                return assignmentExplanation;
+            }
+
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
                 builder.field(DatafeedConfig.ID.getPreferredName(), datafeedId);
                 builder.field(STATE, datafeedState.toString());
-                builder.endObject();
+                if (node != null) {
+                    builder.startObject("node");
+                    builder.field("id", node.getId());
+                    builder.field("name", node.getName());
+                    builder.field("ephemeral_id", node.getEphemeralId());
+                    builder.field("transport_address", node.getAddress().toString());
 
+                    builder.startObject("attributes");
+                    for (Map.Entry<String, String> entry : node.getAttributes().entrySet()) {
+                        builder.field(entry.getKey(), entry.getValue());
+                    }
+                    builder.endObject();
+                    builder.endObject();
+                }
+                if (assignmentExplanation != null) {
+                    builder.field("assigment_explanation", assignmentExplanation);
+                }
+                builder.endObject();
                 return builder;
             }
 
@@ -165,11 +198,13 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(datafeedId);
                 datafeedState.writeTo(out);
+                out.writeOptionalWriteable(node);
+                out.writeOptionalString(assignmentExplanation);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(datafeedId, datafeedState);
+                return Objects.hash(datafeedId, datafeedState, node, assignmentExplanation);
             }
 
             @Override
@@ -180,8 +215,11 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
                 if (getClass() != obj.getClass()) {
                     return false;
                 }
-                GetDatafeedsStatsAction.Response.DatafeedStats other = (GetDatafeedsStatsAction.Response.DatafeedStats) obj;
-                return Objects.equals(datafeedId, other.datafeedId) && Objects.equals(this.datafeedState, other.datafeedState);
+                DatafeedStats other = (DatafeedStats) obj;
+                return Objects.equals(datafeedId, other.datafeedId) &&
+                        Objects.equals(this.datafeedState, other.datafeedState) &&
+                        Objects.equals(this.node, other.node) &&
+                        Objects.equals(this.assignmentExplanation, other.assignmentExplanation);
             }
         }
 
@@ -264,34 +302,28 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             logger.debug("Get stats for datafeed '{}'", request.getDatafeedId());
 
-            Map<String, DatafeedState> states = new HashMap<>();
+            Map<String, DatafeedStats> results = new HashMap<>();
+            MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
             PersistentTasksInProgress tasksInProgress = state.getMetaData().custom(PersistentTasksInProgress.TYPE);
-            if (tasksInProgress != null) {
-                Predicate<PersistentTaskInProgress<?>> predicate = ALL.equals(request.getDatafeedId()) ? p -> true :
-                        p -> request.getDatafeedId().equals(((StartDatafeedAction.Request) p.getRequest()).getDatafeedId());
-                for (PersistentTaskInProgress<?> taskInProgress : tasksInProgress.findTasks(StartDatafeedAction.NAME, predicate)) {
-                    StartDatafeedAction.Request storedRequest = (StartDatafeedAction.Request) taskInProgress.getRequest();
-                    states.put(storedRequest.getDatafeedId(), DatafeedState.STARTED);
-                }
+            if (request.getDatafeedId().equals(ALL) == false && mlMetadata.getDatafeed(request.getDatafeedId()) == null) {
+                throw ExceptionsHelper.missingDatafeedException(request.getDatafeedId());
             }
 
-            List<Response.DatafeedStats> stats = new ArrayList<>();
-            MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
-            if (ALL.equals(request.getDatafeedId())) {
-                Collection<DatafeedConfig> datafeeds = mlMetadata.getDatafeeds().values();
-                for (DatafeedConfig datafeed : datafeeds) {
-                    DatafeedState datafeedState = states.getOrDefault(datafeed.getId(), DatafeedState.STOPPED);
-                    stats.add(new Response.DatafeedStats(datafeed.getId(), datafeedState));
+            for (DatafeedConfig datafeedConfig : mlMetadata.getDatafeeds().values()) {
+                if (request.getDatafeedId().equals(ALL) || datafeedConfig.getId().equals(request.getDatafeedId())) {
+                    PersistentTaskInProgress<?> task = MlMetadata.getDatafeedTask(request.getDatafeedId(), tasksInProgress);
+                    DatafeedState datafeedState = MlMetadata.getDatafeedState(request.getDatafeedId(), tasksInProgress);
+                    DiscoveryNode node = null;
+                    String explanation = null;
+                    if (task != null) {
+                        node = state.nodes().get(task.getExecutorNode());
+                        explanation = task.getAssignment().getExplanation();
+                    }
+                    results.put(datafeedConfig.getId(), new DatafeedStats(datafeedConfig.getId(), datafeedState, node, explanation));
                 }
-            } else {
-                DatafeedConfig datafeed = mlMetadata.getDatafeed(request.getDatafeedId());
-                if (datafeed == null) {
-                    throw ExceptionsHelper.missingDatafeedException(request.getDatafeedId());
-                }
-                DatafeedState datafeedState = states.getOrDefault(datafeed.getId(), DatafeedState.STOPPED);
-                stats.add(new Response.DatafeedStats(datafeed.getId(), datafeedState));
             }
-            QueryPage<Response.DatafeedStats> statsPage = new QueryPage<>(stats, stats.size(), DatafeedConfig.RESULTS_FIELD);
+            QueryPage<DatafeedStats> statsPage = new QueryPage<>(new ArrayList<>(results.values()), results.size(),
+                    DatafeedConfig.RESULTS_FIELD);
             listener.onResponse(new Response(statsPage));
         }
 

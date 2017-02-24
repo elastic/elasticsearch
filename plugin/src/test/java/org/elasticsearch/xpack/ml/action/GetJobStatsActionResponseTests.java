@@ -48,7 +48,11 @@ public class GetJobStatsActionResponseTests extends AbstractStreamableTestCase<R
             if (randomBoolean()) {
                 node = new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
             }
-            Response.JobStats jobStats = new Response.JobStats(jobId, dataCounts, sizeStats, jobState, node);
+            String explanation = null;
+            if (randomBoolean()) {
+                explanation = randomAsciiOfLength(3);
+            }
+            Response.JobStats jobStats = new Response.JobStats(jobId, dataCounts, sizeStats, jobState, node, explanation);
             jobStatsList.add(jobStats);
         }
 

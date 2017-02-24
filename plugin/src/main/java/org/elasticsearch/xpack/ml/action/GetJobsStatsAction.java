@@ -160,13 +160,17 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             private JobState state;
             @Nullable
             private DiscoveryNode node;
+            @Nullable
+            private String assignmentExplanation;
 
-            JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats, JobState state, DiscoveryNode node) {
+            JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats, JobState state,
+                     @Nullable  DiscoveryNode node, @Nullable String assignmentExplanation) {
                 this.jobId = Objects.requireNonNull(jobId);
                 this.dataCounts = Objects.requireNonNull(dataCounts);
                 this.modelSizeStats = modelSizeStats;
                 this.state = Objects.requireNonNull(state);
                 this.node = node;
+                this.assignmentExplanation = assignmentExplanation;
             }
 
             JobStats(StreamInput in) throws IOException {
@@ -175,6 +179,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 modelSizeStats = in.readOptionalWriteable(ModelSizeStats::new);
                 state = JobState.fromStream(in);
                 node = in.readOptionalWriteable(DiscoveryNode::new);
+                assignmentExplanation = in.readOptionalString();
             }
 
             public String getJobId() {
@@ -195,6 +200,10 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
             public DiscoveryNode getNode() {
                 return node;
+            }
+
+            public String getAssignmentExplanation() {
+                return assignmentExplanation;
             }
 
             @Override
@@ -220,6 +229,9 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                     builder.endObject();
                     builder.endObject();
                 }
+                if (assignmentExplanation != null) {
+                    builder.field("assigment_explanation", assignmentExplanation);
+                }
                 builder.endObject();
                 return builder;
             }
@@ -231,11 +243,12 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 out.writeOptionalWriteable(modelSizeStats);
                 state.writeTo(out);
                 out.writeOptionalWriteable(node);
+                out.writeOptionalString(assignmentExplanation);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(jobId, dataCounts, modelSizeStats, state, node);
+                return Objects.hash(jobId, dataCounts, modelSizeStats, state, node, assignmentExplanation);
             }
 
             @Override
@@ -251,7 +264,8 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                         && Objects.equals(this.dataCounts, other.dataCounts)
                         && Objects.equals(this.modelSizeStats, other.modelSizeStats)
                         && Objects.equals(this.state, other.state)
-                        && Objects.equals(this.node, other.node);
+                        && Objects.equals(this.node, other.node)
+                        && Objects.equals(this.assignmentExplanation, other.assignmentExplanation);
             }
         }
 
@@ -378,7 +392,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         protected void taskOperation(Request request, OpenJobAction.JobTask task,
                                      ActionListener<QueryPage<Response.JobStats>> listener) {
             String jobId = task.getJobId();
-            logger.debug("Get stats for job '{}'", jobId);
+            logger.debug("Get stats for job [{}]", jobId);
             ClusterState state = clusterService.state();
             PersistentTasksInProgress tasks = state.getMetaData().custom(PersistentTasksInProgress.TYPE);
             Optional<Tuple<DataCounts, ModelSizeStats>> stats = processManager.getStatistics(jobId);
@@ -386,7 +400,9 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 PersistentTasksInProgress.PersistentTaskInProgress<?> pTask = MlMetadata.getJobTask(jobId, tasks);
                 DiscoveryNode node = state.nodes().get(pTask.getExecutorNode());
                 JobState jobState = MlMetadata.getJobState(jobId, tasks);
-                Response.JobStats jobStats = new Response.JobStats(jobId, stats.get().v1(), stats.get().v2(), jobState, node);
+                String assignmentExplanation = pTask.getAssignment().getExplanation();
+                Response.JobStats jobStats = new Response.JobStats(jobId, stats.get().v1(), stats.get().v2(), jobState,
+                        node, assignmentExplanation);
                 listener.onResponse(new QueryPage<>(Collections.singletonList(jobStats), 1, Job.RESULTS_FIELD));
             } else {
                 listener.onResponse(new QueryPage<>(Collections.emptyList(), 0, Job.RESULTS_FIELD));
@@ -410,7 +426,13 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 String jobId = jobIds.get(i);
                 gatherDataCountsAndModelSizeStats(jobId, (dataCounts, modelSizeStats) -> {
                     JobState jobState = MlMetadata.getJobState(request.jobId, tasks);
-                    jobStats.set(slot, new Response.JobStats(jobId, dataCounts, modelSizeStats, jobState, null));
+                    PersistentTasksInProgress.PersistentTaskInProgress<?> pTask = MlMetadata.getJobTask(jobId, tasks);
+                    String assignmentExplanation = null;
+                    if (pTask != null) {
+                        assignmentExplanation = pTask.getAssignment().getExplanation();
+                    }
+                    jobStats.set(slot, new Response.JobStats(jobId, dataCounts, modelSizeStats, jobState, null,
+                            assignmentExplanation));
                     if (counter.decrementAndGet() == 0) {
                         List<Response.JobStats> results = response.getResponse().results();
                         results.addAll(jobStats.asList().stream()
@@ -433,7 +455,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         }
 
         static List<String> determineJobIdsWithoutLiveStats(List<String> requestedJobIds, List<Response.JobStats> stats) {
-            Set<String> excludeJobIds = stats.stream().map(s -> s.getJobId()).collect(Collectors.toSet());
+            Set<String> excludeJobIds = stats.stream().map(Response.JobStats::getJobId).collect(Collectors.toSet());
             return requestedJobIds.stream().filter(jobId -> !excludeJobIds.contains(jobId)).collect(Collectors.toList());
         }
     }

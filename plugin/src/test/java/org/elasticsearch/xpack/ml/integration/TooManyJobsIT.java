@@ -19,8 +19,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManage
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 
-import java.util.concurrent.ExecutionException;
-
 public class TooManyJobsIT extends BaseMlIntegTestCase {
 
     public void testCloseFailedJob() throws Exception {
@@ -79,17 +77,17 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
 
             OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
             try {
-                client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
+                client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
                 assertBusy(() -> {
                     GetJobsStatsAction.Response statsResponse =
                             client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
                     assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.OPENED);
                 });
                 logger.info("Opened {}th job", i);
-            } catch (ExecutionException e) {
-                Exception cause = (Exception) e.getCause();
-                assertEquals(ElasticsearchStatusException.class, cause.getClass());
-                assertEquals("no nodes available to open job [" + i + "]", cause.getMessage());
+            } catch (ElasticsearchStatusException e) {
+                assertTrue(e.getMessage().startsWith("cannot open job [" + i + "], no suitable nodes found, allocation explanation"));
+                assertTrue(e.getMessage().endsWith("because this node is full. Number of opened jobs [" + maxNumberOfJobsPerNode +
+                        "], max_running_jobs [" + maxNumberOfJobsPerNode + "]]"));
                 logger.info("good news everybody --> reached maximum number of allowed opened jobs, after trying to open the {}th job", i);
 
                 // close the first job and check if the latest job gets opened:

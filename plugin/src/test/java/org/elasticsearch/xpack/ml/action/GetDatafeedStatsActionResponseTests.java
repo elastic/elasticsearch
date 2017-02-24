@@ -5,12 +5,16 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction.Response;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,7 +30,15 @@ public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestC
             String datafeedId = randomAsciiOfLength(10);
             DatafeedState datafeedState = randomFrom(DatafeedState.values());
 
-            Response.DatafeedStats datafeedStats = new Response.DatafeedStats(datafeedId, datafeedState);
+            DiscoveryNode node = null;
+            if (randomBoolean()) {
+                node = new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
+            }
+            String explanation = null;
+            if (randomBoolean()) {
+                explanation = randomAsciiOfLength(3);
+            }
+            Response.DatafeedStats datafeedStats = new Response.DatafeedStats(datafeedId, datafeedState, node, explanation);
             datafeedStatsList.add(datafeedStats);
         }
 

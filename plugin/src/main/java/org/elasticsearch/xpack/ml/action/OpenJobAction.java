@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTa
 import org.elasticsearch.xpack.persistent.TransportPersistentAction;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -256,7 +258,8 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         private final JobStateObserver observer;
         private final ClusterService clusterService;
         private final AutodetectProcessManager autodetectProcessManager;
-        private XPackLicenseState licenseState;
+        private final XPackLicenseState licenseState;
+        private final Auditor auditor;
 
         private volatile int maxConcurrentJobAllocations;
 
@@ -264,12 +267,13 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, XPackLicenseState licenseState,
                                PersistentActionService persistentActionService, PersistentActionRegistry persistentActionRegistry,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ClusterService clusterService, AutodetectProcessManager autodetectProcessManager) {
+                               ClusterService clusterService, AutodetectProcessManager autodetectProcessManager, Auditor auditor) {
             super(settings, OpenJobAction.NAME, false, threadPool, transportService, persistentActionService,
                     persistentActionRegistry, actionFilters, indexNameExpressionResolver, Request::new, ThreadPool.Names.MANAGEMENT);
             this.licenseState = licenseState;
             this.clusterService = clusterService;
             this.autodetectProcessManager = autodetectProcessManager;
+            this.auditor = auditor;
             this.observer = new JobStateObserver(threadPool, clusterService);
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
             clusterService.getClusterSettings()
@@ -283,9 +287,10 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
                 // simply because there are no ml nodes in the cluster then we fail quickly here:
                 ClusterState clusterState = clusterService.state();
                 validate(request, clusterState);
-                if (selectLeastLoadedMlNode(request.getJobId(), clusterState, maxConcurrentJobAllocations, logger) == null) {
-                    throw new ElasticsearchStatusException("no nodes available to open job [" + request.getJobId() + "]",
-                            RestStatus.TOO_MANY_REQUESTS);
+                Assignment assignment = selectLeastLoadedMlNode(request.getJobId(), clusterState, maxConcurrentJobAllocations, logger);
+                if (assignment.getExecutorNode() == null) {
+                    throw new ElasticsearchStatusException("cannot open job [" + request.getJobId() + "], no suitable nodes found, " +
+                            "allocation explanation [{}]", RestStatus.TOO_MANY_REQUESTS, assignment.getExplanation());
                 }
 
                 ActionListener<PersistentActionResponse> finalListener =
@@ -308,13 +313,9 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
 
         @Override
         public Assignment getAssignment(Request request, ClusterState clusterState) {
-            DiscoveryNode discoveryNode = selectLeastLoadedMlNode(request.getJobId(), clusterState, maxConcurrentJobAllocations, logger);
-            // TODO: Add proper explanation
-            if (discoveryNode == null) {
-                return NO_NODE_FOUND;
-            } else {
-                return new Assignment(discoveryNode.getId(), "");
-            }
+            Assignment assignment = selectLeastLoadedMlNode(request.getJobId(), clusterState, maxConcurrentJobAllocations, logger);
+            writeAssignmentNotification(request.getJobId(), assignment, clusterState);
+            return assignment;
         }
 
         @Override
@@ -348,6 +349,27 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
             logger.info("Changing [{}] from [{}] to [{}]", MachineLearning.CONCURRENT_JOB_ALLOCATIONS.getKey(),
                     this.maxConcurrentJobAllocations, maxConcurrentJobAllocations);
             this.maxConcurrentJobAllocations = maxConcurrentJobAllocations;
+        }
+
+        private void writeAssignmentNotification(String jobId, Assignment assignment, ClusterState state) {
+            // Forking as this code is called from cluster state update thread:
+            // Should be ok as auditor uses index api which has its own tp
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("Failed to write assignment notification for job [" + jobId + "]", e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    if (assignment.getExecutorNode() == null) {
+                        auditor.warning(jobId, "No node found to open job. Reasons [" + assignment.getExplanation() + "]");
+                    } else {
+                        DiscoveryNode node = state.nodes().get(assignment.getExecutorNode());
+                        auditor.info(jobId, "Found node [" + node + "] to open job");
+                    }
+                }
+            });
         }
     }
 
@@ -384,10 +406,14 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         }
     }
 
-    static DiscoveryNode selectLeastLoadedMlNode(String jobId, ClusterState clusterState, int maxConcurrentJobAllocations,
-                                                 Logger logger) {
-        if (verifyIndicesPrimaryShardsAreActive(logger, jobId, clusterState) == false) {
-            return null;
+    static Assignment selectLeastLoadedMlNode(String jobId, ClusterState clusterState, int maxConcurrentJobAllocations,
+                                              Logger logger) {
+        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(logger, jobId, clusterState);
+        if (unavailableIndices.size() != 0) {
+            String reason = "Not opening job [" + jobId + "], because not all primary shards are active for the following indices [" +
+                    String.join(",", unavailableIndices) + "]";
+            logger.debug(reason);
+            return new Assignment(null, reason);
         }
 
         long maxAvailable = Long.MIN_VALUE;
@@ -399,7 +425,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
             String maxNumberOfOpenJobsStr = nodeAttributes.get(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey());
             if (maxNumberOfOpenJobsStr == null) {
                 String reason = "Not opening job [" + jobId + "] on node [" + node + "], because this node isn't a ml node.";
-                logger.debug(reason);
+                logger.trace(reason);
                 reasons.add(reason);
                 continue;
             }
@@ -425,7 +451,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
             if (numberOfAllocatingJobs >= maxConcurrentJobAllocations) {
                 String reason = "Not opening job [" + jobId + "] on node [" + node + "], because node exceeds [" + numberOfAllocatingJobs +
                         "] the maximum number of jobs [" + maxConcurrentJobAllocations + "] in opening state";
-                logger.debug(reason);
+                logger.trace(reason);
                 reasons.add(reason);
                 continue;
             }
@@ -436,7 +462,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
                 String reason = "Not opening job [" + jobId + "] on node [" + node + "], because this node is full. " +
                         "Number of opened jobs [" + numberOfAssignedJobs + "], " + MAX_RUNNING_JOBS_PER_NODE.getKey() +
                         " [" + maxNumberOfOpenJobs + "]";
-                logger.debug(reason);
+                logger.trace(reason);
                 reasons.add(reason);
                 continue;
             }
@@ -447,11 +473,13 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
             }
         }
         if (minLoadedNode != null) {
-            logger.info("selected node [{}] for job [{}]", minLoadedNode, jobId);
+            logger.debug("selected node [{}] for job [{}]", minLoadedNode, jobId);
+            return new Assignment(minLoadedNode.getId(), "");
         } else {
-            logger.warn("no node selected for job [{}], reasons [{}]", jobId, String.join(",", reasons));
+            String explanation = String.join("|", reasons);
+            logger.debug("no node selected for job [{}], reasons [{}]", jobId, explanation);
+            return new Assignment(null, explanation);
         }
-        return minLoadedNode;
     }
 
     static String[] indicesOfInterest(Job job) {
@@ -459,10 +487,11 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         return new String[]{AnomalyDetectorsIndex.jobStateIndexName(), jobResultIndex, JobProvider.ML_META_INDEX};
     }
 
-    static boolean verifyIndicesPrimaryShardsAreActive(Logger logger, String jobId, ClusterState clusterState) {
+    static List<String> verifyIndicesPrimaryShardsAreActive(Logger logger, String jobId, ClusterState clusterState) {
         MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
         Job job = mlMetadata.getJobs().get(jobId);
         String[] indices = indicesOfInterest(job);
+        List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {
             // Indices are created on demand from templates.
             // It is not an error if the index doesn't exist yet
@@ -471,10 +500,9 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
             }
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
             if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
-                logger.warn("Not opening job [{}], because not all primary shards are active for the [{}] index.", jobId, index);
-                return false;
+                unavailableIndices.add(index);
             }
         }
-        return true;
+        return unavailableIndices;
     }
 }

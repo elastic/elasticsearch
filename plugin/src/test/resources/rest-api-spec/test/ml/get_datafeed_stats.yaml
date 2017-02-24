@@ -67,12 +67,35 @@ setup:
         datafeed_id: datafeed-1
   - match: { datafeeds.0.datafeed_id: "datafeed-1"}
   - match: { datafeeds.0.state: "stopped"}
+  - is_false: datafeeds.0.node
 
   - do:
       xpack.ml.get_datafeed_stats:
         datafeed_id: datafeed-2
   - match: { datafeeds.0.datafeed_id: "datafeed-2"}
   - match: { datafeeds.0.state: "stopped"}
+  - is_false: datafeeds.0.node
+
+---
+"Test get stats for started datafeed":
+
+  - do:
+      xpack.ml.open_job:
+        job_id: job-1
+
+  - do:
+      xpack.ml.start_datafeed:
+        "datafeed_id": "datafeed-1"
+        "start": 0
+
+  - do:
+      xpack.ml.get_datafeed_stats:
+        datafeed_id: datafeed-1
+  - match: { datafeeds.0.datafeed_id: "datafeed-1"}
+  - match: { datafeeds.0.state: "started"}
+  - is_true: datafeeds.0.node.name
+  - is_true: datafeeds.0.node.transport_address
+  - match: { datafeeds.0.node.attributes.max_running_jobs: "10"}
 
 ---
 "Test explicit get all datafeed stats":

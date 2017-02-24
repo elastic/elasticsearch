@@ -139,8 +139,8 @@ public class OpenJobActionTests extends ESTestCase {
         metaData.putCustom(PersistentTasksInProgress.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id4", cs.build(), 2, logger);
-        assertEquals("_node_id3", result.getId());
+        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id4", cs.build(), 2, logger);
+        assertEquals("_node_id3", result.getExecutorNode());
     }
 
     public void testSelectLeastLoadedMlNode_maxCapacity() {
@@ -157,8 +157,7 @@ public class OpenJobActionTests extends ESTestCase {
             nodes.add(new DiscoveryNode("_node_name" + i, nodeId, address, nodeAttr, Collections.emptySet(), Version.CURRENT));
             for (int j = 0; j < maxRunningJobsPerNode; j++) {
                 long id = j + (maxRunningJobsPerNode * i);
-                taskMap.put(id, new PersistentTaskInProgress<>(id, OpenJobAction.NAME, new OpenJobAction.Request("job_id" + id),
-                        false, true, new Assignment(nodeId, "test assignment")));
+                taskMap.put(id, createJobTask(id, "job_id" + id, nodeId, JobState.OPENED));
             }
         }
         PersistentTasksInProgress tasks = new PersistentTasksInProgress(numNodes * maxRunningJobsPerNode, taskMap);
@@ -171,8 +170,10 @@ public class OpenJobActionTests extends ESTestCase {
         metaData.putCustom(PersistentTasksInProgress.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, logger);
-        assertNull(result);
+        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, logger);
+        assertNull(result.getExecutorNode());
+        assertTrue(result.getExplanation().contains("because this node is full. Number of opened jobs [" + maxRunningJobsPerNode
+                + "], max_running_jobs [" + maxRunningJobsPerNode + "]"));
     }
 
     public void testSelectLeastLoadedMlNode_noMlNodes() {
@@ -196,8 +197,9 @@ public class OpenJobActionTests extends ESTestCase {
         metaData.putCustom(PersistentTasksInProgress.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
-        DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, logger);
-        assertNull(result);
+        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, logger);
+        assertTrue(result.getExplanation().contains("because this node isn't a ml node"));
+        assertNull(result.getExecutorNode());
     }
 
     public void testSelectLeastLoadedMlNode_maxConcurrentOpeningJobs() {
@@ -230,8 +232,8 @@ public class OpenJobActionTests extends ESTestCase {
         csBuilder.metaData(metaData);
 
         ClusterState cs = csBuilder.build();
-        DiscoveryNode result = OpenJobAction.selectLeastLoadedMlNode("job_id6", cs, 2, logger);
-        assertEquals("_node_id3", result.getId());
+        Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id6", cs, 2, logger);
+        assertEquals("_node_id3", result.getExecutorNode());
 
         PersistentTaskInProgress<OpenJobAction.Request>  lastTask = createJobTask(5L, "job_id6", "_node_id3", JobState.OPENING);
         taskMap.put(5L, lastTask);
@@ -241,7 +243,8 @@ public class OpenJobActionTests extends ESTestCase {
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksInProgress.TYPE, tasks));
         cs = csBuilder.build();
         result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, logger);
-        assertNull("no node selected, because OPENING state", result);
+        assertNull("no node selected, because OPENING state", result.getExecutorNode());
+        assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
         taskMap.put(5L, new PersistentTaskInProgress<>(lastTask, false, new Assignment("_node_id3", "test assignment")));
         tasks = new PersistentTasksInProgress(6L, taskMap);
@@ -250,7 +253,8 @@ public class OpenJobActionTests extends ESTestCase {
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksInProgress.TYPE, tasks));
         cs = csBuilder.build();
         result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, logger);
-        assertNull("no node selected, because stale task", result);
+        assertNull("no node selected, because stale task", result.getExecutorNode());
+        assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
         taskMap.put(5L, new PersistentTaskInProgress<>(lastTask, null));
         tasks = new PersistentTasksInProgress(6L, taskMap);
@@ -259,7 +263,8 @@ public class OpenJobActionTests extends ESTestCase {
         csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksInProgress.TYPE, tasks));
         cs = csBuilder.build();
         result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, logger);
-        assertNull("no node selected, because null state", result);
+        assertNull("no node selected, because null state", result.getExecutorNode());
+        assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
     }
 
     public void testVerifyIndicesPrimaryShardsAreActive() {
@@ -272,7 +277,7 @@ public class OpenJobActionTests extends ESTestCase {
         csBuilder.metaData(metaData);
 
         ClusterState cs = csBuilder.build();
-        assertTrue(OpenJobAction.verifyIndicesPrimaryShardsAreActive(logger, "job_id", cs));
+        assertEquals(0, OpenJobAction.verifyIndicesPrimaryShardsAreActive(logger, "job_id", cs).size());
 
         metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
@@ -294,7 +299,9 @@ public class OpenJobActionTests extends ESTestCase {
 
         csBuilder.routingTable(routingTable.build());
         csBuilder.metaData(metaData);
-        assertFalse(OpenJobAction.verifyIndicesPrimaryShardsAreActive(logger, "job_id", csBuilder.build()));
+        List<String> result = OpenJobAction.verifyIndicesPrimaryShardsAreActive(logger, "job_id", csBuilder.build());
+        assertEquals(1, result.size());
+        assertEquals(indexToRemove, result.get(0));
     }
 
     public static PersistentTaskInProgress<OpenJobAction.Request> createJobTask(long id, String jobId, String nodeId, JobState jobState) {

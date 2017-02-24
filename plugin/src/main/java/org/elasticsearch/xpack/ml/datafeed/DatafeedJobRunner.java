@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.Assignment;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
 
 import java.time.Duration;
@@ -75,9 +76,10 @@ public class DatafeedJobRunner extends AbstractComponent {
         ClusterState state = clusterService.state();
         // CS on master node can be ahead on the node where job and datafeed tasks run,
         // so check again and fail if in case of unexpected cs. Persist tasks will retry later then.
-        if (StartDatafeedAction.selectNode(logger, datafeedId, state) == null) {
-            handler.accept(new ElasticsearchStatusException("Local cs [{}] isn't ready to start datafeed [{}] yet",
-                    RestStatus.CONFLICT, state.getVersion(), datafeedId));
+        Assignment assignment = StartDatafeedAction.selectNode(logger, datafeedId, state);
+        if (assignment.getExecutorNode() == null) {
+            handler.accept(new ElasticsearchStatusException("cannot start datafeed [{}] yet, local cs [{}], allocation explanation [{}]",
+                    RestStatus.CONFLICT, datafeedId, state.getVersion(), assignment.getExplanation()));
             return;
         }
         logger.info("Attempt to start datafeed based on cluster state version [{}]", state.getVersion());

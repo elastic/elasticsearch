@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentActionRegistry;
@@ -276,17 +278,19 @@ public class StartDatafeedAction
 
         private final DatafeedStateObserver observer;
         private final DatafeedJobRunner datafeedJobRunner;
-        private XPackLicenseState licenseState;
+        private final XPackLicenseState licenseState;
+        private final Auditor auditor;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, XPackLicenseState licenseState,
                                PersistentActionService persistentActionService, PersistentActionRegistry persistentActionRegistry,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ClusterService clusterService, DatafeedJobRunner datafeedJobRunner) {
+                               ClusterService clusterService, DatafeedJobRunner datafeedJobRunner, Auditor auditor) {
             super(settings, NAME, false, threadPool, transportService, persistentActionService, persistentActionRegistry,
                     actionFilters, indexNameExpressionResolver, Request::new, ThreadPool.Names.MANAGEMENT);
             this.licenseState = licenseState;
             this.datafeedJobRunner = datafeedJobRunner;
+            this.auditor = auditor;
             this.observer = new DatafeedStateObserver(threadPool, clusterService);
         }
 
@@ -315,13 +319,9 @@ public class StartDatafeedAction
 
         @Override
         public Assignment getAssignment(Request request, ClusterState clusterState) {
-            DiscoveryNode discoveryNode = selectNode(logger, request.getDatafeedId(), clusterState);
-            // TODO: Add proper explanation
-            if (discoveryNode == null) {
-                return NO_NODE_FOUND;
-            } else {
-                return new Assignment(discoveryNode.getId(), "");
-            }
+            Assignment assignment = selectNode(logger, request.getDatafeedId(), clusterState);
+            writeAssignmentNotification(request.getDatafeedId(), assignment, clusterState);
+            return assignment;
         }
 
         @Override
@@ -343,6 +343,31 @@ public class StartDatafeedAction
                             listener.onResponse(TransportResponse.Empty.INSTANCE);
                         }
                     });
+        }
+
+        private void writeAssignmentNotification(String datafeedId, Assignment assignment, ClusterState state) {
+            // Forking as this code is called from cluster state update thread:
+            // Should be ok as auditor uses index api which has its own tp
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("Failed to write assignment notification for datafeed [" + datafeedId + "]", e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
+                    DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
+                    String jobId = datafeed.getJobId();
+                    if (assignment.getExecutorNode() == null) {
+                        auditor.warning(jobId, "No node found to start datafeed [" + datafeedId +"]. Reasons [" +
+                                assignment.getExplanation() + "]");
+                    } else {
+                        DiscoveryNode node = state.nodes().get(assignment.getExecutorNode());
+                        auditor.info(jobId, "Found node [" + node + "] to start datafeed [" + datafeedId + "]");
+                    }
+                }
+            });
         }
 
     }
@@ -383,7 +408,7 @@ public class StartDatafeedAction
         }
     }
 
-    public static DiscoveryNode selectNode(Logger logger, String datafeedId, ClusterState clusterState) {
+    public static Assignment selectNode(Logger logger, String datafeedId, ClusterState clusterState) {
         MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
         PersistentTasksInProgress tasks = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
@@ -391,21 +416,24 @@ public class StartDatafeedAction
 
         PersistentTaskInProgress<?> jobTask = MlMetadata.getJobTask(datafeed.getJobId(), tasks);
         if (jobTask == null) {
-            logger.debug("cannot start datafeed [{}], job task doesn't yet exist", datafeed.getId());
-            return null;
+            String reason = "cannot start datafeed [" + datafeed.getId() + "], job task doesn't yet exist";
+            logger.debug(reason);
+            return new Assignment(null, reason);
         }
         if (jobTask.needsReassignment(nodes)) {
-            logger.debug("cannot start datafeed [{}], job [{}] is unassigned or unassigned to a non existing node",
-                    datafeed.getId(), datafeed.getJobId());
-            return null;
+            String reason = "cannot start datafeed [" + datafeed.getId() + "], job [" + datafeed.getJobId() +
+                    "] is unassigned or unassigned to a non existing node";
+            logger.debug(reason);
+            return new Assignment(null, reason);
         }
         if (jobTask.getStatus() != JobState.OPENED) {
             // lets try again later when the job has been opened:
-            logger.debug("cannot start datafeed [{}], because job's [{}] state is [{}] while state [{}] is required",
-                    datafeed.getId(), datafeed.getJobId(), jobTask.getStatus(), JobState.OPENED);
-            return null;
+            String reason = "cannot start datafeed [" + datafeed.getId() + "], because job's [" + datafeed.getJobId() +
+                    "] state is [" + jobTask.getStatus() +  "] while state [" + JobState.OPENED + "] is required";
+            logger.debug(reason);
+            return new Assignment(null, reason);
         }
-        return nodes.get(jobTask.getExecutorNode());
+        return new Assignment(jobTask.getExecutorNode(), "");
     }
 
 }

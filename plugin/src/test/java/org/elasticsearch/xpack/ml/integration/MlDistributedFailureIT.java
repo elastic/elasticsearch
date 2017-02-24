@@ -10,7 +10,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
+import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction.Response.DatafeedStats;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
+import org.elasticsearch.xpack.ml.action.GetJobsStatsAction.Response.JobStats;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
@@ -24,7 +27,6 @@ import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
@@ -126,18 +128,21 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             PersistentTasksInProgress tasks = clusterState.metaData().custom(PersistentTasksInProgress.TYPE);
             assertNotNull(tasks);
             assertEquals(2, tasks.taskMap().size());
+            for (PersistentTaskInProgress<?> task : tasks.tasks()) {
+                assertFalse(task.needsReassignment(clusterState.nodes()));
+            }
 
-            Collection<PersistentTaskInProgress<?>> taskCollection = tasks.findTasks(OpenJobAction.NAME, p -> true);
-            assertEquals(1, taskCollection.size());
-            PersistentTaskInProgress<?> task = taskCollection.iterator().next();
-            assertFalse(task.needsReassignment(clusterState.nodes()));
-            assertEquals(JobState.OPENED, task.getStatus());
+            GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request("job_id");
+            JobStats jobStats = client().execute(GetJobsStatsAction.INSTANCE, jobStatsRequest).actionGet()
+                    .getResponse().results().get(0);
+            assertEquals(JobState.OPENED, jobStats.getState());
+            assertNotNull(jobStats.getNode());
 
-            taskCollection = tasks.findTasks(StartDatafeedAction.NAME, p -> true);
-            assertEquals(1, taskCollection.size());
-            task = taskCollection.iterator().next();
-            assertEquals(DatafeedState.STARTED, task.getStatus());
-            assertFalse(task.needsReassignment(clusterState.nodes()));
+            GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request("data_feed_id");
+            DatafeedStats datafeedStats = client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet()
+                    .getResponse().results().get(0);
+            assertEquals(DatafeedState.STARTED, datafeedStats.getDatafeedState());
+            assertNotNull(datafeedStats.getNode());
         });
 
         long numDocs2 = randomIntBetween(2, 64);

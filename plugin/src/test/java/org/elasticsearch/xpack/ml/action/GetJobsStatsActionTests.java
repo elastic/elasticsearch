@@ -23,7 +23,7 @@ public class GetJobsStatsActionTests extends ESTestCase {
         assertEquals("id1", result.get(0));
 
         result = determineJobIdsWithoutLiveStats(Collections.singletonList("id1"), Collections.singletonList(
-                new GetJobsStatsAction.Response.JobStats("id1", new DataCounts("id1"), null, JobState.CLOSED, null)));
+                new GetJobsStatsAction.Response.JobStats("id1", new DataCounts("id1"), null, JobState.CLOSED, null, null)));
         assertEquals(0, result.size());
 
         result = determineJobIdsWithoutLiveStats(
@@ -36,23 +36,23 @@ public class GetJobsStatsActionTests extends ESTestCase {
         result = determineJobIdsWithoutLiveStats(
                 Arrays.asList("id1", "id2", "id3"),
                 Collections.singletonList(new GetJobsStatsAction.Response.JobStats("id1", new DataCounts("id1"), null,
-                        JobState.CLOSED, null))
+                        JobState.CLOSED, null, null))
         );
         assertEquals(2, result.size());
         assertEquals("id2", result.get(0));
         assertEquals("id3", result.get(1));
 
         result = determineJobIdsWithoutLiveStats(Arrays.asList("id1", "id2", "id3"), Arrays.asList(
-                new GetJobsStatsAction.Response.JobStats("id1", new DataCounts("id1"), null, JobState.CLOSED, null),
-                new GetJobsStatsAction.Response.JobStats("id3", new DataCounts("id3"), null, JobState.CLOSED, null)
+                new GetJobsStatsAction.Response.JobStats("id1", new DataCounts("id1"), null, JobState.CLOSED, null, null),
+                new GetJobsStatsAction.Response.JobStats("id3", new DataCounts("id3"), null, JobState.CLOSED, null, null)
         ));
         assertEquals(1, result.size());
         assertEquals("id2", result.get(0));
 
         result = determineJobIdsWithoutLiveStats(Arrays.asList("id1", "id2", "id3"),
-                Arrays.asList(new GetJobsStatsAction.Response.JobStats("id1", new DataCounts("id1"), null, JobState.CLOSED, null),
-                    new GetJobsStatsAction.Response.JobStats("id2", new DataCounts("id2"), null, JobState.CLOSED, null),
-                    new GetJobsStatsAction.Response.JobStats("id3", new DataCounts("id3"), null, JobState.CLOSED, null)));
+                Arrays.asList(new GetJobsStatsAction.Response.JobStats("id1", new DataCounts("id1"), null, JobState.CLOSED, null, null),
+                    new GetJobsStatsAction.Response.JobStats("id2", new DataCounts("id2"), null, JobState.CLOSED, null, null),
+                    new GetJobsStatsAction.Response.JobStats("id3", new DataCounts("id3"), null, JobState.CLOSED, null, null)));
         assertEquals(0, result.size());
     }
 

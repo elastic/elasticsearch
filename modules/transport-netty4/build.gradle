@@ -42,11 +42,8 @@ dependencies {
     compile "io.netty:netty-transport:4.1.7.Final"
 }
 
-integTest {
-    includePackaged = true
-}
-integTestCluster {
-    numNodes = 2
+dependencyLicenses {
+  mapping from: /netty-.*/, to: 'netty'
 }
 
 thirdPartyAudit.excludes = [

@@ -115,7 +115,7 @@ public class RestHighLevelClient {
     }
 
     /**
-     * Get the cluster info otherwise provided when calling GET `localhost:9200`
+     * Get the cluster info otherwise provided when sending an HTTP request to port 9200
      */
     public MainResponse info(Header... headers) throws IOException {
         return performRequestAndParseEntity(new MainRequest(), (request) -> Request.info(), MainResponse::fromXContent, emptySet(),

@@ -315,7 +315,7 @@ public class StartDatafeedAction
 
         @Override
         public Assignment getAssignment(Request request, ClusterState clusterState) {
-            DiscoveryNode discoveryNode = selectNode(logger, request, clusterState);
+            DiscoveryNode discoveryNode = selectNode(logger, request.getDatafeedId(), clusterState);
             // TODO: Add proper explanation
             if (discoveryNode == null) {
                 return NO_NODE_FOUND;
@@ -378,27 +378,34 @@ public class StartDatafeedAction
             }
         }
         if (datafeedState == DatafeedState.STARTED) {
-            throw new ElasticsearchStatusException("datafeed already started, expected datafeed state [{}], but got [{}]",
-                    RestStatus.CONFLICT, DatafeedState.STOPPED, DatafeedState.STARTED);
+            throw new ElasticsearchStatusException("datafeed [{}] already started, expected datafeed state [{}], but got [{}]",
+                    RestStatus.CONFLICT, datafeedId, DatafeedState.STOPPED, DatafeedState.STARTED);
         }
     }
 
-    static DiscoveryNode selectNode(Logger logger, Request request, ClusterState clusterState) {
+    public static DiscoveryNode selectNode(Logger logger, String datafeedId, ClusterState clusterState) {
         MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
         PersistentTasksInProgress tasks = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
-        DatafeedConfig datafeed = mlMetadata.getDatafeed(request.getDatafeedId());
+        DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         DiscoveryNodes nodes = clusterState.getNodes();
 
-        JobState jobState = MlMetadata.getJobState(datafeed.getJobId(), tasks);
-        if (jobState == JobState.OPENED) {
-            PersistentTaskInProgress task = MlMetadata.getJobTask(datafeed.getJobId(), tasks);
-            return nodes.get(task.getExecutorNode());
-        } else {
-            // lets try again later when the job has been opened:
-            logger.debug("cannot start datafeeder, because job's [{}] state is [{}] while state [{}] is required",
-                    datafeed.getJobId(), jobState, JobState.OPENED);
+        PersistentTaskInProgress<?> jobTask = MlMetadata.getJobTask(datafeed.getJobId(), tasks);
+        if (jobTask == null) {
+            logger.debug("cannot start datafeed [{}], job task doesn't yet exist", datafeed.getId());
             return null;
         }
+        if (jobTask.needsReassignment(nodes)) {
+            logger.debug("cannot start datafeed [{}], job [{}] is unassigned or unassigned to a non existing node",
+                    datafeed.getId(), datafeed.getJobId());
+            return null;
+        }
+        if (jobTask.getStatus() != JobState.OPENED) {
+            // lets try again later when the job has been opened:
+            logger.debug("cannot start datafeed [{}], because job's [{}] state is [{}] while state [{}] is required",
+                    datafeed.getId(), datafeed.getJobId(), jobTask.getStatus(), JobState.OPENED);
+            return null;
+        }
+        return nodes.get(jobTask.getExecutorNode());
     }
 
 }

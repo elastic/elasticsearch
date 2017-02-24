@@ -92,7 +92,7 @@ setup:
         "start": 0
 
   - do:
-      catch: /datafeed already started, expected datafeed state \[stopped\], but got \[started\]/
+      catch: /datafeed \[datafeed\-1\] already started, expected datafeed state \[stopped\], but got \[started\]/
       xpack.ml.start_datafeed:
         "datafeed_id": "datafeed-1"
         "start": 0

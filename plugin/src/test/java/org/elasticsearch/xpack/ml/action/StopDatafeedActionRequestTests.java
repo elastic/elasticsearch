@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction.Request;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedConfig;
@@ -36,7 +36,7 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableTestCase<S
                 () -> StopDatafeedAction.validate("foo", mlMetadata1));
         assertThat(e.getMessage(), equalTo("No datafeed with id [foo] exists"));
 
-        DatafeedConfig datafeedConfig = createDatafeedConfig("foo", "foo").build();
+        DatafeedConfig datafeedConfig = createDatafeedConfig("foo", "job_id").build();
         MlMetadata mlMetadata2 = new MlMetadata.Builder().putJob(job, false)
                 .putDatafeed(datafeedConfig)
                 .build();

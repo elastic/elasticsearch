@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
@@ -26,10 +25,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "Too noisy, needs to be stabalized first")
 public class MlFullClusterRestartIT extends BaseMlIntegTestCase {
 
-    @TestLogging("org.elasticsearch.xpack.ml.datafeed:TRACE")
+    @TestLogging("org.elasticsearch.xpack.ml.datafeed:TRACE,org.elasticsearch.xpack.ml.action:TRACE")
     public void testFullClusterRestart() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableCluster(3);
@@ -81,17 +79,19 @@ public class MlFullClusterRestartIT extends BaseMlIntegTestCase {
             Collection<PersistentTaskInProgress<?>> taskCollection = tasks.findTasks(OpenJobAction.NAME, p -> true);
             assertEquals(1, taskCollection.size());
             PersistentTaskInProgress<?> task = taskCollection.iterator().next();
+            assertFalse(task.needsReassignment(clusterState.nodes()));
             assertEquals(JobState.OPENED, task.getStatus());
 
             taskCollection = tasks.findTasks(StartDatafeedAction.NAME, p -> true);
             assertEquals(1, taskCollection.size());
             task = taskCollection.iterator().next();
             assertEquals(DatafeedState.STARTED, task.getStatus());
+            assertFalse(task.needsReassignment(clusterState.nodes()));
         });
 
         long numDocs2 = randomIntBetween(2, 64);
-        long yesterday = now - 86400000;
-        indexDocs("data", numDocs2, yesterday, now);
+        long now2 = System.currentTimeMillis();
+        indexDocs("data", numDocs2, now2 + 5000, now2 + 6000);
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
             assertEquals(numDocs1 + numDocs2, dataCounts.getProcessedRecordCount());

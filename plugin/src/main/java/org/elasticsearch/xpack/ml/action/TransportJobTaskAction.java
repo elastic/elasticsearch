@@ -76,11 +76,13 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
 
     @Override
     protected final void taskOperation(Request request, OperationTask task, ActionListener<Response> listener) {
-        PersistentTasksInProgress tasks = clusterService.state().metaData().custom(PersistentTasksInProgress.TYPE);
+        ClusterState state = clusterService.state();
+        PersistentTasksInProgress tasks = state.metaData().custom(PersistentTasksInProgress.TYPE);
         JobState jobState = MlMetadata.getJobState(request.getJobId(), tasks);
         if (jobState == JobState.OPENED) {
             innerTaskOperation(request, task, listener);
         } else {
+            logger.warn("Unexpected job state based on cluster state version [{}]", state.getVersion());
             listener.onFailure(new ElasticsearchStatusException("job [" + request.getJobId() + "] state is [" + jobState +
                     "], but must be [" + JobState.OPENED + "] to perform requested action", RestStatus.CONFLICT));
         }

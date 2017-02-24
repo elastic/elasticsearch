@@ -13,9 +13,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -25,8 +22,6 @@ import static org.mockito.Mockito.mock;
 public class RestStartJobDatafeedActionTests extends ESTestCase {
 
     public void testPrepareRequest() throws Exception {
-        Job.Builder job = DatafeedJobRunnerTests.createDatafeedJob();
-        DatafeedConfig datafeedConfig = DatafeedJobRunnerTests.createDatafeedConfig("foo-datafeed", "foo").build();
         RestStartDatafeedAction action = new RestStartDatafeedAction(Settings.EMPTY, mock(RestController.class));
 
         Map<String, String> params = new HashMap<>();

@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -15,6 +17,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
@@ -66,8 +69,18 @@ public class DatafeedJobRunner extends AbstractComponent {
     }
 
     public void run(StartDatafeedAction.DatafeedTask task, Consumer<Exception> handler) {
-        MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
-        DatafeedConfig datafeed = mlMetadata.getDatafeed(task.getDatafeedId());
+        String datafeedId = task.getDatafeedId();
+        ClusterState state = clusterService.state();
+        // CS on master node can be ahead on the node where job and datafeed tasks run,
+        // so check again and fail if in case of unexpected cs. Persist tasks will retry later then.
+        if (StartDatafeedAction.selectNode(logger, datafeedId, state) == null) {
+            handler.accept(new ElasticsearchStatusException("Local cs [{}] isn't ready to start datafeed [{}] yet",
+                    RestStatus.CONFLICT, state.getVersion(), datafeedId));
+            return;
+        }
+        logger.info("Attempt to start datafeed based on cluster state version [{}]", state.getVersion());
+        MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
+        DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         Job job = mlMetadata.getJobs().get(datafeed.getJobId());
         gatherInformation(job.getId(), (buckets, dataCounts) -> {
             long latestFinalBucketEndMs = -1L;
@@ -80,11 +93,13 @@ public class DatafeedJobRunner extends AbstractComponent {
                 latestRecordTimeMs = dataCounts.getLatestRecordTimeStamp().getTime();
             }
             Holder holder = createJobDatafeed(datafeed, job, latestFinalBucketEndMs, latestRecordTimeMs, handler, task);
-            UpdatePersistentTaskStatusAction.Request updateDatafeedStatus =
-                    new UpdatePersistentTaskStatusAction.Request(task.getPersistentTaskId(), DatafeedState.STARTED);
-            client.execute(UpdatePersistentTaskStatusAction.INSTANCE, updateDatafeedStatus, ActionListener.wrap(r -> {
-                innerRun(holder, task.getStartTime(), task.getEndTime());
-            }, handler));
+            updateDatafeedState(task.getPersistentTaskId(), DatafeedState.STARTED, e -> {
+                if (e != null) {
+                    handler.accept(e);
+                } else {
+                    innerRun(holder, task.getStartTime(), task.getEndTime());
+                }
+            });
         }, handler);
     }
 
@@ -209,6 +224,13 @@ public class DatafeedJobRunner extends AbstractComponent {
                 errorHandler.accept(e);
             }
         });
+    }
+
+    private void updateDatafeedState(long persistentTaskId, DatafeedState datafeedState, Consumer<Exception> handler) {
+        UpdatePersistentTaskStatusAction.Request request = new UpdatePersistentTaskStatusAction.Request(persistentTaskId, datafeedState);
+        client.execute(UpdatePersistentTaskStatusAction.INSTANCE, request, ActionListener.wrap(r -> {
+            handler.accept(null);
+        }, handler));
     }
 
     private static Duration getFrequencyOrDefault(DatafeedConfig datafeed, Job job) {

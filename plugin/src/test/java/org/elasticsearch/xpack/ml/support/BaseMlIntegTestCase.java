@@ -146,13 +146,6 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
     public void cleanupWorkaround() throws Exception {
         deleteAllDatafeeds(client());
         deleteAllJobs(client());
-        int numNodes = internalCluster().size();
-        for (int i = 0; i < numNodes; i++) {
-            internalCluster().stopRandomNode(settings -> true);
-        }
-        internalCluster().startNode(Settings.builder().put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false));
-        ensureStableCluster(1);
-        cluster().wipe(Collections.emptySet());
     }
 
     protected void indexDocs(String index, long numDocs, long start, long end) {

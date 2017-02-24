@@ -183,13 +183,13 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         builder.putDatafeed(datafeedConfig1);
 
         MlMetadata result = builder.build();
-        assertThat(result.getJobs().get("foo"), sameInstance(job1));
+        assertThat(result.getJobs().get("job_id"), sameInstance(job1));
         assertThat(result.getDatafeeds().get("datafeed1"), sameInstance(datafeedConfig1));
 
         builder = new MlMetadata.Builder(result);
         builder.removeDatafeed("datafeed1", new PersistentTasksInProgress(0, Collections.emptyMap()));
         result = builder.build();
-        assertThat(result.getJobs().get("foo"), sameInstance(job1));
+        assertThat(result.getJobs().get("job_id"), sameInstance(job1));
         assertThat(result.getDatafeeds().get("datafeed1"), nullValue());
     }
 
@@ -255,7 +255,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
     }
 
     public void testUpdateDatafeed_failBecauseDatafeedDoesNotExist() {
-        DatafeedUpdate.Builder update = new DatafeedUpdate.Builder("foo");
+        DatafeedUpdate.Builder update = new DatafeedUpdate.Builder("job_id");
         update.setScrollSize(5000);
         expectThrows(ResourceNotFoundException.class, () -> new MlMetadata.Builder().updateDatafeed(update.build(), null).build());
     }
@@ -316,7 +316,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
                 () -> new MlMetadata.Builder(beforeMetadata).updateDatafeed(update.build(), null));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
-        assertThat(e.getMessage(), equalTo("A datafeed [datafeed2] already exists for job [foo_2]"));
+        assertThat(e.getMessage(), equalTo("A datafeed [datafeed2] already exists for job [job_id_2]"));
     }
 
     public void testRemoveDatafeed_failBecauseDatafeedStarted() {
@@ -327,7 +327,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         builder.putDatafeed(datafeedConfig1);
 
         MlMetadata result = builder.build();
-        assertThat(result.getJobs().get("foo"), sameInstance(job1));
+        assertThat(result.getJobs().get("job_id"), sameInstance(job1));
         assertThat(result.getDatafeeds().get("datafeed1"), sameInstance(datafeedConfig1));
 
         StartDatafeedAction.Request request = new StartDatafeedAction.Request("datafeed1", 0L);

@@ -6,13 +6,17 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -22,6 +26,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
+import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -33,23 +38,29 @@ import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction.Response;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.net.InetAddress;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.createJobTask;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
@@ -78,10 +89,27 @@ public class DatafeedJobRunnerTests extends ESTestCase {
     @Before
     @SuppressWarnings("unchecked")
     public void setUpTests() {
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        Job job = createDatafeedJob().build();
+        mlMetadata.putJob(job, false);
+        mlMetadata.putDatafeed(createDatafeedConfig("datafeed_id", job.getId()).build());
+        PersistentTaskInProgress<OpenJobAction.Request> task = createJobTask(0L, job.getId(), "node_id", JobState.OPENED);
+        PersistentTasksInProgress tasks = new PersistentTasksInProgress(1L, Collections.singletonMap(0L, task));
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+                .add(new DiscoveryNode("node_name", "node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                        Collections.emptyMap(), Collections.emptySet(), Version.CURRENT))
+                .build();
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("cluster_name"))
+                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlMetadata.build())
+                        .putCustom(PersistentTasksInProgress.TYPE, tasks))
+                .nodes(nodes);
+
+        clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(cs.build());
+
         client = mock(Client.class);
         jobDataFuture = mock(ActionFuture.class);
         flushJobFuture = mock(ActionFuture.class);
-        clusterService = mock(ClusterService.class);
 
         JobProvider jobProvider = mock(JobProvider.class);
         Mockito.doAnswer(invocationOnMock -> {
@@ -128,63 +156,41 @@ public class DatafeedJobRunnerTests extends ESTestCase {
     }
 
     public void testStart_GivenNewlyCreatedJobLoopBack() throws Exception {
-        Job.Builder jobBuilder = createDatafeedJob();
-        DatafeedConfig datafeedConfig = createDatafeedConfig("datafeed1", "foo").build();
-        DataCounts dataCounts = new DataCounts("foo", 1, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0));
-        Job job = jobBuilder.build();
-        MlMetadata mlMetadata = new MlMetadata.Builder()
-                .putJob(job, false)
-                .putDatafeed(datafeedConfig)
-                .build();
-        when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata))
-                .build());
-
         DataExtractor dataExtractor = mock(DataExtractor.class);
         when(dataExtractorFactory.newExtractor(0L, 60000L)).thenReturn(dataExtractor);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         InputStream in = new ByteArrayInputStream("".getBytes(Charset.forName("utf-8")));
         when(dataExtractor.next()).thenReturn(Optional.of(in));
+        DataCounts dataCounts = new DataCounts("job_id", 1, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0));
         when(jobDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
-        StartDatafeedAction.DatafeedTask task = createDatafeedTask("datafeed1", 0L, 60000L);
+        StartDatafeedAction.DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
         datafeedJobRunner.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
-        verify(client).execute(same(PostDataAction.INSTANCE), eq(createExpectedPostDataRequest(job)));
+        verify(client).execute(same(PostDataAction.INSTANCE), eq(createExpectedPostDataRequest("job_id")));
         verify(client).execute(same(FlushJobAction.INSTANCE), any());
     }
 
-    private static PostDataAction.Request createExpectedPostDataRequest(Job job) {
+    private static PostDataAction.Request createExpectedPostDataRequest(String jobId) {
         DataDescription.Builder expectedDataDescription = new DataDescription.Builder();
         expectedDataDescription.setTimeFormat("epoch_ms");
         expectedDataDescription.setFormat(DataDescription.DataFormat.JSON);
-        PostDataAction.Request expectedPostDataRequest = new PostDataAction.Request(job.getId());
+        PostDataAction.Request expectedPostDataRequest = new PostDataAction.Request(jobId);
         expectedPostDataRequest.setDataDescription(expectedDataDescription.build());
         return expectedPostDataRequest;
     }
 
     public void testStart_extractionProblem() throws Exception {
-        Job.Builder jobBuilder = createDatafeedJob();
-        DatafeedConfig datafeedConfig = createDatafeedConfig("datafeed1", "foo").build();
-        DataCounts dataCounts = new DataCounts("foo", 1, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0));
-        Job job = jobBuilder.build();
-        MlMetadata mlMetadata = new MlMetadata.Builder()
-                .putJob(job, false)
-                .putDatafeed(datafeedConfig)
-                .build();
-        when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata))
-                .build());
-
         DataExtractor dataExtractor = mock(DataExtractor.class);
         when(dataExtractorFactory.newExtractor(0L, 60000L)).thenReturn(dataExtractor);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         when(dataExtractor.next()).thenThrow(new RuntimeException("dummy"));
+        DataCounts dataCounts = new DataCounts("job_id", 1, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0));
         when(jobDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
-        StartDatafeedAction.DatafeedTask task = createDatafeedTask("datafeed1", 0L, 60000L);
+        StartDatafeedAction.DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
         datafeedJobRunner.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
@@ -196,7 +202,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
     public void testStart_emptyDataCountException() throws Exception {
         currentTime = 6000000;
         Job.Builder jobBuilder = createDatafeedJob();
-        DatafeedConfig datafeedConfig = createDatafeedConfig("datafeed1", "foo").build();
+        DatafeedConfig datafeedConfig = createDatafeedConfig("datafeed1", "job_id").build();
         Job job = jobBuilder.build();
         MlMetadata mlMetadata = new MlMetadata.Builder()
                 .putJob(job, false)
@@ -219,7 +225,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
         when(dataExtractor.hasNext()).thenReturn(false);
         Consumer<Exception> handler = mockConsumer();
-        StartDatafeedAction.DatafeedTask task = createDatafeedTask("datafeed1", 0L, null);
+        StartDatafeedAction.DatafeedTask task = createDatafeedTask("datafeed_id", 0L, null);
         DatafeedJobRunner.Holder holder = datafeedJobRunner.createJobDatafeed(datafeedConfig, job, 100, 100, handler, task);
         datafeedJobRunner.doDatafeedRealtime(10L, "foo", holder);
 
@@ -230,27 +236,16 @@ public class DatafeedJobRunnerTests extends ESTestCase {
     }
 
     public void testStart_GivenNewlyCreatedJobLoopBackAndRealtime() throws Exception {
-        Job.Builder jobBuilder = createDatafeedJob();
-        DatafeedConfig datafeedConfig = createDatafeedConfig("datafeed1", "foo").build();
-        DataCounts dataCounts = new DataCounts("foo", 1, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0));
-        Job job = jobBuilder.build();
-        MlMetadata mlMetadata = new MlMetadata.Builder()
-                .putJob(job, false)
-                .putDatafeed(datafeedConfig)
-                .build();
-        when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata))
-                .build());
-
         DataExtractor dataExtractor = mock(DataExtractor.class);
         when(dataExtractorFactory.newExtractor(0L, 60000L)).thenReturn(dataExtractor);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         InputStream in = new ByteArrayInputStream("".getBytes(Charset.forName("utf-8")));
         when(dataExtractor.next()).thenReturn(Optional.of(in));
+        DataCounts dataCounts = new DataCounts("job_id", 1, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0));
         when(jobDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
         boolean cancelled = randomBoolean();
-        StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request("datafeed1", 0L);
+        StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request("datafeed_id", 0L);
         StartDatafeedAction.DatafeedTask task = new StartDatafeedAction.DatafeedTask(1, "type", "action", null, startDatafeedRequest);
         datafeedJobRunner.run(task, handler);
 
@@ -259,7 +254,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
             task.stop();
             verify(handler).accept(null);
         } else {
-            verify(client).execute(same(PostDataAction.INSTANCE), eq(createExpectedPostDataRequest(job)));
+            verify(client).execute(same(PostDataAction.INSTANCE), eq(createExpectedPostDataRequest("job_id")));
             verify(client).execute(same(FlushJobAction.INSTANCE), any());
             verify(threadPool, times(1)).schedule(eq(new TimeValue(480100)), eq(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME), any());
         }
@@ -347,7 +342,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         acBuilder.setBucketSpan(3600L);
         acBuilder.setDetectors(Arrays.asList(new Detector.Builder("metric", "field").build()));
 
-        Job.Builder builder = new Job.Builder("foo");
+        Job.Builder builder = new Job.Builder("job_id");
         builder.setAnalysisConfig(acBuilder);
         builder.setCreateTime(new Date());
         return builder;

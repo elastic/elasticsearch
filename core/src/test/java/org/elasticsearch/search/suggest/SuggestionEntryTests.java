@@ -23,7 +23,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -44,10 +43,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class SuggestionEntryTests extends ESTestCase {
 
-    @SuppressWarnings("rawtypes")
     private static final Map<Class<? extends Entry>, Function<XContentParser, ? extends Entry>> ENTRY_PARSERS = new HashMap<>();
     static {
-        ENTRY_PARSERS.put(Suggestion.Entry.class, Suggestion.Entry::fromXContent);
         ENTRY_PARSERS.put(TermSuggestion.Entry.class, TermSuggestion.Entry::fromXContent);
         ENTRY_PARSERS.put(PhraseSuggestion.Entry.class, PhraseSuggestion.Entry::fromXContent);
         ENTRY_PARSERS.put(CompletionSuggestion.Entry.class, CompletionSuggestion.Entry::fromXContent);
@@ -61,13 +58,9 @@ public class SuggestionEntryTests extends ESTestCase {
         Text entryText = new Text(randomAsciiOfLengthBetween(5, 15));
         int offset = randomInt();
         int length = randomInt();
-        @SuppressWarnings("rawtypes")
-        Entry entry = null;
-        Supplier<Option> supplier = null;
-        if (entryType == Suggestion.Entry.class) {
-            entry = new Suggestion.Entry<>(entryText, offset, length);
-            supplier = SuggestionOptionTests::createTestItem;
-        } else if (entryType == TermSuggestion.Entry.class) {
+        Entry entry;
+        Supplier<Option> supplier;
+        if (entryType == TermSuggestion.Entry.class) {
             entry = new TermSuggestion.Entry(entryText, offset, length);
             supplier = TermSuggestionOptionTests::createTestItem;
         } else if (entryType == PhraseSuggestion.Entry.class) {
@@ -76,6 +69,8 @@ public class SuggestionEntryTests extends ESTestCase {
         } else if (entryType == CompletionSuggestion.Entry.class) {
             entry = new CompletionSuggestion.Entry(entryText, offset, length);
             supplier = CompletionSuggestionOptionTests::createTestItem;
+        } else {
+            throw new UnsupportedOperationException("entryType not supported [" + entryType + "]");
         }
         int numOptions = randomIntBetween(0, 5);
         for (int i = 0; i < numOptions; i++) {

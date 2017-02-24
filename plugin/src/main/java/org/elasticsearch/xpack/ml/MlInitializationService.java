@@ -18,10 +18,10 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ml.job.retention.ExpiredModelSnapshotsRemover;
-import org.elasticsearch.xpack.ml.job.retention.ExpiredResultsRemover;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.retention.ExpiredModelSnapshotsRemover;
+import org.elasticsearch.xpack.ml.job.retention.ExpiredResultsRemover;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.util.Arrays;
@@ -164,7 +164,8 @@ public class MlInitializationService extends AbstractComponent implements Cluste
 
     private void installDailyManagementService() {
         if (mlDailyManagementService == null) {
-            mlDailyManagementService = new MlDailyManagementService(threadPool, Arrays.asList(
+            mlDailyManagementService = new MlDailyManagementService(threadPool,
+                    Arrays.asList((MlDailyManagementService.Listener)
                     new ExpiredResultsRemover(client, clusterService, jobId -> jobProvider.audit(jobId)),
                     new ExpiredModelSnapshotsRemover(client, clusterService)
             ));

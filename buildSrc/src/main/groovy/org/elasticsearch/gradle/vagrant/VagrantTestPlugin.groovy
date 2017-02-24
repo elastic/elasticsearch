@@ -383,19 +383,42 @@ class VagrantTestPlugin implements Plugin<Project> {
         assert project.tasks.packagingTest != null
         Task packagingTest = project.tasks.packagingTest
 
+        assert project.tasks.clean != null
+        Task clean = project.tasks.clean
+
         /*
          * We always use the main project.rootDir as Vagrant's current working directory (VAGRANT_CWD)
          * so that boxes are not duplicated for every Gradle project that use this VagrantTestPlugin.
          */
+        File vagrantFile = new File(project.rootDir, 'Vagrantfile')
         def vagrantEnvVars = [
                 'VAGRANT_CWD'           : "${project.rootDir.absolutePath}",
-                'VAGRANT_VAGRANTFILE'   : 'Vagrantfile',
+                'VAGRANT_VAGRANTFILE'   : vagrantFile.name,
                 'VAGRANT_PROJECT_DIR'   : "${project.projectDir.absolutePath}"
         ]
+
+        File vagrantMarkersDir = new File(project.rootProject.buildDir, "vagrant")
+        clean.delete vagrantMarkersDir
 
         // Each box gets it own set of tasks
         for (String box : BOXES) {
             String boxTask = box.capitalize().replace('-', '')
+
+            // Destroy the box if the Vagrantfile changed.
+            Task destroy = project.tasks.create("vagrant${boxTask}#destroy", VagrantCommandTask) {
+                boxName box
+                environmentVars vagrantEnvVars
+                args 'destroy', box, '--force'
+                dependsOn vagrantCheckVersion, virtualboxCheckVersion
+            }
+            destroy.inputs.file(vagrantFile)
+
+            File marker = new File(vagrantMarkersDir, "${box}.marker")
+            destroy.doLast {
+                marker.parentFile.mkdirs()
+                marker.setText('', 'UTF-8')
+            }
+            destroy.outputs.file(marker)
 
             // always add a halt task for all boxes, so clean makes sure they are all shutdown
             Task halt = project.tasks.create("vagrant${boxTask}#halt", VagrantCommandTask) {
@@ -409,23 +432,18 @@ class VagrantTestPlugin implements Plugin<Project> {
                 boxName box
                 environmentVars vagrantEnvVars
                 args 'box', 'update', box
-                dependsOn vagrantCheckVersion, virtualboxCheckVersion, vagrantSetUp
+                dependsOn vagrantCheckVersion, virtualboxCheckVersion, vagrantSetUp, destroy
             }
 
             Task up = project.tasks.create("vagrant${boxTask}#up", VagrantCommandTask) {
                 boxName box
                 environmentVars vagrantEnvVars
-                /* Its important that we try to reprovision the box even if it already
-                  exists. That way updates to the vagrant configuration take automatically.
-                  That isn't to say that the updates will always be compatible. Its ok to
-                  just destroy the boxes if they get busted but that is a manual step
-                  because its slow-ish. */
                 /* We lock the provider to virtualbox because the Vagrantfile specifies
                   lots of boxes that only work properly in virtualbox. Virtualbox is
                   vagrant's default but its possible to change that default and folks do.
                   But the boxes that we use are unlikely to work properly with other
                   virtualization providers. Thus the lock. */
-                args 'up', box, '--provision', '--provider', 'virtualbox'
+                args 'up', box, '--provider', 'virtualbox'
                 /* It'd be possible to check if the box is already up here and output
                   SKIPPED but that would require running vagrant status which is slow! */
                 dependsOn update

@@ -129,13 +129,13 @@ public class IndexShardOperationsLock implements Closeable {
                     if (delayedOperations == null) {
                         delayedOperations = new ArrayList<>();
                     }
+                    final Supplier<StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(false);
                     if (executorOnDelay != null) {
-                        final Supplier<StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(false);
                         delayedOperations.add(
                             new ThreadedActionListener<>(logger, threadPool, executorOnDelay,
                                 new ContextPreservingActionListener<>(contextSupplier, onAcquired), forceExecution));
                     } else {
-                        delayedOperations.add(onAcquired);
+                        delayedOperations.add(new ContextPreservingActionListener<>(contextSupplier, onAcquired));
                     }
                     return;
                 }

@@ -94,10 +94,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
         IndexReader indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory),
                 new ShardId(new Index("foo", "_na_"), 1));
-        // TODO no "maybeWrap" for the searcher because this randomly led to java.lang.ClassCastException:
-        // org.apache.lucene.search.QueryUtils$FCInvisibleMultiReader cannot be
-        // cast to org.apache.lucene.index.DirectoryReader
-        // according to @mvg this can be fixed later but requires bigger changes
+        // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
         IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
 
         testCase(new MatchAllDocsQuery(), indexSearcher, child -> {

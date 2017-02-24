@@ -428,81 +428,71 @@ public final class AnalyzerCaster {
                 switch (expected.sort) {
                     case BYTE:
                     case SHORT:
+                        if (internal) return new OOCast.Unbox(expected);
+                        break;
+                    case CHAR:
+                        if (internal && explicit) return new OOCast.Unbox(BYTE_TYPE, new OOCast.Numeric(BYTE_TYPE, CHAR_TYPE));
+                        break;
                     case INT:
                     case LONG:
                     case FLOAT:
                     case DOUBLE:
-                        if (internal)
-                            return new Cast(BYTE_TYPE, expected, explicit, BYTE_TYPE, null, null, null);
-
-                        break;
-                    case CHAR:
-                        if (internal && explicit)
-                            return new Cast(BYTE_TYPE, expected, true, BYTE_TYPE, null, null, null);
-
+                        if (internal) return new OOCast.Unbox(expected);
                         break;
                 }
-
                 break;
             case SHORT_OBJ:
                 switch (expected.sort) {
+                    case BYTE:
+                        if (internal && explicit) return new OOCast.Unbox(expected);
+                        break;
                     case SHORT:
+                        if (internal) return new OOCast.Unbox(expected);
+                        break;
+                    case CHAR:
+                        if (internal && explicit) return new OOCast.Unbox(SHORT_TYPE, new OOCast.Numeric(SHORT_TYPE, CHAR_TYPE));
+                        break;
                     case INT:
                     case LONG:
                     case FLOAT:
                     case DOUBLE:
-                        if (internal)
-                            return new Cast(SHORT_TYPE, expected, explicit, SHORT_TYPE, null, null, null);
-
-                        break;
-                    case BYTE:
-                    case CHAR:
-                        if (internal && explicit)
-                            return new Cast(SHORT_TYPE, expected, true, SHORT_TYPE, null, null, null);
-
+                        if (internal) return new OOCast.Unbox(expected);
                         break;
                 }
-
                 break;
             case CHAR_OBJ:
                 switch (expected.sort) {
+                    case BYTE:
+                    case SHORT:
+                        if (internal && explicit) return new OOCast.Unbox(CHAR_TYPE, new OOCast.Numeric(CHAR_TYPE, expected));
+                        break;
                     case CHAR:
+                        if (internal) return new OOCast.Unbox(CHAR_TYPE);
+                        break;
                     case INT:
                     case LONG:
                     case FLOAT:
                     case DOUBLE:
-                        if (internal)
-                            return new Cast(CHAR_TYPE, expected, explicit, CHAR_TYPE, null, null, null);
-
-                        break;
-                    case BYTE:
-                    case SHORT:
-                        if (internal && explicit)
-                            return new Cast(CHAR_TYPE, expected, true, CHAR_TYPE, null, null, null);
-
+                        if (internal) return new OOCast.Unbox(CHAR_TYPE, new OOCast.Numeric(CHAR_TYPE, expected));
                         break;
                 }
-
                 break;
             case INT_OBJ:
                 switch (expected.sort) {
+                    case BYTE:
+                    case SHORT:
+                        if (internal && explicit) return new OOCast.Unbox(expected);
+                        break;
+                    case CHAR:
+                        if (internal && explicit) return new OOCast.Unbox(INT_TYPE, new OOCast.Numeric(INT_TYPE, CHAR_TYPE));
+                        break;
                     case INT:
                     case LONG:
                     case FLOAT:
                     case DOUBLE:
-                        if (internal)
-                            return new Cast(INT_TYPE, expected, explicit, INT_TYPE, null, null, null);
-
-                        break;
-                    case BYTE:
-                    case SHORT:
-                    case CHAR:
-                        if (internal && explicit)
-                            return new Cast(INT_TYPE, expected, true, INT_TYPE, null, null, null);
-
+                        if (internal) return new OOCast.Unbox(expected);
                         break;
                 }
-
                 break;
             case LONG_OBJ:
                 switch (expected.sort) {

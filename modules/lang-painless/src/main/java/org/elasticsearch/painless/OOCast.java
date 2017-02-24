@@ -23,7 +23,9 @@ import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 
 /**
- * Casting strategies.
+ * Casting strategies. Many, but not all, casting strategies support a "next" strategy to allow building compound strategies like "unbox and
+ * then convert from char to int". These are always read from "outside" inwards, meaning that a strategy is first executed and then the
+ * "next" strategy is executed.
  */
 public abstract class OOCast { // NOCOMMIT rename
     OOCast() {} // Subclasses should all be inner classes.
@@ -84,6 +86,10 @@ public abstract class OOCast { // NOCOMMIT rename
             this.from = from;
             this.to = to;
             this.next = next;
+        }
+
+        Numeric(Type from, Type to) {
+            this(from, to, OOCast.NOOP); // NOCOMMIT use this more in analyzerCaster
         }
 
         @Override
@@ -163,12 +169,21 @@ public abstract class OOCast { // NOCOMMIT rename
      */
     static class Unbox extends OOCast {
         private final Type to;
+        private final OOCast next;
 
-        Unbox(Type to) {
+        Unbox(Type to, OOCast next) {
             if (to.sort.boxed == null) {
                 throw new IllegalArgumentException("To must be a boxable type but was [" + to + "]");
             }
+            if (next == null) {
+                throw new IllegalArgumentException("Next must not be null");
+            }
             this.to = to;
+            this.next = next;
+        }
+
+        Unbox(Type to) {
+            this(to, OOCast.NOOP);
         }
 
         @Override
@@ -179,16 +194,17 @@ public abstract class OOCast { // NOCOMMIT rename
         @Override
         public void write(MethodWriter writer) {
             writer.unbox(to.type);
+            next.write(writer);
         }
 
         @Override
         public Object castConstant(Location location, Object constant) {
-            return constant;
+            return next.castConstant(location, constant);
         }
 
         @Override
         public String toString() {
-            return "(Unbox " + to + ")";
+            return "(Unbox " + to + " " + next + ")";
         }
     }
 }

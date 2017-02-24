@@ -6,6 +6,9 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
@@ -25,13 +28,63 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
-public class MlFullClusterRestartIT extends BaseMlIntegTestCase {
+@TestLogging("org.elasticsearch.xpack.ml.datafeed:TRACE,org.elasticsearch.xpack.ml.action:TRACE")
+public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
-    @TestLogging("org.elasticsearch.xpack.ml.datafeed:TRACE,org.elasticsearch.xpack.ml.action:TRACE")
+    public void testFailOver() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        ensureStableCluster(3);
+        run(() -> {
+            GetJobsStatsAction.Request  request = new GetJobsStatsAction.Request("job_id");
+            GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
+            DiscoveryNode discoveryNode = response.getResponse().results().get(0).getNode();
+            internalCluster().stopRandomNode(settings -> discoveryNode.getName().equals(settings.get("node.name")));
+            ensureStableCluster(2);
+        });
+    }
+
+    public void testLoseDedicatedMasterNode() throws Exception {
+        internalCluster().ensureAtMostNumDataNodes(0);
+        logger.info("Starting dedicated master node...");
+        internalCluster().startNode(Settings.builder()
+                .put("node.master", true)
+                .put("node.data", false)
+                .put("node.ml", false)
+                .build());
+        logger.info("Starting ml and data node...");
+        String mlAndDataNode = internalCluster().startNode(Settings.builder()
+                .put("node.master", false)
+                .build());
+        ensureStableCluster(2);
+        run(() -> {
+            logger.info("Stopping dedicated master node");
+            internalCluster().stopRandomNode(settings -> settings.getAsBoolean("node.master", false));
+            assertBusy(() -> {
+                ClusterState state = client(mlAndDataNode).admin().cluster().prepareState()
+                        .setLocal(true).get().getState();
+                assertNull(state.nodes().getMasterNodeId());
+            });
+            logger.info("Restarting dedicated master node");
+            internalCluster().startNode(Settings.builder()
+                    .put("node.master", true)
+                    .put("node.data", false)
+                    .put("node.ml", false)
+                    .build());
+            ensureStableCluster(2);
+        });
+    }
+
     public void testFullClusterRestart() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableCluster(3);
+        run(() -> {
+            logger.info("Restarting all nodes");
+            internalCluster().fullRestart();
+            logger.info("Restarted all nodes");
+        });
+    }
 
+    private void run(CheckedRunnable<Exception> disrupt) throws Exception {
         client().admin().indices().prepareCreate("data")
                 .addMapping("type", "time", "type=date")
                 .get();
@@ -67,9 +120,7 @@ public class MlFullClusterRestartIT extends BaseMlIntegTestCase {
             assertEquals(0L, dataCounts.getOutOfOrderTimeStampCount());
         });
 
-        logger.info("Restarting all nodes");
-        internalCluster().fullRestart();
-        logger.info("Restarted all nodes");
+        disrupt.run();
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             PersistentTasksInProgress tasks = clusterState.metaData().custom(PersistentTasksInProgress.TYPE);

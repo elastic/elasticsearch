@@ -12,7 +12,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.ml.action.OpenJobAction;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -29,7 +28,7 @@ public enum JobState implements Task.Status {
 
     CLOSING, CLOSED, OPENING, OPENED, FAILED;
 
-    public static final String NAME = OpenJobAction.NAME;//"JobState";
+    public static final String NAME = "JobState";
 
     private static final ConstructingObjectParser<JobState, Void> PARSER =
             new ConstructingObjectParser<>(NAME, args -> fromString((String) args[0]));

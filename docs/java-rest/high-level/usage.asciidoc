@@ -1,0 +1,83 @@
+[[java-rest-high-usage]]
+=== Getting started
+
+[[java-rest-high-usage-maven]]
+==== Maven Repository
+
+The high-level Java REST client is hosted on
+http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[Maven
+Central]. The minimum Java version required is `1.8`.
+
+The high-level REST client is subject to the same release cycle as
+elasticsearch. Replace the version with the desired client version, first
+released with `5.x.x`. There is no relation between the client version
+and the elasticsearch version that the client can communicate with as
+it depends on the <<java-rest-low>> which is compatible with all elasticsearch versions.
+
+[[java-rest-high-usage-maven-maven]]
+===== Maven configuration
+
+Here is how you can configure the dependency using maven as a dependency manager.
+Add the following to your `pom.xml` file:
+
+["source","xml",subs="attributes"]
+--------------------------------------------------
+<dependency>
+    <groupId>org.elasticsearch.client</groupId>
+    <artifactId>rest-high-level</artifactId>
+    <version>{version}</version>
+</dependency>
+--------------------------------------------------
+
+[[java-rest-high-usage-maven-gradle]]
+===== Gradle configuration
+
+Here is how you can configure the dependency using gradle as a dependency manager.
+Add the following to your `build.gradle` file:
+
+["source","groovy",subs="attributes"]
+--------------------------------------------------
+dependencies {
+    compile 'org.elasticsearch.client:rest-high-level:{version}'
+}
+--------------------------------------------------
+
+[[java-rest-high-usage-dependencies]]
+==== Dependencies
+
+The high-level Java REST client depends on the following artifacts and their
+transitive dependencies:
+
+- org.elasticsearch.client:rest
+- org.elasticsearch:elasticsearch
+
+
+[[java-rest-high-usage-initialization]]
+==== Initialization
+
+A `RestHighLevelClient` instance needs a <<java-rest-low-usage-initialization,REST low-level client>>
+to be built as follows:
+
+[source,java]
+--------------------------------------------------
+RestHighLevelClient client =
+    new RestHighLevelClient(lowLevelRestClient); <1>
+--------------------------------------------------
+<1> We pass the <<java-rest-low-usage-initialization,REST low-level client>> instance
+
+In the rest of this documentation about the high-level client, the `RestHighLevelClient` instance
+will be referenced as `client`.
+
+Then you have access to the high level APIs such as:
+
+include::apis.asciidoc[]
+
+Each API comes with 2 ways of executing it:
+
+* Synchronously, for example method <<java-rest-high-document-delete,`delete`>>
+
+* Asynchronously which has `Async` added to the synchronous method name. Like
+<<java-rest-high-document-delete,`deleteAsync`>>. In which case you will have to
+provide a listener.
+
+

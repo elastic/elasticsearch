@@ -1,5 +1,5 @@
 [[sniffer]]
-== Sniffer
+=== Sniffer
 
 Minimal library that allows to automatically discover nodes from a running
 Elasticsearch cluster and set them to an existing `RestClient` instance.
@@ -8,7 +8,7 @@ Nodes Info api and uses jackson to parse the obtained json response.
 
 Compatible with Elasticsearch 2.x and onwards.
 
-=== Maven Repository
+==== Maven Repository
 
 The low-level REST client is subject to the same release cycle as
 elasticsearch. Replace the version with the desired sniffer version, first
@@ -17,7 +17,7 @@ and the elasticsearch version that the client can communicate with. Sniffer
 supports fetching the nodes list from elasticsearch 2.x and onwards.
 
 
-==== Maven configuration
+===== Maven configuration
 
 Here is how you can configure the dependency using maven as a dependency manager.
 Add the following to your `pom.xml` file:
@@ -31,7 +31,7 @@ Add the following to your `pom.xml` file:
 </dependency>
 --------------------------------------------------
 
-==== Gradle configuration
+===== Gradle configuration
 
 Here is how you can configure the dependency using gradle as a dependency manager.
 Add the following to your `build.gradle` file:
@@ -43,7 +43,7 @@ dependencies {
 }
 --------------------------------------------------
 
-=== Usage
+==== Usage
 
 Once a `RestClient` instance has been created, a `Sniffer` can be associated
 to it. The `Sniffer` will make use of the provided `RestClient` to periodically
@@ -133,9 +133,9 @@ Sniffer sniffer = Sniffer.builder(restClient)
 Note that this last configuration parameter has no effect in case sniffing
 on failure is not enabled like explained above.
 
-=== License
+==== License
 
-Copyright 2013-2016 Elasticsearch
+Copyright 2013-2017 Elasticsearch
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

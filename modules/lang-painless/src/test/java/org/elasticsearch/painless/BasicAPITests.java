@@ -124,14 +124,4 @@ public class BasicAPITests extends ScriptTestCase {
         assertEquals("5", exec("int x = 5; return x.toString();"));
         assertEquals(0, exec("int x = 5; return x.compareTo(5);"));
     }
-
-    public void testWideningCastOK() {
-        assertEquals(5, exec("Integer i = Integer.valueOf(5); Number n = i; n"));
-    }
-
-    public void testNarrowingCastRequiresExplicit() {
-        assertEquals(5, exec("Number n = Integer.valueOf(5); Integer i = (Integer) n; i"));
-        Exception e = expectScriptThrows(ClassCastException.class, () -> exec("Number n = Integer.valueOf(5); Integer i = n; i"));
-        assertEquals("Cannot cast from [Number] to [Integer].", e.getMessage());
-    }
 }

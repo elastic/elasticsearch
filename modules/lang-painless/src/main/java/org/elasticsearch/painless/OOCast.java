@@ -22,13 +22,15 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 
+import java.util.function.Function;
+
 /**
  * Casting strategies. Many, but not all, casting strategies support a "next" strategy to allow building compound strategies like "unbox and
  * then convert from char to int". These are always read from "outside inwards", meaning that a strategy is first executed and then the
  * "next" strategy is executed.
  */
 public abstract class OOCast { // NOCOMMIT rename
-    OOCast() {} // Subclasses should all be inner classes.
+    OOCast() {} // NOCOMMIT make private
 
     public abstract boolean castRequired();
     public abstract void write(MethodWriter writer);
@@ -62,12 +64,12 @@ public abstract class OOCast { // NOCOMMIT rename
     /**
      * Promote or demote a numeric.
      */
-    static class Numeric extends OOCast {
+    public static class Numeric extends OOCast {
         private final Type from;
         private final Type to;
         private final OOCast next;
 
-        Numeric(Type from, Type to, OOCast next) {
+        public Numeric(Type from, Type to, OOCast next) {
             if (from.equals(to)) {
                 throw new IllegalArgumentException("From and to must not be equal but were [" + from + "].");
             }
@@ -88,7 +90,7 @@ public abstract class OOCast { // NOCOMMIT rename
             this.next = next;
         }
 
-        Numeric(Type from, Type to) {
+        public Numeric(Type from, Type to) {
             this(from, to, OOCast.NOOP); // NOCOMMIT use this more in analyzerCaster
         }
 
@@ -126,17 +128,21 @@ public abstract class OOCast { // NOCOMMIT rename
 
         @Override
         public String toString() {
-            return "(Numeric " + from + " " + to + " " + next + ")";
+            if (next == OOCast.NOOP) {
+                return "(Numeric " + from + " " + to + ")";
+            } else {
+                return "(Numeric " + from + " " + to + " " + next + ")";
+            }
         }
     }
 
     /**
      * Box some boxable type.
      */
-    static class Box extends OOCast {
+    public static class Box extends OOCast {
         private final Type from;
 
-        Box(Type from) {
+        public Box(Type from) {
             if (from.sort.boxed == null) {
                 throw new IllegalArgumentException("From must be a boxable type but was [" + from + "]");
             }
@@ -167,11 +173,11 @@ public abstract class OOCast { // NOCOMMIT rename
     /**
      * Unbox some boxable type.
      */
-    static class Unbox extends OOCast {
+    public static class Unbox extends OOCast {
         private final Type to;
         private final OOCast next;
 
-        Unbox(Type to, OOCast next) {
+        public Unbox(Type to, OOCast next) {
             if (to.sort.boxed == null) {
                 throw new IllegalArgumentException("To must be a boxable type but was [" + to + "]");
             }
@@ -182,7 +188,7 @@ public abstract class OOCast { // NOCOMMIT rename
             this.next = next;
         }
 
-        Unbox(Type to) {
+        public Unbox(Type to) {
             this(to, OOCast.NOOP);
         }
 
@@ -205,7 +211,11 @@ public abstract class OOCast { // NOCOMMIT rename
 
         @Override
         public String toString() {
-            return "(Unbox " + to + " " + next + ")";
+            if (next == OOCast.NOOP) {
+                return "(Unbox " + to + ")";
+            } else {
+                return "(Unbox " + to + " " + next + ")";
+            }
         }
     }
 
@@ -213,10 +223,10 @@ public abstract class OOCast { // NOCOMMIT rename
      * Performs a checked cast to narrow from a wider type to a more specific one. For example
      * {@code Number n = Integer.valueOf(5); Integer i = (Integer) n}.
      */
-    static class CheckedCast extends OOCast {
+    public static class CheckedCast extends OOCast {
         private final Type to;
 
-        CheckedCast(Type to) {
+        public CheckedCast(Type to) {
             this.to = to;
         }
 
@@ -238,6 +248,45 @@ public abstract class OOCast { // NOCOMMIT rename
         @Override
         public String toString() {
             return "(CheckedCast " + to + ")";
+        }
+    }
+
+    /**
+     * Invoke a static method to do the cast. Used for {@code char c = 'c'}
+     */
+    public static class InvokeStatic extends OOCast {
+        private final org.objectweb.asm.Type owner;
+        private final org.objectweb.asm.commons.Method method;
+        private final Function<Object, Object> castConstant;
+
+        public InvokeStatic(org.objectweb.asm.Type owner, org.objectweb.asm.commons.Method method, Function<Object, Object> castConstant) {
+            this.owner = owner;
+            this.method = method;
+            this.castConstant = castConstant;
+        }
+
+        @Override
+        public boolean castRequired() {
+            return true;
+        }
+
+        @Override
+        public void write(MethodWriter writer) {
+            writer.invokeStatic(owner, method);
+        }
+
+        @Override
+        public Object castConstant(Location location, Object constant) {
+            try {
+                return castConstant.apply(constant);
+            } catch (Throwable e) {
+                throw location.createError(new IllegalArgumentException("Failed to cast constant: " + e.getMessage(), e));
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "(InvokeStatic " + owner.getClassName() + "#" + method.getName() + ")";
         }
     }
 }

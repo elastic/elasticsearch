@@ -25,25 +25,34 @@ import org.elasticsearch.painless.Definition.Type;
 
 import java.util.Objects;
 
-import static org.elasticsearch.painless.Definition.BOOLEAN_OBJ_TYPE;
 import static org.elasticsearch.painless.Definition.BOOLEAN_TYPE;
-import static org.elasticsearch.painless.Definition.BYTE_OBJ_TYPE;
 import static org.elasticsearch.painless.Definition.BYTE_TYPE;
-import static org.elasticsearch.painless.Definition.CHAR_OBJ_TYPE;
 import static org.elasticsearch.painless.Definition.CHAR_TYPE;
 import static org.elasticsearch.painless.Definition.DEF_TYPE;
-import static org.elasticsearch.painless.Definition.DOUBLE_OBJ_TYPE;
 import static org.elasticsearch.painless.Definition.DOUBLE_TYPE;
-import static org.elasticsearch.painless.Definition.FLOAT_OBJ_TYPE;
 import static org.elasticsearch.painless.Definition.FLOAT_TYPE;
-import static org.elasticsearch.painless.Definition.INT_OBJ_TYPE;
 import static org.elasticsearch.painless.Definition.INT_TYPE;
-import static org.elasticsearch.painless.Definition.LONG_OBJ_TYPE;
 import static org.elasticsearch.painless.Definition.LONG_TYPE;
 import static org.elasticsearch.painless.Definition.OBJECT_TYPE;
-import static org.elasticsearch.painless.Definition.SHORT_OBJ_TYPE;
 import static org.elasticsearch.painless.Definition.SHORT_TYPE;
 import static org.elasticsearch.painless.Definition.STRING_TYPE;
+import static org.elasticsearch.painless.WriterConstants.CHAR_TO_STRING;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_BOOLEAN;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_BYTE_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_BYTE_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_CHAR_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_DOUBLE_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_FLOAT_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_FLOAT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_INT_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_INT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_LONG_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_LONG_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
+import static org.elasticsearch.painless.WriterConstants.STRING_TO_CHAR;
+import static org.elasticsearch.painless.WriterConstants.UTILITY_TYPE;
 
 /**
  * Used during the analysis phase to collect legal type casts and promotions
@@ -179,7 +188,7 @@ public final class AnalyzerCaster {
                         if (internal) return new OOCast.Box(CHAR_TYPE);
                         break;
                     case STRING:
-                        return new Cast(CHAR_TYPE, STRING_TYPE, explicit);
+                        return new OOCast.InvokeStatic(UTILITY_TYPE, CHAR_TO_STRING, c -> Utility.charToString((Character) c));
                     case BYTE_OBJ:
                         if (explicit && internal) return new OOCast.Numeric(CHAR_TYPE, BYTE_TYPE, new OOCast.Box(BYTE_TYPE));
                         break;
@@ -548,33 +557,36 @@ public final class AnalyzerCaster {
             case DEF:
                 switch (expected.sort) {
                     case BOOL:
-                        return new Cast(DEF_TYPE, BOOLEAN_OBJ_TYPE, explicit, null, BOOLEAN_TYPE, null, null);
+                        return new OOCast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN, Def::DefToboolean);
                     case BYTE:
-                        return new Cast(DEF_TYPE, BYTE_OBJ_TYPE, explicit, null, BYTE_TYPE, null, null);
+                        if (explicit) return new OOCast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_EXPLICIT, Def::DefTobyteExplicit);
+                        return new OOCast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_IMPLICIT, Def::DefTobyteImplicit);
                     case SHORT:
-                        return new Cast(DEF_TYPE, SHORT_OBJ_TYPE, explicit, null, SHORT_TYPE, null, null);
+                        if (explicit) return new OOCast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_EXPLICIT, Def::DefToshortExplicit);
+                        return new OOCast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_IMPLICIT, Def::DefToshortImplicit);
                     case CHAR:
-                        return new Cast(DEF_TYPE, CHAR_OBJ_TYPE, explicit, null, CHAR_TYPE, null, null);
+                        if (explicit) return new OOCast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_EXPLICIT, Def::DefTocharExplicit);
+                        return new OOCast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_EXPLICIT, Def::DefTocharImplicit);
                     case INT:
-                        return new Cast(DEF_TYPE, INT_OBJ_TYPE, explicit, null, INT_TYPE, null, null);
+                        if (explicit) return new OOCast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_EXPLICIT, Def::DefTointExplicit);
+                        return new OOCast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_IMPLICIT, Def::DefTointImplicit);
                     case LONG:
-                        return new Cast(DEF_TYPE, LONG_OBJ_TYPE, explicit, null, LONG_TYPE, null, null);
+                        if (explicit) return new OOCast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_EXPLICIT, Def::DefTolongExplicit);
+                        return new OOCast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_IMPLICIT, Def::DefTolongImplicit);
                     case FLOAT:
-                        return new Cast(DEF_TYPE, FLOAT_OBJ_TYPE, explicit, null, FLOAT_TYPE, null, null);
+                        if (explicit) return new OOCast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_EXPLICIT, Def::DefTofloatExplicit);
+                        return new OOCast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_IMPLICIT, Def::DefTofloatImplicit);
                     case DOUBLE:
-                        return new Cast(DEF_TYPE, DOUBLE_OBJ_TYPE, explicit, null, DOUBLE_TYPE, null, null);
+                        if (explicit) return new OOCast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_EXPLICIT, Def::DefTodoubleExplicit);
+                        return new OOCast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_EXPLICIT, Def::DefTodoubleImplicit);
                 }
-
                 break;
             case STRING:
                 switch (expected.sort) {
                     case CHAR:
-                        if (explicit)
-                            return new Cast(STRING_TYPE, CHAR_TYPE, true);
-
+                        if (explicit) return new OOCast.InvokeStatic(UTILITY_TYPE, STRING_TO_CHAR, c -> Utility.StringTochar((String) c));
                         break;
                 }
-
                 break;
         }
 
@@ -584,13 +596,10 @@ public final class AnalyzerCaster {
         if (explicit && actual.clazz.isAssignableFrom(expected.clazz)) {
             return new OOCast.CheckedCast(expected);
         }
-
-        if (       actual.sort == Sort.DEF
-                || (actual.sort != Sort.VOID && expected.sort == Sort.DEF)) {
-            return new Cast(actual, expected, explicit);
-        } else {
-            throw location.createError(new ClassCastException("Cannot cast from [" + actual.name + "] to [" + expected.name + "]."));
+        if (actual.sort == Sort.DEF) {
+            return new OOCast.CheckedCast(expected);
         }
+        throw location.createError(new ClassCastException("Cannot cast from [" + actual.name + "] to [" + expected.name + "]."));
     }
 
     public static Object constCast(Location location, final Object constant, final Cast cast) { // NOCOMMIT remove me

@@ -129,7 +129,7 @@ public final class MethodWriter extends GeneratorAdapter {
         mark(end);
     }
 
-    public void writeCast(final Cast cast) {
+    public void writeCast(final Cast cast) { // NOCOMMIT remove
         if (cast != null) {
             if (cast.from.sort == Sort.CHAR && cast.to.sort == Sort.STRING) {
                 invokeStatic(UTILITY_TYPE, CHAR_TO_STRING);
@@ -186,7 +186,7 @@ public final class MethodWriter extends GeneratorAdapter {
             cast(from.type, to.type);
         } else {
             if (!to.clazz.isAssignableFrom(from.clazz)) {
-                checkCast(to.type); // NOCOMMIT Make one
+                checkCast(to.type);
             }
         }
     }

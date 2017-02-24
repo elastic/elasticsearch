@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
@@ -31,8 +30,10 @@ import org.elasticsearch.painless.FeatureTest;
 import org.elasticsearch.painless.GenericElasticsearchScript;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ScriptInterface;
+import org.elasticsearch.painless.OOCast;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.ScriptInterface;
+import org.elasticsearch.painless.Utility;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.test.ESTestCase;
 
@@ -42,6 +43,12 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.painless.Definition.DOUBLE_TYPE;
+import static org.elasticsearch.painless.Definition.FLOAT_TYPE;
+import static org.elasticsearch.painless.Definition.INT_TYPE;
+import static org.elasticsearch.painless.Definition.SHORT_TYPE;
+import static org.elasticsearch.painless.WriterConstants.CHAR_TO_STRING;
+import static org.elasticsearch.painless.WriterConstants.UTILITY_TYPE;
 
 /**
  * Tests {@link Object#toString} implementations on all extensions of {@link ANode}.
@@ -157,14 +164,32 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testECast() {
         Location l = new Location(getTestName(), 0);
-        AExpression child = new EConstant(l, "test");
-        Cast cast = new Cast(Definition.STRING_TYPE, Definition.INT_OBJ_TYPE, true);
-        assertEquals("(ECast Integer (EConstant String 'test'))", new ECast(l, child, cast).toString());
+        AExpression child = new EConstant(l, 1.0f);
+        OOCast cast = new OOCast.Numeric(FLOAT_TYPE, SHORT_TYPE);
+        assertEquals("(ECast (Numeric float short) (EConstant Float 1.0))", new ECast(l, child, cast).toString());
 
         l = new Location(getTestName(), 1);
-        child = new EBinary(l, Operation.ADD, new EConstant(l, "test"), new EConstant(l, 12));
-        cast = new Cast(Definition.INT_OBJ_TYPE, Definition.BOOLEAN_OBJ_TYPE, true);
-        assertEquals("(ECast Boolean (EBinary (EConstant String 'test') + (EConstant Integer 12)))", new ECast(l, child, cast).toString());
+        child = new EBinary(l, Operation.ADD, new EConstant(l, 1.0f), new EConstant(l, 12));
+        cast = new OOCast.Numeric(DOUBLE_TYPE, INT_TYPE, new OOCast.Box(INT_TYPE));
+        assertEquals("(ECast (Numeric double int (Box int)) (EBinary (EConstant Float 1.0) + (EConstant Integer 12)))",
+                new ECast(l, child, cast).toString());
+
+        child = new EConstant(l, 1.0f);
+        cast = new OOCast.Unbox(FLOAT_TYPE);
+        assertEquals("(ECast (Unbox float) (EConstant Float 1.0))", new ECast(l, child, cast).toString());
+
+        child = new EConstant(l, 1.0f);
+        cast = new OOCast.Unbox(FLOAT_TYPE, new OOCast.Numeric(FLOAT_TYPE, INT_TYPE));
+        assertEquals("(ECast (Unbox float (Numeric float int)) (EConstant Float 1.0))", new ECast(l, child, cast).toString());
+
+        child = new EConstant(l, "test");
+        cast = new OOCast.CheckedCast(Definition.getType("StringBuilder"));
+        assertEquals("(ECast (CheckedCast StringBuilder) (EConstant String 'test'))", new ECast(l, child, cast).toString());
+
+        child = new EConstant(l, "test");
+        cast = new OOCast.InvokeStatic(UTILITY_TYPE, CHAR_TO_STRING, c -> Utility.charToString((Character) c));
+        assertEquals("(ECast (InvokeStatic " + Utility.class.getName() + "#charToString) (EConstant String 'test'))",
+                new ECast(l, child, cast).toString());
     }
 
     public void testEComp() {

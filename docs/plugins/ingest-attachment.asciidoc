@@ -254,10 +254,8 @@ By default, the `ingest-attachment` plugin only extracts a subset of the most co
 * `language`: language if defined as a document metadata
 
 If you want to get back more raw metadata or all of them, you can provide the metadata name you want to extract within
-`properties` field. Note that you can use wildcards. If you want to extract all raw metadata but not any of the
-fixed ones, you can simply set `"properties": [ "*" ]`.
-
-If you also want to combine that with the fixed ones, add the ones you want to use:
+`properties` field. Note that you can use wildcards. If you want to extract all metadata, you can simply set
+`"properties": [ "*" ]`.
 
 For example:
 
@@ -270,7 +268,7 @@ PUT _ingest/pipeline/attachment
     {
       "attachment" : {
         "field" : "data",
-        "properties": [ "*", "_content_" ]
+        "properties": [ "*Parsed*", "Content*", "_content_" ]
       }
     }
   ]

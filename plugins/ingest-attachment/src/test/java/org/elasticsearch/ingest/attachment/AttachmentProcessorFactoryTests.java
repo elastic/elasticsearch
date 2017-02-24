@@ -31,9 +31,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.Is.is;
 
@@ -93,7 +96,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         config.put("properties", fieldNames);
         AttachmentProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getProperties(), emptyIterable());
+        assertThat(processor.getProperties(), containsInAnyOrder(fieldNames.toArray()));
         assertThat(processor.getReservedProperties(), equalTo(properties));
         assertFalse(processor.isIgnoreMissing());
     }
@@ -115,7 +118,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         config.put("properties", fieldNames);
         AttachmentProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getProperties(), emptyIterable());
+        assertThat(processor.getProperties(), containsInAnyOrder(fieldNames.toArray()));
         assertThat(processor.getReservedProperties(), equalTo(properties));
         assertWarnings(expectedWarnings.toArray(new String[]{}));
         assertFalse(processor.isIgnoreMissing());
@@ -147,5 +150,48 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getProperties(), emptyIterable());
         assertThat(processor.getReservedProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
         assertTrue(processor.isIgnoreMissing());
+    }
+
+    public void testBuildWildcardAllProperties() throws Exception {
+        Set<AttachmentProcessor.ReservedProperty> properties = EnumSet.allOf(AttachmentProcessor.ReservedProperty.class);
+        List<String> fieldNames = new ArrayList<>();
+        fieldNames.add("*");
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("properties", fieldNames);
+        AttachmentProcessor processor = factory.create(null, null, config);
+        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getProperties(), contains("*"));
+        assertThat(processor.getReservedProperties(), equalTo(properties));
+    }
+
+
+    public void testBuildWildcardAllReservedProperties() throws Exception {
+        Set<AttachmentProcessor.ReservedProperty> properties = EnumSet.allOf(AttachmentProcessor.ReservedProperty.class);
+        List<String> fieldNames = new ArrayList<>();
+        fieldNames.add("_*_");
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("properties", fieldNames);
+        AttachmentProcessor processor = factory.create(null, null, config);
+        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getProperties(), contains("_*_"));
+        assertThat(processor.getReservedProperties(), equalTo(properties));
+    }
+
+    public void testBuildWildcardSomeReservedProperties() throws Exception {
+        Set<AttachmentProcessor.ReservedProperty> properties = EnumSet.of(
+            AttachmentProcessor.ReservedProperty.CONTENT,
+            AttachmentProcessor.ReservedProperty.CONTENT_LENGTH,
+            AttachmentProcessor.ReservedProperty.CONTENT_TYPE);
+        List<String> fieldNames = new ArrayList<>();
+        fieldNames.add("_content*");
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("properties", fieldNames);
+        AttachmentProcessor processor = factory.create(null, null, config);
+        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getProperties(), contains("_content*"));
+        assertThat(processor.getReservedProperties(), equalTo(properties));
     }
 }

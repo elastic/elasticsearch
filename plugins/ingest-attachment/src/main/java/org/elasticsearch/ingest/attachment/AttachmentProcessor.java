@@ -221,23 +221,24 @@ public final class AttachmentProcessor extends AbstractProcessor {
             if (propertyNames != null) {
                 reservedProperties = EnumSet.noneOf(ReservedProperty.class);
                 for (String fieldName : propertyNames) {
-                    try {
-                        reservedProperties.add(ReservedProperty.parse(fieldName));
-                        logger.trace("found a reserved property: [{}]", fieldName);
-                    } catch (Exception e) {
-                        // This is expected when the user does not define a reserved property, so let's just ignore this
-                        // Let's try to see if the user defined a deprecated property name (like xxx instead of _xxx_)
-                        ReservedProperty reservedProperty = findDeprecatedProperty(fieldName);
-                        if (reservedProperty != null) {
+                    // We build the regex automaton we will use to extract raw metadata
+                    CharacterRunAutomaton automaton = new CharacterRunAutomaton(simpleMatchToAutomaton(fieldName));
+
+                    // Let's see if available reserved properties match what the user asked for
+                    EnumSet<ReservedProperty> allReservedProperties = EnumSet.allOf(ReservedProperty.class);
+                    for (ReservedProperty reservedProperty : allReservedProperties) {
+                        if (automaton.run(reservedProperty.key)) {
+                            logger.trace("found a reserved property: [{}]", reservedProperty.key);
+                            reservedProperties.add(reservedProperty);
+                        } else if (fieldName.equals(reservedProperty.name().toLowerCase(Locale.ROOT))) {
                             deprecationLogger.deprecated("[{}] should be replaced with [{}]", reservedProperty.toLowerCase(),
                                 reservedProperty.key);
                             reservedProperties.add(reservedProperty);
-                        } else {
-                            // It's not a reserved property, so let's add it as a user provided property
-                            logger.trace("found a user provided property: [{}]", fieldName);
-                            properties.add(fieldName);
                         }
                     }
+
+                    // And add the property
+                    properties.add(fieldName);
                 }
             } else {
                 reservedProperties = DEFAULT_PROPERTIES;

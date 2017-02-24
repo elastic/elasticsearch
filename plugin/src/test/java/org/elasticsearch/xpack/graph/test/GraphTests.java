@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
-import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.AbstractSearchScript;
@@ -20,8 +19,9 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.XPackSingleNodeTestCase;
 import org.elasticsearch.xpack.graph.action.GraphExploreAction;
 import org.elasticsearch.xpack.graph.action.GraphExploreRequest;
 import org.elasticsearch.xpack.graph.action.GraphExploreRequestBuilder;
@@ -43,7 +43,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.greaterThan;
 
 
-public class GraphTests extends ESSingleNodeTestCase {
+public class GraphTests extends XPackSingleNodeTestCase {
     
     static class DocTemplate {
         int numDocs;
@@ -73,7 +73,6 @@ public class GraphTests extends ESSingleNodeTestCase {
         new DocTemplate(2,   "70s", "collaboration", "john", "yoko"),     
         new DocTemplate(100, "70s", "fillerDoc", "other", "irrelevant", "duplicated", "spammy", "background")
     };   
-    
 
     @Override
     public void setUp() throws Exception {
@@ -122,9 +121,10 @@ public class GraphTests extends ESSingleNodeTestCase {
     
     
     @Override
-    public Settings nodeSettings()  {
+    protected Settings nodeSettings()  {
         // Disable security otherwise authentication failures happen creating indices.
         Builder newSettings = Settings.builder();
+        newSettings.put(super.nodeSettings());
         newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);

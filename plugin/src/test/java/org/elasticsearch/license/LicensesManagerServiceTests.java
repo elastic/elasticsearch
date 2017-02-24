@@ -11,9 +11,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.XPackSingleNodeTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
+public class LicensesManagerServiceTests extends XPackSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -33,6 +33,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         return Settings.builder()
+            .put(super.nodeSettings())
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
             .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
             .put(XPackSettings.WATCHER_ENABLED.getKey(), false)

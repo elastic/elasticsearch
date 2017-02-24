@@ -30,6 +30,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
@@ -110,6 +111,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), watcherEnabled)
+                // Disable native ML autodetect_process as the c++ controller won't be available
+                .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
                 // we do this by default in core, but for monitoring this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false);
 

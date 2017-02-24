@@ -34,10 +34,7 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
         this.licenseState = licenseState;
         Map<String, Object> nativeCodeInfo = NativeController.UNKNOWN_NATIVE_CODE_INFO;
         // Don't try to get the native code version in the transport client - the controller process won't be running
-        if (XPackPlugin.transportClientMode(settings) == false
-                // NORELEASE: temporary workaround to make some non-ml integration tests
-                // work - needs replacing before machine learning is enabled by default
-                && enabled) {
+        if (XPackPlugin.transportClientMode(settings) == false) {
             try {
                 NativeController nativeController = NativeControllerHolder.getNativeController(settings);
                 if (nativeController != null) {

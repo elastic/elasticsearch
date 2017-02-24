@@ -11,10 +11,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.XPackSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
@@ -57,7 +56,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
+public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
     private static final String JOB_ID = "foo";
 
     private Renormalizer renormalizer;
@@ -69,8 +68,8 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         return Settings.builder().put(super.nodeSettings())
+                .put(super.nodeSettings())
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-                .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
                 .build();
     }
 

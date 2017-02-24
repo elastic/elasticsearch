@@ -36,7 +36,8 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
     BulkShardResponse() {
     }
 
-    BulkShardResponse(ShardId shardId, BulkItemResponse[] responses) {
+    // NOTE: public for testing only
+    public BulkShardResponse(ShardId shardId, BulkItemResponse[] responses) {
         this.shardId = shardId;
         this.responses = responses;
     }

@@ -142,12 +142,16 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
             transportServiceNode3.addTracer(new ReclocationStartEndTracer(logger, beginRelocationLatch, endRelocationLatch));
             internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_3)).get();
             // wait for relocation to start
+            logger.info("--> waiting for relocation to start");
             beginRelocationLatch.await();
+            logger.info("--> starting disruption");
             disruption.startDisrupting();
             // wait for relocation to finish
+            logger.info("--> waiting for relocation to finish");
             endRelocationLatch.await();
             // wait a little so that cluster state observer is registered
             sleep(50);
+            logger.info("--> stopping disruption");
             disruption.stopDisrupting();
         } else {
             internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_3)).get();

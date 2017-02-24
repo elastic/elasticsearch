@@ -56,12 +56,9 @@ public final class SFunction extends AStatement {
     public static final class FunctionReserved implements Reserved {
         private int maxLoopCounter = 0;
 
-        public void markReserved(String name) {
+        @Override
+        public void markUsedVariable(String name) {
             // Do nothing.
-        }
-
-        public boolean isReserved(String name) {
-            return Locals.FUNCTION_KEYWORDS.contains(name);
         }
 
         @Override

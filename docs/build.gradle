@@ -81,8 +81,7 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/analysis/tokenfilters/synonym-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/synonym-graph-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/word-delimiter-tokenfilter.asciidoc',
-  'reference/cat/recovery.asciidoc',
-  'reference/cat/shards.asciidoc',
+  'reference/analysis/tokenfilters/word-delimiter-graph-tokenfilter.asciidoc',
   'reference/cat/snapshots.asciidoc',
   'reference/cat/templates.asciidoc',
   'reference/cat/thread_pool.asciidoc',
@@ -131,27 +130,25 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/search/request/inner-hits.asciidoc',
 ]
 
-integTest {
-  cluster {
-    setting 'script.inline', 'true'
-    setting 'script.stored', 'true'
-    setting 'script.max_compilations_per_minute', '1000'
-    /* Enable regexes in painless so our tests don't complain about example
-     * snippets that use them. */
-    setting 'script.painless.regex.enabled', 'true'
-    Closure configFile = {
-      extraConfigFile it, "src/test/cluster/config/$it"
-    }
-    configFile 'scripts/my_script.painless'
-    configFile 'scripts/my_init_script.painless'
-    configFile 'scripts/my_map_script.painless'
-    configFile 'scripts/my_combine_script.painless'
-    configFile 'scripts/my_reduce_script.painless'
-    configFile 'userdict_ja.txt'
-    configFile 'KeywordTokenizer.rbbi'
-    // Whitelist reindexing from the local node so we can test it.
-    setting 'reindex.remote.whitelist', '127.0.0.1:*'
+integTestCluster {
+  setting 'script.inline', 'true'
+  setting 'script.stored', 'true'
+  setting 'script.max_compilations_per_minute', '1000'
+  /* Enable regexes in painless so our tests don't complain about example
+   * snippets that use them. */
+  setting 'script.painless.regex.enabled', 'true'
+  Closure configFile = {
+    extraConfigFile it, "src/test/cluster/config/$it"
   }
+  configFile 'scripts/my_script.painless'
+  configFile 'scripts/my_init_script.painless'
+  configFile 'scripts/my_map_script.painless'
+  configFile 'scripts/my_combine_script.painless'
+  configFile 'scripts/my_reduce_script.painless'
+  configFile 'userdict_ja.txt'
+  configFile 'KeywordTokenizer.rbbi'
+  // Whitelist reindexing from the local node so we can test it.
+  setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 
 // Build the cluster with all plugins
@@ -163,10 +160,8 @@ project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { 
     return
   }
   subproj.afterEvaluate { // need to wait until the project has been configured
-    integTest {
-      cluster {
-        plugin subproj.path
-      }
+    integTestCluster {
+      plugin subproj.path
     }
   }
 }

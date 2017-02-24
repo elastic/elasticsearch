@@ -95,9 +95,9 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             .preTags(DEFAULT_PRE_TAGS).postTags(DEFAULT_POST_TAGS).scoreOrdered(DEFAULT_SCORE_ORDERED)
             .highlightFilter(DEFAULT_HIGHLIGHT_FILTER).requireFieldMatch(DEFAULT_REQUIRE_FIELD_MATCH)
             .forceSource(DEFAULT_FORCE_SOURCE).fragmentCharSize(DEFAULT_FRAGMENT_CHAR_SIZE)
-            .numberOfFragments(DEFAULT_NUMBER_OF_FRAGMENTS).encoder(DEFAULT_ENCODER)
+            .numberOfFragments(DEFAULT_NUMBER_OF_FRAGMENTS).encoder(DEFAULT_ENCODER).boundaryScannerType(BoundaryScannerType.CHARS)
             .boundaryMaxScan(SimpleBoundaryScanner.DEFAULT_MAX_SCAN).boundaryChars(SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS)
-            .noMatchSize(DEFAULT_NO_MATCH_SIZE).phraseLimit(DEFAULT_PHRASE_LIMIT).build();
+            .boundaryScannerLocale(Locale.ROOT).noMatchSize(DEFAULT_NO_MATCH_SIZE).phraseLimit(DEFAULT_PHRASE_LIMIT).build();
 
     private final List<Field> fields = new ArrayList<>();
 
@@ -327,11 +327,17 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         if (highlighterBuilder.requireFieldMatch != null) {
             targetOptionsBuilder.requireFieldMatch(highlighterBuilder.requireFieldMatch);
         }
+        if (highlighterBuilder.boundaryScannerType != null) {
+            targetOptionsBuilder.boundaryScannerType(highlighterBuilder.boundaryScannerType);
+        }
         if (highlighterBuilder.boundaryMaxScan != null) {
             targetOptionsBuilder.boundaryMaxScan(highlighterBuilder.boundaryMaxScan);
         }
         if (highlighterBuilder.boundaryChars != null) {
             targetOptionsBuilder.boundaryChars(convertCharArray(highlighterBuilder.boundaryChars));
+        }
+        if (highlighterBuilder.boundaryScannerLocale != null) {
+            targetOptionsBuilder.boundaryScannerLocale(highlighterBuilder.boundaryScannerLocale);
         }
         if (highlighterBuilder.highlighterType != null) {
             targetOptionsBuilder.highlighterType(highlighterBuilder.highlighterType);
@@ -515,6 +521,32 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                 return Order.SCORE;
             }
             return NONE;
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    public enum BoundaryScannerType implements Writeable {
+        CHARS, WORD, SENTENCE;
+
+        public static BoundaryScannerType readFromStream(StreamInput in) throws IOException {
+            int ordinal = in.readVInt();
+            if (ordinal < 0 || ordinal >= values().length) {
+                throw new IOException("Unknown BoundaryScannerType ordinal [" + ordinal + "]");
+            }
+            return values()[ordinal];
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(this.ordinal());
+        }
+
+        public static BoundaryScannerType fromString(String boundaryScannerType) {
+            return valueOf(boundaryScannerType.toUpperCase(Locale.ROOT));
         }
 
         @Override

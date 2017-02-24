@@ -22,8 +22,8 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -39,9 +39,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class ScriptTests extends ESTestCase {
 
     public void testScriptParsing() throws IOException {
-        XContent xContent = randomFrom(XContentType.JSON, XContentType.YAML).xContent();
-        Script expectedScript = createScript(xContent);
-        try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
+        Script expectedScript = createScript();
+        try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
             expectedScript.toXContent(builder, ToXContent.EMPTY_PARAMS);
             try (XContentParser parser = createParser(builder)) {
                 Script actualScript = Script.parse(parser);
@@ -51,8 +50,7 @@ public class ScriptTests extends ESTestCase {
     }
 
     public void testScriptSerialization() throws IOException {
-        XContent xContent = randomFrom(XContentType.JSON, XContentType.YAML).xContent();
-        Script expectedScript = createScript(xContent);
+        Script expectedScript = createScript();
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             expectedScript.writeTo(new OutputStreamStreamOutput(out));
             try (ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray())) {
@@ -62,12 +60,12 @@ public class ScriptTests extends ESTestCase {
         }
     }
 
-    private Script createScript(XContent xContent) throws IOException {
+    private Script createScript() throws IOException {
         final Map<String, Object> params = randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("key", "value");
         ScriptType scriptType = randomFrom(ScriptType.values());
         String script;
         if (scriptType == ScriptType.INLINE) {
-            try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
                 builder.field("field", randomAsciiOfLengthBetween(1, 5));
                 builder.endObject();
@@ -80,8 +78,8 @@ public class ScriptTests extends ESTestCase {
             scriptType,
             scriptType == ScriptType.STORED ? null : randomFrom("_lang1", "_lang2", "_lang3"),
             script,
-            scriptType == ScriptType.INLINE ? Collections.singletonMap(Script.CONTENT_TYPE_OPTION, xContent.type().mediaType()) : null,
-            params
+            scriptType == ScriptType.INLINE ?
+                    Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()) : null, params
         );
     }
 

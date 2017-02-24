@@ -35,8 +35,6 @@ dependencyLicenses {
   mapping from: /asm-.*/, to: 'asm'
 }
 
-integTest {
-  cluster {
-    setting 'script.max_compilations_per_minute', '1000'
-  }
+integTestCluster {
+  setting 'script.max_compilations_per_minute', '1000'
 }

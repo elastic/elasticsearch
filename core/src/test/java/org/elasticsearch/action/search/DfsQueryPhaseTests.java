@@ -95,7 +95,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             (response) -> new SearchPhase("test") {
             @Override
             public void run() throws IOException {
-                responseRef.set(response);
+                responseRef.set(response.results);
             }
         }, mockSearchPhaseContext);
         assertEquals("dfs_query", phase.getName());
@@ -147,7 +147,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             (response) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
-                    responseRef.set(response);
+                    responseRef.set(response.results);
                 }
             }, mockSearchPhaseContext);
         assertEquals("dfs_query", phase.getName());
@@ -202,7 +202,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             (response) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
-                    responseRef.set(response);
+                    responseRef.set(response.results);
                 }
             }, mockSearchPhaseContext);
         assertEquals("dfs_query", phase.getName());

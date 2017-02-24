@@ -137,7 +137,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         }
 
         public void add(Path path) {
-            total = addLong(total, path.total);
+            total = FsProbe.adjustForHugeFilesystems(addLong(total, path.total));
             free = addLong(free, path.free);
             available = addLong(available, path.available);
             if (path.spins != null && path.spins.booleanValue()) {

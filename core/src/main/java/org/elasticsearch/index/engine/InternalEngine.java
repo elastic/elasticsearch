@@ -147,7 +147,7 @@ public class InternalEngine extends Engine {
         EngineMergeScheduler scheduler = null;
         boolean success = false;
         try {
-            this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
+            this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
 
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
@@ -446,7 +446,7 @@ public class InternalEngine extends Engine {
 
     private long checkDeletedAndGCed(VersionValue versionValue) {
         long currentVersion;
-        if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > getGcDeletesInMillis()) {
+        if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().relativeTimeInMillis() - versionValue.time()) > getGcDeletesInMillis()) {
             currentVersion = Versions.NOT_FOUND; // deleted, and GC
         } else {
             currentVersion = versionValue.version();
@@ -478,6 +478,20 @@ public class InternalEngine extends Engine {
         return false;
     }
 
+    private boolean assertVersionType(final Engine.Operation operation) {
+        if (operation.origin() == Operation.Origin.REPLICA ||
+                operation.origin() == Operation.Origin.PEER_RECOVERY ||
+                operation.origin() == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+            // ensure that replica operation has expected version type for replication
+            // ensure that versionTypeForReplicationAndRecovery is idempotent
+            assert operation.versionType() == operation.versionType().versionTypeForReplicationAndRecovery()
+                    : "unexpected version type in request from [" + operation.origin().name() + "] " +
+                    "found [" + operation.versionType().name() + "] " +
+                    "expected [" + operation.versionType().versionTypeForReplicationAndRecovery().name() + "]";
+        }
+        return true;
+    }
+
     private boolean assertSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
         if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1_UNRELEASED) && origin == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
             // legacy support
@@ -499,6 +513,7 @@ public class InternalEngine extends Engine {
         try (ReleasableLock releasableLock = readLock.acquire()) {
             ensureOpen();
             assert assertSequenceNumber(index.origin(), index.seqNo());
+            assert assertVersionType(index);
             final Translog.Location location;
             long seqNo = index.seqNo();
             try (Releasable ignored = acquireLock(index.uid());
@@ -692,6 +707,7 @@ public class InternalEngine extends Engine {
     public DeleteResult delete(Delete delete) throws IOException {
         DeleteResult result;
         try (ReleasableLock ignored = readLock.acquire()) {
+            assert assertVersionType(delete);
             ensureOpen();
             // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
             result = innerDelete(delete);
@@ -710,7 +726,7 @@ public class InternalEngine extends Engine {
     private void maybePruneDeletedTombstones() {
         // It's expensive to prune because we walk the deletes map acquiring dirtyLock for each uid so we only do it
         // every 1/4 of gcDeletesInMillis:
-        if (engineConfig.isEnableGcDeletes() && engineConfig.getThreadPool().estimatedTimeInMillis() - lastDeleteVersionPruneTimeMSec > getGcDeletesInMillis() * 0.25) {
+        if (engineConfig.isEnableGcDeletes() && engineConfig.getThreadPool().relativeTimeInMillis() - lastDeleteVersionPruneTimeMSec > getGcDeletesInMillis() * 0.25) {
             pruneDeletedTombstones();
         }
     }
@@ -756,7 +772,7 @@ public class InternalEngine extends Engine {
                 deleteResult = new DeleteResult(updatedVersion, seqNo, found);
 
                 versionMap.putUnderLock(delete.uid().bytes(),
-                    new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis()));
+                    new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().relativeTimeInMillis()));
             }
             if (!deleteResult.hasFailure()) {
                 location = delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY
@@ -1031,7 +1047,7 @@ public class InternalEngine extends Engine {
     }
 
     private void pruneDeletedTombstones() {
-        long timeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
+        long timeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
 
         // TODO: not good that we reach into LiveVersionMap here; can we move this inside VersionMap instead?  problem is the dirtyLock...
 

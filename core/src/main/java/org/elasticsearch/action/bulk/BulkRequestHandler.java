@@ -36,13 +36,15 @@ import java.util.function.BiConsumer;
  */
 abstract class BulkRequestHandler {
     protected final Logger logger;
-    protected final Settings settings;
     protected final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
+    protected final Settings settings;
+    protected final ThreadPool threadPool;
 
-    protected BulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Settings settings) {
-        this.consumer = consumer;
+    protected BulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Settings settings, ThreadPool threadPool) {
         this.logger = Loggers.getLogger(getClass(), settings);
+        this.consumer = consumer;
         this.settings = settings;
+        this.threadPool = threadPool;
     }
 
 
@@ -55,20 +57,18 @@ abstract class BulkRequestHandler {
         return new SyncBulkRequestHandler(consumer, backoffPolicy, listener, settings, threadPool);
     }
 
-    public static BulkRequestHandler asyncHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, int concurrentRequests, Settings settings, ThreadPool threadPool) {
-        return new AsyncBulkRequestHandler(consumer, backoffPolicy, listener, concurrentRequests, settings, threadPool);
+    public static BulkRequestHandler asyncHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, Settings settings, ThreadPool threadPool, int concurrentRequests) {
+        return new AsyncBulkRequestHandler(consumer, backoffPolicy, listener, settings, threadPool, concurrentRequests);
     }
 
     private static class SyncBulkRequestHandler extends BulkRequestHandler {
         private final BulkProcessor.Listener listener;
-        private final ThreadPool threadPool;
         private final BackoffPolicy backoffPolicy;
 
         SyncBulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, Settings settings, ThreadPool threadPool) {
-            super(consumer, settings);
+            super(consumer, settings, threadPool);
             this.backoffPolicy = backoffPolicy;
             this.listener = listener;
-            this.threadPool = threadPool;
         }
 
         @Override
@@ -105,15 +105,13 @@ abstract class BulkRequestHandler {
 
     private static class AsyncBulkRequestHandler extends BulkRequestHandler {
         private final BackoffPolicy backoffPolicy;
-        private final ThreadPool threadPool;
         private final BulkProcessor.Listener listener;
         private final Semaphore semaphore;
         private final int concurrentRequests;
 
-        private AsyncBulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, int concurrentRequests, Settings settings, ThreadPool threadPool) {
-            super(consumer, settings);
+        private AsyncBulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, Settings settings, ThreadPool threadPool, int concurrentRequests) {
+            super(consumer, settings, threadPool);
             this.backoffPolicy = backoffPolicy;
-            this.threadPool = threadPool;
             assert concurrentRequests > 0;
             this.listener = listener;
             this.concurrentRequests = concurrentRequests;

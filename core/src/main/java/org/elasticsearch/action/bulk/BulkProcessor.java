@@ -23,15 +23,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.Objects;
@@ -80,7 +81,7 @@ public class BulkProcessor implements Closeable {
      */
     public static class Builder {
 
-        private final Client client;
+        private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
         private final Listener listener;
 
         private String name;
@@ -89,14 +90,19 @@ public class BulkProcessor implements Closeable {
         private ByteSizeValue bulkSize = new ByteSizeValue(5, ByteSizeUnit.MB);
         private TimeValue flushInterval = null;
         private BackoffPolicy backoffPolicy = BackoffPolicy.exponentialBackoff();
+        private Settings settings;
+        private ThreadPool threadPool;
 
         /**
          * Creates a builder of bulk processor with the client to use and the listener that will be used
          * to be notified on the completion of bulk requests.
          */
-        public Builder(Client client, Listener listener) {
-            this.client = client;
+        public Builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener, Settings settings,
+                       ThreadPool threadPool) {
+            this.consumer = consumer;
             this.listener = listener;
+            this.settings = settings;
+            this.threadPool = threadPool;
         }
 
         /**
@@ -166,15 +172,16 @@ public class BulkProcessor implements Closeable {
          * Builds a new bulk processor.
          */
         public BulkProcessor build() {
-            return new BulkProcessor(client, backoffPolicy, listener, name, concurrentRequests, bulkActions, bulkSize, flushInterval);
+            return new BulkProcessor(consumer, backoffPolicy, listener, name, concurrentRequests, bulkActions, bulkSize, flushInterval, threadPool, settings);
         }
     }
 
-    public static Builder builder(Client client, Listener listener) {
-        Objects.requireNonNull(client, "client");
+    public static Builder builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener, Settings settings,
+                                  ThreadPool threadPool) {
+        Objects.requireNonNull(consumer, "consumer");
         Objects.requireNonNull(listener, "listener");
 
-        return new Builder(client, listener);
+        return new Builder(consumer, listener, settings, threadPool);
     }
 
     private final int bulkActions;
@@ -191,16 +198,21 @@ public class BulkProcessor implements Closeable {
 
     private volatile boolean closed = false;
 
-    BulkProcessor(Client client, BackoffPolicy backoffPolicy, Listener listener, @Nullable String name, int concurrentRequests, int bulkActions, ByteSizeValue bulkSize, @Nullable TimeValue flushInterval) {
+    BulkProcessor(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, Listener listener,
+                  @Nullable String name, int concurrentRequests, int bulkActions, ByteSizeValue bulkSize, @Nullable TimeValue flushInterval,
+                  ThreadPool threadPool, Settings settings) {
         this.bulkActions = bulkActions;
         this.bulkSize = bulkSize.getBytes();
-
         this.bulkRequest = new BulkRequest();
-        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = client::bulk;
-        this.bulkRequestHandler = (concurrentRequests == 0) ? BulkRequestHandler.syncHandler(consumer, backoffPolicy, listener, client.settings(), client.threadPool()) : BulkRequestHandler.asyncHandler(consumer, backoffPolicy, listener, concurrentRequests, client.settings(), client.threadPool());
+
+        if (concurrentRequests == 0) {
+            this.bulkRequestHandler = BulkRequestHandler.syncHandler(consumer, backoffPolicy, listener, settings, threadPool);
+        } else {
+            this.bulkRequestHandler = BulkRequestHandler.asyncHandler(consumer, backoffPolicy, listener, settings, threadPool, concurrentRequests);
+        }
 
         if (flushInterval != null) {
-            this.scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(client.settings(), (name != null ? "[" + name + "]" : "") + "bulk_processor"));
+            this.scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(settings, (name != null ? "[" + name + "]" : "") + "bulk_processor"));
             this.scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
             this.scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
             this.scheduledFuture = this.scheduler.scheduleWithFixedDelay(new Flush(), flushInterval.millis(), flushInterval.millis(), TimeUnit.MILLISECONDS);

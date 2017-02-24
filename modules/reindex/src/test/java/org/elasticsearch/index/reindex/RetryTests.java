@@ -75,7 +75,7 @@ public class RetryTests extends ESSingleNodeTestCase {
             bulk.add(client().prepareIndex("source", "test").setSource("foo", "bar " + i));
         }
         Retry retry = Retry.on(EsRejectedExecutionException.class).policy(BackoffPolicy.exponentialBackoff());
-        BulkResponse response = retry.withSyncBackoff(client(), bulk.request());
+        BulkResponse response = retry.withSyncBackoff(client()::bulk, bulk.request(), client().settings(), client().threadPool());
         assertFalse(response.buildFailureMessage(), response.hasFailures());
         client().admin().indices().prepareRefresh("source").get();
     }

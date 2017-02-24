@@ -18,9 +18,10 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,7 +36,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -146,7 +148,57 @@ public class IndexShardOperationsLockTests extends ESTestCase {
             block.acquire(future, ThreadPool.Names.GENERIC, true);
             assertFalse(future.isDone());
         }
-        future.get(1, TimeUnit.MINUTES).close();
+        future.get(1, TimeUnit.HOURS).close();
+    }
+
+    /**
+     * Tests that the ThreadContext is restored when a operation is executed after it has been delayed due to a block
+     */
+    public void testThreadContextPreservedIfBlock() throws ExecutionException, InterruptedException, TimeoutException {
+        final ThreadContext context = threadPool.getThreadContext();
+        final Function<ActionListener<Releasable>, Boolean> contextChecker = (listener) -> {
+            if ("bar".equals(context.getHeader("foo")) == false) {
+                listener.onFailure(new IllegalStateException("context did not have value [bar] for header [foo]. Actual value [" +
+                    context.getHeader("foo") + "]"));
+            } else if ("baz".equals(context.getTransient("bar")) == false) {
+                listener.onFailure(new IllegalStateException("context did not have value [baz] for transient [bar]. Actual value [" +
+                    context.getTransient("bar") + "]"));
+            } else {
+                return true;
+            }
+            return false;
+        };
+        PlainActionFuture<Releasable> future = new PlainActionFuture<Releasable>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                if (contextChecker.apply(this)) {
+                    super.onResponse(releasable);
+                }
+            }
+        };
+        PlainActionFuture<Releasable> future2 = new PlainActionFuture<Releasable>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                if (contextChecker.apply(this)) {
+                    super.onResponse(releasable);
+                }
+            }
+        };
+
+        try (Releasable releasable = blockAndWait()) {
+            // we preserve the thread context here so that we have a different context in the call to acquire than the context present
+            // when the releasable is closed
+            try (ThreadContext.StoredContext ignore = context.newStoredContext(false)) {
+                context.putHeader("foo", "bar");
+                context.putTransient("bar", "baz");
+                // test both with and without a executor name
+                block.acquire(future, ThreadPool.Names.GENERIC, true);
+                block.acquire(future2, null, true);
+            }
+            assertFalse(future.isDone());
+        }
+        future.get(1, TimeUnit.HOURS).close();
+        future2.get(1, TimeUnit.HOURS).close();
     }
 
     protected Releasable blockAndWait() throws InterruptedException {

@@ -122,7 +122,7 @@ public class DeprecationLogger {
     private static final String WARNING_FORMAT =
             String.format(
                     Locale.ROOT,
-                    "299 Elasticsearch-%s%s/%s ",
+                    "299 Elasticsearch-%s%s-%s ",
                     Version.CURRENT.toString(),
                     Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
                     Build.CURRENT.shortHash()) +
@@ -132,8 +132,8 @@ public class DeprecationLogger {
 
     public static Pattern WARNING_HEADER_PATTERN = Pattern.compile(
             "299 " + // warn code
-                    "Elasticsearch-\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?/(?:[a-f0-9]{7}|Unknown) " + // warn agent
-                    "\"([^\"]*)\" " + // quoted warning value, captured
+                    "Elasticsearch-\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-(?:[a-f0-9]{7}|Unknown) " + // warn agent
+                    "\"((?:\t| |!|[\\x23-\\x5b]|[\\x5d-\\x7e]|[\\x80-\\xff]|\\\\|\")*)\" " + // quoted warning value, captured
                     // quoted RFC 1123 date format
                     "\"" + // opening quote
                     "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
@@ -161,7 +161,7 @@ public class DeprecationLogger {
                     String.format(
                             Locale.ROOT,
                             WARNING_FORMAT,
-                            formattedMessage,
+                            escape(formattedMessage),
                             DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(GMT)));
             assert WARNING_HEADER_PATTERN.matcher(warningValue).matches();
             while (iterator.hasNext()) {
@@ -184,6 +184,10 @@ public class DeprecationLogger {
         } else {
             logger.warn(message, params);
         }
+    }
+
+    static String escape(String s) {
+        return s.replaceAll("(\\\\|\")", "\\\\$1");
     }
 
 }

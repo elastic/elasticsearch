@@ -1,0 +1,32 @@
+[[release-notes-5.2.2]]
+== 5.2.2 Release Notes
+
+Also see <<breaking-changes-5.2>>.
+
+[[bug-5.2.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Restore support for the `include/pattern` syntax. {pull}23140[#23140] (issue: {issue}22933[#22933])
+
+Cluster::
+* Don't set local node on cluster state used for node join validation {pull}23311[#23311] (issues: {issue}21830[#21830])
+* Cluster allocation explain to never return empty response body {pull}23054[#23054]
+
+Index APIs::
+* Ensure shrunk indices carry over version information from its source {pull}22469[#22469] (issue: {issue}22373[#22373])
+
+Network::
+* Respect promises on pipelined responses {pull}23317[#23317] (issues: {issue}23310[#23310], {issue}23322[#23322])
+* Ensure that releasing listener is called {pull}23310[#23310]
+
+Plugin Ingest Attachment::
+* Remove support for Visio and potm files {pull}23214[#23214] (issues: {issue}22077[#22077], {issue}22079[#22079], {issue}22963[#22963])
+
+REST::
+* Properly encode location header {pull}23133[#23133] (issues: {issue}21057[#21057], {issue}23115[#23115])
+
+Stats::
+* Fix control group pattern {pull}23219[#23219] (issue: {issue}23218[#23218])
+

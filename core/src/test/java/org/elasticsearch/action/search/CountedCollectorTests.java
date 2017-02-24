@@ -46,7 +46,7 @@ public class CountedCollectorTests extends ESTestCase {
                 runnable.run();
             }
         };
-        CountedCollector<SearchPhaseResult> collector = new CountedCollector<>(results, numResultsExpected,
+        CountedCollector<SearchPhaseResult> collector = new CountedCollector<>(results::set, numResultsExpected,
             latch::countDown, context);
         for (int i = 0; i < numResultsExpected; i++) {
             int shardID = i;

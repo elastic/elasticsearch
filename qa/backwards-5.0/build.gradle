@@ -35,12 +35,13 @@ apply plugin: 'elasticsearch.rest-test'
  */
 integTest {
   includePackaged = true
-  cluster {
-    numNodes = 4
-    numBwcNodes = 2
-    bwcVersion = "5.4.0-SNAPSHOT"
-    setting 'logger.org.elasticsearch', 'DEBUG'
-  }
+}
+
+integTestCluster {
+  numNodes = 4
+  numBwcNodes = 2
+  bwcVersion = "5.4.0-SNAPSHOT"
+  setting 'logger.org.elasticsearch', 'DEBUG'
 }
 
 repositories {

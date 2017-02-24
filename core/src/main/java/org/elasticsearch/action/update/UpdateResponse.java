@@ -114,7 +114,7 @@ public class UpdateResponse extends DocWriteResponse {
     public static UpdateResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
 
-        UpdateResponseBuilder context = new UpdateResponseBuilder();
+        Builder context = new Builder();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             parseXContentFields(parser, context);
         }
@@ -124,7 +124,7 @@ public class UpdateResponse extends DocWriteResponse {
     /**
      * Parse the current token and update the parsing context appropriately.
      */
-    public static void parseXContentFields(XContentParser parser, UpdateResponseBuilder context) throws IOException {
+    public static void parseXContentFields(XContentParser parser, Builder context) throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = parser.currentName();
 
@@ -137,7 +137,12 @@ public class UpdateResponse extends DocWriteResponse {
         }
     }
 
-    public static class UpdateResponseBuilder extends DocWriteResponse.DocWriteResponseBuilder {
+    /**
+     * Builder class for {@link UpdateResponse}. This builder is usually used during xcontent parsing to
+     * temporarily store the parsed values, then the {@link DocWriteResponse.Builder#build()} method is called to
+     * instantiate the {@link UpdateResponse}.
+     */
+    public static class Builder extends DocWriteResponse.Builder {
 
         private GetResult getResult = null;
 

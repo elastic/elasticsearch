@@ -16,10 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.painless;
 
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+
+import java.util.Map;
+
 /**
- * Marker interface that a generated {@link Executable} uses the {@code _score} value
+ * Generic script interface that Painless implements for all Elasticsearch scripts.
  */
-public interface NeedsScore {
+public interface GenericElasticsearchScript {
+    String[] ARGUMENTS = new String[] {"params", "_score", "doc", "_value", "ctx"};
+    Object execute(Map<String, Object> params, double _score, Map<String, ScriptDocValues<?>> doc, Object _value, Map<?, ?> ctx);
+
+    boolean uses$_score();
+    boolean uses$ctx();
 }

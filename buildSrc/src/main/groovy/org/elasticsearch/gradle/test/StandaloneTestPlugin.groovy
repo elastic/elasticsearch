@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.test
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.JavaBasePlugin
@@ -48,6 +49,7 @@ public class StandaloneTestPlugin implements Plugin<Project> {
         test.classpath = project.sourceSets.test.runtimeClasspath
         test.testClassesDir project.sourceSets.test.output.classesDir
         test.mustRunAfter(project.precommit)
+        project.ext.versions = VersionProperties.versions
         project.check.dependsOn(test)
     }
 }

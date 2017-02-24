@@ -454,11 +454,15 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         return minLoadedNode;
     }
 
+    static String[] indicesOfInterest(Job job) {
+        String jobResultIndex = AnomalyDetectorsIndex.jobResultsIndexName(job.getResultsIndexName());
+        return new String[]{AnomalyDetectorsIndex.jobStateIndexName(), jobResultIndex, JobProvider.ML_META_INDEX};
+    }
+
     static boolean verifyIndicesPrimaryShardsAreActive(Logger logger, String jobId, ClusterState clusterState) {
         MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
         Job job = mlMetadata.getJobs().get(jobId);
-        String jobResultIndex = AnomalyDetectorsIndex.jobResultsIndexName(job.getResultsIndexName());
-        String[] indices = new String[]{AnomalyDetectorsIndex.jobStateIndexName(), jobResultIndex, JobProvider.ML_META_INDEX};
+        String[] indices = indicesOfInterest(job);
         for (String index : indices) {
             // Indices are created on demand from templates.
             // It is not an error if the index doesn't exist yet

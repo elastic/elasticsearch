@@ -276,7 +276,10 @@ public class OpenJobActionTests extends ESTestCase {
 
         metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
-        String indexToRemove = randomFrom(cs.metaData().getConcreteAllIndices());
+
+        MlMetadata mlMetadata = cs.metaData().custom(MlMetadata.TYPE);
+        Job job = mlMetadata.getJobs().get("job_id");
+        String indexToRemove = randomFrom(OpenJobAction.indicesOfInterest(job));
         if (randomBoolean()) {
             routingTable.remove(indexToRemove);
         } else {

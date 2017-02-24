@@ -23,7 +23,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -64,13 +63,14 @@ public class Retry {
     /**
      * Invokes #bulk(BulkRequest, ActionListener) on the provided client. Backs off on the provided exception and delegates results to the
      * provided listener.
-     *
-     * @param client      Client invoking the bulk request.
+     *  @param client      Client invoking the bulk request.
      * @param bulkRequest The bulk request that should be executed.
      * @param listener    A listener that is invoked when the bulk request finishes or completes with an exception. The listener is not
+     * @param threadPool
+     * @param settings
      */
-    public void withAsyncBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
-        AsyncRetryHandler r = new AsyncRetryHandler(retryOnThrowable, backoffPolicy, consumer, listener);
+    public void withAsyncBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Settings settings, ThreadPool threadPool) {
+        AsyncRetryHandler r = new AsyncRetryHandler(retryOnThrowable, backoffPolicy, consumer, listener, settings, threadPool);
         r.execute(bulkRequest);
 
     }
@@ -83,9 +83,9 @@ public class Retry {
      * @return the bulk response as returned by the client.
      * @throws Exception Any exception thrown by the callable.
      */
-    public BulkResponse withSyncBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest) throws Exception {
+    public BulkResponse withSyncBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, Settings settings, ThreadPool threadPool) throws Exception {
         return SyncRetryHandler
-                .create(retryOnThrowable, backoffPolicy, consumer)
+                .create(retryOnThrowable, backoffPolicy, consumer, settings, threadPool)
                 .executeBlocking(bulkRequest)
                 .actionGet();
     }
@@ -217,21 +217,21 @@ public class Retry {
     }
 
     static class AsyncRetryHandler extends AbstractRetryHandler {
-        AsyncRetryHandler(Class<? extends Throwable> retryOnThrowable, BackoffPolicy backoffPolicy, BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, ActionListener<BulkResponse> listener) {
-            super(retryOnThrowable, backoffPolicy, consumer, listener, null, null);
+        AsyncRetryHandler(Class<? extends Throwable> retryOnThrowable, BackoffPolicy backoffPolicy, BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, ActionListener<BulkResponse> listener, Settings settings, ThreadPool threadPool) {
+            super(retryOnThrowable, backoffPolicy, consumer, listener, settings, threadPool);
         }
     }
 
     static class SyncRetryHandler extends AbstractRetryHandler {
         private final PlainActionFuture<BulkResponse> actionFuture;
 
-        public static SyncRetryHandler create(Class<? extends Throwable> retryOnThrowable, BackoffPolicy backoffPolicy, BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer) {
+        public static SyncRetryHandler create(Class<? extends Throwable> retryOnThrowable, BackoffPolicy backoffPolicy, BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Settings settings, ThreadPool threadPool) {
             PlainActionFuture<BulkResponse> actionFuture = PlainActionFuture.newFuture();
-            return new SyncRetryHandler(retryOnThrowable, backoffPolicy, consumer, actionFuture);
+            return new SyncRetryHandler(retryOnThrowable, backoffPolicy, consumer, actionFuture, settings, threadPool);
         }
 
-        SyncRetryHandler(Class<? extends Throwable> retryOnThrowable, BackoffPolicy backoffPolicy, BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, PlainActionFuture<BulkResponse> actionFuture) {
-            super(retryOnThrowable, backoffPolicy, consumer, actionFuture, null, null);
+        SyncRetryHandler(Class<? extends Throwable> retryOnThrowable, BackoffPolicy backoffPolicy, BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, PlainActionFuture<BulkResponse> actionFuture, Settings settings, ThreadPool threadPool) {
+            super(retryOnThrowable, backoffPolicy, consumer, actionFuture, settings, threadPool);
             this.actionFuture = actionFuture;
         }
 

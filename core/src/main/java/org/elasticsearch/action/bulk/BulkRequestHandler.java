@@ -22,12 +22,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
@@ -37,11 +36,13 @@ import java.util.function.BiConsumer;
  */
 abstract class BulkRequestHandler {
     protected final Logger logger;
+    protected final Settings settings;
     protected final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
 
     protected BulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Settings settings) {
         this.consumer = consumer;
         this.logger = Loggers.getLogger(getClass(), settings);
+        this.settings = settings;
     }
 
 
@@ -50,22 +51,24 @@ abstract class BulkRequestHandler {
     public abstract boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException;
 
 
-    public static BulkRequestHandler syncHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, Settings settings) {
-        return new SyncBulkRequestHandler(consumer, backoffPolicy, listener, settings);
+    public static BulkRequestHandler syncHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, Settings settings, ThreadPool threadPool) {
+        return new SyncBulkRequestHandler(consumer, backoffPolicy, listener, settings, threadPool);
     }
 
-    public static BulkRequestHandler asyncHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, int concurrentRequests, Settings settings) {
-        return new AsyncBulkRequestHandler(consumer, backoffPolicy, listener, concurrentRequests, settings);
+    public static BulkRequestHandler asyncHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, int concurrentRequests, Settings settings, ThreadPool threadPool) {
+        return new AsyncBulkRequestHandler(consumer, backoffPolicy, listener, concurrentRequests, settings, threadPool);
     }
 
     private static class SyncBulkRequestHandler extends BulkRequestHandler {
         private final BulkProcessor.Listener listener;
+        private final ThreadPool threadPool;
         private final BackoffPolicy backoffPolicy;
 
-        SyncBulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, Settings settings) {
+        SyncBulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, Settings settings, ThreadPool threadPool) {
             super(consumer, settings);
             this.backoffPolicy = backoffPolicy;
             this.listener = listener;
+            this.threadPool = threadPool;
         }
 
         @Override
@@ -76,7 +79,7 @@ abstract class BulkRequestHandler {
                 BulkResponse bulkResponse = Retry
                     .on(EsRejectedExecutionException.class)
                     .policy(backoffPolicy)
-                    .withSyncBackoff(consumer, bulkRequest);
+                    .withSyncBackoff(consumer, bulkRequest, settings, threadPool);
                 afterCalled = true;
                 listener.afterBulk(executionId, bulkRequest, bulkResponse);
             } catch (InterruptedException e) {
@@ -102,13 +105,15 @@ abstract class BulkRequestHandler {
 
     private static class AsyncBulkRequestHandler extends BulkRequestHandler {
         private final BackoffPolicy backoffPolicy;
+        private final ThreadPool threadPool;
         private final BulkProcessor.Listener listener;
         private final Semaphore semaphore;
         private final int concurrentRequests;
 
-        private AsyncBulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, int concurrentRequests, Settings settings) {
+        private AsyncBulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, int concurrentRequests, Settings settings, ThreadPool threadPool) {
             super(consumer, settings);
             this.backoffPolicy = backoffPolicy;
+            this.threadPool = threadPool;
             assert concurrentRequests > 0;
             this.listener = listener;
             this.concurrentRequests = concurrentRequests;
@@ -143,7 +148,7 @@ abstract class BulkRequestHandler {
                                 semaphore.release();
                             }
                         }
-                    });
+                    }, settings, threadPool);
                 bulkRequestSetupSuccessful = true;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

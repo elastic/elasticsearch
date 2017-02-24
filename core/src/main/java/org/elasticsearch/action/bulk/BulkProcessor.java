@@ -197,7 +197,7 @@ public class BulkProcessor implements Closeable {
 
         this.bulkRequest = new BulkRequest();
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = client::bulk;
-        this.bulkRequestHandler = (concurrentRequests == 0) ? BulkRequestHandler.syncHandler(consumer, backoffPolicy, listener, client.settings()) : BulkRequestHandler.asyncHandler(consumer, backoffPolicy, listener, concurrentRequests, client.settings());
+        this.bulkRequestHandler = (concurrentRequests == 0) ? BulkRequestHandler.syncHandler(consumer, backoffPolicy, listener, client.settings(), client.threadPool()) : BulkRequestHandler.asyncHandler(consumer, backoffPolicy, listener, concurrentRequests, client.settings(), client.threadPool());
 
         if (flushInterval != null) {
             this.scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(client.settings(), (name != null ? "[" + name + "]" : "") + "bulk_processor"));

@@ -87,7 +87,7 @@ public class RetryTests extends ESTestCase {
         BulkResponse response = Retry
                 .on(EsRejectedExecutionException.class)
                 .policy(backoff)
-                .withSyncBackoff(bulkClient, bulkRequest);
+                .withSyncBackoff(bulkClient::bulk, bulkRequest, bulkClient.settings(), bulkClient.threadPool());
 
         assertFalse(response.hasFailures());
         assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
@@ -100,7 +100,7 @@ public class RetryTests extends ESTestCase {
         BulkResponse response = Retry
                 .on(EsRejectedExecutionException.class)
                 .policy(backoff)
-                .withSyncBackoff(bulkClient, bulkRequest);
+                .withSyncBackoff(bulkClient::bulk, bulkRequest, bulkClient.settings(), bulkClient.threadPool());
 
         assertTrue(response.hasFailures());
         assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
@@ -113,7 +113,7 @@ public class RetryTests extends ESTestCase {
         BulkRequest bulkRequest = createBulkRequest();
         Retry.on(EsRejectedExecutionException.class)
                 .policy(backoff)
-                .withAsyncBackoff(bulkClient, bulkRequest, listener);
+                .withAsyncBackoff(bulkClient::bulk, bulkRequest, listener, bulkClient.settings(), bulkClient.threadPool());
 
         listener.awaitCallbacksCalled();
         listener.assertOnResponseCalled();
@@ -129,7 +129,7 @@ public class RetryTests extends ESTestCase {
         BulkRequest bulkRequest = createBulkRequest();
         Retry.on(EsRejectedExecutionException.class)
                 .policy(backoff)
-                .withAsyncBackoff(bulkClient, bulkRequest, listener);
+                .withAsyncBackoff(bulkClient::bulk, bulkRequest, listener, bulkClient.settings(), bulkClient.threadPool());
 
         listener.awaitCallbacksCalled();
 

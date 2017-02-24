@@ -28,6 +28,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -43,6 +45,7 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 
@@ -157,6 +160,26 @@ public class RestHighLevelClient {
      */
     public void updateAsync(UpdateRequest updateRequest, ActionListener<UpdateResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(updateRequest, Request::update, UpdateResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Deletes a document by id using the Delete api
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
+     */
+    public DeleteResponse delete(DeleteRequest deleteRequest, Header... headers) throws IOException {
+        return performRequestAndParseEntity(deleteRequest, Request::delete, DeleteResponse::fromXContent, Collections.singleton(404),
+            headers);
+    }
+
+    /**
+     * Asynchronously deletes a document by id using the Delete api
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
+     */
+    public void deleteAsync(DeleteRequest deleteRequest, ActionListener<DeleteResponse> listener, Header... headers) {
+        performRequestAsyncAndParseEntity(deleteRequest, Request::delete, DeleteResponse::fromXContent, listener,
+            Collections.singleton(404), headers);
     }
 
     private <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,

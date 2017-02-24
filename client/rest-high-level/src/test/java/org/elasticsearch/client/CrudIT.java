@@ -29,6 +29,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -53,6 +54,82 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 
 public class CrudIT extends ESRestHighLevelClientTestCase {
+
+    public void testDelete() throws IOException {
+        {
+            // Testing non existing document
+            String docId = "does_not_exist";
+            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
+            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
+            assertEquals("index", deleteResponse.getIndex());
+            assertEquals("type", deleteResponse.getType());
+            assertEquals(docId, deleteResponse.getId());
+            assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteResponse.getResult());
+        }
+        {
+            // Testing deletion
+            String docId = "id";
+            highLevelClient().index(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")));
+            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
+            if (randomBoolean()) {
+                deleteRequest.version(1L);
+            }
+            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
+            assertEquals("index", deleteResponse.getIndex());
+            assertEquals("type", deleteResponse.getType());
+            assertEquals(docId, deleteResponse.getId());
+            assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+        }
+        {
+            // Testing version conflict
+            String docId = "version_conflict";
+            highLevelClient().index(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")));
+            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).version(2);
+            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync));
+            assertEquals(RestStatus.CONFLICT, exception.status());
+            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][" + docId + "]: " +
+                "version conflict, current version [1] is different than the one provided [2]]", exception.getMessage());
+            assertEquals("index", exception.getMetadata("es.index").get(0));
+        }
+        {
+            // Testing version type
+            String docId = "version_type";
+            highLevelClient().index(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar"))
+                .versionType(VersionType.EXTERNAL).version(12));
+            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).versionType(VersionType.EXTERNAL).version(13);
+            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
+            assertEquals("index", deleteResponse.getIndex());
+            assertEquals("type", deleteResponse.getType());
+            assertEquals(docId, deleteResponse.getId());
+            assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+        }
+        {
+            // Testing version type with a wrong version
+            String docId = "wrong_version";
+            highLevelClient().index(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar"))
+                .versionType(VersionType.EXTERNAL).version(12));
+            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
+                DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).versionType(VersionType.EXTERNAL).version(10);
+                execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
+            });
+            assertEquals(RestStatus.CONFLICT, exception.status());
+            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][" +
+                docId + "]: version conflict, current version [12] is higher or equal to the one provided [10]]", exception.getMessage());
+            assertEquals("index", exception.getMetadata("es.index").get(0));
+        }
+        {
+            // Testing routing
+            String docId = "routing";
+            highLevelClient().index(new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")).routing("foo"));
+            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).routing("foo");
+            DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync);
+            assertEquals("index", deleteResponse.getIndex());
+            assertEquals("type", deleteResponse.getType());
+            assertEquals(docId, deleteResponse.getId());
+            assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+        }
+    }
 
     public void testExists() throws IOException {
         {

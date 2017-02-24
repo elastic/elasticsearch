@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
@@ -28,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -80,8 +82,19 @@ final class Request {
                 '}';
     }
 
-    static Request ping() {
-        return new Request("HEAD", "/", Collections.emptyMap(), null);
+    static Request delete(DeleteRequest deleteRequest) {
+        String endpoint = endpoint(deleteRequest.index(), deleteRequest.type(), deleteRequest.id());
+
+        Params parameters = Params.builder();
+        parameters.withRouting(deleteRequest.routing());
+        parameters.withParent(deleteRequest.parent());
+        parameters.withTimeout(deleteRequest.timeout());
+        parameters.withVersion(deleteRequest.version());
+        parameters.withVersionType(deleteRequest.versionType());
+        parameters.withRefreshPolicy(deleteRequest.getRefreshPolicy());
+        parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards());
+
+        return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 
     static Request bulk(BulkRequest bulkRequest) throws IOException {
@@ -248,6 +261,10 @@ final class Request {
         HttpEntity entity = new ByteArrayEntity(source.bytes, source.offset, source.length, contentType);
 
         return new Request(method, endpoint, parameters.getParams(), entity);
+    }
+
+    static Request ping() {
+        return new Request("HEAD", "/", Collections.emptyMap(), null);
     }
 
     static Request update(UpdateRequest updateRequest) throws IOException {

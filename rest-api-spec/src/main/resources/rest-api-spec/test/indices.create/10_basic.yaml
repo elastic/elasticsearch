@@ -36,8 +36,8 @@
   - do:
       indices.create:
         index: test_index
-        timeout: 100ms
-        master_timeout: 100ms
+        timeout: 300ms
+        master_timeout: 300ms
         wait_for_active_shards: 6
         body:
           settings:

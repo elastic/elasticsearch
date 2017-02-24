@@ -39,6 +39,7 @@ import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Collections.EMPTY_LIST;
 import static org.elasticsearch.action.search.TransportSearchHelper.internalScrollSearchRequest;
 
 class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
@@ -129,6 +130,8 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
         searchTransportService.sendExecuteQuery(node, internalRequest, task, new ActionListener<ScrollQuerySearchResult>() {
             @Override
             public void onResponse(ScrollQuerySearchResult result) {
+                if(result.queryResult() == null)
+                    finishHim(searchPhaseController.reducedQueryPhase(EMPTY_LIST));
                 queryResults.set(shardIndex, result.queryResult());
                 if (counter.decrementAndGet() == 0) {
                     try {
@@ -218,7 +221,15 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
 
     private void finishHim(SearchPhaseController.ReducedQueryPhase queryPhase) {
         try {
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(true, sortedShardDocs, queryPhase, fetchResults);
+            final InternalSearchResponse internalResponse;
+            if(queryPhase.isEmpty())
+            {
+                internalResponse = InternalSearchResponse.empty();
+            }
+            else {
+                internalResponse = searchPhaseController.merge(true, sortedShardDocs, queryPhase, fetchResults);
+            }
+
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = request.scrollId();

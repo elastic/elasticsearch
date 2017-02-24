@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.support;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -14,6 +15,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -139,13 +141,18 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
         return builder.build();
     }
 
-    // Due to the fact that ml plugin creates the state, notifications and meta indices automatically
-    // when the test framework removes all indices then ml plugin adds them back. Causing validation to fail
-    // we should move to templates instead as that will fix the test problem
     @After
     public void cleanupWorkaround() throws Exception {
         deleteAllDatafeeds(client());
         deleteAllJobs(client());
+        assertBusy(() -> {
+            RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries()
+                    .setActiveOnly(true)
+                    .get();
+            for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
+                assertThat(recoveryStates.size(), equalTo(0));
+            }
+        });
     }
 
     protected void indexDocs(String index, long numDocs, long start, long end) {

@@ -19,8 +19,8 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,7 +35,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -144,6 +143,39 @@ public class IndexShardOperationsLockTests extends ESTestCase {
         PlainActionFuture<Releasable> future = new PlainActionFuture<>();
         try (Releasable releasable = blockAndWait()) {
             block.acquire(future, ThreadPool.Names.GENERIC, true);
+            assertFalse(future.isDone());
+        }
+        future.get(1, TimeUnit.MINUTES).close();
+    }
+
+    /**
+     * Tests that the ThreadContext is restored when a operation is executed after it has been delayed due to a block
+     */
+    public void testThreadContextPreservedIfBlock() throws ExecutionException, InterruptedException, TimeoutException {
+        final ThreadContext context = threadPool.getThreadContext();
+        PlainActionFuture<Releasable> future = new PlainActionFuture<Releasable>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                if ("bar".equals(context.getHeader("foo")) == false) {
+                    onFailure(new IllegalStateException("context did not have value [bar] for header [foo]. Actual value [" +
+                        context.getHeader("foo") + "]"));
+                } else if ("baz".equals(context.getTransient("bar")) == false) {
+                    onFailure(new IllegalStateException("context did not have value [baz] for transient [bar]. Actual value [" +
+                        context.getTransient("bar") + "]"));
+                } else {
+                    super.onResponse(releasable);
+                }
+            }
+        };
+
+        try (Releasable releasable = blockAndWait()) {
+            // we preserve the thread context here so that we have a different context in the call to acquire than the context present
+            // when the releasable is closed
+            try (ThreadContext.StoredContext ignore = context.newStoredContext(false)) {
+                context.putHeader("foo", "bar");
+                context.putTransient("bar", "baz");
+                block.acquire(future, ThreadPool.Names.GENERIC, true);
+            }
             assertFalse(future.isDone());
         }
         future.get(1, TimeUnit.MINUTES).close();

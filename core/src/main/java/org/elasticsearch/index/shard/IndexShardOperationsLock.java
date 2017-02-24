@@ -20,9 +20,11 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -32,6 +34,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 public class IndexShardOperationsLock implements Closeable {
     private final ShardId shardId;
@@ -127,8 +130,10 @@ public class IndexShardOperationsLock implements Closeable {
                         delayedOperations = new ArrayList<>();
                     }
                     if (executorOnDelay != null) {
+                        final Supplier<StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(false);
                         delayedOperations.add(
-                            new ThreadedActionListener<>(logger, threadPool, executorOnDelay, onAcquired, forceExecution));
+                            new ThreadedActionListener<>(logger, threadPool, executorOnDelay,
+                                new ContextPreservingActionListener<>(contextSupplier, onAcquired), forceExecution));
                     } else {
                         delayedOperations.add(onAcquired);
                     }

@@ -561,7 +561,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private void contextProcessedSuccessfully(SearchContext context) {
-        context.accessed(threadPool.estimatedTimeInMillis());
+        context.accessed(threadPool.relativeTimeInMillis());
     }
 
     private void cleanContext(SearchContext context) {
@@ -794,7 +794,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     class Reaper implements Runnable {
         @Override
         public void run() {
-            final long time = threadPool.estimatedTimeInMillis();
+            final long time = threadPool.relativeTimeInMillis();
             for (SearchContext context : activeContexts.values()) {
                 // Use the same value for both checks since lastAccessTime can
                 // be modified by another thread between checks!

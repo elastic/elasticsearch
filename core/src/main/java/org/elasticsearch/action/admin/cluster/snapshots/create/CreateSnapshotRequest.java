@@ -293,21 +293,6 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
      * See repository documentation for more information.
      *
      * @param source repository-specific snapshot settings
-     * @return this request
-     * @deprecated use {@link #settings(String, XContentType)} to avoid content type detection
-     */
-    @Deprecated
-    public CreateSnapshotRequest settings(String source) {
-        this.settings = Settings.builder().loadFromSource(source).build();
-        return this;
-    }
-
-    /**
-     * Sets repository-specific snapshot settings in JSON or YAML format
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param source repository-specific snapshot settings
      * @param xContentType the content type of the source
      * @return this request
      */

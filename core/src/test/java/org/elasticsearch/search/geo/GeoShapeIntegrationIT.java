@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -47,7 +48,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
                 .endObject().endObject().string();
 
         // create index
-        assertAcked(prepareCreate(idxName).addMapping("shape", mapping));
+        assertAcked(prepareCreate(idxName).addMapping("shape", mapping, XContentType.JSON));
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("shape")
                 .startObject("properties").startObject("location")
@@ -56,7 +57,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        assertAcked(prepareCreate(idxName+"2").addMapping("shape", mapping));
+        assertAcked(prepareCreate(idxName+"2").addMapping("shape", mapping, XContentType.JSON));
         ensureGreen(idxName, idxName+"2");
 
         internalCluster().fullRestart();

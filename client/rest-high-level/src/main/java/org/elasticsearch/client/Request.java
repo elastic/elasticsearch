@@ -30,16 +30,27 @@ import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -84,6 +95,127 @@ final class Request {
         parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards());
 
         return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request bulk(BulkRequest bulkRequest) throws IOException {
+        Params parameters = Params.builder();
+        parameters.withTimeout(bulkRequest.timeout());
+        parameters.withRefreshPolicy(bulkRequest.getRefreshPolicy());
+
+        // Bulk API only supports newline delimited JSON or Smile. Before executing
+        // the bulk, we need to check that all requests have the same content-type
+        // and this content-type is supported by the Bulk API.
+        XContentType bulkContentType = null;
+        for (int i = 0; i < bulkRequest.numberOfActions(); i++) {
+            DocWriteRequest<?> request = bulkRequest.requests().get(i);
+
+            DocWriteRequest.OpType opType = request.opType();
+            if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
+                bulkContentType = enforceSameContentType((IndexRequest) request, bulkContentType);
+
+            } else if (opType == DocWriteRequest.OpType.UPDATE) {
+                UpdateRequest updateRequest = (UpdateRequest) request;
+                if (updateRequest.doc() != null) {
+                    bulkContentType = enforceSameContentType(updateRequest.doc(), bulkContentType);
+                }
+                if (updateRequest.upsertRequest() != null) {
+                    bulkContentType = enforceSameContentType(updateRequest.upsertRequest(), bulkContentType);
+                }
+            }
+        }
+
+        if (bulkContentType == null) {
+            bulkContentType = XContentType.JSON;
+        }
+
+        byte separator = bulkContentType.xContent().streamSeparator();
+        ContentType requestContentType = ContentType.create(bulkContentType.mediaType());
+
+        ByteArrayOutputStream content = new ByteArrayOutputStream();
+        for (DocWriteRequest<?> request : bulkRequest.requests()) {
+            DocWriteRequest.OpType opType = request.opType();
+
+            try (XContentBuilder metadata = XContentBuilder.builder(bulkContentType.xContent())) {
+                metadata.startObject();
+                {
+                    metadata.startObject(opType.getLowercase());
+                    if (Strings.hasLength(request.index())) {
+                        metadata.field("_index", request.index());
+                    }
+                    if (Strings.hasLength(request.type())) {
+                        metadata.field("_type", request.type());
+                    }
+                    if (Strings.hasLength(request.id())) {
+                        metadata.field("_id", request.id());
+                    }
+                    if (Strings.hasLength(request.routing())) {
+                        metadata.field("_routing", request.routing());
+                    }
+                    if (Strings.hasLength(request.parent())) {
+                        metadata.field("_parent", request.parent());
+                    }
+                    if (request.version() != Versions.MATCH_ANY) {
+                        metadata.field("_version", request.version());
+                    }
+
+                    VersionType versionType = request.versionType();
+                    if (versionType != VersionType.INTERNAL) {
+                        if (versionType == VersionType.EXTERNAL) {
+                            metadata.field("_version_type", "external");
+                        } else if (versionType == VersionType.EXTERNAL_GTE) {
+                            metadata.field("_version_type", "external_gte");
+                        } else if (versionType == VersionType.FORCE) {
+                            metadata.field("_version_type", "force");
+                        }
+                    }
+
+                    if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
+                        IndexRequest indexRequest = (IndexRequest) request;
+                        if (Strings.hasLength(indexRequest.getPipeline())) {
+                            metadata.field("pipeline", indexRequest.getPipeline());
+                        }
+                    } else if (opType == DocWriteRequest.OpType.UPDATE) {
+                        UpdateRequest updateRequest = (UpdateRequest) request;
+                        if (updateRequest.retryOnConflict() > 0) {
+                            metadata.field("_retry_on_conflict", updateRequest.retryOnConflict());
+                        }
+                        if (updateRequest.fetchSource() != null) {
+                            metadata.field("_source", updateRequest.fetchSource());
+                        }
+                    }
+                    metadata.endObject();
+                }
+                metadata.endObject();
+
+                BytesRef metadataSource = metadata.bytes().toBytesRef();
+                content.write(metadataSource.bytes, metadataSource.offset, metadataSource.length);
+                content.write(separator);
+            }
+
+            BytesRef source = null;
+            if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
+                IndexRequest indexRequest = (IndexRequest) request;
+                BytesReference indexSource = indexRequest.source();
+                XContentType indexXContentType = indexRequest.getContentType();
+
+                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, indexSource, indexXContentType)) {
+                    try (XContentBuilder builder = XContentBuilder.builder(bulkContentType.xContent())) {
+                        builder.copyCurrentStructure(parser);
+                        source = builder.bytes().toBytesRef();
+                    }
+                }
+            } else if (opType == DocWriteRequest.OpType.UPDATE) {
+                source = XContentHelper.toXContent((UpdateRequest) request, bulkContentType, false).toBytesRef();
+            }
+
+            if (source != null) {
+                content.write(source.bytes, source.offset, source.length);
+                content.write(separator);
+            }
+        }
+
+        HttpEntity entity = new ByteArrayEntity(content.toByteArray(), 0, content.size(), requestContentType);
+        return new Request(HttpPost.METHOD_NAME, "/_bulk", parameters.getParams(), entity);
     }
 
     static Request exists(GetRequest getRequest) {
@@ -135,6 +267,48 @@ final class Request {
         return new Request("HEAD", "/", Collections.emptyMap(), null);
     }
 
+    static Request update(UpdateRequest updateRequest) throws IOException {
+        String endpoint = endpoint(updateRequest.index(), updateRequest.type(), updateRequest.id(), "_update");
+
+        Params parameters = Params.builder();
+        parameters.withRouting(updateRequest.routing());
+        parameters.withParent(updateRequest.parent());
+        parameters.withTimeout(updateRequest.timeout());
+        parameters.withRefreshPolicy(updateRequest.getRefreshPolicy());
+        parameters.withWaitForActiveShards(updateRequest.waitForActiveShards());
+        parameters.withDocAsUpsert(updateRequest.docAsUpsert());
+        parameters.withFetchSourceContext(updateRequest.fetchSource());
+        parameters.withRetryOnConflict(updateRequest.retryOnConflict());
+        parameters.withVersion(updateRequest.version());
+        parameters.withVersionType(updateRequest.versionType());
+
+        // The Java API allows update requests with different content types
+        // set for the partial document and the upsert document. This client
+        // only accepts update requests that have the same content types set
+        // for both doc and upsert.
+        XContentType xContentType = null;
+        if (updateRequest.doc() != null) {
+            xContentType = updateRequest.doc().getContentType();
+        }
+        if (updateRequest.upsertRequest() != null) {
+            XContentType upsertContentType = updateRequest.upsertRequest().getContentType();
+            if ((xContentType != null) && (xContentType != upsertContentType)) {
+                throw new IllegalStateException("Update request cannot have different content types for doc [" + xContentType + "]" +
+                        " and upsert [" + upsertContentType + "] documents");
+            } else {
+                xContentType = upsertContentType;
+            }
+        }
+        if (xContentType == null) {
+            xContentType = Requests.INDEX_CONTENT_TYPE;
+        }
+
+        BytesRef source = XContentHelper.toXContent(updateRequest, xContentType, false).toBytesRef();
+        HttpEntity entity = new ByteArrayEntity(source.bytes, source.offset, source.length, ContentType.create(xContentType.mediaType()));
+
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), entity);
+    }
+
     /**
      * Utility method to build request's endpoint.
      */
@@ -173,6 +347,13 @@ final class Request {
         Params putParam(String key, TimeValue value) {
             if (value != null) {
                 return putParam(key, value.getStringRep());
+            }
+            return this;
+        }
+
+        Params withDocAsUpsert(boolean docAsUpsert) {
+            if (docAsUpsert) {
+                return putParam("doc_as_upsert", Boolean.TRUE.toString());
             }
             return this;
         }
@@ -220,7 +401,14 @@ final class Request {
 
         Params withRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
             if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
-                putParam("refresh", refreshPolicy.getValue());
+                return putParam("refresh", refreshPolicy.getValue());
+            }
+            return this;
+        }
+
+        Params withRetryOnConflict(int retryOnConflict) {
+            if (retryOnConflict > 0) {
+                return putParam("retry_on_conflict", String.valueOf(retryOnConflict));
             }
             return this;
         }
@@ -268,5 +456,27 @@ final class Request {
         static Params builder() {
             return new Params();
         }
+    }
+
+    /**
+     * Ensure that the {@link IndexRequest}'s content type is supported by the Bulk API and that it conforms
+     * to the current {@link BulkRequest}'s content type (if it's known at the time of this method get called).
+     *
+     * @return the {@link IndexRequest}'s content type
+     */
+    static XContentType enforceSameContentType(IndexRequest indexRequest, @Nullable XContentType xContentType) {
+        XContentType requestContentType = indexRequest.getContentType();
+        if (requestContentType != XContentType.JSON && requestContentType != XContentType.SMILE) {
+            throw new IllegalArgumentException("Unsupported content-type found for request with content-type [" + requestContentType
+                    + "], only JSON and SMILE are supported");
+        }
+        if (xContentType == null) {
+            return requestContentType;
+        }
+        if (requestContentType != xContentType) {
+            throw new IllegalArgumentException("Mismatching content-type found for request with content-type [" + requestContentType
+                    + "], previous requests have content-type [" + xContentType + "]");
+        }
+        return xContentType;
     }
 }

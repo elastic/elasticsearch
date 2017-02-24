@@ -26,12 +26,14 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -164,9 +166,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final int rollbackDocs = randomIntBetween(1, 5);
                 logger.info("--> indexing {} rollback docs", rollbackDocs);
                 for (int i = 0; i < rollbackDocs; i++) {
-                    final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "rollback_" + i).source("{}");
-                    indexOnPrimary(indexRequest, oldPrimary);
-                    indexOnReplica(indexRequest, replica);
+                    final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "rollback_" + i)
+                            .source("{}", XContentType.JSON);
+                    final IndexResponse primaryResponse = indexOnPrimary(indexRequest, oldPrimary);
+                    indexOnReplica(primaryResponse, indexRequest, replica);
                 }
                 if (randomBoolean()) {
                     oldPrimary.flush(new FlushRequest(index.getName()));
@@ -266,7 +269,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final String id = "pending_" + i;
                 threadPool.generic().submit(() -> {
                     try {
-                        shards.index(new IndexRequest(index.getName(), "type", id).source("{}"));
+                        shards.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
                     } catch (Exception e) {
                         throw new AssertionError(e);
                     } finally {

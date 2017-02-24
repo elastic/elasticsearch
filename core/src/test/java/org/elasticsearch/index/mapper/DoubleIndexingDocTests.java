@@ -26,6 +26,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -43,7 +44,7 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
                 .startObject("properties").endObject()
                 .endObject().endObject().string();
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
         DocumentMapper mapper = index.mapperService().documentMapper("type");
         QueryShardContext context = index.newQueryShardContext(0, null, () -> 0L);
 
@@ -57,7 +58,8 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
         assertNotNull(doc.dynamicMappingsUpdate());
-        client().admin().indices().preparePutMapping("test").setType("type").setSource(doc.dynamicMappingsUpdate().toString()).get();
+        client().admin().indices().preparePutMapping("test").setType("type")
+            .setSource(doc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
         mapper = index.mapperService().documentMapper("type");
 
         writer.addDocument(doc.rootDoc());

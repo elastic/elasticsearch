@@ -43,6 +43,7 @@ import java.util.Map;
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
 import static org.elasticsearch.action.DocWriteResponse.Result.NOT_FOUND;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 
 public class UpdateResponseTests extends ESTestCase {
@@ -82,46 +83,72 @@ public class UpdateResponseTests extends ESTestCase {
     public void testToAndFromXContent() throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());
         final Tuple<UpdateResponse, UpdateResponse> tuple = randomUpdateResponse(xContentType);
+        UpdateResponse updateResponse = tuple.v1();
+        UpdateResponse expectedUpdateResponse = tuple.v2();
+
         boolean humanReadable = randomBoolean();
+        BytesReference updateResponseBytes = toXContent(updateResponse, xContentType, humanReadable);
+
+        // Shuffle the XContent fields
+        if (randomBoolean()) {
+            try (XContentParser parser = createParser(xContentType.xContent(), updateResponseBytes)) {
+                updateResponseBytes = shuffleXContent(parser, randomBoolean()).bytes();
+            }
+        }
 
         // Parse the XContent bytes to obtain a parsed UpdateResponse
         UpdateResponse parsedUpdateResponse;
-        try (XContentParser parser = createParser(xContentType.xContent(), toXContent(tuple.v1(), xContentType, humanReadable))) {
+        try (XContentParser parser = createParser(xContentType.xContent(), updateResponseBytes)) {
             parsedUpdateResponse = UpdateResponse.fromXContent(parser);
             assertNull(parser.nextToken());
         }
 
-        final UpdateResponse expectedUpdateResponse = tuple.v2();
-        try (XContentParser parser = createParser(xContentType.xContent(), toXContent(parsedUpdateResponse, xContentType, humanReadable))) {
-            IndexResponseTests.assertDocWriteResponse(expectedUpdateResponse, parser.map());
-        }
-        assertEquals(expectedUpdateResponse.getGetResult(), parsedUpdateResponse.getGetResult());
+        // We can't use equals() to compare the original and the parsed delete response
+        // because the random delete response can contain shard failures with exceptions,
+        // and those exceptions are not parsed back with the same types.
+        assertUpdateResponse(expectedUpdateResponse, parsedUpdateResponse);
     }
 
-    private static Tuple<UpdateResponse, UpdateResponse> randomUpdateResponse(XContentType xContentType) {
+    public static void assertUpdateResponse(UpdateResponse expected, UpdateResponse actual) {
+        IndexResponseTests.assertDocWriteResponse(expected, actual);
+        assertEquals(expected.getGetResult(), actual.getGetResult());
+    }
+
+    /**
+     * Returns a tuple of {@link UpdateResponse}s.
+     * <p>
+     * The left element is the actual {@link UpdateResponse} to serialize while the right element is the
+     * expected {@link UpdateResponse} after parsing.
+     */
+    public static Tuple<UpdateResponse, UpdateResponse> randomUpdateResponse(XContentType xContentType) {
         Tuple<GetResult, GetResult> getResults = GetResultTests.randomGetResult(xContentType);
         GetResult actualGetResult = getResults.v1();
         GetResult expectedGetResult = getResults.v2();
 
-        ShardId shardId = new ShardId(actualGetResult.getIndex(), randomAsciiOfLength(5), randomIntBetween(0, 5));
+        String index = actualGetResult.getIndex();
         String type = actualGetResult.getType();
         String id = actualGetResult.getId();
         long version = actualGetResult.getVersion();
         DocWriteResponse.Result result = actualGetResult.isExists() ? DocWriteResponse.Result.UPDATED : DocWriteResponse.Result.NOT_FOUND;
+        String indexUUid = randomAsciiOfLength(5);
+        int shardId = randomIntBetween(0, 5);
 
         // We also want small number values (randomNonNegativeLong() tend to generate high numbers)
         // in order to catch some conversion error that happen between int/long after parsing.
         Long seqNo = randomFrom(randomNonNegativeLong(), (long) randomIntBetween(0, 10_000), null);
 
+        ShardId actualShardId = new ShardId(index, indexUUid, shardId);
+        ShardId expectedShardId = new ShardId(index, INDEX_UUID_NA_VALUE, -1);
+
         UpdateResponse actual, expected;
         if (seqNo != null) {
-            ReplicationResponse.ShardInfo shardInfo = RandomObjects.randomShardInfo(random(), true);
-            actual = new UpdateResponse(shardInfo, shardId, type, id, seqNo, version, result);
-            expected = new UpdateResponse(shardInfo, shardId, type, id, seqNo, version, result);
+            Tuple<ReplicationResponse.ShardInfo, ReplicationResponse.ShardInfo> shardInfos = RandomObjects.randomShardInfo(random());
 
+            actual = new UpdateResponse(shardInfos.v1(), actualShardId, type, id, seqNo, version, result);
+            expected = new UpdateResponse(shardInfos.v2(), expectedShardId, type, id, seqNo, version, result);
         } else {
-            actual = new UpdateResponse(shardId, type, id, version, result);
-            expected = new UpdateResponse(shardId, type, id, version, result);
+            actual = new UpdateResponse(actualShardId, type, id, version, result);
+            expected = new UpdateResponse(expectedShardId, type, id, version, result);
         }
 
         if (actualGetResult.isExists()) {
@@ -129,8 +156,7 @@ public class UpdateResponseTests extends ESTestCase {
         }
 
         if (expectedGetResult.isExists()) {
-            expected.setGetResult(new GetResult(shardId.getIndexName(), type, id, version,
-                    expectedGetResult.isExists(), expectedGetResult.internalSourceRef(), expectedGetResult.getFields()));
+            expected.setGetResult(expectedGetResult);
         }
 
         boolean forcedRefresh = randomBoolean();

@@ -44,7 +44,7 @@ mappings when using shadow replicas.
 
 [source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/my_index' -d '
+PUT /my_index
 {
     "index" : {
         "number_of_shards" : 1,
@@ -52,8 +52,10 @@ curl -XPUT 'localhost:9200/my_index' -d '
         "data_path": "/opt/data/my_index",
         "shadow_replicas": true
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:no way to configure path.shared_data for /opt/data]
 
 [WARNING]
 ========================

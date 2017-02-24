@@ -49,29 +49,31 @@ final class FetchSearchPhase extends SearchPhase {
     private final Function<SearchResponse, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final Logger logger;
+    private final InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> resultConsumer;
 
-    FetchSearchPhase(AtomicArray<QuerySearchResultProvider> queryResults,
+    FetchSearchPhase(InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> resultConsumer,
                      SearchPhaseController searchPhaseController,
                      SearchPhaseContext context) {
-        this(queryResults, searchPhaseController, context,
+        this(resultConsumer, searchPhaseController, context,
             (response) -> new ExpandSearchPhase(context, response, // collapse only happens if the request has inner hits
                 (finalResponse) -> sendResponsePhase(finalResponse, context)));
     }
 
-    FetchSearchPhase(AtomicArray<QuerySearchResultProvider> queryResults,
+    FetchSearchPhase(InitialSearchPhase.SearchPhaseResults<QuerySearchResultProvider> resultConsumer,
                      SearchPhaseController searchPhaseController,
                      SearchPhaseContext context, Function<SearchResponse, SearchPhase> nextPhaseFactory) {
         super("fetch");
-        if (context.getNumShards() != queryResults.length()) {
+        if (context.getNumShards() != resultConsumer.getNumShards()) {
             throw new IllegalStateException("number of shards must match the length of the query results but doesn't:"
-                + context.getNumShards() + "!=" + queryResults.length());
+                + context.getNumShards() + "!=" + resultConsumer.getNumShards());
         }
-        this.fetchResults = new AtomicArray<>(queryResults.length());
+        this.fetchResults = new AtomicArray<>(resultConsumer.getNumShards());
         this.searchPhaseController = searchPhaseController;
-        this.queryResults = queryResults;
+        this.queryResults = resultConsumer.results;
         this.nextPhaseFactory =  nextPhaseFactory;
         this.context = context;
         this.logger = context.getLogger();
+        this.resultConsumer = resultConsumer;
 
     }
 
@@ -99,7 +101,7 @@ final class FetchSearchPhase extends SearchPhase {
         ScoreDoc[] sortedShardDocs = searchPhaseController.sortDocs(isScrollSearch, queryResults);
         String scrollId = isScrollSearch ? TransportSearchHelper.buildScrollId(queryResults) : null;
         List<AtomicArray.Entry<QuerySearchResultProvider>> queryResultsAsList = queryResults.asList();
-        final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(queryResultsAsList);
+        final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = resultConsumer.reduce();
         final boolean queryAndFetchOptimization = queryResults.length() == 1;
         final Runnable finishPhase = ()
             -> moveToNextPhase(searchPhaseController, sortedShardDocs, scrollId, reducedQueryPhase, queryAndFetchOptimization ?
@@ -119,7 +121,7 @@ final class FetchSearchPhase extends SearchPhase {
                 final ScoreDoc[] lastEmittedDocPerShard = isScrollSearch ?
                     searchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, sortedShardDocs, numShards)
                     : null;
-                final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(fetchResults,
+                final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(fetchResults::set,
                     docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
                     finishPhase, context);
                 for (int i = 0; i < docIdsToLoad.length; i++) {

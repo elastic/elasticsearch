@@ -45,23 +45,46 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static java.util.stream.Collectors.toList;
 
 /**
  * High level REST client that wraps an instance of the low level {@link RestClient} and allows to build requests and read responses.
  * The provided {@link RestClient} is externally built and closed.
+ * Can be sub-classed to expose additional client methods that make use of endpoints added to Elasticsearch through plugins, or to
+ * add support for custom response sections, again added to Elasticsearch through plugins.
  */
 public class RestHighLevelClient {
 
     private final RestClient client;
+    private final NamedXContentRegistry registry;
 
-    public RestHighLevelClient(RestClient client) {
-        this.client = Objects.requireNonNull(client);
+    /**
+     * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests.
+     */
+    public RestHighLevelClient(RestClient restClient) {
+        this(restClient, Collections.emptyList());
+    }
+
+    /**
+     * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests and
+     * a list of entries that allow to parse custom response sections added to Elasticsearch through plugins.
+     */
+    protected RestHighLevelClient(RestClient restClient, List<NamedXContentRegistry.Entry> namedXContentEntries) {
+        this.client = Objects.requireNonNull(restClient);
+        this.registry = new NamedXContentRegistry(Stream.of(
+                getNamedXContents().stream(),
+                namedXContentEntries.stream()
+        ).flatMap(Function.identity()).collect(toList()));
     }
 
     /**
@@ -247,7 +270,7 @@ public class RestHighLevelClient {
         client.performRequestAsync(req.method, req.endpoint, req.params, req.entity, responseListener, headers);
     }
 
-    static <Resp> ResponseListener wrapResponseListener(CheckedFunction<Response, Resp, IOException> responseConverter,
+    <Resp> ResponseListener wrapResponseListener(CheckedFunction<Response, Resp, IOException> responseConverter,
                                                         ActionListener<Resp> actionListener, Set<Integer> ignores) {
         return new ResponseListener() {
             @Override
@@ -292,7 +315,7 @@ public class RestHighLevelClient {
      * that wraps the original {@link ResponseException}. The potential exception obtained while parsing is added to the returned
      * exception as a suppressed exception. This method is guaranteed to not throw any exception eventually thrown while parsing.
      */
-    static ElasticsearchStatusException parseResponseException(ResponseException responseException) {
+    ElasticsearchStatusException parseResponseException(ResponseException responseException) {
         Response response = responseException.getResponse();
         HttpEntity entity = response.getEntity();
         ElasticsearchStatusException elasticsearchException;
@@ -312,7 +335,7 @@ public class RestHighLevelClient {
         return elasticsearchException;
     }
 
-    static <Resp> Resp parseEntity(
+    <Resp> Resp parseEntity(
             HttpEntity entity, CheckedFunction<XContentParser, Resp, IOException> entityParser) throws IOException {
         if (entity == null) {
             throw new IllegalStateException("Response body expected but not returned");
@@ -324,12 +347,18 @@ public class RestHighLevelClient {
         if (xContentType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
         }
-        try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, entity.getContent())) {
+        try (XContentParser parser = xContentType.xContent().createParser(registry, entity.getContent())) {
             return entityParser.apply(parser);
         }
     }
 
     static boolean convertExistsResponse(Response response) {
         return response.getStatusLine().getStatusCode() == 200;
+    }
+
+    static List<NamedXContentRegistry.Entry> getNamedXContents() {
+        List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
+        //namedXContents.add(new NamedXContentRegistry.Entry(Aggregation.class, new ParseField("sterms"), StringTerms::fromXContent));
+        return namedXContents;
     }
 }

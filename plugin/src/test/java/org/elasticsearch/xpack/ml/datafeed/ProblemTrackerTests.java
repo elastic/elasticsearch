@@ -23,20 +23,20 @@ public class ProblemTrackerTests extends ESTestCase {
     @Before
     public void setUpTests() {
         auditor = mock(Auditor.class);
-        problemTracker = new ProblemTracker(() -> auditor);
+        problemTracker = new ProblemTracker(auditor, "foo");
     }
 
     public void testReportExtractionProblem() {
         problemTracker.reportExtractionProblem("foo");
 
-        verify(auditor).error("Datafeed is encountering errors extracting data: foo");
+        verify(auditor).error("foo", "Datafeed is encountering errors extracting data: foo");
         assertTrue(problemTracker.hasProblems());
     }
 
     public void testReportAnalysisProblem() {
         problemTracker.reportAnalysisProblem("foo");
 
-        verify(auditor).error("Datafeed is encountering errors submitting data for analysis: foo");
+        verify(auditor).error("foo", "Datafeed is encountering errors submitting data for analysis: foo");
         assertTrue(problemTracker.hasProblems());
     }
 
@@ -44,7 +44,7 @@ public class ProblemTrackerTests extends ESTestCase {
         problemTracker.reportExtractionProblem("foo");
         problemTracker.reportAnalysisProblem("foo");
 
-        verify(auditor, times(1)).error("Datafeed is encountering errors extracting data: foo");
+        verify(auditor, times(1)).error("foo", "Datafeed is encountering errors extracting data: foo");
         assertTrue(problemTracker.hasProblems());
     }
 
@@ -53,7 +53,7 @@ public class ProblemTrackerTests extends ESTestCase {
         problemTracker.finishReport();
         problemTracker.reportExtractionProblem("foo");
 
-        verify(auditor, times(1)).error("Datafeed is encountering errors extracting data: foo");
+        verify(auditor, times(1)).error("foo", "Datafeed is encountering errors extracting data: foo");
         assertTrue(problemTracker.hasProblems());
     }
 
@@ -70,7 +70,7 @@ public class ProblemTrackerTests extends ESTestCase {
             problemTracker.reportEmptyDataCount();
         }
 
-        verify(auditor).warning("Datafeed has been retrieving no data for a while");
+        verify(auditor).warning("foo", "Datafeed has been retrieving no data for a while");
     }
 
     public void testUpdateEmptyDataCount_GivenEmptyElevenTimes() {
@@ -78,7 +78,7 @@ public class ProblemTrackerTests extends ESTestCase {
             problemTracker.reportEmptyDataCount();
         }
 
-        verify(auditor, times(1)).warning("Datafeed has been retrieving no data for a while");
+        verify(auditor, times(1)).warning("foo", "Datafeed has been retrieving no data for a while");
     }
 
     public void testUpdateEmptyDataCount_GivenNonEmptyAfterNineEmpty() {
@@ -96,8 +96,8 @@ public class ProblemTrackerTests extends ESTestCase {
         }
         problemTracker.reportNoneEmptyCount();
 
-        verify(auditor).warning("Datafeed has been retrieving no data for a while");
-        verify(auditor).info("Datafeed has started retrieving data again");
+        verify(auditor).warning("foo", "Datafeed has been retrieving no data for a while");
+        verify(auditor).info("foo", "Datafeed has started retrieving data again");
     }
 
     public void testFinishReport_GivenNoProblems() {
@@ -112,8 +112,8 @@ public class ProblemTrackerTests extends ESTestCase {
         problemTracker.finishReport();
         problemTracker.finishReport();
 
-        verify(auditor).error("Datafeed is encountering errors extracting data: bar");
-        verify(auditor).info("Datafeed has recovered data extraction and analysis");
+        verify(auditor).error("foo", "Datafeed is encountering errors extracting data: bar");
+        verify(auditor).info("foo", "Datafeed has recovered data extraction and analysis");
         assertFalse(problemTracker.hasProblems());
     }
 }

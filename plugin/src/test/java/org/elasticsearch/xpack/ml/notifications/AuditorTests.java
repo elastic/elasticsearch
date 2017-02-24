@@ -9,6 +9,8 @@ import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -16,15 +18,16 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class AuditorTests extends ESTestCase {
     private Client client;
+    private ClusterService clusterService;
     private ListenableActionFuture<IndexResponse> indexResponse;
     private ArgumentCaptor<String> indexCaptor;
     private ArgumentCaptor<String> typeCaptor;
@@ -33,17 +36,22 @@ public class AuditorTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     @Before
     public void setUpMocks() {
-        client = Mockito.mock(Client.class);
-        indexResponse = Mockito.mock(ListenableActionFuture.class);
+        client = mock(Client.class);
+        clusterService = mock(ClusterService.class);
+        DiscoveryNode dNode = mock(DiscoveryNode.class);
+        when(dNode.getName()).thenReturn("this_node_has_a_name");
+        when(clusterService.localNode()).thenReturn(dNode);
+
+        indexResponse = mock(ListenableActionFuture.class);
         indexCaptor = ArgumentCaptor.forClass(String.class);
         typeCaptor = ArgumentCaptor.forClass(String.class);
         jsonCaptor = ArgumentCaptor.forClass(XContentBuilder.class);
     }
 
-    public void testInfo() {
+    public void testInfo() throws IOException {
         givenClientPersistsSuccessfully();
-        Auditor auditor = new Auditor(client, "foo");
-        auditor.info("Here is my info");
+        Auditor auditor = new Auditor(client, clusterService);
+        auditor.info("foo", "Here is my info");
         assertEquals(".ml-notifications", indexCaptor.getValue());
         assertEquals("audit_message", typeCaptor.getValue());
         AuditMessage auditMessage = parseAuditMessage();
@@ -52,10 +60,10 @@ public class AuditorTests extends ESTestCase {
         assertEquals(Level.INFO, auditMessage.getLevel());
     }
 
-    public void testWarning() {
+    public void testWarning() throws IOException {
         givenClientPersistsSuccessfully();
-        Auditor auditor = new Auditor(client, "bar");
-        auditor.warning("Here is my warning");
+        Auditor auditor = new Auditor(client, clusterService);
+        auditor.warning("bar", "Here is my warning");
         assertEquals(".ml-notifications", indexCaptor.getValue());
         assertEquals("audit_message", typeCaptor.getValue());
         AuditMessage auditMessage = parseAuditMessage();
@@ -64,10 +72,10 @@ public class AuditorTests extends ESTestCase {
         assertEquals(Level.WARNING, auditMessage.getLevel());
     }
 
-    public void testError() {
+    public void testError() throws IOException {
         givenClientPersistsSuccessfully();
-        Auditor auditor = new Auditor(client, "foobar");
-        auditor.error("Here is my error");
+        Auditor auditor = new Auditor(client, clusterService);
+        auditor.error("foobar", "Here is my error");
         assertEquals(".ml-notifications", indexCaptor.getValue());
         assertEquals("audit_message", typeCaptor.getValue());
         AuditMessage auditMessage = parseAuditMessage();
@@ -76,21 +84,8 @@ public class AuditorTests extends ESTestCase {
         assertEquals(Level.ERROR, auditMessage.getLevel());
     }
 
-    public void testActivity_GivenNumbers() {
-        givenClientPersistsSuccessfully();
-        Auditor auditor = new Auditor(client, "");
-        auditor.activity(10, 100, 5, 50);
-        assertEquals(".ml-notifications", indexCaptor.getValue());
-        assertEquals("audit_activity", typeCaptor.getValue());
-        AuditActivity auditActivity = parseAuditActivity();
-        assertEquals(10, auditActivity.getTotalJobs());
-        assertEquals(100, auditActivity.getTotalDetectors());
-        assertEquals(5, auditActivity.getRunningJobs());
-        assertEquals(50, auditActivity.getRunningDetectors());
-    }
-
     private void givenClientPersistsSuccessfully() {
-        IndexRequestBuilder indexRequestBuilder = Mockito.mock(IndexRequestBuilder.class);
+        IndexRequestBuilder indexRequestBuilder = mock(IndexRequestBuilder.class);
         when(indexRequestBuilder.setSource(jsonCaptor.capture())).thenReturn(indexRequestBuilder);
         when(indexRequestBuilder.execute()).thenReturn(indexResponse);
         when(client.prepareIndex(indexCaptor.capture(), typeCaptor.capture(), any()))
@@ -99,23 +94,9 @@ public class AuditorTests extends ESTestCase {
         .thenReturn(indexRequestBuilder);
     }
 
-    private AuditMessage parseAuditMessage() {
-        try {
-            String json = jsonCaptor.getValue().string();
-            XContentParser parser = XContentFactory.xContent(json).createParser(NamedXContentRegistry.EMPTY, json);
-            return AuditMessage.PARSER.apply(parser, null);
-        } catch (IOException e) {
-            return new AuditMessage();
-        }
-    }
-
-    private AuditActivity parseAuditActivity() {
-        try {
-            String json = jsonCaptor.getValue().string();
-            XContentParser parser = XContentFactory.xContent(json).createParser(NamedXContentRegistry.EMPTY, json);
-            return AuditActivity.PARSER.apply(parser, null);
-        } catch (IOException e) {
-            return new AuditActivity();
-        }
+    private AuditMessage parseAuditMessage() throws IOException {
+        String json = jsonCaptor.getValue().string();
+        XContentParser parser = XContentFactory.xContent(json).createParser(NamedXContentRegistry.EMPTY, json);
+        return AuditMessage.PARSER.apply(parser, null);
     }
 }

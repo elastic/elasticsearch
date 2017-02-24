@@ -10,6 +10,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -26,28 +27,23 @@ public class Auditor {
     private static final Logger LOGGER = Loggers.getLogger(Auditor.class);
 
     private final Client client;
-    private final String jobId;
+    private final ClusterService clusterService;
 
-    public Auditor(Client client, String jobId) {
+    public Auditor(Client client, ClusterService clusterService) {
         this.client = Objects.requireNonNull(client);
-        this.jobId = jobId;
+        this.clusterService = clusterService;
     }
 
-    public void info(String message) {
-        indexDoc(AuditMessage.TYPE.getPreferredName(), AuditMessage.newInfo(jobId, message));
+    public void info(String jobId, String message) {
+        indexDoc(AuditMessage.TYPE.getPreferredName(), AuditMessage.newInfo(jobId, message, clusterService.localNode().getName()));
     }
 
-    public void warning(String message) {
-        indexDoc(AuditMessage.TYPE.getPreferredName(), AuditMessage.newWarning(jobId, message));
+    public void warning(String jobId, String message) {
+        indexDoc(AuditMessage.TYPE.getPreferredName(), AuditMessage.newWarning(jobId, message, clusterService.localNode().getName()));
     }
 
-    public void error(String message) {
-        indexDoc(AuditMessage.TYPE.getPreferredName(), AuditMessage.newError(jobId, message));
-    }
-
-    public void activity(int totalJobs, int totalDetectors, int runningJobs, int runningDetectors) {
-        String type = AuditActivity.TYPE.getPreferredName();
-        indexDoc(type, AuditActivity.newActivity(totalJobs, totalDetectors, runningJobs, runningDetectors));
+    public void error(String jobId, String message) {
+        indexDoc(AuditMessage.TYPE.getPreferredName(), AuditMessage.newError(jobId, message, clusterService.localNode().getName()));
     }
 
     private void indexDoc(String type, ToXContent toXContent) {

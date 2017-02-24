@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobStorageDeletionTask;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
@@ -56,27 +55,21 @@ import java.util.stream.Collectors;
  */
 public class JobManager extends AbstractComponent {
 
-    /**
-     * Field name in which to store the API version in the usage info
-     */
-    public static final String APP_VER_FIELDNAME = "appVer";
-
-    public static final String DEFAULT_RECORD_SORT_FIELD = AnomalyRecord.PROBABILITY.getPreferredName();
-
     private final JobProvider jobProvider;
     private final ClusterService clusterService;
     private final JobResultsPersister jobResultsPersister;
-
+    private final Auditor auditor;
 
     /**
      * Create a JobManager
      */
     public JobManager(Settings settings, JobProvider jobProvider, JobResultsPersister jobResultsPersister,
-                      ClusterService clusterService) {
+                      ClusterService clusterService, Auditor auditor) {
         super(settings);
         this.jobProvider = Objects.requireNonNull(jobProvider);
         this.clusterService = clusterService;
         this.jobResultsPersister = jobResultsPersister;
+        this.auditor = auditor;
     }
 
     /**
@@ -169,7 +162,7 @@ public class JobManager extends AbstractComponent {
                 jobProvider.createJobResultIndex(job, state, new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean indicesCreated) {
-                audit(job.getId()).info(Messages.getMessage(Messages.JOB_AUDIT_CREATED));
+                auditor.info(job.getId(), Messages.getMessage(Messages.JOB_AUDIT_CREATED));
 
                 // Also I wonder if we need to audit log infra
                 // structure in ml as when we merge into xpack
@@ -269,7 +262,7 @@ public class JobManager extends AbstractComponent {
             if (jobDeleted) {
                 logger.info("Job [" + jobId + "] deleted.");
                 actionListener.onResponse(new DeleteJobAction.Response(true));
-                audit(jobId).info(Messages.getMessage(Messages.JOB_AUDIT_DELETED));
+                auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DELETED));
             } else {
                 actionListener.onResponse(new DeleteJobAction.Response(false));
             }
@@ -336,10 +329,6 @@ public class JobManager extends AbstractComponent {
         });
     }
 
-    public Auditor audit(String jobId) {
-        return jobProvider.audit(jobId);
-    }
-
     public void revertSnapshot(RevertModelSnapshotAction.Request request, ActionListener<RevertModelSnapshotAction.Response> actionListener,
             ModelSnapshot modelSnapshot) {
 
@@ -349,8 +338,7 @@ public class JobManager extends AbstractComponent {
             @Override
             protected RevertModelSnapshotAction.Response newResponse(boolean acknowledged) {
                 if (acknowledged) {
-                    audit(request.getJobId())
-                            .info(Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
+                    auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
                     return new RevertModelSnapshotAction.Response(modelSnapshot);
                 }
                 throw new IllegalStateException("Could not revert modelSnapshot on job ["

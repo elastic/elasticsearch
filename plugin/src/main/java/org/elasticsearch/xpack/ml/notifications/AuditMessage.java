@@ -28,6 +28,7 @@ public class AuditMessage extends ToXContentToBytes implements Writeable {
     public static final ParseField MESSAGE = new ParseField("message");
     public static final ParseField LEVEL = new ParseField("level");
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
+    public static final ParseField NODE_NAME = new ParseField("node_name");
 
     public static final ObjectParser<AuditMessage, Void> PARSER = new ObjectParser<>(TYPE.getPreferredName(),
             AuditMessage::new);
@@ -49,22 +50,25 @@ public class AuditMessage extends ToXContentToBytes implements Writeable {
             }
             throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + TIMESTAMP.getPreferredName() + "]");
         }, TIMESTAMP, ValueType.VALUE);
+        PARSER.declareString(AuditMessage::setNodeName, NODE_NAME);
     }
 
     private String jobId;
     private String message;
     private Level level;
     private Date timestamp;
+    private String nodeName;
 
-    public AuditMessage() {
-        // Default constructor
+    private AuditMessage() {
+
     }
 
-    private AuditMessage(String jobId, String message, Level level) {
+     AuditMessage(String jobId, String message, Level level, String nodeName) {
         this.jobId = jobId;
         this.message = message;
         this.level = level;
         timestamp = new Date();
+        this.nodeName = nodeName;
     }
 
     public AuditMessage(StreamInput in) throws IOException {
@@ -76,6 +80,7 @@ public class AuditMessage extends ToXContentToBytes implements Writeable {
         if (in.readBoolean()) {
             timestamp = new Date(in.readLong());
         }
+        nodeName = in.readOptionalString();
     }
 
     @Override
@@ -92,6 +97,7 @@ public class AuditMessage extends ToXContentToBytes implements Writeable {
         if (hasTimestamp) {
             out.writeLong(timestamp.getTime());
         }
+        out.writeOptionalString(nodeName);
     }
 
     public String getJobId() {
@@ -126,20 +132,28 @@ public class AuditMessage extends ToXContentToBytes implements Writeable {
         this.timestamp = timestamp;
     }
 
-    public static AuditMessage newInfo(String jobId, String message) {
-        return new AuditMessage(jobId, message, Level.INFO);
+    public String getNodeName() {
+        return nodeName;
     }
 
-    public static AuditMessage newWarning(String jobId, String message) {
-        return new AuditMessage(jobId, message, Level.WARNING);
+    public void setNodeName(String nodeName) {
+        this.nodeName = nodeName;
     }
 
-    public static AuditMessage newActivity(String jobId, String message) {
-        return new AuditMessage(jobId, message, Level.ACTIVITY);
+    public static AuditMessage newInfo(String jobId, String message, String nodeName) {
+        return new AuditMessage(jobId, message, Level.INFO, nodeName);
     }
 
-    public static AuditMessage newError(String jobId, String message) {
-        return new AuditMessage(jobId, message, Level.ERROR);
+    public static AuditMessage newWarning(String jobId, String message, String nodeName) {
+        return new AuditMessage(jobId, message, Level.WARNING, nodeName);
+    }
+
+    public static AuditMessage newActivity(String jobId, String message, String nodeName) {
+        return new AuditMessage(jobId, message, Level.ACTIVITY, nodeName);
+    }
+
+    public static AuditMessage newError(String jobId, String message, String nodeName) {
+        return new AuditMessage(jobId, message, Level.ERROR, nodeName);
     }
 
     @Override
@@ -156,6 +170,9 @@ public class AuditMessage extends ToXContentToBytes implements Writeable {
         }
         if (timestamp != null) {
             builder.field(TIMESTAMP.getPreferredName(), timestamp.getTime());
+        }
+        if (nodeName != null) {
+            builder.field(NODE_NAME.getPreferredName(), nodeName);
         }
         builder.endObject();
         return builder;

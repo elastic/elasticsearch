@@ -57,15 +57,17 @@ public class DatafeedJobRunner extends AbstractComponent {
     private final JobProvider jobProvider;
     private final ThreadPool threadPool;
     private final Supplier<Long> currentTimeSupplier;
+    private final Auditor auditor;
 
     public DatafeedJobRunner(ThreadPool threadPool, Client client, ClusterService clusterService, JobProvider jobProvider,
-                              Supplier<Long> currentTimeSupplier) {
+                              Supplier<Long> currentTimeSupplier, Auditor auditor) {
         super(Settings.EMPTY);
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.jobProvider = Objects.requireNonNull(jobProvider);
         this.threadPool = threadPool;
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
+        this.auditor = auditor;
     }
 
     public void run(StartDatafeedAction.DatafeedTask task, Consumer<Exception> handler) {
@@ -174,13 +176,12 @@ public class DatafeedJobRunner extends AbstractComponent {
 
     Holder createJobDatafeed(DatafeedConfig datafeed, Job job, long finalBucketEndMs, long latestRecordTimeMs,
                                       Consumer<Exception> handler, StartDatafeedAction.DatafeedTask task) {
-        Auditor auditor = jobProvider.audit(job.getId());
         Duration frequency = getFrequencyOrDefault(datafeed, job);
         Duration queryDelay = Duration.ofSeconds(datafeed.getQueryDelay());
         DataExtractorFactory dataExtractorFactory = createDataExtractorFactory(datafeed, job);
         DatafeedJob datafeedJob =  new DatafeedJob(job.getId(), buildDataDescription(job), frequency.toMillis(), queryDelay.toMillis(),
                 dataExtractorFactory, client, auditor, currentTimeSupplier, finalBucketEndMs, latestRecordTimeMs);
-        Holder holder = new Holder(datafeed, datafeedJob, task.isLookbackOnly(), new ProblemTracker(() -> auditor), handler);
+        Holder holder = new Holder(datafeed, datafeedJob, task.isLookbackOnly(), new ProblemTracker(auditor, job.getId()), handler);
         task.setHolder(holder);
         return holder;
     }
@@ -284,7 +285,7 @@ public class DatafeedJobRunner extends AbstractComponent {
                     if (datafeedJob.stop()) {
                         FutureUtils.cancel(future);
                         handler.accept(e);
-                        jobProvider.audit(datafeed.getJobId()).info(Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
+                        auditor.info(datafeed.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
                         logger.info("[{}] datafeed [{}] for job [{}] has been stopped", source, datafeed.getId(), datafeed.getJobId());
                         if (autoCloseJob) {
                             closeJob();

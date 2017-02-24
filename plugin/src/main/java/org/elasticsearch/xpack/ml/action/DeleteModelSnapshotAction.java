@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -133,17 +134,19 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
         private final JobProvider jobProvider;
         private final JobManager jobManager;
         private final ClusterService clusterService;
+        private final Auditor auditor;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                JobProvider jobProvider, JobManager jobManager, ClusterService clusterService,
-                               Client client) {
+                               Client client, Auditor auditor) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.client = client;
             this.jobProvider = jobProvider;
             this.jobManager = jobManager;
             this.clusterService = clusterService;
+            this.auditor = auditor;
         }
 
         @Override
@@ -193,7 +196,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
                             }
                         });
 
-                        jobManager.audit(request.getJobId()).info(Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_DELETED,
+                        auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_DELETED,
                                 deleteCandidate.getDescription()));
                     }, listener::onFailure);
         }

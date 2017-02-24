@@ -87,6 +87,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.MultiplyingNormalizerPr
 import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestDeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedStatsAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedsAction;
@@ -252,7 +253,8 @@ public class MachineLearning extends Plugin implements ActionPlugin {
         JobProvider jobProvider = new JobProvider(client, 1, settings);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
 
-        JobManager jobManager = new JobManager(settings, jobProvider, jobResultsPersister, clusterService);
+        Auditor auditor = new Auditor(client, clusterService);
+        JobManager jobManager = new JobManager(settings, jobProvider, jobResultsPersister, clusterService, auditor);
         AutodetectProcessFactory autodetectProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
         if (AUTODETECT_PROCESS.get(settings)) {
@@ -281,7 +283,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
         AutodetectProcessManager dataProcessor = new AutodetectProcessManager(settings, client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory, normalizerFactory);
         DatafeedJobRunner datafeedJobRunner = new DatafeedJobRunner(threadPool, client, clusterService, jobProvider,
-                System::currentTimeMillis);
+                System::currentTimeMillis, auditor);
         PersistentActionService persistentActionService = new PersistentActionService(Settings.EMPTY, threadPool, clusterService, client);
         PersistentActionRegistry persistentActionRegistry = new PersistentActionRegistry(Settings.EMPTY);
 
@@ -289,12 +291,13 @@ public class MachineLearning extends Plugin implements ActionPlugin {
                 jobProvider,
                 jobManager,
                 dataProcessor,
-                new MlInitializationService(settings, threadPool, clusterService, client, jobProvider),
+                new MlInitializationService(settings, threadPool, clusterService, client, jobProvider, auditor),
                 jobDataCountsPersister,
                 datafeedJobRunner,
                 persistentActionService,
                 persistentActionRegistry,
-                new PersistentTaskClusterService(Settings.EMPTY, persistentActionRegistry, clusterService)
+                new PersistentTaskClusterService(Settings.EMPTY, persistentActionRegistry, clusterService),
+                auditor
         );
     }
 

@@ -33,6 +33,7 @@ public class MlInitializationService extends AbstractComponent implements Cluste
     private final ClusterService clusterService;
     private final Client client;
     private final JobProvider jobProvider;
+    private final Auditor auditor;
 
     private final AtomicBoolean installMlMetadataCheck = new AtomicBoolean(false);
     private final AtomicBoolean putMlNotificationsIndexTemplateCheck = new AtomicBoolean(false);
@@ -43,12 +44,13 @@ public class MlInitializationService extends AbstractComponent implements Cluste
     private volatile MlDailyManagementService mlDailyManagementService;
 
     public MlInitializationService(Settings settings, ThreadPool threadPool, ClusterService clusterService, Client client,
-                                   JobProvider jobProvider) {
+                                   JobProvider jobProvider, Auditor auditor) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.client = client;
         this.jobProvider = jobProvider;
+        this.auditor = auditor;
         clusterService.addListener(this);
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
@@ -179,9 +181,8 @@ public class MlInitializationService extends AbstractComponent implements Cluste
 
     private void installDailyManagementService() {
         if (mlDailyManagementService == null) {
-            mlDailyManagementService = new MlDailyManagementService(threadPool,
-                    Arrays.asList((MlDailyManagementService.Listener)
-                    new ExpiredResultsRemover(client, clusterService, jobId -> jobProvider.audit(jobId)),
+            mlDailyManagementService = new MlDailyManagementService(threadPool, Arrays.asList(
+                    new ExpiredResultsRemover(client, clusterService, auditor),
                     new ExpiredModelSnapshotsRemover(client, clusterService)
             ));
             mlDailyManagementService.start();

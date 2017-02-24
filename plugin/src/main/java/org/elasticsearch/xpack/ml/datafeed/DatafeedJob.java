@@ -73,7 +73,7 @@ class DatafeedJob {
             if (isLookbackOnly) {
                 return null;
             } else {
-                auditor.info(Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STARTED_REALTIME));
+                auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STARTED_REALTIME));
                 return nextRealtimeTimestamp();
             }
         }
@@ -81,17 +81,17 @@ class DatafeedJob {
         String msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STARTED_FROM_TO,
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.printer().print(lookbackStartTimeMs),
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.printer().print(lookbackEnd));
-        auditor.info(msg);
+        auditor.info(jobId, msg);
 
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setCalcInterim(true);
         run(lookbackStartTimeMs, lookbackEnd, request);
-        auditor.info(Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_LOOKBACK_COMPLETED));
+        auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_LOOKBACK_COMPLETED));
         LOGGER.info("[{}] Lookback has finished", jobId);
         if (isLookbackOnly) {
             return null;
         } else {
-            auditor.info(Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CONTINUED_REALTIME));
+            auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CONTINUED_REALTIME));
             return nextRealtimeTimestamp();
         }
     }

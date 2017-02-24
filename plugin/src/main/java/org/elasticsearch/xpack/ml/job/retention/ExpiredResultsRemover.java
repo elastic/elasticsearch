@@ -42,12 +42,12 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     private static final Logger LOGGER = Loggers.getLogger(ExpiredResultsRemover.class);
 
     private final Client client;
-    private final Function<String, Auditor> auditorSupplier;
+    private final Auditor auditor;
 
-    public ExpiredResultsRemover(Client client, ClusterService clusterService, Function<String, Auditor> auditorSupplier) {
+    public ExpiredResultsRemover(Client client, ClusterService clusterService, Auditor auditor) {
         super(clusterService);
         this.client = Objects.requireNonNull(client);
-        this.auditorSupplier = Objects.requireNonNull(auditorSupplier);
+        this.auditor = Objects.requireNonNull(auditor);
     }
 
     @Override
@@ -99,6 +99,6 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         ZonedDateTime zonedDateTime = ZonedDateTime.ofInstant(instant, ZoneOffset.systemDefault());
         String formatted = DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(zonedDateTime);
         String msg = Messages.getMessage(Messages.JOB_AUDIT_OLD_RESULTS_DELETED, formatted);
-        auditorSupplier.apply(jobId).info(msg);
+        auditor.info(jobId, msg);
     }
 }

@@ -36,13 +36,13 @@ public class JobManagerTests extends ESTestCase {
 
     private ClusterService clusterService;
     private JobProvider jobProvider;
+    private Auditor auditor;
 
     @Before
     public void setupMocks() {
         clusterService = mock(ClusterService.class);
         jobProvider = mock(JobProvider.class);
-        Auditor auditor = mock(Auditor.class);
-        when(jobProvider.audit(anyString())).thenReturn(auditor);
+        auditor = mock(Auditor.class);
     }
 
     public void testGetJob() {
@@ -121,7 +121,7 @@ public class JobManagerTests extends ESTestCase {
     private JobManager createJobManager() {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         JobResultsPersister jobResultsPersister = mock(JobResultsPersister.class);
-        return new JobManager(settings, jobProvider, jobResultsPersister, clusterService);
+        return new JobManager(settings, jobProvider, jobResultsPersister, clusterService, auditor);
     }
 
     private ClusterState createClusterState() {

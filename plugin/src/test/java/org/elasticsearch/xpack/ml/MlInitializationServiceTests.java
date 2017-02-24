@@ -47,6 +47,7 @@ public class MlInitializationServiceTests extends ESTestCase {
     private ClusterService clusterService;
     private Client client;
     private JobProvider jobProvider;
+    private Auditor auditor;
 
     @Before
     public void setUpMocks() {
@@ -55,6 +56,7 @@ public class MlInitializationServiceTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);
         jobProvider = mock(JobProvider.class);
+        auditor = mock(Auditor.class);
 
         doAnswer(invocation -> {
             ((Runnable) invocation.getArguments()[0]).run();
@@ -70,7 +72,7 @@ public class MlInitializationServiceTests extends ESTestCase {
 
         ClusterService clusterService = mock(ClusterService.class);
         MlInitializationService initializationService =
-                new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, jobProvider);
+                new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, jobProvider, auditor);
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
@@ -91,7 +93,7 @@ public class MlInitializationServiceTests extends ESTestCase {
 
     public void testInitialize_noMasterNode() throws Exception {
         MlInitializationService initializationService =
-                new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, jobProvider);
+                new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, jobProvider, auditor);
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
@@ -120,7 +122,7 @@ public class MlInitializationServiceTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         JobProvider jobProvider = mockJobProvider();
         MlInitializationService initializationService =
-                new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, jobProvider);
+                new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, jobProvider, auditor);
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
@@ -173,7 +175,7 @@ public class MlInitializationServiceTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         JobProvider jobProvider = mockJobProvider();
         MlInitializationService initializationService =
-                new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, jobProvider);
+                new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, jobProvider, auditor);
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
@@ -221,7 +223,7 @@ public class MlInitializationServiceTests extends ESTestCase {
 
     public void testNodeGoesFromMasterToNonMasterAndBack() throws Exception {
         MlInitializationService initializationService =
-                new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, jobProvider);
+                new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, jobProvider, auditor);
         MlDailyManagementService initialDailyManagementService = mock(MlDailyManagementService.class);
         initializationService.setDailyManagementService(initialDailyManagementService);
 

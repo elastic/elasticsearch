@@ -1174,14 +1174,4 @@ public class JobProvider {
     public void getFilters(Consumer<Set<MlFilter>> handler, Consumer<Exception> errorHandler, Set<String> ids) {
         mget(ML_META_INDEX, MlFilter.TYPE.getPreferredName(), ids, handler, errorHandler, MlFilter.PARSER);
     }
-
-    /**
-     * Get an auditor for the given job
-     *
-     * @param jobId the job id
-     * @return the {@code Auditor}
-     */
-    public Auditor audit(String jobId) {
-        return new Auditor(client, jobId);
-    }
 }

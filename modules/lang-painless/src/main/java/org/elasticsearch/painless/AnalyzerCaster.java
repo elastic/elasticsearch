@@ -119,6 +119,7 @@ public final class AnalyzerCaster {
                 switch (expected.sort) {
                     case BYTE:
                         if (explicit) return new OOCast.Numeric(SHORT_TYPE, expected, OOCast.NOOP);
+                        break;
                     case INT:
                     case LONG:
                     case FLOAT:
@@ -261,7 +262,8 @@ public final class AnalyzerCaster {
                         if (internal) return new OOCast.Box(LONG_TYPE);
                         break;
                     case BYTE_OBJ:
-                        if (explicit && internal) return new OOCast.Numeric(LONG_TYPE, BYTE_TYPE, new OOCast.Box(BYTE_TYPE));                        break;
+                        if (explicit && internal) return new OOCast.Numeric(LONG_TYPE, BYTE_TYPE, new OOCast.Box(BYTE_TYPE));
+                        break;
                     case SHORT_OBJ:
                         if (explicit && internal) return new OOCast.Numeric(LONG_TYPE, SHORT_TYPE, new OOCast.Box(SHORT_TYPE));
                         break;
@@ -496,63 +498,52 @@ public final class AnalyzerCaster {
                 break;
             case LONG_OBJ:
                 switch (expected.sort) {
-                    case LONG:
-                    case FLOAT:
-                    case DOUBLE:
-                        if (internal)
-                            return new Cast(LONG_TYPE, expected, explicit, LONG_TYPE, null, null, null);
-
-                        break;
                     case BYTE:
                     case SHORT:
                     case CHAR:
                     case INT:
-                        if (internal && explicit)
-                            return new Cast(LONG_TYPE, expected, true, LONG_TYPE, null, null, null);
-
+                        if (internal && explicit) return new OOCast.Unbox(LONG_TYPE, new OOCast.Numeric(LONG_TYPE, expected));
+                        break;
+                    case LONG:
+                        if (internal) return new OOCast.Unbox(LONG_TYPE);
+                        break;
+                    case FLOAT:
+                    case DOUBLE:
+                        if (internal) return new OOCast.Unbox(LONG_TYPE, new OOCast.Numeric(LONG_TYPE, expected));
                         break;
                 }
-
                 break;
             case FLOAT_OBJ:
                 switch (expected.sort) {
-                    case FLOAT:
-                    case DOUBLE:
-                        if (internal)
-                            return new Cast(FLOAT_TYPE, expected, explicit, FLOAT_TYPE, null, null, null);
-
-                        break;
                     case BYTE:
                     case SHORT:
                     case CHAR:
                     case INT:
                     case LONG:
-                        if (internal && explicit)
-                            return new Cast(FLOAT_TYPE, expected, true, FLOAT_TYPE, null, null, null);
-
+                        if (internal && explicit) return new OOCast.Unbox(FLOAT_TYPE, new OOCast.Numeric(FLOAT_TYPE, expected));
+                        break;
+                    case FLOAT:
+                        if (internal) return new OOCast.Unbox(FLOAT_TYPE);
+                        break;
+                    case DOUBLE:
+                        if (internal) return new OOCast.Unbox(FLOAT_TYPE, new OOCast.Numeric(FLOAT_TYPE, DOUBLE_TYPE));
                         break;
                 }
-
                 break;
             case DOUBLE_OBJ:
                 switch (expected.sort) {
-                    case DOUBLE:
-                        if (internal)
-                            return new Cast(DOUBLE_TYPE, expected, explicit, DOUBLE_TYPE, null, null, null);
-
-                        break;
                     case BYTE:
                     case SHORT:
                     case CHAR:
                     case INT:
                     case LONG:
                     case FLOAT:
-                        if (internal && explicit)
-                            return new Cast(DOUBLE_TYPE, expected, true, DOUBLE_TYPE, null, null, null);
-
+                        if (internal && explicit) return new OOCast.Unbox(DOUBLE_TYPE, new OOCast.Numeric(DOUBLE_TYPE, expected));
+                        break;
+                    case DOUBLE:
+                        if (internal) return new OOCast.Unbox(DOUBLE_TYPE);
                         break;
                 }
-
                 break;
             case DEF:
                 switch (expected.sort) {
@@ -571,7 +562,7 @@ public final class AnalyzerCaster {
                     case FLOAT:
                         return new Cast(DEF_TYPE, FLOAT_OBJ_TYPE, explicit, null, FLOAT_TYPE, null, null);
                     case DOUBLE:
-                            return new Cast(DEF_TYPE, DOUBLE_OBJ_TYPE, explicit, null, DOUBLE_TYPE, null, null);
+                        return new Cast(DEF_TYPE, DOUBLE_OBJ_TYPE, explicit, null, DOUBLE_TYPE, null, null);
                 }
 
                 break;
@@ -587,17 +578,22 @@ public final class AnalyzerCaster {
                 break;
         }
 
+        if (expected.clazz.isAssignableFrom(actual.clazz)) {
+            return OOCast.NOOP;
+        }
+        if (explicit && actual.clazz.isAssignableFrom(expected.clazz)) {
+            return new OOCast.CheckedCast(expected);
+        }
+
         if (       actual.sort == Sort.DEF
-                || (actual.sort != Sort.VOID && expected.sort == Sort.DEF)
-                || expected.clazz.isAssignableFrom(actual.clazz)
-                || (explicit && actual.clazz.isAssignableFrom(expected.clazz))) {
+                || (actual.sort != Sort.VOID && expected.sort == Sort.DEF)) {
             return new Cast(actual, expected, explicit);
         } else {
             throw location.createError(new ClassCastException("Cannot cast from [" + actual.name + "] to [" + expected.name + "]."));
         }
     }
 
-    public static Object constCast(Location location, final Object constant, final Cast cast) {
+    public static Object constCast(Location location, final Object constant, final Cast cast) { // NOCOMMIT remove me
         final Sort fsort = cast.from.sort;
         final Sort tsort = cast.to.sort;
 

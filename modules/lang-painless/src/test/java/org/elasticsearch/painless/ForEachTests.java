@@ -103,8 +103,8 @@ public class ForEachTests extends ScriptTestCase {
     }
 
     public void testCastToInt() {
-        castTestCase((int) 1, "int", true);
-        castTestCase((int) 1, "Integer", false);
+        castTestCase(1, "int", true);
+        castTestCase(1, "Integer", false);
     }
 
     public void testCastToLong() {

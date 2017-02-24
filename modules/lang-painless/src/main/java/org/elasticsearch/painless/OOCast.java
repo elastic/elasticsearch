@@ -24,7 +24,7 @@ import org.elasticsearch.painless.Definition.Type;
 
 /**
  * Casting strategies. Many, but not all, casting strategies support a "next" strategy to allow building compound strategies like "unbox and
- * then convert from char to int". These are always read from "outside" inwards, meaning that a strategy is first executed and then the
+ * then convert from char to int". These are always read from "outside inwards", meaning that a strategy is first executed and then the
  * "next" strategy is executed.
  */
 public abstract class OOCast { // NOCOMMIT rename
@@ -199,12 +199,45 @@ public abstract class OOCast { // NOCOMMIT rename
 
         @Override
         public Object castConstant(Location location, Object constant) {
+            // Constants are always boxed inside the compiler. We unbox them when writing instead.
             return next.castConstant(location, constant);
         }
 
         @Override
         public String toString() {
             return "(Unbox " + to + " " + next + ")";
+        }
+    }
+
+    /**
+     * Performs a checked cast to narrow from a wider type to a more specific one. For example
+     * {@code Number n = Integer.valueOf(5); Integer i = (Integer) n}.
+     */
+    static class CheckedCast extends OOCast {
+        private final Type to;
+
+        CheckedCast(Type to) {
+            this.to = to;
+        }
+
+        @Override
+        public boolean castRequired() {
+            return true;
+        }
+
+        @Override
+        public void write(MethodWriter writer) {
+            writer.checkCast(to.type);
+        }
+
+        @Override
+        public Object castConstant(Location location, Object constant) {
+            return to.clazz.cast(constant);
+        }
+
+        @Override
+        public String toString() {
+            return "(CheckedCast " + to + ")";
         }
     }
 }

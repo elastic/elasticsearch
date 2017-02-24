@@ -137,7 +137,7 @@ public abstract class AExpression extends ANode {
                 EConstant econstant = new EConstant(location, constant);
                 econstant.analyze(locals);
 
-                if (!expected.equals(econstant.actual)) {
+                if (!expected.clazz.isAssignableFrom(econstant.actual.clazz)) {
                     throw createError(new IllegalStateException("Illegal tree structure."));
                 }
 

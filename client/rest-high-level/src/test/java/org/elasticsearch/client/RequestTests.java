@@ -22,7 +22,6 @@ package org.elasticsearch.client;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -79,8 +78,10 @@ public class RequestTests extends ESTestCase {
 
         Map<String, String> expectedParams = new HashMap<>();
 
-        enrichDocWriteRequest(deleteRequest, expectedParams);
-        enrichReplicationRequest(deleteRequest, expectedParams);
+        setRandomTimeout(deleteRequest, expectedParams);
+        setRandomRefreshPolicy(deleteRequest, expectedParams);
+        setRandomVersion(deleteRequest, expectedParams);
+        setRandomVersionType(deleteRequest, expectedParams);
 
         if (frequently()) {
             if (randomBoolean()) {
@@ -99,6 +100,7 @@ public class RequestTests extends ESTestCase {
         assertEquals("/" + index + "/" + type + "/" + id, request.endpoint);
         assertEquals(expectedParams, request.params);
         assertEquals("DELETE", request.method);
+        assertNull(request.entity);
     }
 
     public void testExists() {
@@ -195,8 +197,17 @@ public class RequestTests extends ESTestCase {
             }
         }
 
-        enrichDocWriteRequest(indexRequest, expectedParams);
-        enrichReplicationRequest(indexRequest, expectedParams);
+        setRandomTimeout(indexRequest, expectedParams);
+        setRandomRefreshPolicy(indexRequest, expectedParams);
+
+        // There is some logic around _create endpoint and version/version type
+        if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
+            indexRequest.version(randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED));
+            expectedParams.put("version", Long.toString(Versions.MATCH_DELETED));
+        } else {
+            setRandomVersion(indexRequest, expectedParams);
+            setRandomVersionType(indexRequest, expectedParams);
+        }
 
         if (frequently()) {
             if (randomBoolean()) {
@@ -675,7 +686,7 @@ public class RequestTests extends ESTestCase {
         }
     }
 
-    private void enrichReplicationRequest(ReplicatedWriteRequest request, Map<String, String> expectedParams) {
+    private static void setRandomTimeout(ReplicationRequest<?> request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             String timeout = randomTimeValue();
             request.timeout(timeout);
@@ -683,7 +694,9 @@ public class RequestTests extends ESTestCase {
         } else {
             expectedParams.put("timeout", ReplicationRequest.DEFAULT_TIMEOUT.getStringRep());
         }
+    }
 
+    private static void setRandomRefreshPolicy(ReplicatedWriteRequest<?> request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
             request.setRefreshPolicy(refreshPolicy);
@@ -693,25 +706,22 @@ public class RequestTests extends ESTestCase {
         }
     }
 
-    private void enrichDocWriteRequest(DocWriteRequest request, Map<String, String> expectedParams) {
-        // There is some logic around _create endpoint and version/version type
-        if (request.opType() == DocWriteRequest.OpType.CREATE) {
-            request.version(randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED));
-            expectedParams.put("version", Long.toString(Versions.MATCH_DELETED));
-        } else {
-            if (randomBoolean()) {
-                long version = randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED, Versions.NOT_FOUND, randomNonNegativeLong());
-                request.version(version);
-                if (version != Versions.MATCH_ANY) {
-                    expectedParams.put("version", Long.toString(version));
-                }
+    private static void setRandomVersion(DocWriteRequest<?> request, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            long version = randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED, Versions.NOT_FOUND, randomNonNegativeLong());
+            request.version(version);
+            if (version != Versions.MATCH_ANY) {
+                expectedParams.put("version", Long.toString(version));
             }
-            if (randomBoolean()) {
-                VersionType versionType = randomFrom(VersionType.values());
-                request.versionType(versionType);
-                if (versionType != VersionType.INTERNAL) {
-                    expectedParams.put("version_type", versionType.name().toLowerCase(Locale.ROOT));
-                }
+        }
+    }
+
+    private static void setRandomVersionType(DocWriteRequest<?> request, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            VersionType versionType = randomFrom(VersionType.values());
+            request.versionType(versionType);
+            if (versionType != VersionType.INTERNAL) {
+                expectedParams.put("version_type", versionType.name().toLowerCase(Locale.ROOT));
             }
         }
     }

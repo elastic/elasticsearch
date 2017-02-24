@@ -23,11 +23,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Anomaly Record POJO.
@@ -296,7 +295,7 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
             builder.field(INFLUENCERS.getPreferredName(), influences);
         }
 
-        Map<String, Set<String>> inputFields = inputFieldMap();
+        Map<String, LinkedHashSet<String>> inputFields = inputFieldMap();
         for (String fieldName : inputFields.keySet()) {
             builder.field(fieldName, inputFields.get(fieldName));
         }
@@ -305,8 +304,9 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         return builder;
     }
 
-    private Map<String, Set<String>> inputFieldMap() {
-        Map<String, Set<String>> result = new HashMap<>();
+    private Map<String, LinkedHashSet<String>> inputFieldMap() {
+        // LinkedHashSet preserves insertion order when iterating entries
+        Map<String, LinkedHashSet<String>> result = new HashMap<>();
 
         addInputFieldsToMap(result, byFieldName, byFieldValue);
         addInputFieldsToMap(result, overFieldName, overFieldValue);
@@ -323,10 +323,10 @@ public class AnomalyRecord extends ToXContentToBytes implements Writeable {
         return result;
     }
 
-    private void addInputFieldsToMap(Map<String, Set<String>> inputFields, String fieldName, String fieldValue) {
+    private void addInputFieldsToMap(Map<String, LinkedHashSet<String>> inputFields, String fieldName, String fieldValue) {
         if (!Strings.isNullOrEmpty(fieldName) && fieldValue != null) {
             if (ReservedFieldNames.isValidFieldName(fieldName)) {
-                inputFields.computeIfAbsent(fieldName, k -> new HashSet<String>()).add(fieldValue);
+                inputFields.computeIfAbsent(fieldName, k -> new LinkedHashSet<>()).add(fieldValue);
             }
         }
     }

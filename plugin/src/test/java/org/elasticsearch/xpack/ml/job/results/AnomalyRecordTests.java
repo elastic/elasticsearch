@@ -115,6 +115,33 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         assertEquals(influence2.getInfluencerFieldValues(), serialisedInfFieldValues2);
     }
 
+    public void testToXContentOrdersDuplicateInputFields() throws IOException {
+        AnomalyRecord record = createTestInstance();
+        record.setByFieldName("car-make");
+        record.setByFieldValue("ford");
+        record.setOverFieldName("number-of-wheels");
+        record.setOverFieldValue("4");
+        record.setPartitionFieldName("spoiler");
+        record.setPartitionFieldValue("yes");
+
+        Influence influence1 = new Influence("car-make", Collections.singletonList("VW"));
+        Influence influence2 = new Influence("number-of-wheels", Collections.singletonList("18"));
+        Influence influence3 = new Influence("spoiler", Collections.singletonList("no"));
+        record.setInfluencers(Arrays.asList(influence1, influence2, influence3));
+
+        // influencer fields with the same name as a by/over/partitiion field
+        // come second in the list
+        XContentBuilder builder = toXContent(record, XContentType.JSON);
+        XContentParser parser = createParser(builder);
+        Map<String, Object> map = parser.map();
+        List<String> serialisedCarMakeFieldValues = (List<String>) map.get("car-make");
+        assertEquals(Arrays.asList("ford", "VW"), serialisedCarMakeFieldValues);
+        List<String> serialisedNumberOfWheelsFieldValues = (List<String>) map.get("number-of-wheels");
+        assertEquals(Arrays.asList("4", "18"), serialisedNumberOfWheelsFieldValues);
+        List<String> serialisedSpoilerFieldValues = (List<String>) map.get("spoiler");
+        assertEquals(Arrays.asList("yes", "no"), serialisedSpoilerFieldValues);
+    }
+
     @SuppressWarnings("unchecked")
     public void testToXContentDoesNotIncludesReservedWordInputFields() throws IOException {
         AnomalyRecord record = createTestInstance();

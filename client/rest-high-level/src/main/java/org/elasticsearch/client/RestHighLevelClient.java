@@ -62,7 +62,7 @@ import static java.util.stream.Collectors.toList;
 public class RestHighLevelClient {
 
     private final RestClient client;
-    private final NamedXContentRegistry namedXContentRegistry;
+    private final NamedXContentRegistry registry;
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} that it should use to perform requests.
@@ -77,7 +77,7 @@ public class RestHighLevelClient {
      */
     protected RestHighLevelClient(RestClient restClient, List<NamedXContentRegistry.Entry> namedXContentEntries) {
         this.client = Objects.requireNonNull(restClient);
-        this.namedXContentRegistry = new NamedXContentRegistry(Stream.of(
+        this.registry = new NamedXContentRegistry(Stream.of(
                 getNamedXContents().stream(),
                 namedXContentEntries.stream()
         ).flatMap(Function.identity()).collect(toList()));
@@ -305,7 +305,7 @@ public class RestHighLevelClient {
         if (xContentType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
         }
-        try (XContentParser parser = xContentType.xContent().createParser(namedXContentRegistry, entity.getContent())) {
+        try (XContentParser parser = xContentType.xContent().createParser(registry, entity.getContent())) {
             return entityParser.apply(parser);
         }
     }

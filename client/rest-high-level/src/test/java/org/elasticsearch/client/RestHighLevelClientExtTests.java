@@ -35,6 +35,10 @@ import java.util.List;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
+/**
+ * This test works against a {@link RestHighLevelClient} subclass that simulats how custom response sections returned by
+ * Elasticsearch plugins can be parsed using the high level client.
+ */
 public class RestHighLevelClientExtTests extends ESTestCase {
 
     private RestHighLevelClient restHighLevelClient;

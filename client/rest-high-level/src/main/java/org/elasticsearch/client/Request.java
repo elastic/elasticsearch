@@ -97,6 +97,10 @@ final class Request {
         return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 
+    static Request info() {
+        return new Request("GET", "/", Collections.emptyMap(), null);
+    }
+
     static Request bulk(BulkRequest bulkRequest) throws IOException {
         Params parameters = Params.builder();
         parameters.withTimeout(bulkRequest.timeout());

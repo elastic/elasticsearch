@@ -303,7 +303,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    protected final void assertSettingsDeprecation(Setting... settings) {
+    protected final void assertSettingDeprecations(Setting... settings) {
         assertWarnings(
                 Arrays
                         .stream(settings)

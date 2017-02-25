@@ -131,6 +131,10 @@ public class DeprecationLogger {
 
     private static final ZoneId GMT = ZoneId.of("GMT");
 
+    /**
+     * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code
+     * is always 299. Further, this pattern assumes that the warn agent represents a version of Elasticsearch including the build hash.
+     */
     public static Pattern WARNING_HEADER_PATTERN = Pattern.compile(
             "299 " + // warn code
                     "Elasticsearch-\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-(?:[a-f0-9]{7}|Unknown) " + // warn agent

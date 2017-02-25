@@ -100,10 +100,11 @@ public abstract class Terminal {
     public final boolean promptYesNo(String prompt, boolean defaultYes) {
         String answerPrompt = defaultYes ? " [Y/n]" : " [y/N]";
         while (true) {
-            String answer = readText(prompt + answerPrompt).toLowerCase(Locale.ROOT);
-            if (answer.isEmpty()) {
+            String answer = readText(prompt + answerPrompt);
+            if (answer == null || answer.isEmpty()) {
                 return defaultYes;
             }
+            answer = answer.toLowerCase(Locale.ROOT);
             boolean answerYes = answer.equals("y");
             if (answerYes == false && answer.equals("n") == false) {
                 println("Did not understand answer '" + answer + "'");

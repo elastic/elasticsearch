@@ -1,14 +1,14 @@
 package org.elasticsearch.gradle.vagrant
 
 import org.elasticsearch.gradle.FileContentsTask
-import org.gradle.BuildAdapter
-import org.gradle.BuildResult
 import org.gradle.api.*
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.execution.TaskExecutionAdapter
 import org.gradle.api.internal.artifacts.dependencies.DefaultProjectDependency
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
+import org.gradle.api.tasks.TaskState
 
 class VagrantTestPlugin implements Plugin<Project> {
 
@@ -124,32 +124,26 @@ class VagrantTestPlugin implements Plugin<Project> {
     private static void createBatsConfiguration(Project project) {
         project.configurations.create(BATS)
 
-        Long seed
-        String formattedSeed = null
-        String[] upgradeFromVersions
-
-        String maybeTestsSeed = System.getProperty("tests.seed", null);
+        final long seed
+        final String formattedSeed
+        String maybeTestsSeed = System.getProperty("tests.seed")
         if (maybeTestsSeed != null) {
-            List<String> seeds = maybeTestsSeed.tokenize(':')
-            if (seeds.size() != 0) {
-                String masterSeed = seeds.get(0)
-                seed = new BigInteger(masterSeed, 16).longValue()
-                formattedSeed = maybeTestsSeed
+            if (maybeTestsSeed.trim().isEmpty()) {
+                throw new GradleException("explicit tests.seed cannot be empty")
             }
-        }
-        if (formattedSeed == null) {
+            String masterSeed = maybeTestsSeed.tokenize(':').get(0)
+            seed = new BigInteger(masterSeed, 16).longValue()
+            formattedSeed = maybeTestsSeed
+        } else {
             seed = new Random().nextLong()
             formattedSeed = String.format("%016X", seed)
         }
 
-        String maybeUpdradeFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
-        if (maybeUpdradeFromVersions != null) {
-            upgradeFromVersions = maybeUpdradeFromVersions.split(",")
-        } else {
-            upgradeFromVersions = getVersionsFile(project)
+        String upgradeFromVersion = System.getProperty("tests.packaging.upgradeVersion");
+        if (upgradeFromVersion == null) {
+            List<String> availableVersions = getVersionsFile(project).readLines('UTF-8')
+            upgradeFromVersion = availableVersions[new Random(seed).nextInt(availableVersions.size())]
         }
-
-        String upgradeFromVersion = upgradeFromVersions[new Random(seed).nextInt(upgradeFromVersions.length)]
 
         DISTRIBUTION_ARCHIVES.each {
             // Adds a dependency for the current version
@@ -164,7 +158,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         project.extensions.esvagrant.testSeed = seed
         project.extensions.esvagrant.formattedTestSeed = formattedSeed
         project.extensions.esvagrant.upgradeFromVersion = upgradeFromVersion
-        project.extensions.esvagrant.upgradeFromVersions = upgradeFromVersions
     }
 
     private static void createCleanTask(Project project) {
@@ -255,22 +248,9 @@ class VagrantTestPlugin implements Plugin<Project> {
             contents project.extensions.esvagrant.upgradeFromVersion
         }
 
-        Task vagrantSetUpTask = project.tasks.create('vagrantSetUp')
+        Task vagrantSetUpTask = project.tasks.create('setupBats')
         vagrantSetUpTask.dependsOn 'vagrantCheckVersion'
         vagrantSetUpTask.dependsOn copyBatsTests, copyBatsUtils, copyBatsArchives, createVersionFile, createUpgradeFromFile
-        vagrantSetUpTask.doFirst {
-            project.gradle.addBuildListener new BuildAdapter() {
-                @Override
-                void buildFinished(BuildResult result) {
-                    if (result.failure) {
-                        println "Reproduce with: gradle packagingTest "
-                        +"-Pvagrant.boxes=${project.extensions.esvagrant.boxes} "
-                        + "-Dtests.seed=${project.extensions.esvagrant.formattedSeed} "
-                        + "-Dtests.packaging.upgrade.from.versions=${project.extensions.esvagrant.upgradeFromVersions.join(",")}"
-                    }
-                }
-            }
-        }
     }
 
     private static void createUpdateVersionsTask(Project project) {
@@ -279,7 +259,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             group 'Verification'
             doLast {
                 File versions = getVersionsFile(project)
-                versions.text = listVersions(project).join('\n') + '\n'
+                versions.setText(listVersions(project).join('\n') + '\n', 'UTF-8')
             }
         }
     }
@@ -289,14 +269,11 @@ class VagrantTestPlugin implements Plugin<Project> {
             description 'Update file containing options for the\n    "starting" version in the "upgrade from" packaging tests.'
             group 'Verification'
             doLast {
-                String maybeUpdateFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
-                if (maybeUpdateFromVersions == null) {
-                    Set<String> versions = listVersions(project)
-                    Set<String> actualVersions = new TreeSet<>(project.extensions.esvagrant.upgradeFromVersions)
-                    if (!versions.equals(actualVersions)) {
-                        throw new GradleException("out-of-date versions " + actualVersions +
-                                ", expected " + versions + "; run gradle vagrantUpdateVersions")
-                    }
+                Set<String> versions = listVersions(project)
+                Set<String> actualVersions = new TreeSet<>(getVersionsFile(project).readLines('UTF-8'))
+                if (!versions.equals(actualVersions)) {
+                    throw new GradleException("out-of-date versions " + actualVersions +
+                            ", expected " + versions + "; run gradle vagrantUpdateVersions")
                 }
             }
         }
@@ -390,8 +367,8 @@ class VagrantTestPlugin implements Plugin<Project> {
         assert project.tasks.virtualboxCheckVersion != null
         Task virtualboxCheckVersion = project.tasks.virtualboxCheckVersion
 
-        assert project.tasks.vagrantSetUp != null
-        Task vagrantSetUp = project.tasks.vagrantSetUp
+        assert project.tasks.setupBats != null
+        Task setupBats = project.tasks.setupBats
 
         assert project.tasks.packagingTest != null
         Task packagingTest = project.tasks.packagingTest
@@ -425,8 +402,9 @@ class VagrantTestPlugin implements Plugin<Project> {
                 boxName box
                 environmentVars vagrantEnvVars
                 args 'box', 'update', box
-                dependsOn vagrantCheckVersion, virtualboxCheckVersion, vagrantSetUp
+                dependsOn vagrantCheckVersion, virtualboxCheckVersion
             }
+            update.mustRunAfter(setupBats)
 
             Task up = project.tasks.create("vagrant${boxTask}#up", VagrantCommandTask) {
                 boxName box
@@ -447,11 +425,6 @@ class VagrantTestPlugin implements Plugin<Project> {
                 dependsOn update
             }
 
-            if (project.extensions.esvagrant.boxes.contains(box) == false) {
-                // we d'ont need tests tasks if this box was not specified
-                continue;
-            }
-
             Task smoke = project.tasks.create("vagrant${boxTask}#smoketest", Exec) {
                 environment vagrantEnvVars
                 dependsOn up
@@ -461,23 +434,58 @@ class VagrantTestPlugin implements Plugin<Project> {
             }
             vagrantSmokeTest.dependsOn(smoke)
 
-            Task packaging = project.tasks.create("vagrant${boxTask}#packagingtest", BatsOverVagrantTask) {
+            Task packaging = project.tasks.create("vagrant${boxTask}#packagingTest", BatsOverVagrantTask) {
                 boxName box
                 environmentVars vagrantEnvVars
-                dependsOn up
+                dependsOn up, setupBats
                 finalizedBy halt
                 command BATS_TEST_COMMAND
             }
-            packagingTest.dependsOn(packaging)
+
+            TaskExecutionAdapter packagingReproListener = new TaskExecutionAdapter() {
+                @Override
+                void afterExecute(Task task, TaskState state) {
+                    if (state.failure != null) {
+                        println "REPRODUCE WITH: gradle ${packaging.path} " +
+                            "-Dtests.seed=${project.extensions.esvagrant.formattedTestSeed} "
+                    }
+                }
+            }
+            packaging.doFirst {
+                project.gradle.addListener(packagingReproListener)
+            }
+            packaging.doLast {
+                project.gradle.removeListener(packagingReproListener)
+            }
+            if (project.extensions.esvagrant.boxes.contains(box)) {
+                packagingTest.dependsOn(packaging)
+            }
 
             Task platform = project.tasks.create("vagrant${boxTask}#platformTest", VagrantCommandTask) {
                 boxName box
                 environmentVars vagrantEnvVars
                 dependsOn up
                 finalizedBy halt
-                args 'ssh', boxName, '--command', PLATFORM_TEST_COMMAND
+                args 'ssh', boxName, '--command', PLATFORM_TEST_COMMAND + " -Dtests.seed=${-> project.extensions.esvagrant.formattedTestSeed}"
             }
-            platformTest.dependsOn(platform)
+            TaskExecutionAdapter platformReproListener = new TaskExecutionAdapter() {
+                @Override
+                void afterExecute(Task task, TaskState state) {
+                    if (state.failure != null) {
+                        println "REPRODUCE WITH: gradle ${platform.path} " +
+                            "-Dtests.seed=${project.extensions.esvagrant.formattedTestSeed} "
+                    }
+                }
+            }
+            packaging.doFirst {
+                project.gradle.addListener(platformReproListener)
+            }
+            packaging.doLast {
+                project.gradle.removeListener(platformReproListener)
+            }
+            if (project.extensions.esvagrant.boxes.contains(box)) {
+                platformTest.dependsOn(platform)
+            }
         }
     }
 }

@@ -20,8 +20,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.mock.orig.Mockito;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -32,9 +30,6 @@ import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
@@ -65,7 +60,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.createJobTask;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
@@ -270,81 +264,6 @@ public class DatafeedJobRunnerTests extends ESTestCase {
             verify(client).execute(same(FlushJobAction.INSTANCE), any());
             verify(threadPool, times(1)).schedule(eq(new TimeValue(480100)), eq(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME), any());
         }
-    }
-
-    public void testCreateDataExtractorFactoryGivenDefaultScroll() {
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = createDatafeedJob();
-        jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig datafeedConfig = createDatafeedConfig("datafeed1", "foo").build();
-        DatafeedJobRunner runner = new DatafeedJobRunner(threadPool, client, clusterService, mock(JobProvider.class),
-                () -> currentTime, auditor);
-
-        DataExtractorFactory dataExtractorFactory = runner.createDataExtractorFactory(datafeedConfig, jobBuilder.build());
-
-        assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class));
-    }
-
-    public void testCreateDataExtractorFactoryGivenScrollWithAutoChunk() {
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = createDatafeedJob();
-        jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig.Builder datafeedConfig = createDatafeedConfig("datafeed1", "foo");
-        datafeedConfig.setChunkingConfig(ChunkingConfig.newAuto());
-        DatafeedJobRunner runner = new DatafeedJobRunner(threadPool, client, clusterService, mock(JobProvider.class),
-                () -> currentTime, auditor);
-
-        DataExtractorFactory dataExtractorFactory = runner.createDataExtractorFactory(datafeedConfig.build(), jobBuilder.build());
-
-        assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class));
-    }
-
-    public void testCreateDataExtractorFactoryGivenScrollWithOffChunk() {
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = createDatafeedJob();
-        jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig.Builder datafeedConfig = createDatafeedConfig("datafeed1", "foo");
-        datafeedConfig.setChunkingConfig(ChunkingConfig.newOff());
-        DatafeedJobRunner runner = new DatafeedJobRunner(threadPool, client, clusterService, mock(JobProvider.class),
-                () -> currentTime, auditor);
-
-        DataExtractorFactory dataExtractorFactory = runner.createDataExtractorFactory(datafeedConfig.build(), jobBuilder.build());
-
-        assertThat(dataExtractorFactory, instanceOf(ScrollDataExtractorFactory.class));
-    }
-
-    public void testCreateDataExtractorFactoryGivenAggregation() {
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = createDatafeedJob();
-        jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig.Builder datafeedConfig = createDatafeedConfig("datafeed1", "foo");
-        datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(AggregationBuilders.avg("a")));
-        DatafeedJobRunner runner = new DatafeedJobRunner(threadPool, client, clusterService, mock(JobProvider.class),
-                () -> currentTime, auditor);
-
-        DataExtractorFactory dataExtractorFactory = runner.createDataExtractorFactory(datafeedConfig.build(), jobBuilder.build());
-
-        assertThat(dataExtractorFactory, instanceOf(AggregationDataExtractorFactory.class));
-    }
-
-    public void testCreateDataExtractorFactoryGivenDefaultAggregationWithAutoChunk() {
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setTimeField("time");
-        Job.Builder jobBuilder = createDatafeedJob();
-        jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig.Builder datafeedConfig = createDatafeedConfig("datafeed1", "foo");
-        datafeedConfig.setAggregations(AggregatorFactories.builder());
-        datafeedConfig.setChunkingConfig(ChunkingConfig.newAuto());
-        DatafeedJobRunner runner = new DatafeedJobRunner(threadPool, client, clusterService, mock(JobProvider.class),
-                () -> currentTime, auditor);
-
-        DataExtractorFactory dataExtractorFactory = runner.createDataExtractorFactory(datafeedConfig.build(), jobBuilder.build());
-
-        assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class));
     }
 
     public static DatafeedConfig.Builder createDatafeedConfig(String datafeedId, String jobId) {

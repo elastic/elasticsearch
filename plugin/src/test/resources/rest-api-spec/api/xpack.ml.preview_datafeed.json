@@ -1,0 +1,17 @@
+{
+  "xpack.ml.preview_datafeed": {
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_xpack/ml/datafeeds/{datafeed_id}/_preview",
+      "paths": [ "/_xpack/ml/datafeeds/{datafeed_id}/_preview" ],
+      "parts": {
+        "datafeed_id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the datafeed to preview"
+        }
+      }
+    },
+    "body": null
+  }
+}

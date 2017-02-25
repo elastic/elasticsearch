@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.ml.action.MlDeleteByQueryAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
+import org.elasticsearch.xpack.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
@@ -91,6 +92,7 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestDeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedStatsAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedsAction;
+import org.elasticsearch.xpack.ml.rest.datafeeds.RestPreviewDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestPutDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestStartDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestStopDatafeedAction;
@@ -345,6 +347,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
             new RestPutDatafeedAction(settings, restController),
             new RestUpdateDatafeedAction(settings, restController),
             new RestDeleteDatafeedAction(settings, restController),
+            new RestPreviewDatafeedAction(settings, restController),
             new RestStartDatafeedAction(settings, restController),
             new RestStopDatafeedAction(settings, restController),
             new RestDeleteModelSnapshotAction(settings, restController)
@@ -383,6 +386,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
                 new ActionHandler<>(PutDatafeedAction.INSTANCE, PutDatafeedAction.TransportAction.class),
                 new ActionHandler<>(UpdateDatafeedAction.INSTANCE, UpdateDatafeedAction.TransportAction.class),
                 new ActionHandler<>(DeleteDatafeedAction.INSTANCE, DeleteDatafeedAction.TransportAction.class),
+                new ActionHandler<>(PreviewDatafeedAction.INSTANCE, PreviewDatafeedAction.TransportAction.class),
                 new ActionHandler<>(StartDatafeedAction.INSTANCE, StartDatafeedAction.TransportAction.class),
                 new ActionHandler<>(StopDatafeedAction.INSTANCE, StopDatafeedAction.TransportAction.class),
                 new ActionHandler<>(DeleteModelSnapshotAction.INSTANCE, DeleteModelSnapshotAction.TransportAction.class),

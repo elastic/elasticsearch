@@ -112,6 +112,7 @@ cluster:admin/ml/anomaly_detectors/results/buckets/get
 cluster:admin/ml/anomaly_detectors/model_snapshots/get
 cluster:admin/ml/anomaly_detectors/results/records/get
 cluster:admin/ml/anomaly_detectors/results/influencers/get
+cluster:admin/ml/datafeeds/preview
 cluster:admin/ml/datafeeds/put
 cluster:admin/ml/datafeeds/update
 cluster:admin/ml/anomaly_detectors/model_snapshots/delete

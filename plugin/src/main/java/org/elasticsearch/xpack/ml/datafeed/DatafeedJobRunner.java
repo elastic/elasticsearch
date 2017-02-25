@@ -186,17 +186,8 @@ public class DatafeedJobRunner extends AbstractComponent {
         return holder;
     }
 
-    DataExtractorFactory createDataExtractorFactory(DatafeedConfig datafeedConfig, Job job) {
-        boolean isScrollSearch = datafeedConfig.hasAggregations() == false;
-        DataExtractorFactory dataExtractorFactory = isScrollSearch ? new ScrollDataExtractorFactory(client, datafeedConfig, job)
-                : new AggregationDataExtractorFactory(client, datafeedConfig, job);
-        ChunkingConfig chunkingConfig = datafeedConfig.getChunkingConfig();
-        if (chunkingConfig == null) {
-            chunkingConfig = isScrollSearch ? ChunkingConfig.newAuto() : ChunkingConfig.newOff();
-        }
-
-        return chunkingConfig.isEnabled() ? new ChunkedDataExtractorFactory(client, datafeedConfig, job, dataExtractorFactory)
-                : dataExtractorFactory;
+    DataExtractorFactory createDataExtractorFactory(DatafeedConfig datafeed, Job job) {
+        return DataExtractorFactory.create(client, datafeed, job);
     }
 
     private static DataDescription buildDataDescription(Job job) {

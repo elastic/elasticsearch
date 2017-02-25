@@ -145,12 +145,20 @@ public class DeprecationLogger {
                     "GMT" + // GMT
                     "\""); // closing quote
 
-    public static Function<String, String> WARNING_VALUE_FROM_WARNING_HEADER = s -> {
+    /**
+     * Extracts the warning value from the value of a warning header that is formatted according to RFC 7234. That is, given a string
+     * {@code 299 Elasticsearch-6.0.0 "warning value" "Sat, 25 Feb 2017 10:27:43 GMT"}, the return value of this method would be {@code
+     * warning value}.
+     *
+     * @param s the value of a warning header formatted according to RFC 7234.
+     * @return the extracted warning value
+     */
+    public static String extractWarningValueFromWarningHeader(final String s) {
         final Matcher matcher = WARNING_HEADER_PATTERN.matcher(s);
         final boolean matches = matcher.matches();
         assert matches;
         return matcher.group(1);
-    };
+    }
 
     /**
      * Logs a deprecated message to the deprecation log, as well as to the local {@link ThreadContext}.
@@ -170,7 +178,7 @@ public class DeprecationLogger {
             while (iterator.hasNext()) {
                 try {
                     final ThreadContext next = iterator.next();
-                    next.addResponseHeader("Warning", warningValue, WARNING_VALUE_FROM_WARNING_HEADER);
+                    next.addResponseHeader("Warning", warningValue, DeprecationLogger::extractWarningValueFromWarningHeader);
                 } catch (final IllegalStateException e) {
                     // ignored; it should be removed shortly
                 }

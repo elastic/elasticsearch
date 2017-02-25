@@ -171,8 +171,8 @@ public class DeprecationLoggerTests extends ESTestCase {
         Thread.sleep(1000);
         final String second = DeprecationLogger.formatWarning(s);
         assertThat(
-                DeprecationLogger.WARNING_VALUE_FROM_WARNING_HEADER.apply(first),
-                equalTo(DeprecationLogger.WARNING_VALUE_FROM_WARNING_HEADER.apply(second)));
+                DeprecationLogger.extractWarningValueFromWarningHeader(first),
+                equalTo(DeprecationLogger.extractWarningValueFromWarningHeader(second)));
     }
 
     public void testEscape() {

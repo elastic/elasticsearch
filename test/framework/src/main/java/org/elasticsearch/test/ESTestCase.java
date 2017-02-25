@@ -310,7 +310,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         try {
             final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
             final Set<String> actualWarningValues =
-                    actualWarnings.stream().map(DeprecationLogger.WARNING_VALUE_FROM_WARNING_HEADER).collect(Collectors.toSet());
+                    actualWarnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toSet());
             for (String msg : expectedWarnings) {
                 assertTrue(actualWarningValues.contains(DeprecationLogger.escape(msg)));
             }

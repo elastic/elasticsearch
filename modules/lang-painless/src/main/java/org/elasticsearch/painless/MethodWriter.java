@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.objectweb.asm.ClassVisitor;
@@ -34,24 +33,7 @@ import java.util.BitSet;
 import java.util.Deque;
 import java.util.List;
 
-import static org.elasticsearch.painless.WriterConstants.CHAR_TO_STRING;
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_BOOLEAN;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_BYTE_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_BYTE_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_CHAR_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_CHAR_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_DOUBLE_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_DOUBLE_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_FLOAT_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_FLOAT_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_INT_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_INT_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_LONG_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_LONG_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_EXPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_TO_SHORT_IMPLICIT;
-import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
 import static org.elasticsearch.painless.WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.MAX_INDY_STRING_CONCAT_ARGS;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
@@ -66,9 +48,7 @@ import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_APPEND_ST
 import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_CONSTRUCTOR;
 import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_TOSTRING;
 import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_TYPE;
-import static org.elasticsearch.painless.WriterConstants.STRING_TO_CHAR;
 import static org.elasticsearch.painless.WriterConstants.STRING_TYPE;
-import static org.elasticsearch.painless.WriterConstants.UTILITY_TYPE;
 
 /**
  * Extension of {@link GeneratorAdapter} with some utility methods.
@@ -127,68 +107,6 @@ public final class MethodWriter extends GeneratorAdapter {
         ifICmp(GeneratorAdapter.GT, end);
         throwException(PAINLESS_ERROR_TYPE, "The maximum number of statements that can be executed in a loop has been reached.");
         mark(end);
-    }
-
-    public void writeCast(final Cast cast) { // NOCOMMIT remove
-        if (cast != null) {
-            if (cast.from.sort == Sort.CHAR && cast.to.sort == Sort.STRING) {
-                invokeStatic(UTILITY_TYPE, CHAR_TO_STRING);
-            } else if (cast.from.sort == Sort.STRING && cast.to.sort == Sort.CHAR) {
-                invokeStatic(UTILITY_TYPE, STRING_TO_CHAR);
-            } else if (cast.unboxFrom != null) {
-                unbox(cast.unboxFrom.type);
-                writeCast(cast.from, cast.to);
-            } else if (cast.unboxTo != null) {
-                if (cast.from.sort == Sort.DEF) {
-                    if (cast.explicit) {
-                        if (cast.to.sort == Sort.BOOL_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
-                        else if (cast.to.sort == Sort.BYTE_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_EXPLICIT);
-                        else if (cast.to.sort == Sort.SHORT_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_EXPLICIT);
-                        else if (cast.to.sort == Sort.CHAR_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_EXPLICIT);
-                        else if (cast.to.sort == Sort.INT_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_EXPLICIT);
-                        else if (cast.to.sort == Sort.LONG_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_EXPLICIT);
-                        else if (cast.to.sort == Sort.FLOAT_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_EXPLICIT);
-                        else if (cast.to.sort == Sort.DOUBLE_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_EXPLICIT);
-                        else throw new IllegalStateException("Illegal tree structure.");
-                    } else {
-                        if (cast.to.sort == Sort.BOOL_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_BOOLEAN);
-                        else if (cast.to.sort == Sort.BYTE_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_BYTE_IMPLICIT);
-                        else if (cast.to.sort == Sort.SHORT_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_IMPLICIT);
-                        else if (cast.to.sort == Sort.CHAR_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_IMPLICIT);
-                        else if (cast.to.sort == Sort.INT_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_IMPLICIT);
-                        else if (cast.to.sort == Sort.LONG_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_LONG_IMPLICIT);
-                        else if (cast.to.sort == Sort.FLOAT_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_IMPLICIT);
-                        else if (cast.to.sort == Sort.DOUBLE_OBJ) invokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_IMPLICIT);
-                        else throw new IllegalStateException("Illegal tree structure.");
-                    }
-                } else {
-                    writeCast(cast.from, cast.to);
-                    unbox(cast.unboxTo.type);
-                }
-            } else if (cast.boxFrom != null) {
-                box(cast.boxFrom.type);
-                writeCast(cast.from, cast.to);
-            } else if (cast.boxTo != null) {
-                writeCast(cast.from, cast.to);
-                box(cast.boxTo.type);
-            } else {
-                writeCast(cast.from, cast.to);
-            }
-        }
-    }
-
-    private void writeCast(final Type from, final Type to) {
-        if (from.equals(to)) {
-            return;
-        }
-
-        if (from.sort.numeric && from.sort.primitive && to.sort.numeric && to.sort.primitive) {
-            cast(from.type, to.type);
-        } else {
-            if (!to.clazz.isAssignableFrom(from.clazz)) {
-                checkCast(to.type);
-            }
-        }
     }
 
     /**

@@ -31,7 +31,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.OOCast;
+import org.elasticsearch.painless.Cast;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -51,7 +51,7 @@ final class SSubEachIterable extends AStatement {
     private final SBlock block;
     private final Variable variable;
 
-    private OOCast cast = null;
+    private Cast cast = null;
     private Variable iterator = null;
     private Method method = null;
 

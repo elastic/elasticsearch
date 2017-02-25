@@ -431,57 +431,6 @@ public final class Definition {
         }
     }
 
-    public static class Cast extends OOCast {  // NOCOMMIT remove me
-        public final Type from;
-        public final Type to;
-        public final boolean explicit;
-        public final Type unboxFrom;
-        public final Type unboxTo;
-        public final Type boxFrom;
-        public final Type boxTo;
-
-        public Cast(final Type from, final Type to, final boolean explicit) {
-            this.from = from;
-            this.to = to;
-            this.explicit = explicit;
-            this.unboxFrom = null;
-            this.unboxTo = null;
-            this.boxFrom = null;
-            this.boxTo = null;
-        }
-
-        public Cast(final Type from, final Type to, final boolean explicit,
-                    final Type unboxFrom, final Type unboxTo, final Type boxFrom, final Type boxTo) {
-            this.from = from;
-            this.to = to;
-            this.explicit = explicit;
-            this.unboxFrom = unboxFrom;
-            this.unboxTo = unboxTo;
-            this.boxFrom = boxFrom;
-            this.boxTo = boxTo;
-        }
-
-        @Override
-        public boolean castRequired() {
-            return true;
-        }
-
-        @Override
-        public void write(MethodWriter writer) {
-            writer.writeCast(this);
-        }
-
-        @Override
-        public Object castConstant(Location location, Object constant) {
-            return AnalyzerCaster.constCast(location, constant, this);
-        }
-
-        @Override
-        public String toString() {
-            return to.toString();
-        }
-    }
-
     public static final class RuntimeClass {
         private final Struct struct;
         public final Map<MethodKey, Method> methods;

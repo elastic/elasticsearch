@@ -30,7 +30,7 @@ import org.elasticsearch.painless.FeatureTest;
 import org.elasticsearch.painless.GenericElasticsearchScript;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.OOCast;
+import org.elasticsearch.painless.Cast;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.ScriptInterface;
 import org.elasticsearch.painless.Utility;
@@ -165,29 +165,29 @@ public class NodeToStringTests extends ESTestCase {
     public void testECast() {
         Location l = new Location(getTestName(), 0);
         AExpression child = new EConstant(l, 1.0f);
-        OOCast cast = new OOCast.Numeric(FLOAT_TYPE, SHORT_TYPE);
+        Cast cast = new Cast.Numeric(FLOAT_TYPE, SHORT_TYPE);
         assertEquals("(ECast (Numeric float short) (EConstant Float 1.0))", new ECast(l, child, cast).toString());
 
         l = new Location(getTestName(), 1);
         child = new EBinary(l, Operation.ADD, new EConstant(l, 1.0f), new EConstant(l, 12));
-        cast = new OOCast.Numeric(DOUBLE_TYPE, INT_TYPE, new OOCast.Box(INT_TYPE));
+        cast = new Cast.Numeric(DOUBLE_TYPE, INT_TYPE, new Cast.Box(INT_TYPE));
         assertEquals("(ECast (Numeric double int (Box int)) (EBinary (EConstant Float 1.0) + (EConstant Integer 12)))",
                 new ECast(l, child, cast).toString());
 
         child = new EConstant(l, 1.0f);
-        cast = new OOCast.Unbox(FLOAT_TYPE);
+        cast = new Cast.Unbox(FLOAT_TYPE);
         assertEquals("(ECast (Unbox float) (EConstant Float 1.0))", new ECast(l, child, cast).toString());
 
         child = new EConstant(l, 1.0f);
-        cast = new OOCast.Unbox(FLOAT_TYPE, new OOCast.Numeric(FLOAT_TYPE, INT_TYPE));
+        cast = new Cast.Unbox(FLOAT_TYPE, new Cast.Numeric(FLOAT_TYPE, INT_TYPE));
         assertEquals("(ECast (Unbox float (Numeric float int)) (EConstant Float 1.0))", new ECast(l, child, cast).toString());
 
         child = new EConstant(l, "test");
-        cast = new OOCast.CheckedCast(Definition.getType("StringBuilder"));
+        cast = new Cast.CheckedCast(Definition.getType("StringBuilder"));
         assertEquals("(ECast (CheckedCast StringBuilder) (EConstant String 'test'))", new ECast(l, child, cast).toString());
 
         child = new EConstant(l, "test");
-        cast = new OOCast.InvokeStatic(UTILITY_TYPE, CHAR_TO_STRING, c -> Utility.charToString((Character) c));
+        cast = new Cast.InvokeStatic(UTILITY_TYPE, CHAR_TO_STRING, c -> Utility.charToString((Character) c));
         assertEquals("(ECast (InvokeStatic " + Utility.class.getName() + "#charToString) (EConstant String 'test'))",
                 new ECast(l, child, cast).toString());
     }

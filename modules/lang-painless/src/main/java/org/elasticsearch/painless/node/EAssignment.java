@@ -28,7 +28,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.OOCast;
+import org.elasticsearch.painless.Cast;
 import org.elasticsearch.painless.Operation;
 
 import java.util.ArrayList;
@@ -50,8 +50,8 @@ public final class EAssignment extends AExpression {
     private boolean cat = false;
     private Type promote = null;
     private Type shiftDistance; // for shifts, the RHS is promoted independently
-    private OOCast there = null;
-    private OOCast back = null;
+    private Cast there = null;
+    private Cast back = null;
 
     public EAssignment(Location location, AExpression lhs, AExpression rhs, boolean pre, boolean post, Operation operation) {
         super(location);

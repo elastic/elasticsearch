@@ -27,7 +27,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.OOCast;
+import org.elasticsearch.painless.Cast;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -42,7 +42,7 @@ final class SSubEachArray extends AStatement {
     private AExpression expression;
     private final SBlock block;
 
-    private OOCast cast = null;
+    private Cast cast = null;
     private Variable array = null;
     private Variable index = null;
     private Type indexed = null;

@@ -29,8 +29,8 @@ import java.util.function.Function;
  * then convert from char to int". These are always read from "outside inwards", meaning that a strategy is first executed and then the
  * "next" strategy is executed.
  */
-public abstract class OOCast { // NOCOMMIT rename
-    OOCast() {} // NOCOMMIT make private
+public abstract class Cast { // NOCOMMIT rename
+    Cast() {} // NOCOMMIT make private
 
     public abstract boolean castRequired();
     public abstract void write(MethodWriter writer);
@@ -40,7 +40,7 @@ public abstract class OOCast { // NOCOMMIT rename
     /**
      * Cast that doesn't do anything. Used when you don't need to cast at all.
      */
-    static final OOCast NOOP = new OOCast() {
+    static final Cast NOOP = new Cast() {
         @Override
         public void write(MethodWriter writer) {
         }
@@ -64,12 +64,12 @@ public abstract class OOCast { // NOCOMMIT rename
     /**
      * Promote or demote a numeric.
      */
-    public static class Numeric extends OOCast {
+    public static class Numeric extends Cast {
         private final Type from;
         private final Type to;
-        private final OOCast next;
+        private final Cast next;
 
-        public Numeric(Type from, Type to, OOCast next) {
+        public Numeric(Type from, Type to, Cast next) {
             if (from.equals(to)) {
                 throw new IllegalArgumentException("From and to must not be equal but were [" + from + "].");
             }
@@ -91,7 +91,7 @@ public abstract class OOCast { // NOCOMMIT rename
         }
 
         public Numeric(Type from, Type to) {
-            this(from, to, OOCast.NOOP); // NOCOMMIT use this more in analyzerCaster
+            this(from, to, Cast.NOOP); // NOCOMMIT use this more in analyzerCaster
         }
 
         @Override
@@ -128,7 +128,7 @@ public abstract class OOCast { // NOCOMMIT rename
 
         @Override
         public String toString() {
-            if (next == OOCast.NOOP) {
+            if (next == Cast.NOOP) {
                 return "(Numeric " + from + " " + to + ")";
             } else {
                 return "(Numeric " + from + " " + to + " " + next + ")";
@@ -139,7 +139,7 @@ public abstract class OOCast { // NOCOMMIT rename
     /**
      * Box some boxable type.
      */
-    public static class Box extends OOCast {
+    public static class Box extends Cast {
         private final Type from;
 
         public Box(Type from) {
@@ -173,11 +173,11 @@ public abstract class OOCast { // NOCOMMIT rename
     /**
      * Unbox some boxable type.
      */
-    public static class Unbox extends OOCast {
+    public static class Unbox extends Cast {
         private final Type to;
-        private final OOCast next;
+        private final Cast next;
 
-        public Unbox(Type to, OOCast next) {
+        public Unbox(Type to, Cast next) {
             if (to.sort.boxed == null) {
                 throw new IllegalArgumentException("To must be a boxable type but was [" + to + "]");
             }
@@ -189,7 +189,7 @@ public abstract class OOCast { // NOCOMMIT rename
         }
 
         public Unbox(Type to) {
-            this(to, OOCast.NOOP);
+            this(to, Cast.NOOP);
         }
 
         @Override
@@ -211,7 +211,7 @@ public abstract class OOCast { // NOCOMMIT rename
 
         @Override
         public String toString() {
-            if (next == OOCast.NOOP) {
+            if (next == Cast.NOOP) {
                 return "(Unbox " + to + ")";
             } else {
                 return "(Unbox " + to + " " + next + ")";
@@ -223,7 +223,7 @@ public abstract class OOCast { // NOCOMMIT rename
      * Performs a checked cast to narrow from a wider type to a more specific one. For example
      * {@code Number n = Integer.valueOf(5); Integer i = (Integer) n}.
      */
-    public static class CheckedCast extends OOCast {
+    public static class CheckedCast extends Cast {
         private final Type to;
 
         public CheckedCast(Type to) {
@@ -254,7 +254,7 @@ public abstract class OOCast { // NOCOMMIT rename
     /**
      * Invoke a static method to do the cast. Used for {@code char c = 'c'}
      */
-    public static class InvokeStatic extends OOCast {
+    public static class InvokeStatic extends Cast {
         private final org.objectweb.asm.Type owner;
         private final org.objectweb.asm.commons.Method method;
         private final Function<Object, Object> castConstant;

@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -40,6 +41,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
+
     public void testWarningHeaders() throws IOException {
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
@@ -48,10 +50,10 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             section.checkWarningHeaders(emptyList());
         }
 
-        final String testHeader = fakeWarningHeader("test");
-        final String anotherHeader = fakeWarningHeader("another");
-        final String someMoreHeader = fakeWarningHeader("some more");
-        final String catHeader = fakeWarningHeader("cat");
+        final String testHeader = DeprecationLogger.formatWarning("test");
+        final String anotherHeader = DeprecationLogger.formatWarning("another");
+        final String someMoreHeader = DeprecationLogger.formatWarning("some more");
+        final String catHeader = DeprecationLogger.formatWarning("cat");
         // Any warning headers fail
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
@@ -113,18 +115,6 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                             "did not get expected warning headers [\n\tanother\n\tsome more\n]\n",
                     e.getMessage());
         }
-    }
-
-    private String fakeWarningHeader(final String warning) throws UnsupportedEncodingException {
-        final String commit;
-        if (randomBoolean()) {
-            commit = "Unknown";
-        } else {
-            commit = MessageDigests.toHexString(MessageDigests.sha1().digest(randomAsciiOfLength(16).getBytes("UTF-8"))).substring(0, 7);
-        }
-        final String version =
-                "Elasticsearch-" + Version.CURRENT.toString() + (randomBoolean() ? "-SNAPSHOT" : "") + "/" + commit;
-        return "299 " + version + " \"" + warning + "\" \"Sat, 25 Aug 2012 23:34:45 GMT\"";
     }
 
     public void testParseDoSectionNoBody() throws Exception {

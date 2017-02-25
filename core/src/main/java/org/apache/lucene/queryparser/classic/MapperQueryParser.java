@@ -33,7 +33,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.GraphQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -747,6 +746,8 @@ public class MapperQueryParser extends AnalyzingQueryParser {
             MultiPhraseQuery.Builder builder = new MultiPhraseQuery.Builder((MultiPhraseQuery) q);
             builder.setSlop(slop);
             return builder.build();
+            // nocommit
+            /*
         } else if (q instanceof GraphQuery && ((GraphQuery) q).hasPhrase()) {
             // we have a graph query that has at least one phrase sub-query
             // re-build and set slop on all phrase queries
@@ -762,6 +763,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
             }
 
             return new GraphQuery(queries);
+            */
         } else {
             return q;
         }

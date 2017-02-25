@@ -262,7 +262,7 @@ public class SearchPhaseController extends AbstractComponent {
                 // the 'index' field is the position in the resultsArr atomic array
                 shardTopDocs[sortedResult.index] = (TopFieldDocs) topDocs;
             }
-            mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
+            mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs, true);
         } else {
             final TopDocs[] shardTopDocs = new TopDocs[resultsArr.length()];
             if (result.size() != shardTopDocs.length) {
@@ -274,7 +274,7 @@ public class SearchPhaseController extends AbstractComponent {
                 // the 'index' field is the position in the resultsArr atomic array
                 shardTopDocs[sortedResult.index] = topDocs;
             }
-            mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
+            mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs, true);
         }
 
         ScoreDoc[] scoreDocs = mergedTopDocs.scoreDocs;

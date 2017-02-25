@@ -27,7 +27,6 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.GraphQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -318,6 +317,8 @@ public class MatchQuery {
 
         public Query createPhrasePrefixQuery(String field, String queryText, int phraseSlop, int maxExpansions) {
             final Query query = createFieldQuery(getAnalyzer(), Occur.MUST, field, queryText, true, phraseSlop);
+            // nocommit
+            /*
             if (query instanceof GraphQuery) {
                 // we have a graph query, convert inner queries to multi phrase prefix queries
                 List<Query> oldQueries = ((GraphQuery) query).getQueries();
@@ -328,6 +329,7 @@ public class MatchQuery {
 
                 return new GraphQuery(queries);
             }
+            */
 
             return toMultiPhrasePrefix(query, phraseSlop, maxExpansions);
         }

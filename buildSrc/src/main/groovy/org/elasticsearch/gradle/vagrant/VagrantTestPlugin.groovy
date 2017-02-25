@@ -128,7 +128,7 @@ class VagrantTestPlugin implements Plugin<Project> {
         String maybeTestsSeed = System.getProperty("tests.seed")
         if (maybeTestsSeed != null) {
             if (maybeTestsSeed.trim().isEmpty()) {
-                throw new GradleException("explicit -Dtests.seed cannot be empty")
+                throw new GradleException("explicit tests.seed cannot be empty")
             }
             String masterSeed = maybeTestsSeed.tokenize(':').get(0)
             seed = new BigInteger(masterSeed, 16).longValue()

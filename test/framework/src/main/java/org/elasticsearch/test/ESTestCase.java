@@ -134,10 +134,9 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -310,8 +309,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         try {
             final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
+            final Set<String> actualWarningValues =
+                    actualWarnings.stream().map(DeprecationLogger.WARNING_VALUE_FROM_WARNING_HEADER).collect(Collectors.toSet());
             for (String msg : expectedWarnings) {
-                assertThat(actualWarnings, hasItem(containsString(msg)));
+                assertTrue(actualWarningValues.contains(DeprecationLogger.escape(msg)));
             }
             assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
                     + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,

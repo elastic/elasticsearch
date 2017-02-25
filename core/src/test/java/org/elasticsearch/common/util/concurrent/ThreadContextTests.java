@@ -24,16 +24,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -184,20 +179,12 @@ public class ThreadContextTests extends ESTestCase {
             threadContext.addResponseHeader("foo", "bar");
         }
 
-        final String now = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("GMT")));
-        final Function<String, String> deduplicator = v -> {
-            final Matcher matcher = DeprecationLogger.WARNING_HEADER_PATTERN.matcher(v);
-            final boolean matches = matcher.matches();
-            assert matches;
-            return matcher.group(1);
-        };
-        final String value = "299 Elasticsearch-6.0.0-alpha1-SNAPSHOT/Unknown \"qux\" \"" + now + "\"";
-        threadContext.addResponseHeader("baz", value, deduplicator);
+        final String value = DeprecationLogger.formatWarning("qux");
+        threadContext.addResponseHeader("baz", value, DeprecationLogger.WARNING_VALUE_FROM_WARNING_HEADER);
         // pretend that another thread created the same response at a different time
         if (randomBoolean()) {
-            final String later = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("GMT")));
-            final String duplicateValue = "299 Elasticsearch-6.0.0-alpha1-SNAPSHOT/Unknown \"qux\" \"" + later + "\"";
-            threadContext.addResponseHeader("baz", duplicateValue, deduplicator);
+            final String duplicateValue = DeprecationLogger.formatWarning("qux");
+            threadContext.addResponseHeader("baz", duplicateValue, DeprecationLogger.WARNING_VALUE_FROM_WARNING_HEADER);
         }
 
         threadContext.addResponseHeader("Warning", "One is the loneliest number");

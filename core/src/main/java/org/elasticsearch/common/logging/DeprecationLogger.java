@@ -34,6 +34,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -144,6 +145,13 @@ public class DeprecationLogger {
                     "GMT" + // GMT
                     "\""); // closing quote
 
+    public static Function<String, String> WARNING_VALUE_FROM_WARNING_HEADER = s -> {
+        final Matcher matcher = WARNING_HEADER_PATTERN.matcher(s);
+        final boolean matches = matcher.matches();
+        assert matches;
+        return matcher.group(1);
+    };
+
     /**
      * Logs a deprecated message to the deprecation log, as well as to the local {@link ThreadContext}.
      *
@@ -157,25 +165,12 @@ public class DeprecationLogger {
 
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
-            final String warningValue =
-                    String.format(
-                            Locale.ROOT,
-                            WARNING_FORMAT,
-                            escape(formattedMessage),
-                            DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(GMT)));
+            final String warningValue = formatWarning(formattedMessage);
             assert WARNING_HEADER_PATTERN.matcher(warningValue).matches();
             while (iterator.hasNext()) {
                 try {
                     final ThreadContext next = iterator.next();
-                    next.addResponseHeader(
-                            "Warning",
-                            warningValue,
-                            v -> {
-                                final Matcher matcher = WARNING_HEADER_PATTERN.matcher(v);
-                                final boolean matches = matcher.matches();
-                                assert matches;
-                                return matcher.group(1);
-                            });
+                    next.addResponseHeader("Warning", warningValue, WARNING_VALUE_FROM_WARNING_HEADER);
                 } catch (final IllegalStateException e) {
                     // ignored; it should be removed shortly
                 }
@@ -186,7 +181,24 @@ public class DeprecationLogger {
         }
     }
 
-    static String escape(String s) {
+    /**
+     * Format a warning string in the proper warning format by prepending a warn code, warn agent, wrapping the warning string in quotes,
+     * and appending the RFC 1123 date.
+     *
+     * @param s the warning string to format
+     * @return a warning value formatted according to RFC 7234
+     */
+    public static String formatWarning(final String s) {
+        return String.format(Locale.ROOT, WARNING_FORMAT, escape(s), DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(GMT)));
+    }
+
+    /**
+     * Escape backslashes and quotes in the specified string.
+     *
+     * @param s the string to escape
+     * @return the escaped string
+     */
+    public static String escape(String s) {
         return s.replaceAll("(\\\\|\")", "\\\\$1");
     }
 

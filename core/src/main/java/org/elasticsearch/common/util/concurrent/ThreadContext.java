@@ -419,6 +419,7 @@ public final class ThreadContext implements Closeable, Writeable {
 
             if (existingValues != null) {
                 final Set<String> existingUniqueValues = existingValues.stream().map(uniqueValue).collect(Collectors.toSet());
+                assert existingValues.size() == existingUniqueValues.size();
                 if (existingUniqueValues.contains(uniqueValue.apply(value))) {
                     return this;
                 }

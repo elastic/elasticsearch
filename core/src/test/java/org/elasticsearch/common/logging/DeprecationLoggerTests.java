@@ -164,4 +164,25 @@ public class DeprecationLoggerTests extends ESTestCase {
         }
     }
 
+    public void testWarningValueFromWarningHeader() throws InterruptedException {
+        final String s = randomAsciiOfLength(16);
+        final String first = DeprecationLogger.formatWarning(s);
+        // force the clock forward by a second so the dates on the warning values are different
+        Thread.sleep(1000);
+        final String second = DeprecationLogger.formatWarning(s);
+        assertThat(
+                DeprecationLogger.WARNING_VALUE_FROM_WARNING_HEADER.apply(first),
+                equalTo(DeprecationLogger.WARNING_VALUE_FROM_WARNING_HEADER.apply(second)));
+    }
+
+    public void testEscape() {
+        assertThat(DeprecationLogger.escape("\\"), equalTo("\\\\"));
+        assertThat(DeprecationLogger.escape("\""), equalTo("\\\""));
+        assertThat(DeprecationLogger.escape("\\\""), equalTo("\\\\\\\""));
+        assertThat(DeprecationLogger.escape("\"foo\\bar\""),equalTo("\\\"foo\\\\bar\\\""));
+        // test that characters other than '\' and '"' are left unchanged
+        final String s = DeprecationLogger.escape(randomAsciiOfLength(16).replace("\\", "").replace("\"", ""));
+        assertThat(DeprecationLogger.escape(s), equalTo(s));
+    }
+
 }

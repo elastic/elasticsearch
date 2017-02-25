@@ -59,6 +59,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -134,7 +135,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -301,6 +301,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         } finally {
             resetDeprecationLogger();
         }
+    }
+
+    protected final void assertSettingsDeprecation(Setting... settings) {
+        assertWarnings(
+                Arrays
+                        .stream(settings)
+                        .map(Setting::getKey)
+                        .map(k -> "[" + k + "] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                                "See the breaking changes documentation for the next major version.")
+                        .toArray(String[]::new));
     }
 
     protected final void assertWarnings(String... expectedWarnings) {

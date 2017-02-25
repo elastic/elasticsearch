@@ -19,8 +19,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import java.io.IOException;
-
 import com.amazonaws.services.s3.AbstractAmazonS3;
 import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.cloud.aws.AwsS3Service;
@@ -34,6 +32,8 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+
+import java.io.IOException;
 
 import static org.elasticsearch.repositories.s3.S3Repository.Repositories;
 import static org.elasticsearch.repositories.s3.S3Repository.Repository;
@@ -78,8 +78,7 @@ public class S3RepositoryTests extends ESTestCase {
                      getValue(Settings.EMPTY, globalSettings, Repository.KEY_SETTING, Repositories.KEY_SETTING));
         assertEquals(new SecureString("".toCharArray()),
                      getValue(Settings.EMPTY, Settings.EMPTY, Repository.KEY_SETTING, Repositories.KEY_SETTING));
-        assertWarnings("[" + Repository.KEY_SETTING.getKey() + "] setting was deprecated",
-                       "[" + Repositories.KEY_SETTING.getKey() + "] setting was deprecated");
+        assertSettingsDeprecation(Repository.KEY_SETTING, Repositories.KEY_SETTING);
     }
 
     public void testInvalidChunkBufferSizeSettings() throws IOException {

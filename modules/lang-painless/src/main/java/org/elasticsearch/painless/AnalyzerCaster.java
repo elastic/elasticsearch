@@ -40,7 +40,9 @@ import static org.elasticsearch.painless.WriterConstants.DEF_TO_BOOLEAN;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_BYTE_EXPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_BYTE_IMPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_CHAR_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_CHAR_IMPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_DOUBLE_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_DOUBLE_IMPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_FLOAT_EXPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_FLOAT_IMPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_INT_EXPLICIT;
@@ -88,9 +90,9 @@ public final class AnalyzerCaster {
                     case LONG:
                     case FLOAT:
                     case DOUBLE:
-                        return new Cast.Numeric(BYTE_TYPE, expected, Cast.NOOP);
+                        return new Cast.Numeric(BYTE_TYPE, expected);
                     case CHAR:
-                        if (explicit) return new Cast.Numeric(BYTE_TYPE, expected, Cast.NOOP);
+                        if (explicit) return new Cast.Numeric(BYTE_TYPE, expected);
                         break;
                     case DEF:
                         return new Cast.Box(BYTE_TYPE);
@@ -126,15 +128,15 @@ public final class AnalyzerCaster {
             case SHORT:
                 switch (expected.sort) {
                     case BYTE:
-                        if (explicit) return new Cast.Numeric(SHORT_TYPE, expected, Cast.NOOP);
+                        if (explicit) return new Cast.Numeric(SHORT_TYPE, expected);
                         break;
                     case INT:
                     case LONG:
                     case FLOAT:
                     case DOUBLE:
-                        return new Cast.Numeric(SHORT_TYPE, expected, Cast.NOOP);
+                        return new Cast.Numeric(SHORT_TYPE, expected);
                     case CHAR:
-                        if (explicit) return new Cast.Numeric(SHORT_TYPE, expected, Cast.NOOP);
+                        if (explicit) return new Cast.Numeric(SHORT_TYPE, expected);
                         break;
                     case DEF:
                         return new Cast.Box(SHORT_TYPE);
@@ -171,13 +173,13 @@ public final class AnalyzerCaster {
                 switch (expected.sort) {
                     case BYTE:
                     case SHORT:
-                        if (explicit) return new Cast.Numeric(CHAR_TYPE, expected, Cast.NOOP);
+                        if (explicit) return new Cast.Numeric(CHAR_TYPE, expected);
                         break;
                     case INT:
                     case LONG:
                     case FLOAT:
                     case DOUBLE:
-                        return new Cast.Numeric(CHAR_TYPE, expected, Cast.NOOP);
+                        return new Cast.Numeric(CHAR_TYPE, expected);
                     case DEF:
                         return new Cast.Box(CHAR_TYPE);
                     case OBJECT:
@@ -213,12 +215,12 @@ public final class AnalyzerCaster {
                     case BYTE:
                     case SHORT:
                     case CHAR:
-                        if (explicit) return new Cast.Numeric(INT_TYPE, expected, Cast.NOOP);
+                        if (explicit) return new Cast.Numeric(INT_TYPE, expected);
                         break;
                     case LONG:
                     case FLOAT:
                     case DOUBLE:
-                        return new Cast.Numeric(INT_TYPE, expected, Cast.NOOP);
+                        return new Cast.Numeric(INT_TYPE, expected);
                     case DEF:
                         return new Cast.Box(INT_TYPE);
                     case OBJECT:
@@ -256,11 +258,11 @@ public final class AnalyzerCaster {
                     case SHORT:
                     case CHAR:
                     case INT:
-                        if (explicit) return new Cast.Numeric(LONG_TYPE, expected, Cast.NOOP);
+                        if (explicit) return new Cast.Numeric(LONG_TYPE, expected);
                         break;
                     case FLOAT:
                     case DOUBLE:
-                        return new Cast.Numeric(LONG_TYPE, expected, Cast.NOOP);
+                        return new Cast.Numeric(LONG_TYPE, expected);
                     case DEF:
                         return new Cast.Box(LONG_TYPE);
                     case OBJECT:
@@ -299,10 +301,10 @@ public final class AnalyzerCaster {
                     case CHAR:
                     case INT:
                     case LONG:
-                        if (explicit) return new Cast.Numeric(FLOAT_TYPE, expected, Cast.NOOP);
+                        if (explicit) return new Cast.Numeric(FLOAT_TYPE, expected);
                         break;
                     case DOUBLE:
-                        return new Cast.Numeric(FLOAT_TYPE, expected, Cast.NOOP);
+                        return new Cast.Numeric(FLOAT_TYPE, expected);
                     case DEF:
                         return new Cast.Box(FLOAT_TYPE);
                     case OBJECT:
@@ -343,7 +345,7 @@ public final class AnalyzerCaster {
                     case INT:
                     case LONG:
                     case FLOAT:
-                        if (explicit) return new Cast.Numeric(DOUBLE_TYPE, expected, Cast.NOOP);
+                        if (explicit) return new Cast.Numeric(DOUBLE_TYPE, expected);
                         break;
                     case DEF:
                         return new Cast.Box(DOUBLE_TYPE);
@@ -565,7 +567,7 @@ public final class AnalyzerCaster {
                         return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_SHORT_IMPLICIT, Def::DefToshortImplicit);
                     case CHAR:
                         if (explicit) return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_EXPLICIT, Def::DefTocharExplicit);
-                        return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_EXPLICIT, Def::DefTocharImplicit);
+                        return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_CHAR_IMPLICIT, Def::DefTocharImplicit);
                     case INT:
                         if (explicit) return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_EXPLICIT, Def::DefTointExplicit);
                         return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_INT_IMPLICIT, Def::DefTointImplicit);
@@ -577,7 +579,7 @@ public final class AnalyzerCaster {
                         return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_FLOAT_IMPLICIT, Def::DefTofloatImplicit);
                     case DOUBLE:
                         if (explicit) return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_EXPLICIT, Def::DefTodoubleExplicit);
-                        return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_EXPLICIT, Def::DefTodoubleImplicit);
+                        return new Cast.InvokeStatic(DEF_UTIL_TYPE, DEF_TO_DOUBLE_IMPLICIT, Def::DefTodoubleImplicit);
                 }
                 break;
             case STRING:

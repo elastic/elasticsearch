@@ -29,8 +29,8 @@ import java.util.function.Function;
  * then convert from char to int". These are always read from "outside inwards", meaning that a strategy is first executed and then the
  * "next" strategy is executed.
  */
-public abstract class Cast { // NOCOMMIT rename
-    Cast() {} // NOCOMMIT make private
+public abstract class Cast {
+    private Cast() {}
 
     public abstract boolean castRequired();
     public abstract void write(MethodWriter writer);
@@ -91,7 +91,7 @@ public abstract class Cast { // NOCOMMIT rename
         }
 
         public Numeric(Type from, Type to) {
-            this(from, to, Cast.NOOP); // NOCOMMIT use this more in analyzerCaster
+            this(from, to, Cast.NOOP);
         }
 
         @Override

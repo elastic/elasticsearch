@@ -294,7 +294,7 @@ public final class EAssignment extends AExpression {
                                         // to the promotion type between the lhs and rhs types
             rhs.write(writer, globals); // write the bytecode for the rhs
 
-        // NOCOMMIT: fix these types, but first we need def compound assignment tests.
+        // TODO: fix these types, but first we need def compound assignment tests.
         // its tricky here as there are possibly explicit casts, too.
         // write the operation instruction for compound assignment
             if (promote.sort == Sort.DEF) {

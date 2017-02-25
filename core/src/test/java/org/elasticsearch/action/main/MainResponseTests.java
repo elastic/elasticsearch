@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.Date;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class MainResponseTests extends ESTestCase {
@@ -87,6 +88,46 @@ public class MainResponseTests extends ESTestCase {
                     + "\"lucene_version\":\"5.5.2\"},"
                 + "\"tagline\":\"You Know, for Search\""
           + "}", builder.string());
+    }
+
+    public void testEqualsAndHashcode() {
+        MainResponse original = createTestItem();
+        checkEqualsAndHashCode(original, MainResponseTests::copy, MainResponseTests::mutate);
+    }
+
+    private static MainResponse copy(MainResponse o) {
+        return new MainResponse(o.getNodeName(), o.getVersion(), o.getClusterName(), o.getClusterUuid(), o.getBuild(), o.isAvailable());
+    }
+
+    private static MainResponse mutate(MainResponse o) {
+        String clusterUuid = o.getClusterUuid();
+        boolean available = o.isAvailable();
+        Build build = o.getBuild();
+        Version version = o.getVersion();
+        String nodeName = o.getNodeName();
+        ClusterName clusterName = o.getClusterName();
+        switch (randomIntBetween(0, 5)) {
+        case 0:
+            clusterUuid = clusterUuid + randomAsciiOfLength(5);
+            break;
+        case 1:
+            nodeName = nodeName + randomAsciiOfLength(5);
+            break;
+        case 2:
+            available = !available;
+            break;
+        case 3:
+            // toggle the snapshot flag of the original Build parameter
+            build = new Build(build.shortHash(), build.date(), !build.isSnapshot());
+            break;
+        case 4:
+            version = randomValueOtherThan(version, () -> VersionUtils.randomVersion(random()));
+            break;
+        case 5:
+            clusterName = new ClusterName(clusterName + randomAsciiOfLength(5));
+            break;
+        }
+        return new MainResponse(nodeName, version, clusterName, clusterUuid, build, available);
     }
 
 }

@@ -39,6 +39,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 /**
  * A request to execute search against one or more indices (or all). Best created using
  * {@link org.elasticsearch.client.Requests#searchRequest(String...)}.

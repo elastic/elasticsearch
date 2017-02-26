@@ -314,6 +314,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * From index to start the search from. Defaults to <tt>0</tt>.
      */
     public SearchSourceBuilder from(int from) {
+        if (from < 0) {
+            throw new IllegalArgumentException("from must be no negative but was [" + from + "]");
+        }
         this.from = from;
         return this;
     }
@@ -329,6 +332,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * The number of search hits to return. Defaults to <tt>10</tt>.
      */
     public SearchSourceBuilder size(int size) {
+        if (size < 0) {
+            throw new IllegalArgumentException("size must be no negative but was [" + size + "]");
+        }
         this.size = size;
         return this;
     }

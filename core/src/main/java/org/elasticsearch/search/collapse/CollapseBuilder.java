@@ -172,16 +172,6 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
     }
 
     public CollapseContext build(SearchContext context) {
-        if (context.scrollContext() != null) {
-            throw new SearchContextException(context, "cannot use `collapse` in a scroll context");
-        }
-        if (context.searchAfter() != null) {
-            throw new SearchContextException(context, "cannot use `collapse` in conjunction with `search_after`");
-        }
-        if (context.rescore() != null && context.rescore().isEmpty() == false) {
-            throw new SearchContextException(context, "cannot use `collapse` in conjunction with `rescore`");
-        }
-
         MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(field);
         if (fieldType == null) {
             throw new SearchContextException(context, "no mapping found for `" + field + "` in order to collapse on");

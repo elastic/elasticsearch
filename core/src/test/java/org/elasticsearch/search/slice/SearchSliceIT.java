@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.slice;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -28,20 +29,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -161,15 +162,12 @@ public class SearchSliceIT extends ESIntegTestCase {
 
     public void testInvalidQuery() throws Exception {
         setupIndex(false);
-        SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
+        ActionRequestValidationException exc = expectThrows(ActionRequestValidationException.class,
             () -> client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .slice(new SliceBuilder("invalid_random_int", 0, 10))
                 .get());
-        Throwable rootCause = findRootCause(exc);
-        assertThat(rootCause.getClass(), equalTo(SearchContextException.class));
-        assertThat(rootCause.getMessage(),
-            equalTo("`slice` cannot be used outside of a scroll context"));
+        assertThat(exc.getMessage(), containsString("`slice` cannot be used outside of a scroll context"));
     }
 
     private void assertSearchSlicesWithScroll(SearchRequestBuilder request, String field, int numSlice) {

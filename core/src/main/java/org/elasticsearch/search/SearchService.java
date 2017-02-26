@@ -692,20 +692,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.groupStats(source.stats());
         }
         if (source.searchAfter() != null && source.searchAfter().length > 0) {
-            if (context.scrollContext() != null) {
-                throw new SearchContextException(context, "`search_after` cannot be used in a scroll context.");
-            }
-            if (context.from() > 0) {
-                throw new SearchContextException(context, "`from` parameter must be set to 0 when `search_after` is used.");
-            }
             FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter());
             context.searchAfter(fieldDoc);
         }
 
         if (source.slice() != null) {
-            if (context.scrollContext() == null) {
-                throw new SearchContextException(context, "`slice` cannot be used outside of a scroll context");
-            }
             context.sliceBuilder(source.slice());
         }
 

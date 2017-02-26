@@ -35,7 +35,7 @@ import static org.elasticsearch.client.transport.TransportClient.CLIENT_TRANSPOR
 
 public class NodeDisconnectIT  extends ESIntegTestCase {
 
-    public void testNotifyOnDisconnect() throws IOException, InterruptedException {
+    public void testNotifyOnDisconnect() throws IOException {
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         final Set<DiscoveryNode> disconnectedNodes = Collections.synchronizedSet(new HashSet<>());
@@ -47,7 +47,7 @@ public class NodeDisconnectIT  extends ESIntegTestCase {
             for (TransportService service : internalCluster().getInstances(TransportService.class)) {
                 client.addTransportAddress(service.boundAddress().publishAddress());
             }
-            internalCluster().stopCurrentMasterNode();
+            internalCluster().stopRandomDataNode();
             for (int i = 0; i < 20; i++) { // fire up requests such that we hit the node and pass it to the listener
                 client.admin().cluster().prepareState().get();
             }

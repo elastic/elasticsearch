@@ -164,12 +164,12 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
 
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
         Pipeline pipeline = factory.create(request.getId(), pipelineConfig, processorFactories);
-        List<IllegalArgumentException> exceptions = new ArrayList<>();
+        List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
             for (Map.Entry<DiscoveryNode, IngestInfo> entry : ingestInfos.entrySet()) {
                 if (entry.getValue().containsProcessor(processor.getType()) == false) {
                     String message = "Processor type [" + processor.getType() + "] is not installed on node [" + entry.getKey() + "]";
-                    exceptions.add(new IllegalArgumentException(message));
+                    exceptions.add(ConfigurationUtils.newConfigurationException(processor.getType(), processor.getTag(), null, message));
                 }
             }
         }

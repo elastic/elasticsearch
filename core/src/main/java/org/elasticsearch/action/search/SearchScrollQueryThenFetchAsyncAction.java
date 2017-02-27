@@ -36,6 +36,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -133,7 +134,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
                 if(result.queryResult() == null)
                 {
                     if (counter.decrementAndGet() == 0)
-                        finishHim(searchPhaseController.reducedQueryPhase(EMPTY_LIST));
+                        finishHim(searchPhaseController.reducedQueryPhase(Collections.emptyList()));
                 }
                 else{
                     queryResults.set(shardIndex, result.queryResult());

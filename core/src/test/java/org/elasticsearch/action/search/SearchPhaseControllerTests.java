@@ -362,7 +362,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     resultProviderAtomicArray.set(randomIntBetween(0, resultProviderAtomicArray.length() - 1), null);
                 }
             }
-            SearchPhaseController.fillTopDocs(topDocs, resultProviderAtomicArray.asList(), () -> Lucene.EMPTY_TOP_DOCS);
+            SearchPhaseController.fillTopDocs(topDocs, resultProviderAtomicArray.asList(), Lucene.EMPTY_TOP_DOCS);
             for (int i = 0; i < topDocs.length; i++) {
                 assertNotNull(topDocs[i]);
                 if (topDocs[i] == Lucene.EMPTY_TOP_DOCS) {

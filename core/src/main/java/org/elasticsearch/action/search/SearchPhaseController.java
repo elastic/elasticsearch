@@ -235,19 +235,18 @@ public class SearchPhaseController extends AbstractComponent {
             CollapseTopFieldDocs firstTopDocs = (CollapseTopFieldDocs) result.queryResult().topDocs();
             final Sort sort = new Sort(firstTopDocs.fields);
             final CollapseTopFieldDocs[] shardTopDocs = new CollapseTopFieldDocs[numShards];
-            fillTopDocs(shardTopDocs, results, () ->  new CollapseTopFieldDocs(firstTopDocs.field, 0, new FieldDoc[0],
+            fillTopDocs(shardTopDocs, results, new CollapseTopFieldDocs(firstTopDocs.field, 0, new FieldDoc[0],
                 sort.getSort(), new Object[0], Float.NaN));
             mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs);
         } else if (result.queryResult().topDocs() instanceof TopFieldDocs) {
             TopFieldDocs firstTopDocs = (TopFieldDocs) result.queryResult().topDocs();
             final Sort sort = new Sort(firstTopDocs.fields);
             final TopFieldDocs[] shardTopDocs = new TopFieldDocs[resultsArr.length()];
-            Supplier<TopFieldDocs> supplier = () -> new TopFieldDocs(0, new FieldDoc[0], sort.getSort(), Float.NaN);
-            fillTopDocs(shardTopDocs, results, supplier);
+            fillTopDocs(shardTopDocs, results, new TopFieldDocs(0, new FieldDoc[0], sort.getSort(), Float.NaN));
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         } else {
             final TopDocs[] shardTopDocs = new TopDocs[resultsArr.length()];
-            fillTopDocs(shardTopDocs, results, () ->  Lucene.EMPTY_TOP_DOCS);
+            fillTopDocs(shardTopDocs, results, Lucene.EMPTY_TOP_DOCS);
             mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
         }
 
@@ -290,11 +289,10 @@ public class SearchPhaseController extends AbstractComponent {
 
     static <T extends TopDocs> void fillTopDocs(T[] shardTopDocs,
                                                         List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> results,
-                                                        Supplier<T> emptySupplier) {
+                                                        T empytTopDocs) {
         if (results.size() != shardTopDocs.length) {
             // TopDocs#merge can't deal with null shard TopDocs
-            final T empty = emptySupplier.get();
-            Arrays.fill(shardTopDocs, empty);
+            Arrays.fill(shardTopDocs, empytTopDocs);
         }
         for (AtomicArray.Entry<? extends QuerySearchResultProvider> resultProvider : results) {
             final T topDocs = (T) resultProvider.value.queryResult().topDocs();

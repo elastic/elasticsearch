@@ -133,18 +133,23 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
     }
 
     public static DatafeedConfig createDatafeed(String datafeedId, String jobId, List<String> indexes) {
+        return createDatafeedBuilder(datafeedId, jobId, indexes).build();
+    }
+
+    public static DatafeedConfig.Builder createDatafeedBuilder(String datafeedId, String jobId, List<String> indexes) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
         builder.setQueryDelay(1);
         builder.setFrequency(2);
         builder.setIndexes(indexes);
         builder.setTypes(Collections.singletonList("type"));
-        return builder.build();
+        return builder;
     }
 
     @After
     public void cleanupWorkaround() throws Exception {
         deleteAllDatafeeds(client());
         deleteAllJobs(client());
+        internalCluster().wipe(Collections.emptySet());
         assertBusy(() -> {
             RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries()
                     .setActiveOnly(true)

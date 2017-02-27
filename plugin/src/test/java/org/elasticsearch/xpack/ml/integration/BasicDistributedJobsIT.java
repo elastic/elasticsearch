@@ -85,7 +85,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build());
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         assertTrue(putJobResponse.isAcknowledged());
-        DatafeedConfig config = createDatafeed("data_feed_id", job.getId(), Collections.singletonList("*"));
+        DatafeedConfig.Builder configBuilder = createDatafeedBuilder("data_feed_id", job.getId(), Collections.singletonList("*"));
+        configBuilder.setFrequency(120);
+        DatafeedConfig config = configBuilder.build();
         PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(config);
         PutDatafeedAction.Response putDatadeedResponse = client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).get();
         assertTrue(putDatadeedResponse.isAcknowledged());

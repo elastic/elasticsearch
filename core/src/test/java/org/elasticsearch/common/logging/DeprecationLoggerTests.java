@@ -178,7 +178,7 @@ public class DeprecationLoggerTests extends ESTestCase {
         assertThat(DeprecationLogger.escape("\\\""), equalTo("\\\\\\\""));
         assertThat(DeprecationLogger.escape("\"foo\\bar\""),equalTo("\\\"foo\\\\bar\\\""));
         // test that characters other than '\' and '"' are left unchanged
-        String chars = "\t !" + range(0x23, 0x5b + 1) + range(0x5d, 0x73 + 1) + range(0x80, 0xff + 1);
+        String chars = "\t !" + range(0x23, 0x5b) + range(0x5d, 0x73) + range(0x80, 0xff);
         final String s = new CodepointSetGenerator(chars.toCharArray()).ofCodePointsLength(random(), 16, 16);
         assertThat(DeprecationLogger.escape(s), equalTo(s));
     }

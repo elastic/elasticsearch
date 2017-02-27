@@ -49,7 +49,7 @@ public class NativeController {
     private final OutputStream commandStream;
     private Thread logTailThread;
 
-    public NativeController(Environment env, NamedPipeHelper namedPipeHelper) throws IOException {
+    NativeController(Environment env, NamedPipeHelper namedPipeHelper) throws IOException {
         ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, ProcessCtrl.CONTROLLER, null,
                 true, true, false, false, false, false);
         processPipes.connectStreams(CONTROLLER_CONNECT_TIMEOUT);
@@ -57,7 +57,7 @@ public class NativeController {
         commandStream = processPipes.getCommandStream().get();
     }
 
-    public void tailLogsInThread() {
+    void tailLogsInThread() {
         logTailThread = new Thread(() -> {
             try {
                 cppLogHandler.tailStream();
@@ -111,5 +111,10 @@ public class NativeController {
             }
             commandStream.write('\n');
         }
+    }
+
+    public void stop() throws IOException {
+        // The C++ process will exit when it gets EOF on the command stream
+        commandStream.close();
     }
 }

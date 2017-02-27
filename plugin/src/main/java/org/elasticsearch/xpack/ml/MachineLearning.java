@@ -247,8 +247,17 @@ public class MachineLearning extends Plugin implements ActionPlugin {
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry) {
-        if (false == enabled || this.transportClientMode) {
+        if (this.transportClientMode) {
             return emptyList();
+        }
+
+        MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(settings, clusterService);
+
+        // Even when ML is disabled the native controller will be running if it's installed, and it
+        // prevents graceful shutdown on Windows unless we tell it to stop.  Hence when disabled we
+        // still return a lifecycle service that will tell the native controller to stop.
+        if (false == enabled) {
+            return Collections.singletonList(mlLifeCycleService);
         }
 
         JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
@@ -290,6 +299,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
         PersistentActionRegistry persistentActionRegistry = new PersistentActionRegistry(Settings.EMPTY);
 
         return Arrays.asList(
+                mlLifeCycleService,
                 jobProvider,
                 jobManager,
                 dataProcessor,

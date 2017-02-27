@@ -5,23 +5,35 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.StopDatafeedAction.Request;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
+import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
+import org.elasticsearch.xpack.persistent.PersistentActionRequest;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
+
+import java.util.Collections;
 
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedConfig;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedJob;
 import static org.hamcrest.Matchers.equalTo;
 
-public class StopDatafeedActionRequestTests extends AbstractStreamableTestCase<StopDatafeedAction.Request> {
+public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        Request r = new Request(randomAsciiOfLengthBetween(1, 20));
-        return r;
+        Request request = new Request(randomAsciiOfLengthBetween(1, 20));
+        if (randomBoolean()) {
+            request.setTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
+        }
+        return request;
     }
 
     @Override
@@ -29,18 +41,50 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableTestCase<S
         return new Request();
     }
 
+    @Override
+    protected Request parseInstance(XContentParser parser) {
+        return Request.parseRequest(null, parser);
+    }
+
     public void testValidate() {
+        PersistentTaskInProgress<?> task = new PersistentTaskInProgress<PersistentActionRequest>(1L, StartDatafeedAction.NAME,
+                new StartDatafeedAction.Request("foo", 0L), false, false, new PersistentTasksInProgress.Assignment("node_id", ""));
+        task = new PersistentTaskInProgress<>(task, DatafeedState.STARTED);
+        PersistentTasksInProgress tasks = new PersistentTasksInProgress(1L, Collections.singletonMap(1L, task));
+
         Job job = createDatafeedJob().build();
         MlMetadata mlMetadata1 = new MlMetadata.Builder().putJob(job, false).build();
         Exception e = expectThrows(ResourceNotFoundException.class,
-                () -> StopDatafeedAction.validate("foo", mlMetadata1));
+                () -> StopDatafeedAction.validateAndReturnNodeId("foo", mlMetadata1, tasks));
         assertThat(e.getMessage(), equalTo("No datafeed with id [foo] exists"));
 
         DatafeedConfig datafeedConfig = createDatafeedConfig("foo", "job_id").build();
         MlMetadata mlMetadata2 = new MlMetadata.Builder().putJob(job, false)
                 .putDatafeed(datafeedConfig)
                 .build();
-        StopDatafeedAction.validate("foo", mlMetadata2);
+        StopDatafeedAction.validateAndReturnNodeId("foo", mlMetadata2, tasks);
+    }
+
+    public void testValidate_alreadyStopped() {
+        PersistentTasksInProgress tasks;
+        if (randomBoolean()) {
+            PersistentTaskInProgress<?> task = new PersistentTaskInProgress<PersistentActionRequest>(1L, StartDatafeedAction.NAME,
+                    new StartDatafeedAction.Request("foo", 0L), false, false, new PersistentTasksInProgress.Assignment("node_id", ""));
+            task = new PersistentTaskInProgress<>(task, DatafeedState.STOPPED);
+            tasks = new PersistentTasksInProgress(1L, Collections.singletonMap(1L, task));
+        } else {
+            tasks = randomBoolean() ? null : new PersistentTasksInProgress(0L, Collections.emptyMap());
+        }
+
+        Job job = createDatafeedJob().build();
+        DatafeedConfig datafeedConfig = createDatafeedConfig("foo", "job_id").build();
+        MlMetadata mlMetadata1 = new MlMetadata.Builder()
+                .putJob(job, false)
+                .putDatafeed(datafeedConfig)
+                .build();
+        Exception e = expectThrows(ElasticsearchStatusException.class,
+                () -> StopDatafeedAction.validateAndReturnNodeId("foo", mlMetadata1, tasks));
+        assertThat(e.getMessage(), equalTo("datafeed already stopped, expected datafeed state [started], but got [stopped]"));
     }
 
 }

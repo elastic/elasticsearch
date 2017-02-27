@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -93,14 +92,21 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
     @Override
     protected Response newResponse(Request request, List<Response> tasks, List<TaskOperationFailure> taskOperationFailures,
                                    List<FailedNodeException> failedNodeExceptions) {
+        return selectFirst(tasks, taskOperationFailures, failedNodeExceptions);
+
+    }
+
+    static <Response extends BaseTasksResponse> Response selectFirst(List<Response> tasks,
+                                                                     List<TaskOperationFailure> taskOperationFailures,
+                                                                     List<FailedNodeException> failedNodeExceptions) {
         // no need to accumulate sub responses, since we only perform an operation on one task only
         // not ideal, but throwing exceptions here works, because higher up the stack there is a try-catch block delegating to
         // the actionlistener's onFailure
         if (tasks.isEmpty()) {
             if (taskOperationFailures.isEmpty() == false) {
-                throw wrapThrowable(taskOperationFailures.get(0).getCause());
+                throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
             } else if (failedNodeExceptions.isEmpty() == false) {
-                throw wrapThrowable(failedNodeExceptions.get(0).getCause());
+                throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
             } else {
                 throw new IllegalStateException("No errors or response");
             }
@@ -109,14 +115,6 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
                 throw new IllegalStateException("Expected one node level response, but got [" + tasks.size() + "]");
             }
             return tasks.get(0);
-        }
-    }
-
-    private ElasticsearchException wrapThrowable(Throwable th) {
-        if (th instanceof ElasticsearchException) {
-            return (ElasticsearchException) th;
-        } else {
-            return new ElasticsearchException(th);
         }
     }
 

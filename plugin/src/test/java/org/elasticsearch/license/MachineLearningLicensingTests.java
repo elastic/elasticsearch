@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.ml.client.MachineLearningClient;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.persistent.PersistentActionResponse;
-import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -250,7 +249,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
 
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            PlainListenableActionFuture<RemovePersistentTaskAction.Response> listener = new PlainListenableActionFuture<>(
+            PlainListenableActionFuture<StopDatafeedAction.Response> listener = new PlainListenableActionFuture<>(
                     client.threadPool());
             new MachineLearningClient(client).stopDatafeed(new StopDatafeedAction.Request("foobar"), listener);
             listener.actionGet();

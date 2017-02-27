@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.persistent.PersistentActionResponse;
-import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -120,8 +119,8 @@ public class DatafeedJobsIT extends BaseMlIntegTestCase {
 
         StopDatafeedAction.Request stopDatafeedRequest = new StopDatafeedAction.Request(datafeedConfig.getId());
         try {
-            RemovePersistentTaskAction.Response stopJobResponse = client().execute(StopDatafeedAction.INSTANCE, stopDatafeedRequest).get();
-            assertTrue(stopJobResponse.isAcknowledged());
+            StopDatafeedAction.Response stopJobResponse = client().execute(StopDatafeedAction.INSTANCE, stopDatafeedRequest).get();
+            assertTrue(stopJobResponse.isStopped());
         } catch (Exception e) {
             NodesHotThreadsResponse nodesHotThreadsResponse = client().admin().cluster().prepareNodesHotThreads().get();
             int i = 0;

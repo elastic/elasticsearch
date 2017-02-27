@@ -306,7 +306,7 @@ public class DatafeedJobIT extends ESRestTestCase {
 
         response = client().performRequest("post", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stop");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        assertThat(responseEntityToString(response), equalTo("{\"acknowledged\":true}"));
+        assertThat(responseEntityToString(response), equalTo("{\"stopped\":true}"));
 
         client().performRequest("POST", "/_xpack/ml/anomaly_detectors/" + jobId + "/_close");
 

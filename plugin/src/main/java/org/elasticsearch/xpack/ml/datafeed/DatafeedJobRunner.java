@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
@@ -25,9 +24,6 @@ import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.DefaultFrequency;
 import org.elasticsearch.xpack.ml.job.config.Job;
@@ -266,33 +262,21 @@ public class DatafeedJobRunner extends AbstractComponent {
 
         public void stop(String source, Exception e) {
             logger.info("[{}] attempt to stop datafeed [{}] for job [{}]", source, datafeed.getId(), datafeed.getJobId());
-            // We need to fork, because:
-            // 1) We are being called from cluster state update thread and we should return as soon as possible
-            // 2) We also index into the notifaction index and that is forbidden from the cluster state update thread:
-            //    (Caused by: java.lang.AssertionError: should not be called by a cluster state applier. reason [the applied
-            //     cluster state is not yet available])
-            threadPool.executor(ThreadPool.Names.GENERIC).submit(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    logger.warn("failed to stop [{}] datafeed [{}] for job [{}]", source, datafeed.getId(), datafeed.getJobId());
+            if (datafeedJob.stop()) {
+                try {
+                    logger.info("[{}] stopping datafeed [{}] for job [{}]...", source, datafeed.getId(), datafeed.getJobId());
+                    FutureUtils.cancel(future);
+                    auditor.info(datafeed.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
+                    logger.info("[{}] datafeed [{}] for job [{}] has been stopped", source, datafeed.getId(), datafeed.getJobId());
+                    if (autoCloseJob) {
+                        closeJob();
+                    }
+                } finally {
                     handler.accept(e);
                 }
-
-                @Override
-                protected void doRun() throws Exception {
-                    if (datafeedJob.stop()) {
-                        FutureUtils.cancel(future);
-                        handler.accept(e);
-                        auditor.info(datafeed.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
-                        logger.info("[{}] datafeed [{}] for job [{}] has been stopped", source, datafeed.getId(), datafeed.getJobId());
-                        if (autoCloseJob) {
-                            closeJob();
-                        }
-                    } else {
-                        logger.info("[{}] datafeed [{}] for job [{}] was already stopped", source, datafeed.getId(), datafeed.getJobId());
-                    }
-                }
-            });
+            } else {
+                logger.info("[{}] datafeed [{}] for job [{}] was already stopped", source, datafeed.getId(), datafeed.getJobId());
+            }
         }
 
         private void closeJob() {

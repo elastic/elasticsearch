@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
 import org.junit.After;
 
 import java.util.Collections;
@@ -193,9 +192,9 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
         for (DatafeedConfig datafeed : mlMetadata.getDatafeeds().values()) {
             String datafeedId = datafeed.getId();
             try {
-                RemovePersistentTaskAction.Response stopResponse =
+                StopDatafeedAction.Response stopResponse =
                         client.execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request(datafeedId)).get();
-                assertTrue(stopResponse.isAcknowledged());
+                assertTrue(stopResponse.isStopped());
             } catch (ExecutionException e) {
                 // CONFLICT is ok, as it means the datafeed has already stopped, which isn't an issue at all.
                 if (RestStatus.CONFLICT != ExceptionsHelper.status(e.getCause())) {

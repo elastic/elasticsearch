@@ -18,6 +18,9 @@ public class OpenJobActionRequestTests extends AbstractStreamableXContentTestCas
         if (randomBoolean()) {
             request.setTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
         }
+        if (randomBoolean()) {
+            request.setIgnoreDowntime(randomBoolean());
+        }
         return request;
     }
 

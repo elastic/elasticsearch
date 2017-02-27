@@ -13,6 +13,11 @@
           "type": "string",
           "required": true,
           "description": "The ID of the datafeed to stop"
+        },
+        "timeout": {
+          "type": "time",
+          "required": false,
+          "description": "Controls the time to wait until a datafeed has stopped. Default to 20 seconds"
         }
       },
       "body": null

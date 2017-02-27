@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -181,7 +180,7 @@ public class MlInitializationService extends AbstractComponent implements Cluste
 
     private void installDailyManagementService() {
         if (mlDailyManagementService == null) {
-            mlDailyManagementService = new MlDailyManagementService(threadPool, Arrays.asList(
+            mlDailyManagementService = new MlDailyManagementService(threadPool, Arrays.asList((MlDailyManagementService.Listener)
                     new ExpiredResultsRemover(client, clusterService, auditor),
                     new ExpiredModelSnapshotsRemover(client, clusterService)
             ));

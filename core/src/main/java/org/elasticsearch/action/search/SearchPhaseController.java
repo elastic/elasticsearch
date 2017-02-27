@@ -62,11 +62,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -246,11 +244,11 @@ public class SearchPhaseController extends AbstractComponent {
             final Sort sort = new Sort(firstTopDocs.fields);
             final TopFieldDocs[] shardTopDocs = new TopFieldDocs[resultsArr.length()];
             fillTopDocs(shardTopDocs, results, new TopFieldDocs(0, new FieldDoc[0], sort.getSort(), Float.NaN));
-            mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
+            mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs, true);
         } else {
             final TopDocs[] shardTopDocs = new TopDocs[resultsArr.length()];
             fillTopDocs(shardTopDocs, results, Lucene.EMPTY_TOP_DOCS);
-            mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
+            mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs, true);
         }
 
         ScoreDoc[] scoreDocs = mergedTopDocs.scoreDocs;

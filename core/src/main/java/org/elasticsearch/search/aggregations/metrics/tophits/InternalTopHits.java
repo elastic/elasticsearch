@@ -109,7 +109,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
                 shardDocs[i] = topHitsAgg.topDocs;
                 shardHits[i] = topHitsAgg.searchHits;
             }
-            reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs);
+            reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs, true);
         } else {
             shardDocs = new TopDocs[aggregations.size()];
             for (int i = 0; i < shardDocs.length; i++) {
@@ -117,7 +117,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
                 shardDocs[i] = topHitsAgg.topDocs;
                 shardHits[i] = topHitsAgg.searchHits;
             }
-            reducedTopDocs = TopDocs.merge(from, size, shardDocs);
+            reducedTopDocs = TopDocs.merge(from, size, shardDocs, true);
         }
 
         final int[] tracker = new int[shardHits.length];

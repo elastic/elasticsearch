@@ -477,7 +477,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     }
 
     private ContextPreservingActionListener<ClusterStateUpdateResponse> wrapPreservingContext(ActionListener<ClusterStateUpdateResponse> listener) {
-        return new ContextPreservingActionListener<>(threadPool.getThreadContext().newRestorableContext(false), listener);
+        return ContextPreservingActionListener.wrap(listener, threadPool.getThreadContext(), false);
     }
 
     private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws IOException {

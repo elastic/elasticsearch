@@ -289,7 +289,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
     }
 
     private ContextPreservingActionListener<ClusterStateUpdateResponse> wrapPreservingContext(ActionListener<ClusterStateUpdateResponse> listener) {
-        return new ContextPreservingActionListener<>(threadPool.getThreadContext().newRestorableContext(false), listener);
+        return ContextPreservingActionListener.wrap(listener, threadPool.getThreadContext(), false);
     }
 
     /**

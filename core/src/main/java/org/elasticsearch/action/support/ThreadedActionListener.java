@@ -81,7 +81,7 @@ public final class ThreadedActionListener<Response> implements ActionListener<Re
         this.logger = logger;
         this.threadPool = threadPool;
         this.executor = executor;
-        this.listener = listener;
+        this.listener = ContextPreservingActionListener.wrap(listener, threadPool.getThreadContext(), false);
         this.forceExecution = forceExecution;
     }
 

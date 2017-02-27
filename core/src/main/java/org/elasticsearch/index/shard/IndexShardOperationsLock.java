@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -34,7 +33,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 public class IndexShardOperationsLock implements Closeable {
     private final ShardId shardId;
@@ -129,13 +127,11 @@ public class IndexShardOperationsLock implements Closeable {
                     if (delayedOperations == null) {
                         delayedOperations = new ArrayList<>();
                     }
-                    final Supplier<StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(false);
                     if (executorOnDelay != null) {
                         delayedOperations.add(
-                            new ThreadedActionListener<>(logger, threadPool, executorOnDelay,
-                                new ContextPreservingActionListener<>(contextSupplier, onAcquired), forceExecution));
+                            new ThreadedActionListener<>(logger, threadPool, executorOnDelay, onAcquired, forceExecution));
                     } else {
-                        delayedOperations.add(new ContextPreservingActionListener<>(contextSupplier, onAcquired));
+                        delayedOperations.add(ContextPreservingActionListener.wrap(onAcquired, threadPool.getThreadContext(), false));
                     }
                     return;
                 }

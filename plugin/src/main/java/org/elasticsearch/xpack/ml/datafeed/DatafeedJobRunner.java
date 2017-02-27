@@ -130,6 +130,11 @@ public class DatafeedJobRunner extends AbstractComponent {
                 if (endTime == null) {
                     holder.problemTracker.reportEmptyDataCount();
                     next = e.nextDelayInMsSinceEpoch;
+                } else {
+                    // Notify that a lookback-only run found no data
+                    String lookbackNoDataMsg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_LOOKBACK_NO_DATA);
+                    logger.warn("[{}] {}", holder.datafeed.getJobId(), lookbackNoDataMsg);
+                    auditor.warning(holder.datafeed.getJobId(), lookbackNoDataMsg);
                 }
             } catch (Exception e) {
                 logger.error("Failed lookback import for job [" + holder.datafeed.getJobId() + "]", e);

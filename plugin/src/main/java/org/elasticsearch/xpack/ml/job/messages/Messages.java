@@ -47,6 +47,7 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_CONTINUED_REALTIME = "job.audit.datafeed.continued.realtime";
     public static final String JOB_AUDIT_DATAFEED_STARTED_REALTIME = "job.audit.datafeed.started.realtime";
     public static final String JOB_AUDIT_DATAFEED_LOOKBACK_COMPLETED = "job.audit.datafeed.lookback.completed";
+    public static final String JOB_AUDIT_DATAFEED_LOOKBACK_NO_DATA = "job.audit.datafeed.lookback.no.data";
     public static final String JOB_AUDIT_DATAFEED_STOPPED = "job.audit.datafeed.stopped";
     public static final String JOB_AUDIT_DATAFEED_NO_DATA = "job.audit.datafeed.no.data";
     public static final String JOB_AUDIR_DATAFEED_DATA_SEEN_AGAIN = "job.audit.datafeed.data.seen.again";

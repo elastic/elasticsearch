@@ -161,6 +161,22 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         }).when(client).execute(same(UpdatePersistentTaskStatusAction.INSTANCE), any(), any());
     }
 
+    public void testLookbackOnly_WarnsWhenNoDataIsRetrieved() throws Exception {
+        DataExtractor dataExtractor = mock(DataExtractor.class);
+        when(dataExtractorFactory.newExtractor(0L, 60000L)).thenReturn(dataExtractor);
+        when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
+        when(dataExtractor.next()).thenReturn(Optional.empty());
+        Consumer<Exception> handler = mockConsumer();
+        StartDatafeedAction.DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
+        datafeedJobRunner.run(task, handler);
+
+        verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
+        verify(threadPool, never()).schedule(any(), any(), any());
+        verify(client, never()).execute(same(PostDataAction.INSTANCE), eq(new PostDataAction.Request("foo")));
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+        verify(auditor).warning("job_id", "Datafeed lookback retrieved no data");
+    }
+
     public void testStart_GivenNewlyCreatedJobLoopBack() throws Exception {
         DataExtractor dataExtractor = mock(DataExtractor.class);
         when(dataExtractorFactory.newExtractor(0L, 60000L)).thenReturn(dataExtractor);

@@ -34,7 +34,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -257,12 +259,25 @@ public final class ThreadContext implements Closeable, Writeable {
     }
 
     /**
-     * Add the <em>unique</em> response {@code value} for the specified {@code key}.
-     * <p>
-     * Any duplicate {@code value} is ignored.
+     * Add the {@code value} for the specified {@code key} Any duplicate {@code value} is ignored.
+     *
+     * @param key         the header name
+     * @param value       the header value
      */
-    public void addResponseHeader(String key, String value) {
-        threadLocal.set(threadLocal.get().putResponse(key, value));
+    public void addResponseHeader(final String key, final String value) {
+        addResponseHeader(key, value, v -> v);
+    }
+
+    /**
+     * Add the {@code value} for the specified {@code key} with the specified {@code uniqueValue} used for de-duplication. Any duplicate
+     * {@code value} after applying {@code uniqueValue} is ignored.
+     *
+     * @param key         the header name
+     * @param value       the header value
+     * @param uniqueValue the function that produces de-duplication values
+     */
+    public void addResponseHeader(final String key, final String value, final Function<String, String> uniqueValue) {
+        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue));
     }
 
     /**
@@ -396,14 +411,16 @@ public final class ThreadContext implements Closeable, Writeable {
             return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders);
         }
 
-        private ThreadContextStruct putResponse(String key, String value) {
+        private ThreadContextStruct putResponse(final String key, final String value, final Function<String, String> uniqueValue) {
             assert value != null;
 
             final Map<String, List<String>> newResponseHeaders = new HashMap<>(this.responseHeaders);
             final List<String> existingValues = newResponseHeaders.get(key);
 
             if (existingValues != null) {
-                if (existingValues.contains(value)) {
+                final Set<String> existingUniqueValues = existingValues.stream().map(uniqueValue).collect(Collectors.toSet());
+                assert existingValues.size() == existingUniqueValues.size();
+                if (existingUniqueValues.contains(uniqueValue.apply(value))) {
                     return this;
                 }
 

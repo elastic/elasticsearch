@@ -64,7 +64,8 @@ public class RestRequestTests extends ESTestCase {
             new ContentRestRequest("stuff", singletonMap("source", "stuff2")).contentOrSourceParam().v2());
         assertEquals(new BytesArray("{\"foo\": \"stuff\"}"),
             new ContentRestRequest("", singletonMap("source", "{\"foo\": \"stuff\"}")).contentOrSourceParam().v2());
-        assertWarnings("Deprecated use of the [source] parameter without the [source_content_type] parameter.");
+        assertWarnings("Deprecated use of the [source] parameter without the [source_content_type] parameter. " +
+                "Use the [source_content_type] parameter to specify the content type of the source such as [application/json]");
     }
 
     public void testHasContentOrSourceParam() throws IOException {
@@ -81,7 +82,8 @@ public class RestRequestTests extends ESTestCase {
         assertEquals(emptyMap(), new ContentRestRequest("{}", emptyMap()).contentOrSourceParamParser().map());
         assertEquals(emptyMap(), new ContentRestRequest("{}", singletonMap("source", "stuff2")).contentOrSourceParamParser().map());
         assertEquals(emptyMap(), new ContentRestRequest("", singletonMap("source", "{}")).contentOrSourceParamParser().map());
-        assertWarnings("Deprecated use of the [source] parameter without the [source_content_type] parameter.");
+        assertWarnings("Deprecated use of the [source] parameter without the [source_content_type] parameter. " +
+                "Use the [source_content_type] parameter to specify the content type of the source such as [application/json]");
     }
 
     public void testWithContentOrSourceParamParserOrNull() throws IOException {
@@ -91,7 +93,8 @@ public class RestRequestTests extends ESTestCase {
                 assertEquals(emptyMap(), parser.map()));
         new ContentRestRequest("", singletonMap("source", "{}")).withContentOrSourceParamParserOrNull(parser ->
                 assertEquals(emptyMap(), parser.map()));
-        assertWarnings("Deprecated use of the [source] parameter without the [source_content_type] parameter.");
+        assertWarnings("Deprecated use of the [source] parameter without the [source_content_type] parameter. " +
+                "Use the [source_content_type] parameter to specify the content type of the source such as [application/json]");
     }
 
     public void testContentTypeParsing() {

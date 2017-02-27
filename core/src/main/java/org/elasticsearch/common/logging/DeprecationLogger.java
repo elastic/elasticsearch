@@ -21,13 +21,21 @@ package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * A logger that logs deprecation notices.
@@ -35,14 +43,6 @@ import java.util.concurrent.CopyOnWriteArraySet;
 public class DeprecationLogger {
 
     private final Logger logger;
-
-    /**
-     * The "Warning" Header comes from RFC-7234. As the RFC describes, it's generally used for caching purposes, but it can be
-     * used for <em>any</em> warning.
-     *
-     * https://tools.ietf.org/html/rfc7234#section-5.5
-     */
-    public static final String WARNING_HEADER = "Warning";
 
     /**
      * This is set once by the {@code Node} constructor, but it uses {@link CopyOnWriteArraySet} to ensure that tests can run in parallel.
@@ -112,6 +112,57 @@ public class DeprecationLogger {
         deprecated(THREAD_CONTEXT, msg, params);
     }
 
+    /*
+     * RFC7234 specifies the warning format as warn-code <space> warn-agent <space> "warn-text" [<space> "warn-date"]. Here, warn-code is a
+     * three-digit number with various standard warn codes specified. The warn code 299 is apt for our purposes as it represents a
+     * miscellaneous persistent warning (can be presented to a human, or logged, and must not be removed by a cache). The warn-agent is an
+     * arbitrary token; here we use the Elasticsearch version and build hash. The warn text must be quoted. The warn-date is an optional
+     * quoted field that can be in a variety of specified date formats; here we use RFC 1123 format.
+     */
+    private static final String WARNING_FORMAT =
+            String.format(
+                    Locale.ROOT,
+                    "299 Elasticsearch-%s%s-%s ",
+                    Version.CURRENT.toString(),
+                    Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
+                    Build.CURRENT.shortHash()) +
+                    "\"%s\" \"%s\"";
+
+    private static final ZoneId GMT = ZoneId.of("GMT");
+
+    /**
+     * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code
+     * is always 299. Further, this pattern assumes that the warn agent represents a version of Elasticsearch including the build hash.
+     */
+    public static Pattern WARNING_HEADER_PATTERN = Pattern.compile(
+            "299 " + // warn code
+                    "Elasticsearch-\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-(?:[a-f0-9]{7}|Unknown) " + // warn agent
+                    "\"((?:\t| |!|[\\x23-\\x5b]|[\\x5d-\\x7e]|[\\x80-\\xff]|\\\\|\\\\\")*)\" " + // quoted warning value, captured
+                    // quoted RFC 1123 date format
+                    "\"" + // opening quote
+                    "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
+                    "\\d{2} " + // 2-digit day
+                    "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
+                    "\\d{4} " + // 4-digit year
+                    "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
+                    "GMT" + // GMT
+                    "\""); // closing quote
+
+    /**
+     * Extracts the warning value from the value of a warning header that is formatted according to RFC 7234. That is, given a string
+     * {@code 299 Elasticsearch-6.0.0 "warning value" "Sat, 25 Feb 2017 10:27:43 GMT"}, the return value of this method would be {@code
+     * warning value}.
+     *
+     * @param s the value of a warning header formatted according to RFC 7234.
+     * @return the extracted warning value
+     */
+    public static String extractWarningValueFromWarningHeader(final String s) {
+        final Matcher matcher = WARNING_HEADER_PATTERN.matcher(s);
+        final boolean matches = matcher.matches();
+        assert matches;
+        return matcher.group(1);
+    }
+
     /**
      * Logs a deprecated message to the deprecation log, as well as to the local {@link ThreadContext}.
      *
@@ -120,16 +171,19 @@ public class DeprecationLogger {
      * @param params The parameters used to fill in the message, if any exist.
      */
     @SuppressLoggerChecks(reason = "safely delegates to logger")
-    void deprecated(Set<ThreadContext> threadContexts, String message, Object... params) {
-        Iterator<ThreadContext> iterator = threadContexts.iterator();
+    void deprecated(final Set<ThreadContext> threadContexts, final String message, final Object... params) {
+        final Iterator<ThreadContext> iterator = threadContexts.iterator();
 
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
-
+            final String warningHeaderValue = formatWarning(formattedMessage);
+            assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
+            assert extractWarningValueFromWarningHeader(warningHeaderValue).equals(escape(formattedMessage));
             while (iterator.hasNext()) {
                 try {
-                    iterator.next().addResponseHeader(WARNING_HEADER, formattedMessage);
-                } catch (IllegalStateException e) {
+                    final ThreadContext next = iterator.next();
+                    next.addResponseHeader("Warning", warningHeaderValue, DeprecationLogger::extractWarningValueFromWarningHeader);
+                } catch (final IllegalStateException e) {
                     // ignored; it should be removed shortly
                 }
             }
@@ -137,6 +191,27 @@ public class DeprecationLogger {
         } else {
             logger.warn(message, params);
         }
+    }
+
+    /**
+     * Format a warning string in the proper warning format by prepending a warn code, warn agent, wrapping the warning string in quotes,
+     * and appending the RFC 1123 date.
+     *
+     * @param s the warning string to format
+     * @return a warning value formatted according to RFC 7234
+     */
+    public static String formatWarning(final String s) {
+        return String.format(Locale.ROOT, WARNING_FORMAT, escape(s), DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(GMT)));
+    }
+
+    /**
+     * Escape backslashes and quotes in the specified string.
+     *
+     * @param s the string to escape
+     * @return the escaped string
+     */
+    public static String escape(String s) {
+        return s.replaceAll("(\\\\|\")", "\\\\$1");
     }
 
 }

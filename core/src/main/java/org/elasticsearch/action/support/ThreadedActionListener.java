@@ -66,22 +66,23 @@ public final class ThreadedActionListener<Response> implements ActionListener<Re
             if (listener instanceof ThreadedActionListener) {
                 return listener;
             }
-            return new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER, listener, false);
+            return new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.LISTENER,
+                ContextPreservingActionListener.wrap(listener, threadPool.getThreadContext(), false), false);
         }
     }
 
     private final Logger logger;
     private final ThreadPool threadPool;
     private final String executor;
-    private final ActionListener<Response> listener;
+    private final ContextPreservingActionListener<Response> listener;
     private final boolean forceExecution;
 
-    public ThreadedActionListener(Logger logger, ThreadPool threadPool, String executor, ActionListener<Response> listener,
+    public ThreadedActionListener(Logger logger, ThreadPool threadPool, String executor, ContextPreservingActionListener<Response> listener,
                                   boolean forceExecution) {
         this.logger = logger;
         this.threadPool = threadPool;
         this.executor = executor;
-        this.listener = ContextPreservingActionListener.wrap(listener, threadPool.getThreadContext(), false);
+        this.listener = listener;
         this.forceExecution = forceExecution;
     }
 

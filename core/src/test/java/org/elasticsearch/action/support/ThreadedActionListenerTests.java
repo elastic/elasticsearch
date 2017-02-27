@@ -45,7 +45,7 @@ public class ThreadedActionListenerTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testThreadedActionListenerPreservesContext() throws InterruptedException {
+    public void testThreadedActionListenerWithContextPreservingListener() throws InterruptedException {
         final ThreadedActionListener<Void> listener;
         final ThreadContext context = threadPool.getThreadContext();
         final CountDownLatch responseLatch = new CountDownLatch(1);
@@ -53,7 +53,8 @@ public class ThreadedActionListenerTests extends ESTestCase {
         try (ThreadContext.StoredContext ignore = context.newStoredContext(false)) {
             context.putHeader("foo", "bar");
             context.putTransient("bar", "baz");
-            listener = new ThreadedActionListener<>(logger, threadPool, Names.GENERIC, ActionListener.wrap(r -> {
+            listener = new ThreadedActionListener<>(logger, threadPool, Names.GENERIC,
+                ContextPreservingActionListener.wrap(ActionListener.wrap(r -> {
                     assertEquals("bar", context.getHeader("foo"));
                     assertEquals("baz", context.getTransient("bar"));
                     responseLatch.countDown();
@@ -62,7 +63,7 @@ public class ThreadedActionListenerTests extends ESTestCase {
                     assertEquals("bar", context.getHeader("foo"));
                     assertEquals("baz", context.getTransient("bar"));
                     exceptionLatch.countDown();
-                }), randomBoolean());
+                }), threadPool.getThreadContext(), false), randomBoolean());
         }
 
         assertNull(context.getHeader("foo"));

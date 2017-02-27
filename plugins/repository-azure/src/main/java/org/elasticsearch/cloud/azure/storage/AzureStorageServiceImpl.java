@@ -21,6 +21,8 @@ package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.LocationMode;
+import com.microsoft.azure.storage.RetryExponentialRetry;
+import com.microsoft.azure.storage.RetryPolicy;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobProperties;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
@@ -143,6 +145,11 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
                     "]. It can not be longer than 2,147,483,647ms.");
             }
         }
+
+        // We define a default exponential retry policy
+        client.getDefaultRequestOptions().setRetryPolicyFactory(
+            new RetryExponentialRetry(RetryPolicy.DEFAULT_CLIENT_BACKOFF, azureStorageSettings.getMaxRetries()));
+
         return client;
     }
 

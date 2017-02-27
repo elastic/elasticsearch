@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cloud.azure.storage;
 
+import com.microsoft.azure.storage.RetryPolicy;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
@@ -43,20 +44,27 @@ public final class AzureStorageSettings {
         Setting.affixKeySetting(Storage.PREFIX, "key", (key) -> Setting.simpleString(key, Setting.Property.NodeScope));
     private static final Setting<Boolean> DEFAULT_SETTING =
         Setting.affixKeySetting(Storage.PREFIX, "default", (key) -> Setting.boolSetting(key, false, Setting.Property.NodeScope));
-
+    /**
+     * max_retries: Number of retries in case of Azure errors. Defaults to 3 (RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT).
+     */
+    private static final Setting<Integer> MAX_RETRIES_SETTING =
+        Setting.affixKeySetting(Storage.PREFIX, "max_retries",
+            (key) -> Setting.intSetting(key, RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT, Setting.Property.NodeScope));
 
     private final String name;
     private final String account;
     private final String key;
     private final TimeValue timeout;
     private final boolean activeByDefault;
+    private final int maxRetries;
 
-    public AzureStorageSettings(String name, String account, String key, TimeValue timeout, boolean activeByDefault) {
+    public AzureStorageSettings(String name, String account, String key, TimeValue timeout, boolean activeByDefault, int maxRetries) {
         this.name = name;
         this.account = account;
         this.key = key;
         this.timeout = timeout;
         this.activeByDefault = activeByDefault;
+        this.maxRetries = maxRetries;
     }
 
     public String getName() {
@@ -79,6 +87,10 @@ public final class AzureStorageSettings {
         return activeByDefault;
     }
 
+    public int getMaxRetries() {
+        return maxRetries;
+    }
+
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("AzureStorageSettings{");
@@ -87,6 +99,7 @@ public final class AzureStorageSettings {
         sb.append(", key='").append(key).append('\'');
         sb.append(", activeByDefault='").append(activeByDefault).append('\'');
         sb.append(", timeout=").append(timeout);
+        sb.append(", maxRetries=").append(maxRetries);
         sb.append('}');
         return sb.toString();
     }
@@ -112,7 +125,8 @@ public final class AzureStorageSettings {
                     getValue(settings, groupName, ACCOUNT_SETTING),
                     getValue(settings, groupName, KEY_SETTING),
                     getValue(settings, groupName, TIMEOUT_SETTING),
-                    getValue(settings, groupName, DEFAULT_SETTING))
+                    getValue(settings, groupName, DEFAULT_SETTING),
+                    getValue(settings, groupName, MAX_RETRIES_SETTING))
             );
         }
         return storageSettings;
@@ -130,7 +144,8 @@ public final class AzureStorageSettings {
         } else if (settings.size() == 1) {
             // the only storage settings belong (implicitly) to the default primary storage
             AzureStorageSettings storage = settings.get(0);
-            return new AzureStorageSettings(storage.getName(), storage.getAccount(), storage.getKey(), storage.getTimeout(), true);
+            return new AzureStorageSettings(storage.getName(), storage.getAccount(), storage.getKey(), storage.getTimeout(), true,
+                storage.getMaxRetries());
         } else {
             AzureStorageSettings primary = null;
             for (AzureStorageSettings setting : settings) {

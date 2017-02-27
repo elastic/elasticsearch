@@ -117,7 +117,7 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         return getSearchRequest().types();
     }
 
-    public IndicesRequest types(String...types) {
+    public DeleteByQueryRequest types(String... types) {
         assert getSearchRequest() != null;
         getSearchRequest().types(types);
         return this;

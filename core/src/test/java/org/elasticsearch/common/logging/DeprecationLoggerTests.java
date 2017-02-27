@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.logging;
 
+import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -29,6 +30,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.logging.DeprecationLogger.WARNING_HEADER_PATTERN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
@@ -167,12 +169,7 @@ public class DeprecationLoggerTests extends ESTestCase {
     public void testWarningValueFromWarningHeader() throws InterruptedException {
         final String s = randomAsciiOfLength(16);
         final String first = DeprecationLogger.formatWarning(s);
-        // force the clock forward by a second so the dates on the warning values are different
-        Thread.sleep(1000);
-        final String second = DeprecationLogger.formatWarning(s);
-        assertThat(
-                DeprecationLogger.extractWarningValueFromWarningHeader(first),
-                equalTo(DeprecationLogger.extractWarningValueFromWarningHeader(second)));
+        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(first), equalTo(s));
     }
 
     public void testEscape() {
@@ -181,8 +178,16 @@ public class DeprecationLoggerTests extends ESTestCase {
         assertThat(DeprecationLogger.escape("\\\""), equalTo("\\\\\\\""));
         assertThat(DeprecationLogger.escape("\"foo\\bar\""),equalTo("\\\"foo\\\\bar\\\""));
         // test that characters other than '\' and '"' are left unchanged
-        final String s = DeprecationLogger.escape(randomAsciiOfLength(16).replace("\\", "").replace("\"", ""));
+        String chars = "\t !" + range(0x23, 0x5b + 1) + range(0x5d, 0x73 + 1) + range(0x80, 0xff + 1);
+        final String s = new CodepointSetGenerator(chars.toCharArray()).ofCodePointsLength(random(), 16, 16);
         assertThat(DeprecationLogger.escape(s), equalTo(s));
+    }
+
+    private String range(int lowerInclusive, int upperInclusive) {
+        return IntStream
+                .range(lowerInclusive, upperInclusive + 1)
+                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+                .toString();
     }
 
 }

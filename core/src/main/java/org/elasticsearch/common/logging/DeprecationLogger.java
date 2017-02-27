@@ -34,7 +34,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -138,7 +137,7 @@ public class DeprecationLogger {
     public static Pattern WARNING_HEADER_PATTERN = Pattern.compile(
             "299 " + // warn code
                     "Elasticsearch-\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-(?:[a-f0-9]{7}|Unknown) " + // warn agent
-                    "\"((?:\t| |!|[\\x23-\\x5b]|[\\x5d-\\x7e]|[\\x80-\\xff]|\\\\|\")*)\" " + // quoted warning value, captured
+                    "\"((?:\t| |!|[\\x23-\\x5b]|[\\x5d-\\x7e]|[\\x80-\\xff]|\\\\|\\\\\")*)\" " + // quoted warning value, captured
                     // quoted RFC 1123 date format
                     "\"" + // opening quote
                     "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
@@ -177,12 +176,13 @@ public class DeprecationLogger {
 
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
-            final String warningValue = formatWarning(formattedMessage);
-            assert WARNING_HEADER_PATTERN.matcher(warningValue).matches();
+            final String warningHeaderValue = formatWarning(formattedMessage);
+            assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
+            assert extractWarningValueFromWarningHeader(warningHeaderValue).equals(escape(formattedMessage));
             while (iterator.hasNext()) {
                 try {
                     final ThreadContext next = iterator.next();
-                    next.addResponseHeader("Warning", warningValue, DeprecationLogger::extractWarningValueFromWarningHeader);
+                    next.addResponseHeader("Warning", warningHeaderValue, DeprecationLogger::extractWarningValueFromWarningHeader);
                 } catch (final IllegalStateException e) {
                     // ignored; it should be removed shortly
                 }

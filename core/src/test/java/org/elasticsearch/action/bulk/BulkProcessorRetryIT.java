@@ -78,7 +78,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
         assertAcked(prepareCreate(INDEX_NAME));
         ensureGreen();
 
-        BulkProcessor bulkProcessor = BulkProcessor.builder(client()::bulk, new BulkProcessor.Listener() {
+        BulkProcessor bulkProcessor = BulkProcessor.builder(client(), new BulkProcessor.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
                 // no op
@@ -96,7 +96,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
                 responses.add(failure);
                 latch.countDown();
             }
-        }, client().settings(), client().threadPool()).setBulkActions(1)
+        }).setBulkActions(1)
                  // zero means that we're in the sync case, more means that we're in the async case
                 .setConcurrentRequests(randomIntBetween(0, 100))
                 .setBackoffPolicy(internalPolicy)

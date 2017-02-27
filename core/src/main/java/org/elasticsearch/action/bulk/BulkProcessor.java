@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -176,12 +177,19 @@ public class BulkProcessor implements Closeable {
         }
     }
 
-    public static Builder builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener, Settings settings,
-                                  ThreadPool threadPool) {
-        Objects.requireNonNull(consumer, "consumer");
+    public static Builder builder() {
+//        Objects.requireNonNull(consumer, "consumer");
+//        Objects.requireNonNull(listener, "listener");
+//
+//        return new Builder(consumer, listener, settings, threadPool);
+        return null;
+    }
+
+    public static Builder builder(Client client, Listener listener) {
+        Objects.requireNonNull(client, "client");
         Objects.requireNonNull(listener, "listener");
 
-        return new Builder(consumer, listener, settings, threadPool);
+        return new Builder(client::bulk, listener, client.settings(), client.threadPool());
     }
 
     private final int bulkActions;

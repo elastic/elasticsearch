@@ -131,19 +131,12 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
         searchTransportService.sendExecuteQuery(node, internalRequest, task, new ActionListener<ScrollQuerySearchResult>() {
             @Override
             public void onResponse(ScrollQuerySearchResult result) {
-                if(result.queryResult() == null)
-                {
-                    if (counter.decrementAndGet() == 0)
-                        finishHim(searchPhaseController.reducedQueryPhase(Collections.emptyList()));
-                }
-                else{
-                    queryResults.set(shardIndex, result.queryResult());
-                    if (counter.decrementAndGet() == 0) {
-                        try {
-                            executeFetchPhase();
-                        } catch (Exception e) {
-                            onFailure(e);
-                        }
+                queryResults.set(shardIndex, result.queryResult());
+                if (counter.decrementAndGet() == 0) {
+                    try {
+                        executeFetchPhase();
+                    } catch (Exception e) {
+                        onFailure(e);
                     }
                 }
             }

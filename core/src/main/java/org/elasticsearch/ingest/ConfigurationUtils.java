@@ -244,13 +244,22 @@ public final class ConfigurationUtils {
 
     public static List<Processor> readProcessorConfigs(List<Map<String, Map<String, Object>>> processorConfigs,
                                                        Map<String, Processor.Factory> processorFactories) throws Exception {
+        Exception exception = null;
         List<Processor> processors = new ArrayList<>();
         if (processorConfigs != null) {
             for (Map<String, Map<String, Object>> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Map<String, Object>> entry : processorConfigWithKey.entrySet()) {
-                    processors.add(readProcessor(processorFactories, entry.getKey(), entry.getValue()));
+                    try {
+                        processors.add(readProcessor(processorFactories, entry.getKey(), entry.getValue()));
+                    } catch (Exception e) {
+                        exception = ExceptionsHelper.useOrSuppress(exception, e);
+                    }
                 }
             }
+        }
+
+        if (exception != null) {
+            throw exception;
         }
 
         return processors;

@@ -70,7 +70,7 @@ public class PipelineStoreTests extends ESTestCase {
 
                 @Override
                 public String getTag() {
-                    return null;
+                    return tag;
                 }
             };
         });
@@ -89,7 +89,7 @@ public class PipelineStoreTests extends ESTestCase {
 
                 @Override
                 public String getTag() {
-                    return null;
+                    return tag;
                 }
             };
         });
@@ -335,7 +335,8 @@ public class PipelineStoreTests extends ESTestCase {
 
     public void testValidate() throws Exception {
         PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray(
-                "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}},{\"remove\" : {\"field\": \"_field\"}}]}"),
+                "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\", \"tag\": \"tag1\"}}," +
+                    "{\"remove\" : {\"field\": \"_field\", \"tag\": \"tag2\"}}]}"),
             XContentType.JSON);
 
         DiscoveryNode node1 = new DiscoveryNode("_node_id1", buildNewFakeTransportAddress(),
@@ -346,12 +347,11 @@ public class PipelineStoreTests extends ESTestCase {
         ingestInfos.put(node1, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
         ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"))));
 
-        try {
-            store.validatePipeline(ingestInfos, putRequest);
-            fail("exception expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Processor type [remove] is not installed on node [" + node2 + "]"));
-        }
+        ElasticsearchParseException e =
+            expectThrows(ElasticsearchParseException.class, () -> store.validatePipeline(ingestInfos, putRequest));
+        assertEquals("Processor type [remove] is not installed on node [" + node2 + "]", e.getMessage());
+        assertEquals("remove", e.getHeader("processor_type").get(0));
+        assertEquals("tag2", e.getHeader("processor_tag").get(0));
 
         ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
         store.validatePipeline(ingestInfos, putRequest);
@@ -360,12 +360,8 @@ public class PipelineStoreTests extends ESTestCase {
     public void testValidateNoIngestInfo() throws Exception {
         PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray(
                 "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"), XContentType.JSON);
-        try {
-            store.validatePipeline(Collections.emptyMap(), putRequest);
-            fail("exception expected");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), equalTo("Ingest info is empty"));
-        }
+        Exception e = expectThrows(IllegalStateException.class, () -> store.validatePipeline(Collections.emptyMap(), putRequest));
+        assertEquals("Ingest info is empty", e.getMessage());
 
         DiscoveryNode discoveryNode = new DiscoveryNode("_node_id", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), Version.CURRENT);

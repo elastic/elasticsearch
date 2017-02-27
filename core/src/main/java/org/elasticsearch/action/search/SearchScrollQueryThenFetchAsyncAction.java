@@ -131,13 +131,18 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
             @Override
             public void onResponse(ScrollQuerySearchResult result) {
                 if(result.queryResult() == null)
-                    finishHim(searchPhaseController.reducedQueryPhase(EMPTY_LIST));
-                queryResults.set(shardIndex, result.queryResult());
-                if (counter.decrementAndGet() == 0) {
-                    try {
-                        executeFetchPhase();
-                    } catch (Exception e) {
-                        onFailure(e);
+                {
+                    if (counter.decrementAndGet() == 0)
+                        finishHim(searchPhaseController.reducedQueryPhase(EMPTY_LIST));
+                }
+                else{
+                    queryResults.set(shardIndex, result.queryResult());
+                    if (counter.decrementAndGet() == 0) {
+                        try {
+                            executeFetchPhase();
+                        } catch (Exception e) {
+                            onFailure(e);
+                        }
                     }
                 }
             }
@@ -221,14 +226,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
 
     private void finishHim(SearchPhaseController.ReducedQueryPhase queryPhase) {
         try {
-            final InternalSearchResponse internalResponse;
-            if(queryPhase.isEmpty())
-            {
-                internalResponse = InternalSearchResponse.empty();
-            }
-            else {
-                internalResponse = searchPhaseController.merge(true, sortedShardDocs, queryPhase, fetchResults);
-            }
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(true, sortedShardDocs, queryPhase, fetchResults);
 
             String scrollId = null;
             if (request.scroll() != null) {

@@ -310,8 +310,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public ScrollQuerySearchResult executeQueryPhase(InternalScrollSearchRequest request, SearchTask task) {
         final SearchContext context = findContext(request.id());
-        if(context == null)
-            return null;
+        if (context == null)
+            return new ScrollQuerySearchResult();
         SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
         context.incRef();
         try {
@@ -435,19 +435,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } finally {
             cleanContext(context);
             //Release searchContext if we have no more hits
-            if((context.queryResult().from() + context.queryResult().size()) >= 5){
-                for(SearchContext cntxt: activeContexts.values()){
-                    if(cntxt.scrollContext() != null){
-                        releasedContexts.add(cntxt.id());
-                        freeContext(cntxt.id());
-                    }
+            if ((context.queryResult().size()) >= context.scrollContext().totalHits) {
+                if (context.scrollContext() != null) {
+                    releasedContexts.add(context.id());
+                    freeContext(context.id());
                 }
             }
         }
     }
 
     private SearchContext findContext(long id) throws SearchContextMissingException {
-        if(releasedContexts.contains(id))
+        if (releasedContexts.contains(id))
             return null;
         SearchContext context = activeContexts.get(id);
         if (context == null) {
@@ -553,7 +551,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             try {
                 context.indexShard().getSearchOperationListener().onFreeContext(context);
                 if (context.scrollContext() != null) {
-                    releasedContexts.remove(id);
                     context.indexShard().getSearchOperationListener().onFreeScrollContext(context);
                 }
             } finally {
@@ -567,7 +564,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void freeAllScrollContexts() {
         for (SearchContext searchContext : activeContexts.values()) {
             if (searchContext.scrollContext() != null) {
-                releasedContexts.remove(searchContext.id());
                 freeContext(searchContext.id());
             }
         }
@@ -827,6 +823,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
             }
         }
+
     }
 
     public AliasFilter buildAliasFilter(ClusterState state, String index, String... expressions) {

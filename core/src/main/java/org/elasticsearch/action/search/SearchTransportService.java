@@ -348,13 +348,7 @@ public class SearchTransportService extends AbstractLifecycleComponent {
                 @Override
                 public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel, Task task) throws Exception {
                     ScrollQuerySearchResult result = searchService.executeQueryPhase(request, (SearchTask)task);
-                    if(result == null)
-                    {
-                        channel.sendResponse(new ScrollQuerySearchResult());
-                    }
-                    else {
-                        channel.sendResponse(result);
-                    }
+                    channel.sendResponse(result);
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, ScrollQuerySearchResult::new);

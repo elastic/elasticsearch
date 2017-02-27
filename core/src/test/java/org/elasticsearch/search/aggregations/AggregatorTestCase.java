@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
@@ -50,6 +51,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -112,11 +114,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }).when(searchContext).addReleasable(anyObject(), anyObject());
 
         // TODO: now just needed for top_hits, this will need to be revised for other agg unit tests:
-        MapperService mapperService = mock(MapperService.class);
+        MapperService mapperService = mapperServiceMock();
         when(mapperService.hasNested()).thenReturn(false);
         when(searchContext.mapperService()).thenReturn(mapperService);
+        IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+                new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
+                }), circuitBreakerService, mapperService);
+        when(searchContext.fieldData()).thenReturn(ifds);
 
-        SearchLookup searchLookup = new SearchLookup(mapperService, mock(IndexFieldDataService.class), new String[]{"type"});
+        SearchLookup searchLookup = new SearchLookup(mapperService, ifds, new String[]{"type"});
         when(searchContext.lookup()).thenReturn(searchLookup);
 
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
@@ -130,6 +136,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
         @SuppressWarnings("unchecked")
         A aggregator = (A) aggregationBuilder.build(searchContext, null).create(null, true);
         return aggregator;
+    }
+
+    /**
+     * sub-tests that need a more complex mock can overwrite this
+     */
+    protected MapperService mapperServiceMock() {
+        return mock(MapperService.class);
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A search(IndexSearcher searcher,

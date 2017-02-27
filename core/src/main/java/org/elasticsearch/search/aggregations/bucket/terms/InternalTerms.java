@@ -33,7 +33,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -226,7 +225,15 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             if (terms.getBucketsInternal().size() < getShardSize() || InternalOrder.isTermOrder(order)) {
                 thisAggDocCountError = 0;
             } else if (InternalOrder.isCountDesc(this.order)) {
-                thisAggDocCountError = terms.getBucketsInternal().get(terms.getBucketsInternal().size() - 1).docCount;
+                if (terms.getDocCountError() > 0) {
+                    // If there is an existing docCountError for this agg then
+                    // use this as the error for this aggregation
+                    thisAggDocCountError = terms.getDocCountError();
+                } else {
+                    // otherwise use the doc count of the last term in the
+                    // aggregation
+                    thisAggDocCountError = terms.getBucketsInternal().get(terms.getBucketsInternal().size() - 1).docCount;
+                }
             } else {
                 thisAggDocCountError = -1;
             }

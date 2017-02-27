@@ -19,20 +19,17 @@
 
 package org.elasticsearch.rest;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 
@@ -46,10 +43,7 @@ public class Netty4BadRequestIT extends ESRestTestCase {
 
     public void testBadRequest() throws IOException {
         final Response response = client().performRequest("GET", "/_nodes/settings", Collections.emptyMap());
-        final String body = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
-        final String contentType = response.getHeader("Content-Type");
-        final XContentType xContentType = XContentType.fromMediaTypeOrFormat(contentType);
-        final ObjectPath objectPath = ObjectPath.createFromXContent(xContentType.xContent(), body);
+        final ObjectPath objectPath = ObjectPath.createFromResponse(response);
         final Map<String, Object> map = objectPath.evaluate("nodes");
         int maxMaxInitialLineLength = Integer.MIN_VALUE;
         final Setting<ByteSizeValue> httpMaxInitialLineLength = HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
@@ -80,5 +74,4 @@ public class Netty4BadRequestIT extends ESRestTestCase {
         assertThat(e, hasToString(containsString("too_long_frame_exception")));
         assertThat(e, hasToString(matches("An HTTP line is larger than \\d+ bytes")));
     }
-
 }

@@ -31,25 +31,6 @@
   - match: { test_index.settings.index.number_of_replicas: "0"}
 
 ---
-"Create index with too large wait_for_active_shards":
-
-  - do:
-      indices.create:
-        index: test_index
-        timeout: 100ms
-        master_timeout: 100ms
-        wait_for_active_shards: 6
-        body:
-          settings:
-            number_of_replicas: 5
-
-  - match: { shards_acknowledged: false }
-
-  - do:
-      cluster.health:
-          wait_for_events: urgent      
-
----
 "Create index with wait_for_active_shards set to all":
 
   - do:

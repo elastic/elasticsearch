@@ -748,7 +748,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } catch (UnsupportedOperationException e) {
             // If its a read-only repository, listing blobs by prefix may not be supported (e.g. a URL repository),
             // in this case, try reading the latest index generation from the index.latest blob
-            return readSnapshotIndexLatestBlob();
+            try {
+                return readSnapshotIndexLatestBlob();
+            } catch (NoSuchFileException nsfe) {
+                return RepositoryData.EMPTY_REPO_GEN;
+            }
         }
     }
 

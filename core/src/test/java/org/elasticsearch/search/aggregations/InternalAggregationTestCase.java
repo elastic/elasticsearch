@@ -49,11 +49,12 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     public final void testReduceRandom() {
+        String name = randomAsciiOfLength(5);
         List<T> inputs = new ArrayList<>();
         List<InternalAggregation> toReduce = new ArrayList<>();
         int toReduceSize = between(1, 200);
         for (int i = 0; i < toReduceSize; i++) {
-            T t = randomBoolean() ? createUnmappedInstance() : createTestInstance();
+            T t = randomBoolean() ? createUnmappedInstance(name) : createTestInstance(name);
             inputs.add(t);
             toReduce.add(t);
         }
@@ -76,7 +77,10 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     @Override
     protected final T createTestInstance() {
-        String name = randomAsciiOfLength(5);
+        return createTestInstance(randomAsciiOfLength(5));
+    }
+
+    private T createTestInstance(String name) {
         List<PipelineAggregator> pipelineAggregators = new ArrayList<>();
         // TODO populate pipelineAggregators
         Map<String, Object> metaData = new HashMap<>();
@@ -88,8 +92,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     /** Return an instance on an unmapped field. */
-    protected final T createUnmappedInstance() {
-        String name = randomAsciiOfLength(5);
+    protected final T createUnmappedInstance(String name) {
         List<PipelineAggregator> pipelineAggregators = new ArrayList<>();
         // TODO populate pipelineAggregators
         Map<String, Object> metaData = new HashMap<>();

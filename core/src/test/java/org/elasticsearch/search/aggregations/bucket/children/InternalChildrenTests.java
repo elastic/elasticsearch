@@ -20,42 +20,23 @@
 package org.elasticsearch.search.aggregations.bucket.children;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
+import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class InternalChildrenTests extends InternalAggregationTestCase<InternalChildren> {
-
+public class InternalChildrenTests extends InternalSingleBucketAggregationTestCase<InternalChildren> {
     @Override
-    protected InternalChildren createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        // we shouldn't use the full long range here since we sum doc count on reduce, and don't want to overflow the long range there
-        long docCount = randomIntBetween(0, Integer.MAX_VALUE);
-        int numAggregations = randomIntBetween(0, 20);
-        List<InternalAggregation> aggs = new ArrayList<>(numAggregations);
-        for (int i = 0; i < numAggregations; i++) {
-            aggs.add(new InternalMax(randomAsciiOfLength(5), randomDouble(),
-                    randomFrom(DocValueFormat.BOOLEAN, DocValueFormat.GEOHASH, DocValueFormat.IP, DocValueFormat.RAW), pipelineAggregators,
-                    metaData));
-        }
-        // don't randomize the name parameter, since InternalSingleBucketAggregation#doReduce asserts its the same for all reduced aggs
-        return new InternalChildren("childAgg", docCount, new InternalAggregations(aggs), pipelineAggregators, metaData);
+    protected InternalChildren createTestInstance(String name, long docCount, InternalAggregations aggregations,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        return new InternalChildren(name, docCount, aggregations, pipelineAggregators, metaData);
     }
 
     @Override
-    protected void assertReduced(InternalChildren reduced, List<InternalChildren> inputs) {
-        long expectedDocCount = 0;
-        for (Children input : inputs) {
-            expectedDocCount += input.getDocCount();
-        }
-        assertEquals(expectedDocCount, reduced.getDocCount());
+    protected void extraAssertReduced(InternalChildren reduced, List<InternalChildren> inputs) {
+        // Nothing extra to assert
     }
 
     @Override

@@ -17,6 +17,7 @@ import org.elasticsearch.license.PutLicenseResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.AfterClass;
 
 import java.io.IOException;
@@ -81,6 +82,9 @@ public class LicensingTribeIT extends ESIntegTestCase {
         builder.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         builder.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         builder.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
+        builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
+        // Disable native ML autodetect_process as the c++ controller won't be available
+        builder.put(MachineLearning.AUTODETECT_PROCESS.getKey(), false);
         return builder.build();
     }
 

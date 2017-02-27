@@ -63,7 +63,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.persistent.PersistentTasksInProgress.Assignment;
+import org.elasticsearch.persistent.PersistentTasks.Assignment;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -121,8 +121,8 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
                 new NamedWriteableRegistry.Entry(PersistentActionRequest.class, TestPersistentAction.NAME, TestRequest::new),
                 new NamedWriteableRegistry.Entry(Task.Status.class,
                         PersistentActionCoordinator.Status.NAME, PersistentActionCoordinator.Status::new),
-                new NamedWriteableRegistry.Entry(MetaData.Custom.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::new),
-                new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::readDiffFrom),
+                new NamedWriteableRegistry.Entry(MetaData.Custom.class, PersistentTasks.TYPE, PersistentTasks::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasks.TYPE, PersistentTasks::readDiffFrom),
                 new NamedWriteableRegistry.Entry(Task.Status.class, Status.NAME, Status::new)
         );
     }
@@ -130,8 +130,8 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return Arrays.asList(
-                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(PersistentTasksInProgress.TYPE),
-                        PersistentTasksInProgress::fromXContent),
+                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(PersistentTasks.TYPE),
+                        PersistentTasks::fromXContent),
                 new NamedXContentRegistry.Entry(PersistentActionRequest.class, new ParseField(TestPersistentAction.NAME),
                         TestRequest::fromXContent),
                 new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(Status.NAME), Status::fromXContent)
@@ -382,7 +382,7 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
         }
 
         @Override
-        protected void nodeOperation(PersistentTask task, TestRequest request, ActionListener<Empty> listener) {
+        protected void nodeOperation(NodePersistentTask task, TestRequest request, ActionListener<Empty> listener) {
             logger.info("started node operation for the task {}", task);
             try {
                 TestTask testTask = (TestTask) task;
@@ -465,7 +465,7 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
     }
 
 
-    public static class TestTask extends PersistentTask {
+    public static class TestTask extends NodePersistentTask {
         private volatile String operation;
 
         public TestTask(long id, String type, String action, String description, TaskId parentTask) {

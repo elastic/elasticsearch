@@ -126,8 +126,8 @@ public class PersistentActionIT extends ESIntegTestCase {
                 .setRemoveOnCompletion(false)
                 .setStopped(stopped).get().getTaskId();
 
-        PersistentTasksInProgress tasksInProgress = internalCluster().clusterService().state().getMetaData()
-                .custom(PersistentTasksInProgress.TYPE);
+        PersistentTasks tasksInProgress = internalCluster().clusterService().state().getMetaData()
+                .custom(PersistentTasks.TYPE);
         assertThat(tasksInProgress.tasks().size(), equalTo(1));
         assertThat(tasksInProgress.getTask(taskId).isStopped(), equalTo(stopped));
         assertThat(tasksInProgress.getTask(taskId).getExecutorNode(), stopped ? nullValue() : notNullValue());
@@ -164,8 +164,8 @@ public class PersistentActionIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             // Wait for the task to be marked as stopped
-            PersistentTasksInProgress tasks = internalCluster().clusterService().state().getMetaData()
-                    .custom(PersistentTasksInProgress.TYPE);
+            PersistentTasks tasks = internalCluster().clusterService().state().getMetaData()
+                    .custom(PersistentTasks.TYPE);
             assertThat(tasks.tasks().size(), equalTo(1));
             assertThat(tasks.getTask(taskId).isStopped(), equalTo(true));
             assertThat(tasks.getTask(taskId).shouldRemoveOnCompletion(), equalTo(false));
@@ -216,8 +216,8 @@ public class PersistentActionIT extends ESIntegTestCase {
         TaskInfo firstRunningTask = client().admin().cluster().prepareListTasks().setActions(TestPersistentAction.NAME + "[c]")
                 .get().getTasks().get(0);
 
-        PersistentTasksInProgress tasksInProgress = internalCluster().clusterService().state().getMetaData()
-                .custom(PersistentTasksInProgress.TYPE);
+        PersistentTasks tasksInProgress = internalCluster().clusterService().state().getMetaData()
+                .custom(PersistentTasks.TYPE);
         assertThat(tasksInProgress.tasks().size(), equalTo(1));
         assertThat(tasksInProgress.tasks().iterator().next().getStatus(), nullValue());
 
@@ -230,8 +230,8 @@ public class PersistentActionIT extends ESIntegTestCase {
 
             int finalI = i;
             assertBusy(() -> {
-                PersistentTasksInProgress tasks = internalCluster().clusterService().state().getMetaData()
-                        .custom(PersistentTasksInProgress.TYPE);
+                PersistentTasks tasks = internalCluster().clusterService().state().getMetaData()
+                        .custom(PersistentTasks.TYPE);
                 assertThat(tasks.tasks().size(), equalTo(1));
                 assertThat(tasks.tasks().iterator().next().getStatus(), notNullValue());
                 assertThat(tasks.tasks().iterator().next().getStatus().toString(), equalTo("{\"phase\":\"phase " + (finalI + 1) + "\"}"));
@@ -272,8 +272,8 @@ public class PersistentActionIT extends ESIntegTestCase {
             assertThat(tasks.size(), equalTo(0));
 
             // Make sure the task is removed from the cluster state
-            assertThat(((PersistentTasksInProgress) internalCluster().clusterService().state().getMetaData()
-                    .custom(PersistentTasksInProgress.TYPE)).tasks(), empty());
+            assertThat(((PersistentTasks) internalCluster().clusterService().state().getMetaData()
+                    .custom(PersistentTasks.TYPE)).tasks(), empty());
         });
     }
 

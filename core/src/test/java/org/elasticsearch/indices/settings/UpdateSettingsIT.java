@@ -338,32 +338,57 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
-                .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "100")
-                .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "100")
+                .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "10")
             ));
 
+        assertAcked(client()
+            .admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "100"))
+        );
         {
             UpdateSettingsRequestBuilder updateBuilder =
                 client()
                     .admin()
                     .indices()
                     .prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1000"));
+                    .setSettings(Settings.builder().put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "90"));
+            exc = expectThrows(IllegalArgumentException.class,
+                () -> updateBuilder.get());
+            assertThat(exc.getMessage(), equalTo("maxThreadCount (= 100) should be <= maxMergeCount (= 90)"));
+        }
+        {
+            assertAcked(
+                client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder()
+                        .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1000"))
+            );
+        }
+        {
+            UpdateSettingsRequestBuilder updateBuilder =
+                client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "100"));
             exc = expectThrows(IllegalArgumentException.class,
                 () -> updateBuilder.get());
             assertThat(exc.getMessage(), equalTo("maxThreadCount (= 1000) should be <= maxMergeCount (= 100)"));
         }
-
         {
-            UpdateSettingsRequestBuilder updateBuilder =
+            assertAcked(
                 client()
                     .admin()
                     .indices()
                     .prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "10"));
-            exc = expectThrows(IllegalArgumentException.class,
-                () -> updateBuilder.get());
-            assertThat(exc.getMessage(), equalTo("maxThreadCount (= 100) should be <= maxMergeCount (= 10)"));
+                    .setSettings(Settings.builder()
+                        .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "2")
+                        .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "3"))
+            );
         }
     }
 

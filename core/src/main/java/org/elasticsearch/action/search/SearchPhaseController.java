@@ -66,6 +66,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -236,47 +237,19 @@ public class SearchPhaseController extends AbstractComponent {
         if (result.queryResult().topDocs() instanceof CollapseTopFieldDocs) {
             CollapseTopFieldDocs firstTopDocs = (CollapseTopFieldDocs) result.queryResult().topDocs();
             final Sort sort = new Sort(firstTopDocs.fields);
-
             final CollapseTopFieldDocs[] shardTopDocs = new CollapseTopFieldDocs[numShards];
-            if (result.size() != shardTopDocs.length) {
-                // TopDocs#merge can't deal with null shard TopDocs
-                final CollapseTopFieldDocs empty = new CollapseTopFieldDocs(firstTopDocs.field, 0, new FieldDoc[0],
-                    sort.getSort(), new Object[0], Float.NaN);
-                Arrays.fill(shardTopDocs, empty);
-            }
-            for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : results) {
-                TopDocs topDocs = sortedResult.value.queryResult().topDocs();
-                // the 'index' field is the position in the resultsArr atomic array
-                shardTopDocs[sortedResult.index] = (CollapseTopFieldDocs) topDocs;
-            }
+            fillTopDocs(shardTopDocs, results, new CollapseTopFieldDocs(firstTopDocs.field, 0, new FieldDoc[0],
+                sort.getSort(), new Object[0], Float.NaN));
             mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs);
         } else if (result.queryResult().topDocs() instanceof TopFieldDocs) {
             TopFieldDocs firstTopDocs = (TopFieldDocs) result.queryResult().topDocs();
             final Sort sort = new Sort(firstTopDocs.fields);
-
             final TopFieldDocs[] shardTopDocs = new TopFieldDocs[resultsArr.length()];
-            if (result.size() != shardTopDocs.length) {
-                // TopDocs#merge can't deal with null shard TopDocs
-                final TopFieldDocs empty = new TopFieldDocs(0, new FieldDoc[0], sort.getSort(), Float.NaN);
-                Arrays.fill(shardTopDocs, empty);
-            }
-            for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : results) {
-                TopDocs topDocs = sortedResult.value.queryResult().topDocs();
-                // the 'index' field is the position in the resultsArr atomic array
-                shardTopDocs[sortedResult.index] = (TopFieldDocs) topDocs;
-            }
+            fillTopDocs(shardTopDocs, results, new TopFieldDocs(0, new FieldDoc[0], sort.getSort(), Float.NaN));
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         } else {
             final TopDocs[] shardTopDocs = new TopDocs[resultsArr.length()];
-            if (result.size() != shardTopDocs.length) {
-                // TopDocs#merge can't deal with null shard TopDocs
-                Arrays.fill(shardTopDocs, Lucene.EMPTY_TOP_DOCS);
-            }
-            for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : results) {
-                TopDocs topDocs = sortedResult.value.queryResult().topDocs();
-                // the 'index' field is the position in the resultsArr atomic array
-                shardTopDocs[sortedResult.index] = topDocs;
-            }
+            fillTopDocs(shardTopDocs, results, Lucene.EMPTY_TOP_DOCS);
             mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
         }
 
@@ -317,6 +290,20 @@ public class SearchPhaseController extends AbstractComponent {
         return scoreDocs;
     }
 
+    static <T extends TopDocs> void fillTopDocs(T[] shardTopDocs,
+                                                        List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> results,
+                                                        T empytTopDocs) {
+        if (results.size() != shardTopDocs.length) {
+            // TopDocs#merge can't deal with null shard TopDocs
+            Arrays.fill(shardTopDocs, empytTopDocs);
+        }
+        for (AtomicArray.Entry<? extends QuerySearchResultProvider> resultProvider : results) {
+            final T topDocs = (T) resultProvider.value.queryResult().topDocs();
+            assert topDocs != null : "top docs must not be null in a valid result";
+            // the 'index' field is the position in the resultsArr atomic array
+            shardTopDocs[resultProvider.index] = topDocs;
+        }
+    }
     public ScoreDoc[] getLastEmittedDocPerShard(ReducedQueryPhase reducedQueryPhase,
                                                 ScoreDoc[] sortedScoreDocs, int numShards) {
         ScoreDoc[] lastEmittedDocPerShard = new ScoreDoc[numShards];

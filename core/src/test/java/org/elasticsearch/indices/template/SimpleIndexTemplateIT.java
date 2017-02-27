@@ -807,7 +807,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         IllegalArgumentException eBadMapping = expectThrows(IllegalArgumentException.class,
             () -> client().admin().indices().preparePutTemplate("template_2")
                 .setPatterns(Collections.singletonList("te*"))
-                .addMapping("type", "{\"type\":{\"_routing\":{\"required\":false}}}")
+                .addMapping("type", "{\"type\":{\"_routing\":{\"required\":false}}}", XContentType.JSON)
                 .setSettings(Settings.builder()
                     .put("index.number_of_shards", "6")
                     .put("index.routing_partition_size", "3"))

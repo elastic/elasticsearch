@@ -28,13 +28,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -54,7 +51,6 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
 public abstract class RestRequest implements ToXContent.Params {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(RestRequest.class));
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
 
@@ -407,64 +403,15 @@ public abstract class RestRequest implements ToXContent.Params {
 
         String source = param("source");
         String typeParam = param("source_content_type");
-        if (source != null) {
+        if (source != null && typeParam != null) {
             BytesArray bytes = new BytesArray(source);
-            final XContentType xContentType;
-            if (typeParam != null) {
-                xContentType = parseContentType(Collections.singletonList(typeParam));
-            } else {
-                DEPRECATION_LOGGER.deprecated("Deprecated use of the [source] parameter without the [source_content_type] parameter. Use " +
-                    "the [source_content_type] parameter to specify the content type of the source such as [application/json]");
-                xContentType = XContentFactory.xContentType(bytes);
-            }
-
+            final XContentType xContentType = parseContentType(Collections.singletonList(typeParam));
             if (xContentType == null) {
-                throw new IllegalStateException("could not determine source content type");
+                throw new IllegalStateException("Unknown value for source_content_type [" + typeParam + "]");
             }
             return new Tuple<>(xContentType, bytes);
         }
         return new Tuple<>(XContentType.JSON, BytesArray.EMPTY);
-    }
-
-    /**
-     * Call a consumer with the parser for the contents of this request if it has contents, otherwise with a parser for the {@code source}
-     * parameter if there is one, otherwise with {@code null}. Use {@link #contentOrSourceParamParser()} if you should throw an exception
-     * back to the user when there isn't request content. This version allows for plain text content
-     */
-    @Deprecated
-    public final void withContentOrSourceParamParserOrNullLenient(CheckedConsumer<XContentParser, IOException> withParser)
-        throws IOException {
-        if (hasContent() && xContentType.get() == null) {
-            withParser.accept(null);
-        }
-
-        Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
-        BytesReference content = tuple.v2();
-        XContentType xContentType = tuple.v1();
-        if (content.length() > 0) {
-            try (XContentParser parser = xContentType.xContent().createParser(xContentRegistry, content)) {
-                withParser.accept(parser);
-            }
-        } else {
-            withParser.accept(null);
-        }
-    }
-
-    /**
-     * Get the content of the request or the contents of the {@code source} param without the xcontent type. This is useful the request can
-     * accept non xcontent values.
-     * @deprecated we should only take xcontent
-     */
-    @Deprecated
-    public final BytesReference getContentOrSourceParamOnly() {
-        if (hasContent()) {
-            return content();
-        }
-        String source = param("source");
-        if (source != null) {
-            return new BytesArray(source);
-        }
-        return BytesArray.EMPTY;
     }
 
     /**

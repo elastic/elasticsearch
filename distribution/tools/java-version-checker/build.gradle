@@ -17,26 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.gradle.api.JavaVersion
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
+apply plugin: 'elasticsearch.build'
+apply plugin: 'ru.vyarus.animalsniffer'
 
-public abstract class InternalMetricsAggregation extends InternalAggregation {
-    protected InternalMetricsAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
-    }
+sourceCompatibility = JavaVersion.VERSION_1_6
+targetCompatibility = JavaVersion.VERSION_1_6
 
-    /**
-     * Read from a stream.
-     */
-    protected InternalMetricsAggregation(StreamInput in) throws IOException {
-        super(in);
-    }
-
+dependencies {
+    signature "org.codehaus.mojo.signature:java16:1.0@signature"
 }
+
+forbiddenApisMain {
+    // java-version-checker does not depend on core so only JDK signatures should be checked
+    signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+}
+
+javadoc.enabled = false
+test.enabled = false
+loggerUsageCheck.enabled = false
+jarHell.enabled=false

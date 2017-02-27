@@ -103,8 +103,7 @@ If `term_vector` information is provided by setting `term_vector` to
 will be used instead of the plain highlighter.  The fast vector highlighter:
 
 * Is faster especially for large fields (> `1MB`)
-* Can be customized with `boundary_chars`, `boundary_max_scan`, and
- `fragment_offset` (see <<boundary-characters,below>>)
+* Can be customized with `boundary_scanner` (see <<boundary-scanners,below>>)
 * Requires setting `term_vector` to `with_positions_offsets` which
   increases the size of the index
 * Can combine matches from multiple fields into one result.  See
@@ -502,17 +501,23 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
-[[boundary-characters]]
-==== Boundary Characters
+[[boundary-scanners]]
+==== Boundary Scanners
 
-When highlighting a field using the fast vector highlighter,
-`boundary_chars` can be configured to define what constitutes a boundary
-for highlighting. It's a single string with each boundary character
-defined in it. It defaults to `.,!? \t\n`.
+When highlighting a field using the fast vector highlighter, you can specify
+how to break the highlighted fragments using `boundary_scanner`, which accepts
+the following values:
 
-The `boundary_max_scan` allows to control how far to look for boundary
-characters, and defaults to `20`.
+* `chars` (default): allows to configure which characters (`boundary_chars`)
+constitute a boundary for highlighting. It's a single string with each boundary
+character defined in it (defaults to `.,!? \t\n`). It also allows configuring
+the `boundary_max_scan` to control how far to look for boundary characters
+(defaults to `20`).
 
+* `word` and `sentence`: use Java's https://docs.oracle.com/javase/8/docs/api/java/text/BreakIterator.html[BreakIterator]
+to break the highlighted fragments at the next _word_ or _sentence_ boundary.
+You can further specify `boundary_scanner_locale` to control which Locale is used
+to search the text for these boundaries.
 
 [[matched-fields]]
 ==== Matched Fields

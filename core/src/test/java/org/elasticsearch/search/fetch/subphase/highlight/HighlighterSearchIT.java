@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -43,6 +44,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -56,6 +58,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.client.Requests.searchRequest;
@@ -746,7 +749,94 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch("test").setSource(source).get();
 
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over"));
+    }
 
+    public void testFastVectorHighlighterWithSentenceBoundaryScanner() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        ensureGreen();
+
+        indexRandom(true, client().prepareIndex("test", "type1")
+                .setSource("field1", "A sentence with few words. Another sentence with even more words."));
+
+        logger.info("--> highlighting and searching on 'field' with sentence boundary_scanner");
+        SearchSourceBuilder source = searchSource()
+                .query(termQuery("field1", "sentence"))
+                .highlighter(highlight()
+                        .field("field1", 20, 2)
+                        .order("score")
+                        .preTags("<xxx>").postTags("</xxx>")
+                        .boundaryScannerType(BoundaryScannerType.SENTENCE));
+
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
+
+        assertHighlight(searchResponse, 0, "field1", 0, 2, equalTo("A <xxx>sentence</xxx> with few words. "));
+        assertHighlight(searchResponse, 0, "field1", 1, 2, equalTo("Another <xxx>sentence</xxx> with even more words. "));
+    }
+
+    public void testFastVectorHighlighterWithSentenceBoundaryScannerAndLocale() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        ensureGreen();
+
+        indexRandom(true, client().prepareIndex("test", "type1")
+                .setSource("field1", "A sentence with few words. Another sentence with even more words."));
+
+        logger.info("--> highlighting and searching on 'field' with sentence boundary_scanner");
+        SearchSourceBuilder source = searchSource()
+                .query(termQuery("field1", "sentence"))
+                .highlighter(highlight()
+                        .field("field1", 20, 2)
+                        .order("score")
+                        .preTags("<xxx>").postTags("</xxx>")
+                        .boundaryScannerType(BoundaryScannerType.SENTENCE)
+                        .boundaryScannerLocale(Locale.ENGLISH.toLanguageTag()));
+
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
+
+        assertHighlight(searchResponse, 0, "field1", 0, 2, equalTo("A <xxx>sentence</xxx> with few words. "));
+        assertHighlight(searchResponse, 0, "field1", 1, 2, equalTo("Another <xxx>sentence</xxx> with even more words. "));
+    }
+
+    public void testFastVectorHighlighterWithWordBoundaryScanner() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        ensureGreen();
+
+        indexRandom(true, client().prepareIndex("test", "type1")
+                .setSource("field1", "some quick and hairy brown:fox jumped over the lazy dog"));
+
+        logger.info("--> highlighting and searching on 'field' with word boundary_scanner");
+        SearchSourceBuilder source = searchSource()
+                .query(termQuery("field1", "some"))
+                .highlighter(highlight()
+                        .field("field1", 23, 1)
+                        .order("score")
+                        .preTags("<xxx>").postTags("</xxx>")
+                        .boundaryScannerType(BoundaryScannerType.WORD));
+
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
+
+        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<xxx>some</xxx> quick and hairy brown"));
+    }
+
+    public void testFastVectorHighlighterWithWordBoundaryScannerAndLocale() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        ensureGreen();
+
+        indexRandom(true, client().prepareIndex("test", "type1")
+                .setSource("field1", "some quick and hairy brown:fox jumped over the lazy dog"));
+
+        logger.info("--> highlighting and searching on 'field' with word boundary_scanner");
+        SearchSourceBuilder source = searchSource()
+                .query(termQuery("field1", "some"))
+                .highlighter(highlight()
+                        .field("field1", 23, 1)
+                        .order("score")
+                        .preTags("<xxx>").postTags("</xxx>")
+                        .boundaryScannerType(BoundaryScannerType.WORD)
+                        .boundaryScannerLocale(Locale.ENGLISH.toLanguageTag()));
+
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
+
+        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("<xxx>some</xxx> quick and hairy brown"));
     }
 
     /**
@@ -2902,7 +2992,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .field("store", true)
                     .endObject()
                 .endObject().endObject().endObject().string();
-        prepareCreate("test").addMapping("type", mapping).get();
+        prepareCreate("test").addMapping("type", mapping, XContentType.JSON).get();
 
         client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject().startArray("foo")
                     .startObject().field("text", "brown").endObject()

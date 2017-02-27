@@ -120,12 +120,15 @@ public class PluginBuildPlugin extends BuildPlugin {
         // add the plugin properties and metadata to test resources, so unit tests can
         // know about the plugin (used by test security code to statically initialize the plugin in unit tests)
         SourceSet testSourceSet = project.sourceSets.test
-        testSourceSet.output.dir(buildProperties.generatedResourcesDir, builtBy: 'pluginProperties')
+        testSourceSet.output.dir(buildProperties.descriptorOutput.parentFile, builtBy: 'pluginProperties')
         testSourceSet.resources.srcDir(pluginMetadata)
 
         // create the actual bundle task, which zips up all the files for the plugin
         Zip bundle = project.tasks.create(name: 'bundlePlugin', type: Zip, dependsOn: [project.jar, buildProperties]) {
-            from buildProperties // plugin properties file
+            from(buildProperties.descriptorOutput.parentFile) {
+                // plugin properties file
+                include(buildProperties.descriptorOutput.name)
+            }
             from pluginMetadata // metadata (eg custom security policy)
             from project.jar // this plugin's jar
             from project.configurations.runtime - project.configurations.provided // the dep jars
@@ -250,19 +253,15 @@ public class PluginBuildPlugin extends BuildPlugin {
     protected void addNoticeGeneration(Project project) {
         File licenseFile = project.pluginProperties.extension.licenseFile
         if (licenseFile != null) {
-            project.bundlePlugin.into('/') {
-                from(licenseFile.parentFile) {
-                    include(licenseFile.name)
-                }
+            project.bundlePlugin.from(licenseFile.parentFile) {
+                include(licenseFile.name)
             }
         }
         File noticeFile = project.pluginProperties.extension.licenseFile
         if (noticeFile != null) {
             NoticeTask generateNotice = project.tasks.create('generateNotice', NoticeTask.class)
             generateNotice.dependencies(project)
-            project.bundlePlugin.into('/') {
-                from(generateNotice)
-            }
+            project.bundlePlugin.from(generateNotice)
         }
     }
 }

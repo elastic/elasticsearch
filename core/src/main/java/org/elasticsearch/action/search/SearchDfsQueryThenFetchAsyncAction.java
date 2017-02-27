@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.transport.Transport;
@@ -43,7 +42,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
                                        ActionListener<SearchResponse> listener, GroupShardsIterator shardsIts, long startTime,
                                        long clusterStateVersion, SearchTask task) {
         super("dfs", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, executor,
-                request, listener, shardsIts, startTime, clusterStateVersion, task);
+                request, listener, shardsIts, startTime, clusterStateVersion, task, new SearchPhaseResults<>(shardsIts.size()));
         this.searchPhaseController = searchPhaseController;
     }
 
@@ -54,8 +53,8 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     }
 
     @Override
-    protected SearchPhase getNextPhase(AtomicArray<DfsSearchResult> results, SearchPhaseContext context) {
-        return new DfsQueryPhase(results, searchPhaseController,
+    protected SearchPhase getNextPhase(SearchPhaseResults<DfsSearchResult> results, SearchPhaseContext context) {
+        return new DfsQueryPhase(results.results, searchPhaseController,
             (queryResults) -> new FetchSearchPhase(queryResults, searchPhaseController, context), context);
     }
 }

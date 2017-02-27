@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Strings;
@@ -58,6 +59,8 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
     private boolean explain = false;
 
     private String[] attributes = Strings.EMPTY_ARRAY;
+
+    private String normalizer;
 
     public static class NameOrDefinition implements Writeable {
         // exactly one of these two members is not null
@@ -202,11 +205,23 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         return this.attributes;
     }
 
+    public String normalizer() {
+        return this.normalizer;
+    }
+
+    public AnalyzeRequest normalizer(String normalizer) {
+        this.normalizer = normalizer;
+        return this;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (text == null || text.length == 0) {
             validationException = addValidationError("text is missing", validationException);
+        }
+        if ((index == null || index.length() == 0) && normalizer != null) {
+            validationException = addValidationError("index is required if normalizer is specified", validationException);
         }
         return validationException;
     }
@@ -222,6 +237,9 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         field = in.readOptionalString();
         explain = in.readBoolean();
         attributes = in.readStringArray();
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            normalizer = in.readOptionalString();
+        }
     }
 
     @Override
@@ -235,5 +253,8 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         out.writeOptionalString(field);
         out.writeBoolean(explain);
         out.writeStringArray(attributes);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            out.writeOptionalString(normalizer);
+        }
     }
 }

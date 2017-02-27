@@ -31,6 +31,12 @@ value `false` and boolean "true" as the value `true`. All other values will rais
 
 The deprecated request parameters and plain text in request body has been removed. Define parameters in request body.
 
+==== Support custom normalizer in Analyze API
+
+Analyze API can analyze normalizer and custom normalizer.
+In previous versions of Elasticsearch, Analyze API is required `tokenizer` or `analyzer` parameter.
+In Elaticsearch 6.0.0, Analyze API analyze a text as a keyword field with custom normalizer if `char_filter`/`filter` without `tokenizer`/`analyzer`.
+
 ==== Indices exists API
 
 The `ignore_unavailable` and `allow_no_indices` options are no longer accepted

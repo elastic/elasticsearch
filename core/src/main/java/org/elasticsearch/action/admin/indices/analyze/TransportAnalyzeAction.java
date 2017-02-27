@@ -51,6 +51,7 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.CustomAnalyzerProvider;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
@@ -60,6 +61,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -178,7 +180,6 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                     throw new IllegalArgumentException("failed to find analyzer [" + request.analyzer() + "]");
                 }
             }
-
         } else if (request.tokenizer() != null) {
             final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
             Tuple<String, TokenizerFactory> tokenizerFactory = parseTokenizerFactory(request, indexAnalyzers,
@@ -193,6 +194,44 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 charFilterFactoryList.toArray(new CharFilterFactory[charFilterFactoryList.size()]),
                 tokenFilterFactoryList.toArray(new TokenFilterFactory[tokenFilterFactoryList.size()]));
             closeAnalyzer = true;
+        } else if (request.normalizer() != null ||
+            ((request.tokenFilters() != null && request.tokenFilters().size() > 0)
+                || (request.charFilters() != null && request.charFilters().size() > 0))) {
+            // normalizer + (tokenizer/analyzer) = no error, just ignore normalizer param
+            final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
+            if (request.normalizer() != null) {
+                // Get normalizer from indexanalyzers
+                analyzer = indexAnalyzers.getNormalizer(request.normalizer());
+                if (analyzer == null) {
+                    throw new IllegalArgumentException("failed to find normalizer under [" + request.normalizer() + "]");
+                }
+            } else {
+                // custom normalizer = if normalizer == null but filter or char_filter is not null and tokenizer/analyzer is null
+                // get charfilter and filter from request
+                CharFilterFactory[] charFilterFactories = new CharFilterFactory[0];
+                charFilterFactories = getCharFilterFactories(request, indexSettings, analysisRegistry, environment, charFilterFactories);
+                for (CharFilterFactory charFilter : charFilterFactories) {
+                    if (charFilter instanceof MultiTermAwareComponent == false) {
+                        throw new IllegalArgumentException("Custom normalizer may not use char filter ["
+                            + charFilter.name() + "]");
+                    }
+                }
+
+                TokenFilterFactory[] tokenFilterFactories = new TokenFilterFactory[0];
+                tokenFilterFactories = getTokenFilterFactories(request, indexSettings, analysisRegistry, environment, tokenFilterFactories);
+                for (TokenFilterFactory tokenFilter : tokenFilterFactories) {
+                    if (tokenFilter instanceof MultiTermAwareComponent == false) {
+                        throw new IllegalArgumentException("Custom normalizer may not use filter ["
+                            + tokenFilter.name() + "]");
+                    }
+                }
+
+                analyzer = new CustomAnalyzer(
+                    PreBuiltTokenizers.KEYWORD.getTokenizerFactory(Version.CURRENT),
+                    charFilterFactories, tokenFilterFactories);
+                closeAnalyzer = true;
+            }
+
         } else if (analyzer == null) {
             if (indexAnalyzers == null) {
                 analyzer = analysisRegistry.getAnalyzer("standard");

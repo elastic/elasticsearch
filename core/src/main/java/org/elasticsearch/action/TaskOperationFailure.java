@@ -88,7 +88,7 @@ public final class TaskOperationFailure implements Writeable, ToXContent {
         return status;
     }
 
-    public Throwable getCause() {
+    public Exception getCause() {
         return reason;
     }
 

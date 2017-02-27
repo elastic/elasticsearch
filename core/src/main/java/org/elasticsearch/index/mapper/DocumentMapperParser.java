@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.SuggestFieldFilterIdGenerator;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -51,6 +52,7 @@ public class DocumentMapperParser {
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
 
     private final Version indexVersionCreated;
+    private final SuggestFieldFilterIdGenerator suggestFieldFilterIdGenerator;
 
     private final Map<String, Mapper.TypeParser> typeParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
@@ -66,11 +68,12 @@ public class DocumentMapperParser {
         this.typeParsers = mapperRegistry.getMapperParsers();
         this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers();
         indexVersionCreated = indexSettings.getIndexVersionCreated();
+        this.suggestFieldFilterIdGenerator = new SuggestFieldFilterIdGenerator();
     }
 
     public Mapper.TypeParser.ParserContext parserContext(String type) {
         return new Mapper.TypeParser.ParserContext(type, indexAnalyzers, similarityService::getSimilarity, mapperService,
-                typeParsers::get, indexVersionCreated, queryShardContextSupplier);
+                typeParsers::get, indexVersionCreated, queryShardContextSupplier, suggestFieldFilterIdGenerator);
     }
 
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {

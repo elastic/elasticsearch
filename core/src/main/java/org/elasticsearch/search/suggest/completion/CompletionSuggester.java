@@ -81,7 +81,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         return null;
     }
 
-    private static void suggest(IndexSearcher searcher, CompletionQuery query, TopSuggestDocsCollector collector) throws IOException {
+    public static void suggest(IndexSearcher searcher, CompletionQuery query, TopSuggestDocsCollector collector) throws IOException {
         query = (CompletionQuery) query.rewrite(searcher.getIndexReader());
         Weight weight = query.createWeight(searcher, collector.needsScores());
         for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
@@ -99,12 +99,12 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
     // TODO: this should be refactored and moved to lucene
     // see https://issues.apache.org/jira/browse/LUCENE-6880
-    private static final class TopDocumentsCollector extends TopSuggestDocsCollector {
+    public static final class TopDocumentsCollector extends TopSuggestDocsCollector {
 
         /**
          * Holds a list of suggest meta data for a doc
          */
-        private static final class SuggestDoc extends TopSuggestDocs.SuggestScoreDoc {
+        public static final class SuggestDoc extends TopSuggestDocs.SuggestScoreDoc {
 
             private List<TopSuggestDocs.SuggestScoreDoc> suggestScoreDocs;
 
@@ -184,7 +184,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         private final SuggestDocPriorityQueue pq;
         private final Map<Integer, SuggestDoc> scoreDocMap;
 
-        TopDocumentsCollector(int num) {
+        public TopDocumentsCollector(int num) {
             super(1); // TODO hack, we don't use the underlying pq, so we allocate a size of 1
             this.num = num;
             this.scoreDocMap = new LinkedHashMap<>(num);

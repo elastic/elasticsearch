@@ -85,6 +85,9 @@ dependencies {
   compile "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
   // to bridge dependencies that are still on Log4j 1 to Log4j 2
   compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}", optional
+  
+  // combination generator
+  compile 'com.googlecode.combinatoricslib:combinatoricslib:2.1'
 
   compile "net.java.dev.jna:jna:${versions.jna}"
 

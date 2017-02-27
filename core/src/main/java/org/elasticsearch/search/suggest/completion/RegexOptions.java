@@ -38,7 +38,7 @@ import java.io.IOException;
  * Regular expression options for completion suggester
  */
 public class RegexOptions implements ToXContent, Writeable {
-    static final ParseField REGEX_OPTIONS = new ParseField("regex");
+    public static final ParseField REGEX_OPTIONS = new ParseField("regex");
     private static final ParseField FLAGS_VALUE = new ParseField("flags", "flags_value");
     private static final ParseField MAX_DETERMINIZED_STATES = new ParseField("max_determinized_states");
 
@@ -69,7 +69,7 @@ public class RegexOptions implements ToXContent, Writeable {
         return new Builder();
     }
 
-    static RegexOptions parse(XContentParser parser) throws IOException {
+    public static RegexOptions parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null).build();
     }
 
@@ -84,7 +84,7 @@ public class RegexOptions implements ToXContent, Writeable {
     /**
      * Read from a stream.
      */
-    RegexOptions(StreamInput in) throws IOException {
+    public RegexOptions(StreamInput in) throws IOException {
         this.flagsValue = in.readVInt();
         this.maxDeterminizedStates = in.readVInt();
     }

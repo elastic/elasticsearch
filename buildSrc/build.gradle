@@ -94,6 +94,9 @@ dependencies {
   compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
   compile 'de.thetaphi:forbiddenapis:2.3'
   compile 'org.apache.rat:apache-rat:0.11'
+  
+  // combination generator
+  compile 'com.googlecode.combinatoricslib:combinatoricslib:2.1'
 }
 
 // Gradle version-specific options (allows build to run with Gradle 2.13 as well as 2.14+/3.+)

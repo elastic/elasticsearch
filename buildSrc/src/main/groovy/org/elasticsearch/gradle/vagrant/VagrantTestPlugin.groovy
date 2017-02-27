@@ -41,6 +41,7 @@ class VagrantTestPlugin implements Plugin<Project> {
 
     private static final BATS = 'bats'
     private static final String BATS_TEST_COMMAND ="cd \$BATS_ARCHIVES && sudo bats --tap \$BATS_TESTS/*.$BATS"
+    private static final String PLATFORM_TEST_COMMAND ="rm -rf ~/elasticsearch && rsync -r /elasticsearch/ ~/elasticsearch && cd ~/elasticsearch && \$GRADLE_HOME/bin/gradle test integTest"
 
     @Override
     void apply(Project project) {
@@ -327,6 +328,17 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
     }
 
+    private static void createPlatformTestTask(Project project) {
+        project.tasks.create('platformTest') {
+            group 'Verification'
+            description "Test unit and integ tests on different platforms using vagrant.\n" +
+                    "    Specify the vagrant boxes to test using the gradle property 'vagrant.boxes'.\n" +
+                    "    'all' can be used to test all available boxes. The available boxes are: \n" +
+                    "    ${BOXES}"
+            dependsOn 'vagrantCheckVersion'
+        }
+    }
+
     private static void createVagrantTasks(Project project) {
         createCleanTask(project)
         createStopTask(project)
@@ -337,6 +349,7 @@ class VagrantTestPlugin implements Plugin<Project> {
         createCheckVirtualBoxVersionTask(project)
         createPrepareVagrantTestEnvTask(project)
         createPackagingTestTask(project)
+        createPlatformTestTask(project)
     }
 
     private static void createVagrantBoxesTasks(Project project) {
@@ -359,6 +372,9 @@ class VagrantTestPlugin implements Plugin<Project> {
 
         assert project.tasks.packagingTest != null
         Task packagingTest = project.tasks.packagingTest
+
+        assert project.tasks.platformTest != null
+        Task platformTest = project.tasks.platformTest
 
         /*
          * We always use the main project.rootDir as Vagrant's current working directory (VAGRANT_CWD)
@@ -425,7 +441,8 @@ class VagrantTestPlugin implements Plugin<Project> {
                 finalizedBy halt
                 command BATS_TEST_COMMAND
             }
-            TaskExecutionAdapter reproduceListener = new TaskExecutionAdapter() {
+
+            TaskExecutionAdapter packagingReproListener = new TaskExecutionAdapter() {
                 @Override
                 void afterExecute(Task task, TaskState state) {
                     if (state.failure != null) {
@@ -435,14 +452,39 @@ class VagrantTestPlugin implements Plugin<Project> {
                 }
             }
             packaging.doFirst {
-                project.gradle.addListener(reproduceListener)
+                project.gradle.addListener(packagingReproListener)
             }
             packaging.doLast {
-                project.gradle.removeListener(reproduceListener)
+                project.gradle.removeListener(packagingReproListener)
             }
-
             if (project.extensions.esvagrant.boxes.contains(box)) {
                 packagingTest.dependsOn(packaging)
+            }
+
+            Task platform = project.tasks.create("vagrant${boxTask}#platformTest", VagrantCommandTask) {
+                boxName box
+                environmentVars vagrantEnvVars
+                dependsOn up
+                finalizedBy halt
+                args 'ssh', boxName, '--command', PLATFORM_TEST_COMMAND + " -Dtests.seed=${-> project.extensions.esvagrant.formattedTestSeed}"
+            }
+            TaskExecutionAdapter platformReproListener = new TaskExecutionAdapter() {
+                @Override
+                void afterExecute(Task task, TaskState state) {
+                    if (state.failure != null) {
+                        println "REPRODUCE WITH: gradle ${platform.path} " +
+                            "-Dtests.seed=${project.extensions.esvagrant.formattedTestSeed} "
+                    }
+                }
+            }
+            packaging.doFirst {
+                project.gradle.addListener(platformReproListener)
+            }
+            packaging.doLast {
+                project.gradle.removeListener(platformReproListener)
+            }
+            if (project.extensions.esvagrant.boxes.contains(box)) {
+                platformTest.dependsOn(platform)
             }
         }
     }

@@ -29,8 +29,8 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -95,6 +95,10 @@ final class Request {
         parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards());
 
         return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request info() {
+        return new Request(HttpGet.METHOD_NAME, "/", Collections.emptyMap(), null);
     }
 
     static Request bulk(BulkRequest bulkRequest) throws IOException {
@@ -264,7 +268,7 @@ final class Request {
     }
 
     static Request ping() {
-        return new Request("HEAD", "/", Collections.emptyMap(), null);
+        return new Request(HttpHead.METHOD_NAME, "/", Collections.emptyMap(), null);
     }
 
     static Request update(UpdateRequest updateRequest) throws IOException {

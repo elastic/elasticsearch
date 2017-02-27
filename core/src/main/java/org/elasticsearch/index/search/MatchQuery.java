@@ -48,7 +48,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
-import java.util.List;
 
 public class MatchQuery {
 
@@ -317,20 +316,6 @@ public class MatchQuery {
 
         public Query createPhrasePrefixQuery(String field, String queryText, int phraseSlop, int maxExpansions) {
             final Query query = createFieldQuery(getAnalyzer(), Occur.MUST, field, queryText, true, phraseSlop);
-            // nocommit
-            /*
-            if (query instanceof GraphQuery) {
-                // we have a graph query, convert inner queries to multi phrase prefix queries
-                List<Query> oldQueries = ((GraphQuery) query).getQueries();
-                Query[] queries = new Query[oldQueries.size()];
-                for (int i = 0; i < queries.length; i++) {
-                    queries[i] = toMultiPhrasePrefix(oldQueries.get(i), phraseSlop, maxExpansions);
-                }
-
-                return new GraphQuery(queries);
-            }
-            */
-
             return toMultiPhrasePrefix(query, phraseSlop, maxExpansions);
         }
 

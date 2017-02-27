@@ -19,17 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
@@ -47,6 +42,7 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
@@ -59,6 +55,11 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
@@ -447,7 +448,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
             assertThat(query, Matchers.equalTo(expectedQuery));
 
-            // phrase
+            // span query
             query = queryParser.parse("\"that guinea pig smells\"");
             expectedQuery = new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
                     .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")))
@@ -461,31 +462,24 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
             assertThat(query, Matchers.equalTo(expectedQuery));
 
-            // nocommit fixme
-
-            /*
-            // phrase with slop
+            // span query with slop
             query = queryParser.parse("\"that guinea pig smells\"~2");
-            expectedQuery = new BooleanQuery.Builder()
-                .setDisableCoord(true)
-                .add(new BooleanClause(new GraphQuery(
-                    new PhraseQuery.Builder()
-                        .add(new Term(STRING_FIELD_NAME, "that"))
-                        .add(new Term(STRING_FIELD_NAME, "guinea"))
-                        .add(new Term(STRING_FIELD_NAME, "pig"))
-                        .add(new Term(STRING_FIELD_NAME, "smells"))
-                        .setSlop(2)
-                        .build(),
-                    new PhraseQuery.Builder()
-                        .add(new Term(STRING_FIELD_NAME, "that"))
-                        .add(new Term(STRING_FIELD_NAME, "cavy"))
-                        .add(new Term(STRING_FIELD_NAME, "smells"))
-                        .setSlop(2)
-                        .build()
-                ), BooleanClause.Occur.SHOULD)).build();
-
+            expectedQuery = new SpanOrQuery(
+                new SpanNearQuery(
+                    new SpanQuery[]{
+                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")),
+                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea")),
+                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig")),
+                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells"))
+                    }, 2, true),
+                new SpanNearQuery(
+                    new SpanQuery[] {
+                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")),
+                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy")),
+                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells"))
+                    }, 2, true)
+                );
             assertThat(query, Matchers.equalTo(expectedQuery));
-            */
         }
     }
 

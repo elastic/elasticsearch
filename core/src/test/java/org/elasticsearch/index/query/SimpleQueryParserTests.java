@@ -143,21 +143,24 @@ public class SimpleQueryParserTests extends ESTestCase {
             SpanTermQuery span1 = new SpanTermQuery(new Term("field1", "guinea"));
             SpanTermQuery span2 = new SpanTermQuery(new Term("field1", "pig"));
             expectedQuery = new SpanOrQuery(
-                new SpanNearQuery(new SpanQuery[] {span1, span2}, 0, true),
+                new SpanNearQuery(new SpanQuery[] { span1, span2 }, 0, true),
                 new SpanTermQuery(new Term("field1", "cavy")));
 
             assertThat(query, equalTo(expectedQuery));
 
             // phrase with slop
-            query = parser.parse("big \"guinea pig\"~2");
+            query = parser.parse("big \"tiny guinea pig\"~2");
 
-            expectedQuery = new SpanNearQuery(new SpanQuery[] {
-                new SpanTermQuery(new Term("field1", "big")),
-                new SpanOrQuery(
-                    new SpanNearQuery(new SpanQuery[] {span1, span2}, 2, true),
-                    new SpanTermQuery(new Term("field1", "cavy")))
-            }, 0, true);
-
+            expectedQuery = new BooleanQuery.Builder()
+                .add(new TermQuery(new Term("field1", "big")), defaultOp)
+                .add(new SpanNearQuery(new SpanQuery[] {
+                    new SpanTermQuery(new Term("field1", "tiny")),
+                    new SpanOrQuery(
+                        new SpanNearQuery(new SpanQuery[] { span1, span2 }, 0, true),
+                        new SpanTermQuery(new Term("field1", "cavy"))
+                    )
+                }, 2, true), defaultOp)
+                .build();
             assertThat(query, equalTo(expectedQuery));
         }
     }

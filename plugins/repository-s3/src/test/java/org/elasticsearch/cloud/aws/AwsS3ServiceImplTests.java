@@ -70,8 +70,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(AwsS3Service.SECRET_SETTING.getKey(), "aws_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "aws_key", "aws_secret");
-        assertWarnings("[" + AwsS3Service.KEY_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.SECRET_SETTING.getKey() + "] setting was deprecated");
+        assertSettingDeprecations(AwsS3Service.KEY_SETTING, AwsS3Service.SECRET_SETTING);
     }
 
     public void testAWSCredentialsWithElasticsearchS3SettingsBackcompat() {
@@ -81,8 +80,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(AwsS3Service.CLOUD_S3.SECRET_SETTING.getKey(), "s3_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "s3_key", "s3_secret");
-        assertWarnings("[" + AwsS3Service.CLOUD_S3.KEY_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.CLOUD_S3.SECRET_SETTING.getKey() + "] setting was deprecated");
+        assertSettingDeprecations(AwsS3Service.CLOUD_S3.KEY_SETTING, AwsS3Service.CLOUD_S3.SECRET_SETTING);
     }
 
     public void testAWSCredentialsWithElasticsearchAwsAndS3SettingsBackcompat() {
@@ -94,10 +92,11 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(AwsS3Service.CLOUD_S3.SECRET_SETTING.getKey(), "s3_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "s3_key", "s3_secret");
-        assertWarnings("[" + AwsS3Service.KEY_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.SECRET_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.CLOUD_S3.KEY_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.CLOUD_S3.SECRET_SETTING.getKey() + "] setting was deprecated");
+        assertSettingDeprecations(
+                AwsS3Service.KEY_SETTING,
+                AwsS3Service.SECRET_SETTING,
+                AwsS3Service.CLOUD_S3.KEY_SETTING,
+                AwsS3Service.CLOUD_S3.SECRET_SETTING);
     }
 
     public void testAWSCredentialsWithElasticsearchRepositoriesSettingsBackcompat() {
@@ -107,8 +106,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repositories_key", "repositories_secret");
-        assertWarnings("[" + S3Repository.Repositories.KEY_SETTING.getKey() + "] setting was deprecated",
-                       "[" + S3Repository.Repositories.SECRET_SETTING.getKey() + "] setting was deprecated");
+        assertSettingDeprecations(S3Repository.Repositories.KEY_SETTING, S3Repository.Repositories.SECRET_SETTING);
     }
 
     public void testAWSCredentialsWithElasticsearchAwsAndRepositoriesSettingsBackcompat() {
@@ -120,10 +118,11 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repositories_key", "repositories_secret");
-        assertWarnings("[" + AwsS3Service.KEY_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.SECRET_SETTING.getKey() + "] setting was deprecated",
-                       "[" + S3Repository.Repositories.KEY_SETTING.getKey() + "] setting was deprecated",
-                       "[" + S3Repository.Repositories.SECRET_SETTING.getKey() + "] setting was deprecated");
+        assertSettingDeprecations(
+                AwsS3Service.KEY_SETTING,
+                AwsS3Service.SECRET_SETTING,
+                S3Repository.Repositories.KEY_SETTING,
+                S3Repository.Repositories.SECRET_SETTING);
     }
 
     public void testAWSCredentialsWithElasticsearchAwsAndS3AndRepositoriesSettingsBackcompat() {
@@ -137,12 +136,13 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repositories_key", "repositories_secret");
-        assertWarnings("[" + AwsS3Service.KEY_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.SECRET_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.CLOUD_S3.KEY_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.CLOUD_S3.SECRET_SETTING.getKey() + "] setting was deprecated",
-                       "[" + S3Repository.Repositories.KEY_SETTING.getKey() + "] setting was deprecated",
-                       "[" + S3Repository.Repositories.SECRET_SETTING.getKey() + "] setting was deprecated");
+        assertSettingDeprecations(
+                AwsS3Service.KEY_SETTING,
+                AwsS3Service.SECRET_SETTING,
+                AwsS3Service.CLOUD_S3.KEY_SETTING,
+                AwsS3Service.CLOUD_S3.SECRET_SETTING,
+                S3Repository.Repositories.KEY_SETTING,
+                S3Repository.Repositories.SECRET_SETTING);
     }
 
     public void testAWSCredentialsWithElasticsearchRepositoriesSettingsAndRepositorySettingsBackcompat() {
@@ -152,8 +152,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repository_key", "repository_secret");
-        assertWarnings("[" + S3Repository.Repository.KEY_SETTING.getKey() + "] setting was deprecated",
-                       "[" + S3Repository.Repository.SECRET_SETTING.getKey() + "] setting was deprecated");
+        assertSettingDeprecations(S3Repository.Repository.KEY_SETTING, S3Repository.Repository.SECRET_SETTING);
     }
 
     public void testAWSCredentialsWithElasticsearchAwsAndRepositoriesSettingsAndRepositorySettingsBackcompat() {
@@ -165,8 +164,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repository_key", "repository_secret");
-        assertWarnings("[" + S3Repository.Repository.KEY_SETTING.getKey() + "] setting was deprecated",
-                       "[" + S3Repository.Repository.SECRET_SETTING.getKey() + "] setting was deprecated");
+        assertSettingDeprecations(S3Repository.Repository.KEY_SETTING, S3Repository.Repository.SECRET_SETTING);
     }
 
     public void testAWSCredentialsWithElasticsearchAwsAndS3AndRepositoriesSettingsAndRepositorySettingsBackcompat() {
@@ -180,8 +178,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repository_key", "repository_secret");
-        assertWarnings("[" + S3Repository.Repository.KEY_SETTING.getKey() + "] setting was deprecated",
-                       "[" + S3Repository.Repository.SECRET_SETTING.getKey() + "] setting was deprecated");
+        assertSettingDeprecations(S3Repository.Repository.KEY_SETTING, S3Repository.Repository.SECRET_SETTING);
     }
 
     protected void launchAWSCredentialsWithElasticsearchSettingsTest(Settings singleRepositorySettings, Settings settings,
@@ -228,13 +225,14 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .build();
         launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username",
             "aws_proxy_password", "AWS3SignerType", 3, false, 10000);
-        assertWarnings("[" + AwsS3Service.PROXY_USERNAME_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.PROXY_PASSWORD_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.PROTOCOL_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.PROXY_HOST_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.PROXY_PORT_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.SIGNER_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.READ_TIMEOUT.getKey() + "] setting was deprecated");
+        assertSettingDeprecations(
+                AwsS3Service.PROXY_USERNAME_SETTING,
+                AwsS3Service.PROXY_PASSWORD_SETTING,
+                AwsS3Service.PROTOCOL_SETTING,
+                AwsS3Service.PROXY_HOST_SETTING,
+                AwsS3Service.PROXY_PORT_SETTING,
+                AwsS3Service.SIGNER_SETTING,
+                AwsS3Service.READ_TIMEOUT);
     }
 
     public void testAWSConfigurationWithAwsAndS3SettingsBackcompat() {
@@ -257,20 +255,21 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .build();
         launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTPS, "s3_proxy_host", 8081, "s3_proxy_username",
             "s3_proxy_password", "NoOpSignerType", 3, false, 10000);
-        assertWarnings("[" + AwsS3Service.PROXY_USERNAME_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.PROXY_PASSWORD_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.PROTOCOL_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.PROXY_HOST_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.PROXY_PORT_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.SIGNER_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.READ_TIMEOUT.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.CLOUD_S3.PROXY_USERNAME_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.CLOUD_S3.PROXY_PASSWORD_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.CLOUD_S3.PROTOCOL_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.CLOUD_S3.PROXY_HOST_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.CLOUD_S3.PROXY_PORT_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.CLOUD_S3.SIGNER_SETTING.getKey() + "] setting was deprecated",
-                       "[" + AwsS3Service.CLOUD_S3.READ_TIMEOUT.getKey() + "] setting was deprecated");
+        assertSettingDeprecations(
+                AwsS3Service.PROXY_USERNAME_SETTING,
+                AwsS3Service.PROXY_PASSWORD_SETTING,
+                AwsS3Service.PROTOCOL_SETTING,
+                AwsS3Service.PROXY_HOST_SETTING,
+                AwsS3Service.PROXY_PORT_SETTING,
+                AwsS3Service.SIGNER_SETTING,
+                AwsS3Service.READ_TIMEOUT,
+                AwsS3Service.CLOUD_S3.PROXY_USERNAME_SETTING,
+                AwsS3Service.CLOUD_S3.PROXY_PASSWORD_SETTING,
+                AwsS3Service.CLOUD_S3.PROTOCOL_SETTING,
+                AwsS3Service.CLOUD_S3.PROXY_HOST_SETTING,
+                AwsS3Service.CLOUD_S3.PROXY_PORT_SETTING,
+                AwsS3Service.CLOUD_S3.SIGNER_SETTING,
+                AwsS3Service.CLOUD_S3.READ_TIMEOUT);
     }
 
     public void testGlobalMaxRetries() {
@@ -356,13 +355,13 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     public void testEndpointSettingBackcompat() {
         assertEndpoint(generateRepositorySettings("repository_key", "repository_secret", null, "repository.endpoint", null),
             Settings.EMPTY, "repository.endpoint");
-        assertWarnings("[" + S3Repository.Repository.ENDPOINT_SETTING.getKey() + "] setting was deprecated");
+        assertSettingDeprecations(S3Repository.Repository.ENDPOINT_SETTING);
         Settings settings = Settings.builder()
             .put(S3Repository.Repositories.ENDPOINT_SETTING.getKey(), "repositories.endpoint")
             .build();
         assertEndpoint(generateRepositorySettings("repository_key", "repository_secret", null, null, null), settings,
             "repositories.endpoint");
-        assertWarnings("[" + S3Repository.Repositories.ENDPOINT_SETTING.getKey() + "] setting was deprecated");
+        assertSettingDeprecations(S3Repository.Repositories.ENDPOINT_SETTING);
     }
 
     public void testRegionSettingBackcompat() {

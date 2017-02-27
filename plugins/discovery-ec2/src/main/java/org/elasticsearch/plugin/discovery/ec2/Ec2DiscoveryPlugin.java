@@ -168,9 +168,9 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         // setting existed. This check looks for the legacy setting, and sets hosts provider if set
         String discoveryType = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings);
         if (discoveryType.equals(EC2)) {
-            deprecationLogger.deprecated("Using " + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() +
-                " setting to set hosts provider is deprecated. " +
-                "Set \"" + DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + ": " + EC2 + "\" instead");
+            deprecationLogger.deprecated("using [" + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() +
+                "] setting to set hosts provider is deprecated; " +
+                "set [" + DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + ": " + EC2 + "] instead");
             if (DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.exists(settings) == false) {
                 builder.put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), EC2).build();
             }

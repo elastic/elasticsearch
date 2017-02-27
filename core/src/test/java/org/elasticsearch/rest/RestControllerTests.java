@@ -50,6 +50,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -360,7 +361,12 @@ public class RestControllerTests extends ESTestCase {
         assertFalse(channel.getSendResponseCalled());
         restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
         assertTrue(channel.getSendResponseCalled());
-        assertWarnings("The Content-Type [application/x-ldjson] has been superseded by [application/x-ndjson]");
+        assertWarnings(
+                String.format(
+                        Locale.ROOT,
+                        "The Content-Type [%s] has been superseded by [%s] in the specification and should be used instead.",
+                        "application/x-ldjson",
+                        "application/x-ndjson"));
     }
 
     public void testDispatchWithContentStream() {

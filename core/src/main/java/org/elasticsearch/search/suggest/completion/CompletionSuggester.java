@@ -184,8 +184,10 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         private final SuggestDocPriorityQueue pq;
         private final Map<Integer, SuggestDoc> scoreDocMap;
 
+        // TODO: expose dup removal
+        
         TopDocumentsCollector(int num) {
-            super(1); // TODO hack, we don't use the underlying pq, so we allocate a size of 1
+            super(1, false); // TODO hack, we don't use the underlying pq, so we allocate a size of 1
             this.num = num;
             this.scoreDocMap = new LinkedHashMap<>(num);
             this.pq = new SuggestDocPriorityQueue(num);

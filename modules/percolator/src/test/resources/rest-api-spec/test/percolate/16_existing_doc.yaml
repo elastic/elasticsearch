@@ -114,5 +114,8 @@
             term:
               tag: tag1
 
-  - match: {'matches': [{_index: percolator_index, _id: test_percolator, _score: 0.2876821}]}
+  - length: {matches: 1}
+  - match: {matches.0._index: percolator_index}
+  - match: {matches.0._id: test_percolator}
+  - is_true: matches.0._score
 

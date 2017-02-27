@@ -22,9 +22,7 @@ esplugin {
   classname 'org.elasticsearch.index.rankeval.RankEvalPlugin'
 }
 
-integTest {
-  cluster {
-    setting 'script.inline', 'true'
-    setting 'script.stored', 'true'
-  }
+integTestCluster {
+  setting 'script.inline', 'true'
+  setting 'script.stored', 'true'
 }

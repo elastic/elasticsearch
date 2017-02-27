@@ -30,9 +30,15 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
@@ -327,6 +333,9 @@ public class MatchQuery {
                 boost *= bq.getBoost();
                 innerQuery = bq.getQuery();
             }
+            if (query instanceof SpanQuery) {
+                return toSpanQueryPrefix((SpanQuery) query, boost);
+            }
             final MultiPhrasePrefixQuery prefixQuery = new MultiPhrasePrefixQuery();
             prefixQuery.setMaxExpansions(maxExpansions);
             prefixQuery.setSlop(phraseSlop);
@@ -354,6 +363,33 @@ public class MatchQuery {
                 return boost == 1 ? prefixQuery : new BoostQuery(prefixQuery, boost);
             }
             return query;
+        }
+
+        private Query toSpanQueryPrefix(SpanQuery query, float boost) {
+            if (query instanceof SpanTermQuery) {
+                SpanMultiTermQueryWrapper<PrefixQuery> ret =
+                    new SpanMultiTermQueryWrapper<>(new PrefixQuery(((SpanTermQuery) query).getTerm()));
+                return boost == 1 ? ret : new BoostQuery(ret, boost);
+            } else if (query instanceof SpanNearQuery) {
+                SpanNearQuery spanNearQuery = (SpanNearQuery) query;
+                SpanQuery[] clauses = spanNearQuery.getClauses();
+                if (clauses[clauses.length-1] instanceof SpanTermQuery) {
+                    clauses[clauses.length-1] = new SpanMultiTermQueryWrapper<>(
+                        new PrefixQuery(((SpanTermQuery) clauses[clauses.length-1]).getTerm())
+                    );
+                }
+                SpanNearQuery newQuery = new SpanNearQuery(clauses, spanNearQuery.getSlop(), spanNearQuery.isInOrder());
+                return boost == 1 ? newQuery : new BoostQuery(newQuery, boost);
+            } else if (query instanceof SpanOrQuery) {
+                SpanOrQuery orQuery = (SpanOrQuery) query;
+                SpanQuery[] clauses = new SpanQuery[orQuery.getClauses().length];
+                for (int i = 0; i < clauses.length; i++) {
+                    clauses[i] = (SpanQuery) toSpanQueryPrefix(orQuery.getClauses()[i], 1);
+                }
+                return boost == 1 ? new SpanOrQuery(clauses) : new BoostQuery(new SpanOrQuery(clauses), boost);
+            } else {
+                return query;
+            }
         }
 
         public Query createCommonTermsQuery(String field, String queryText, Occur highFreqOccur, Occur lowFreqOccur, float

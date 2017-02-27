@@ -42,7 +42,6 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
@@ -437,7 +436,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
             assertThat(query, Matchers.equalTo(expectedQuery));
 
-            // no paren should cause guinea and pig to be treated as separate tokens
+            // no parent should cause guinea and pig to be treated as separate tokens
             query = queryParser.parse("+that -guinea pig +smells");
             expectedQuery = new BooleanQuery.Builder()
                 .add(new TermQuery(new Term(STRING_FIELD_NAME, "that")), BooleanClause.Occur.MUST)
@@ -450,35 +449,36 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
             // span query
             query = queryParser.parse("\"that guinea pig smells\"");
-            expectedQuery = new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
+            expectedQuery = new BooleanQuery.Builder()
+                .add(new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
                     .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")))
                     .addClause(new SpanOrQuery(
-                                   new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
-                                       .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea")))
-                                       .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig"))).build(),
-                                   new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))))
+                        new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
+                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea")))
+                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig"))).build(),
+                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))))
                     .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells")))
-                    .build();
-
+                    .build(), Occur.SHOULD)
+                .setDisableCoord(true)
+                .build();
             assertThat(query, Matchers.equalTo(expectedQuery));
 
             // span query with slop
             query = queryParser.parse("\"that guinea pig smells\"~2");
-            expectedQuery = new SpanOrQuery(
-                new SpanNearQuery(
-                    new SpanQuery[]{
-                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")),
-                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea")),
-                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig")),
-                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells"))
-                    }, 2, true),
-                new SpanNearQuery(
-                    new SpanQuery[] {
-                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")),
-                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy")),
-                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells"))
-                    }, 2, true)
-                );
+            expectedQuery = new BooleanQuery.Builder()
+                .add(new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
+                    .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")))
+                    .addClause(new SpanOrQuery(
+                        new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
+                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea")))
+                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig"))).build(),
+                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))))
+                    .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells")))
+                    .setSlop(2)
+                    .build(),
+                    Occur.SHOULD)
+                .setDisableCoord(true)
+                .build();
             assertThat(query, Matchers.equalTo(expectedQuery));
         }
     }

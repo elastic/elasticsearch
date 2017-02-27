@@ -136,13 +136,13 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             .put(AzureStorageService.Storage.LOCATION_MODE_SETTING.getKey(), "primary_only")
             .build();
         azureRepository(settings);
-        assertWarnings("[" + AzureStorageService.Storage.ACCOUNT_SETTING.getKey() + "] setting was deprecated",
-            "[" + AzureStorageService.Storage.BASE_PATH_SETTING.getKey() + "] setting was deprecated",
-            "[" + AzureStorageService.Storage.CHUNK_SIZE_SETTING.getKey() + "] setting was deprecated",
-            "[" + AzureStorageService.Storage.COMPRESS_SETTING.getKey() + "] setting was deprecated",
-            "[" + AzureStorageService.Storage.CONTAINER_SETTING.getKey() + "] setting was deprecated",
-            "[" + AzureStorageService.Storage.LOCATION_MODE_SETTING.getKey() + "] setting was deprecated");
+        assertSettingDeprecations(
+                AzureStorageService.Storage.ACCOUNT_SETTING,
+                AzureStorageService.Storage.BASE_PATH_SETTING,
+                AzureStorageService.Storage.CHUNK_SIZE_SETTING,
+                AzureStorageService.Storage.COMPRESS_SETTING,
+                AzureStorageService.Storage.CONTAINER_SETTING,
+                AzureStorageService.Storage.LOCATION_MODE_SETTING);
     }
-
 
 }

@@ -35,6 +35,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.main.MainRequest;
+import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.CheckedFunction;
@@ -111,6 +112,14 @@ public class RestHighLevelClient {
     public boolean ping(Header... headers) throws IOException {
         return performRequest(new MainRequest(), (request) -> Request.ping(), RestHighLevelClient::convertExistsResponse,
                 emptySet(), headers);
+    }
+
+    /**
+     * Get the cluster info otherwise provided when sending an HTTP request to port 9200
+     */
+    public MainResponse info(Header... headers) throws IOException {
+        return performRequestAndParseEntity(new MainRequest(), (request) -> Request.info(), MainResponse::fromXContent, emptySet(),
+                headers);
     }
 
     /**

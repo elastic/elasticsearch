@@ -42,6 +42,10 @@ dependencies {
     compile "io.netty:netty-transport:4.1.7.Final"
 }
 
+integTestCluster {
+    numNodes = 2 // this tests needs at least 2 nodes
+}
+
 dependencyLicenses {
   mapping from: /netty-.*/, to: 'netty'
 }

@@ -41,8 +41,8 @@ import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasks;
+import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
 
 import java.io.IOException;
 import java.util.Date;
@@ -278,19 +278,19 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         }
     }
 
-    static PersistentTaskInProgress<?> validateAndFindTask(String jobId, ClusterState state) {
+    static PersistentTask<?> validateAndFindTask(String jobId, ClusterState state) {
         MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
         if (mlMetadata.getJobs().containsKey(jobId) == false) {
             throw ExceptionsHelper.missingJobException(jobId);
         }
 
-        PersistentTasksInProgress tasks = state.getMetaData().custom(PersistentTasksInProgress.TYPE);
+        PersistentTasks tasks = state.getMetaData().custom(PersistentTasks.TYPE);
         if (tasks != null) {
-            Predicate<PersistentTaskInProgress<?>> p = t -> {
+            Predicate<PersistentTask<?>> p = t -> {
                 OpenJobAction.Request storedRequest = (OpenJobAction.Request) t.getRequest();
                 return storedRequest.getJobId().equals(jobId);
             };
-            for (PersistentTaskInProgress<?> task : tasks.findTasks(OpenJobAction.NAME, p)) {
+            for (PersistentTask<?> task : tasks.findTasks(OpenJobAction.NAME, p)) {
                 OpenJobAction.Request storedRequest = (OpenJobAction.Request) task.getRequest();
                 if (storedRequest.getJobId().equals(jobId)) {
                     JobState jobState = (JobState) task.getStatus();
@@ -307,13 +307,13 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
     }
 
     static ClusterState moveJobToClosingState(String jobId, ClusterState currentState) {
-        PersistentTaskInProgress<?> task = validateAndFindTask(jobId, currentState);
-        PersistentTasksInProgress currentTasks = currentState.getMetaData().custom(PersistentTasksInProgress.TYPE);
-        Map<Long, PersistentTaskInProgress<?>> updatedTasks = new HashMap<>(currentTasks.taskMap());
-        PersistentTaskInProgress<?> taskToUpdate = currentTasks.getTask(task.getId());
-        taskToUpdate = new PersistentTaskInProgress<>(taskToUpdate, JobState.CLOSING);
+        PersistentTask<?> task = validateAndFindTask(jobId, currentState);
+        PersistentTasks currentTasks = currentState.getMetaData().custom(PersistentTasks.TYPE);
+        Map<Long, PersistentTask<?>> updatedTasks = new HashMap<>(currentTasks.taskMap());
+        PersistentTask<?> taskToUpdate = currentTasks.getTask(task.getId());
+        taskToUpdate = new PersistentTask<>(taskToUpdate, JobState.CLOSING);
         updatedTasks.put(taskToUpdate.getId(), taskToUpdate);
-        PersistentTasksInProgress newTasks = new PersistentTasksInProgress(currentTasks.getCurrentId(), updatedTasks);
+        PersistentTasks newTasks = new PersistentTasks(currentTasks.getCurrentId(), updatedTasks);
 
         MlMetadata mlMetadata = currentState.metaData().custom(MlMetadata.TYPE);
         Job.Builder jobBuilder = new Job.Builder(mlMetadata.getJobs().get(jobId));
@@ -325,7 +325,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         return builder
                 .metaData(new MetaData.Builder(currentState.metaData())
                         .putCustom(MlMetadata.TYPE, mlMetadataBuilder.build())
-                        .putCustom(PersistentTasksInProgress.TYPE, newTasks))
+                        .putCustom(PersistentTasks.TYPE, newTasks))
                 .build();
     }
 }

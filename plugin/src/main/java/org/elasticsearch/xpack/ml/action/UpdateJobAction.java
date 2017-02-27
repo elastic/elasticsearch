@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.MlMetadata;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasks;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -168,7 +168,7 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
                 throw new IllegalArgumentException("Job Id " + Job.ALL + " cannot be for update");
             }
 
-            PersistentTasksInProgress tasks = clusterService.state().getMetaData().custom(PersistentTasksInProgress.TYPE);
+            PersistentTasks tasks = clusterService.state().getMetaData().custom(PersistentTasks.TYPE);
             boolean jobIsOpen = MlMetadata.getJobState(request.getJobId(), tasks) == JobState.OPENED;
 
             semaphoreByJob.computeIfAbsent(request.getJobId(), id -> new Semaphore(1)).acquire();

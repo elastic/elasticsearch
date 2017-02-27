@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.Assignment;
+import org.elasticsearch.xpack.persistent.PersistentTasks.Assignment;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
 
 import java.time.Duration;

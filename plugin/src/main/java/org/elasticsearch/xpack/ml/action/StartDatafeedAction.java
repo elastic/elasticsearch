@@ -53,10 +53,10 @@ import org.elasticsearch.xpack.persistent.PersistentActionRegistry;
 import org.elasticsearch.xpack.persistent.PersistentActionRequest;
 import org.elasticsearch.xpack.persistent.PersistentActionResponse;
 import org.elasticsearch.xpack.persistent.PersistentActionService;
-import org.elasticsearch.xpack.persistent.PersistentTask;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.Assignment;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
+import org.elasticsearch.xpack.persistent.NodePersistentTask;
+import org.elasticsearch.xpack.persistent.PersistentTasks;
+import org.elasticsearch.xpack.persistent.PersistentTasks.Assignment;
+import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
 import org.elasticsearch.xpack.persistent.TransportPersistentAction;
 
 import java.io.IOException;
@@ -225,7 +225,7 @@ public class StartDatafeedAction
         }
     }
 
-    public static class DatafeedTask extends PersistentTask {
+    public static class DatafeedTask extends NodePersistentTask {
 
         private final String datafeedId;
         private final long startTime;
@@ -327,14 +327,15 @@ public class StartDatafeedAction
         @Override
         public void validate(Request request, ClusterState clusterState) {
             MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
-            PersistentTasksInProgress tasks = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
+            PersistentTasks tasks = clusterState.getMetaData().custom(PersistentTasks.TYPE);
             DiscoveryNodes nodes = clusterState.getNodes();
             StartDatafeedAction.validate(request.getDatafeedId(), mlMetadata, tasks, nodes);
         }
 
         @Override
-        protected void nodeOperation(PersistentTask persistentTask, Request request, ActionListener<TransportResponse.Empty> listener) {
-            DatafeedTask datafeedTask = (DatafeedTask) persistentTask;
+        protected void nodeOperation(NodePersistentTask nodePersistentTask, Request request,
+                                     ActionListener<TransportResponse.Empty> listener) {
+            DatafeedTask datafeedTask = (DatafeedTask) nodePersistentTask;
             datafeedJobRunner.run(datafeedTask,
                     (error) -> {
                         if (error != null) {
@@ -372,7 +373,7 @@ public class StartDatafeedAction
 
     }
 
-    static void validate(String datafeedId, MlMetadata mlMetadata, PersistentTasksInProgress tasks, DiscoveryNodes nodes) {
+    static void validate(String datafeedId, MlMetadata mlMetadata, PersistentTasks tasks, DiscoveryNodes nodes) {
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         if (datafeed == null) {
             throw ExceptionsHelper.missingDatafeedException(datafeedId);
@@ -388,7 +389,7 @@ public class StartDatafeedAction
                     RestStatus.CONFLICT, JobState.OPENED, jobState);
         }
 
-        PersistentTaskInProgress<?> datafeedTask = MlMetadata.getDatafeedTask(datafeedId, tasks);
+        PersistentTask<?> datafeedTask = MlMetadata.getDatafeedTask(datafeedId, tasks);
         DatafeedState datafeedState = MlMetadata.getDatafeedState(datafeedId, tasks);
         if (datafeedTask != null && datafeedState == DatafeedState.STARTED) {
             if (datafeedTask.isAssigned() == false) {
@@ -410,11 +411,11 @@ public class StartDatafeedAction
 
     public static Assignment selectNode(Logger logger, String datafeedId, ClusterState clusterState) {
         MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
-        PersistentTasksInProgress tasks = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
+        PersistentTasks tasks = clusterState.getMetaData().custom(PersistentTasks.TYPE);
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         DiscoveryNodes nodes = clusterState.getNodes();
 
-        PersistentTaskInProgress<?> jobTask = MlMetadata.getJobTask(datafeed.getJobId(), tasks);
+        PersistentTask<?> jobTask = MlMetadata.getJobTask(datafeed.getJobId(), tasks);
         if (jobTask == null) {
             String reason = "cannot start datafeed [" + datafeed.getId() + "], job task doesn't yet exist";
             logger.debug(reason);

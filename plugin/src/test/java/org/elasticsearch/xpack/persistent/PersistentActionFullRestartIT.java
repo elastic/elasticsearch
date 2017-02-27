@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.persistent;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
 import org.elasticsearch.xpack.persistent.TestPersistentActionPlugin.TestPersistentAction;
 import org.elasticsearch.xpack.persistent.TestPersistentActionPlugin.TestRequest;
 
@@ -59,8 +59,8 @@ public class PersistentActionFullRestartIT extends ESIntegTestCase {
             }
         }
         final int numberOfRunningTasks = runningTasks;
-        PersistentTasksInProgress tasksInProgress = internalCluster().clusterService().state().getMetaData()
-                .custom(PersistentTasksInProgress.TYPE);
+        PersistentTasks tasksInProgress = internalCluster().clusterService().state().getMetaData()
+                .custom(PersistentTasks.TYPE);
         assertThat(tasksInProgress.tasks().size(), equalTo(numberOfTasks));
 
         if (numberOfRunningTasks > 0) {
@@ -76,11 +76,11 @@ public class PersistentActionFullRestartIT extends ESIntegTestCase {
         internalCluster().fullRestart();
         ensureYellow();
 
-        tasksInProgress = internalCluster().clusterService().state().getMetaData().custom(PersistentTasksInProgress.TYPE);
+        tasksInProgress = internalCluster().clusterService().state().getMetaData().custom(PersistentTasks.TYPE);
         assertThat(tasksInProgress.tasks().size(), equalTo(numberOfTasks));
         // Check that cluster state is correct
         for (int i = 0; i < numberOfTasks; i++) {
-            PersistentTaskInProgress<?> task = tasksInProgress.getTask(taskIds[i]);
+            PersistentTask<?> task = tasksInProgress.getTask(taskIds[i]);
             assertNotNull(task);
             assertThat(task.isStopped(), equalTo(stopped[i]));
         }
@@ -93,9 +93,9 @@ public class PersistentActionFullRestartIT extends ESIntegTestCase {
         });
 
         // Start all other tasks
-        tasksInProgress = internalCluster().clusterService().state().getMetaData().custom(PersistentTasksInProgress.TYPE);
+        tasksInProgress = internalCluster().clusterService().state().getMetaData().custom(PersistentTasks.TYPE);
         for (int i = 0; i < numberOfTasks; i++) {
-            PersistentTaskInProgress<?> task = tasksInProgress.getTask(taskIds[i]);
+            PersistentTask<?> task = tasksInProgress.getTask(taskIds[i]);
             assertNotNull(task);
             logger.info("checking task with id {} stopped {} node {}", task.getId(), task.isStopped(), task.getExecutorNode());
             assertThat(task.isStopped(), equalTo(stopped[i]));
@@ -119,8 +119,8 @@ public class PersistentActionFullRestartIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             // Make sure the task is removed from the cluster state
-            assertThat(((PersistentTasksInProgress) internalCluster().clusterService().state().getMetaData()
-                    .custom(PersistentTasksInProgress.TYPE)).tasks(), empty());
+            assertThat(((PersistentTasks) internalCluster().clusterService().state().getMetaData()
+                    .custom(PersistentTasks.TYPE)).tasks(), empty());
         });
 
     }

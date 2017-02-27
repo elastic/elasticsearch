@@ -44,7 +44,8 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasks;
+import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
 
 import java.io.IOException;
 import java.util.List;
@@ -215,7 +216,7 @@ public class StopDatafeedAction
             ClusterState state = clusterService.state();
             MetaData metaData = state.metaData();
             MlMetadata mlMetadata = metaData.custom(MlMetadata.TYPE);
-            PersistentTasksInProgress tasks = metaData.custom(PersistentTasksInProgress.TYPE);
+            PersistentTasks tasks = metaData.custom(PersistentTasks.TYPE);
             String nodeId = validateAndReturnNodeId(request.getDatafeedId(), mlMetadata, tasks);
             request.setNodes(nodeId);
             ActionListener<Response> finalListener =
@@ -260,12 +261,12 @@ public class StopDatafeedAction
         }
     }
 
-    static String validateAndReturnNodeId(String datafeedId, MlMetadata mlMetadata, PersistentTasksInProgress tasks) {
+    static String validateAndReturnNodeId(String datafeedId, MlMetadata mlMetadata, PersistentTasks tasks) {
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         if (datafeed == null) {
             throw new ResourceNotFoundException(Messages.getMessage(Messages.DATAFEED_NOT_FOUND, datafeedId));
         }
-        PersistentTasksInProgress.PersistentTaskInProgress<?> task = MlMetadata.getDatafeedTask(datafeedId, tasks);
+        PersistentTask<?> task = MlMetadata.getDatafeedTask(datafeedId, tasks);
         if (task == null || task.getStatus() != DatafeedState.STARTED) {
             throw new ElasticsearchStatusException("datafeed already stopped, expected datafeed state [{}], but got [{}]",
                     RestStatus.CONFLICT, DatafeedState.STARTED, DatafeedState.STOPPED);

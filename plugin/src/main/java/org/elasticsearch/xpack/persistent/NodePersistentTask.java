@@ -10,14 +10,14 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 
 /**
- * Task that returns additional state information
+ * Represents a executor node operation that corresponds to a persistent task
  */
-public class PersistentTask extends CancellableTask {
+public class NodePersistentTask extends CancellableTask {
     private Provider<Status> statusProvider;
 
     private long persistentTaskId;
 
-    public PersistentTask(long id, String type, String action, String description, TaskId parentTask) {
+    public NodePersistentTask(long id, String type, String action, String description, TaskId parentTask) {
         super(id, type, action, description, parentTask);
     }
 

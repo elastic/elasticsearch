@@ -21,7 +21,7 @@ public class PersistentActionExecutor {
     }
 
     public <Request extends PersistentActionRequest> void executeAction(Request request,
-                                                                        PersistentTask task,
+                                                                        NodePersistentTask task,
                                                                         PersistentActionRegistry.PersistentActionHolder<Request> holder,
                                                                         ActionListener<Empty> listener) {
         threadPool.executor(holder.getExecutor()).execute(new AbstractRunnable() {

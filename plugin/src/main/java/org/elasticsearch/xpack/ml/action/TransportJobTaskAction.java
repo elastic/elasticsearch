@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasks;
 
 import java.io.IOException;
 import java.util.List;
@@ -62,8 +62,8 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
         // node running the job task.
         ClusterState state = clusterService.state();
         JobManager.getJobOrThrowIfUnknown(state, jobId);
-        PersistentTasksInProgress tasks = clusterService.state().getMetaData().custom(PersistentTasksInProgress.TYPE);
-        PersistentTasksInProgress.PersistentTaskInProgress<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
+        PersistentTasks tasks = clusterService.state().getMetaData().custom(PersistentTasks.TYPE);
+        PersistentTasks.PersistentTask<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
         if (jobTask == null || jobTask.isAssigned() == false) {
             listener.onFailure( new ElasticsearchStatusException("job [" + jobId + "] state is [" + JobState.CLOSED +
                     "], but must be [" + JobState.OPENED + "] to perform requested action", RestStatus.CONFLICT));
@@ -76,7 +76,7 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
     @Override
     protected final void taskOperation(Request request, OperationTask task, ActionListener<Response> listener) {
         ClusterState state = clusterService.state();
-        PersistentTasksInProgress tasks = state.metaData().custom(PersistentTasksInProgress.TYPE);
+        PersistentTasks tasks = state.metaData().custom(PersistentTasks.TYPE);
         JobState jobState = MlMetadata.getJobState(request.getJobId(), tasks);
         if (jobState == JobState.OPENED) {
             innerTaskOperation(request, task, listener);

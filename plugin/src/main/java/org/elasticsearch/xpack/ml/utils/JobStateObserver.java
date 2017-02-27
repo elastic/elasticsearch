@@ -16,7 +16,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MlMetadata;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasks;
 
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -87,7 +87,7 @@ public class JobStateObserver {
 
         @Override
         public boolean test(ClusterState newState) {
-            PersistentTasksInProgress tasks = newState.getMetaData().custom(PersistentTasksInProgress.TYPE);
+            PersistentTasks tasks = newState.getMetaData().custom(PersistentTasks.TYPE);
             JobState jobState = MlMetadata.getJobState(jobId, tasks);
             if (jobState == JobState.FAILED) {
                 failed = true;

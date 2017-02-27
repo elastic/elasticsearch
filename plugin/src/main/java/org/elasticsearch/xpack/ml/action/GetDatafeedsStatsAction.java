@@ -38,8 +38,8 @@ import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasks;
+import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -304,14 +304,14 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
 
             Map<String, DatafeedStats> results = new HashMap<>();
             MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
-            PersistentTasksInProgress tasksInProgress = state.getMetaData().custom(PersistentTasksInProgress.TYPE);
+            PersistentTasks tasksInProgress = state.getMetaData().custom(PersistentTasks.TYPE);
             if (request.getDatafeedId().equals(ALL) == false && mlMetadata.getDatafeed(request.getDatafeedId()) == null) {
                 throw ExceptionsHelper.missingDatafeedException(request.getDatafeedId());
             }
 
             for (DatafeedConfig datafeedConfig : mlMetadata.getDatafeeds().values()) {
                 if (request.getDatafeedId().equals(ALL) || datafeedConfig.getId().equals(request.getDatafeedId())) {
-                    PersistentTaskInProgress<?> task = MlMetadata.getDatafeedTask(request.getDatafeedId(), tasksInProgress);
+                    PersistentTask<?> task = MlMetadata.getDatafeedTask(request.getDatafeedId(), tasksInProgress);
                     DatafeedState datafeedState = MlMetadata.getDatafeedState(request.getDatafeedId(), tasksInProgress);
                     DiscoveryNode node = null;
                     String explanation = null;

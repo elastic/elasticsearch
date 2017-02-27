@@ -40,8 +40,8 @@ import org.elasticsearch.xpack.ml.job.persistence.MockClientBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasks;
+import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction.Response;
 import org.junit.Before;
@@ -91,15 +91,15 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         Job job = createDatafeedJob().build();
         mlMetadata.putJob(job, false);
         mlMetadata.putDatafeed(createDatafeedConfig("datafeed_id", job.getId()).build());
-        PersistentTaskInProgress<OpenJobAction.Request> task = createJobTask(0L, job.getId(), "node_id", JobState.OPENED);
-        PersistentTasksInProgress tasks = new PersistentTasksInProgress(1L, Collections.singletonMap(0L, task));
+        PersistentTask<OpenJobAction.Request> task = createJobTask(0L, job.getId(), "node_id", JobState.OPENED);
+        PersistentTasks tasks = new PersistentTasks(1L, Collections.singletonMap(0L, task));
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("node_name", "node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                         Collections.emptyMap(), Collections.emptySet(), Version.CURRENT))
                 .build();
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("cluster_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlMetadata.build())
-                        .putCustom(PersistentTasksInProgress.TYPE, tasks))
+                        .putCustom(PersistentTasks.TYPE, tasks))
                 .nodes(nodes);
 
         clusterService = mock(ClusterService.class);

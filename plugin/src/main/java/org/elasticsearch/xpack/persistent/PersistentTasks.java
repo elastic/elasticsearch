@@ -43,25 +43,25 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 /**
  * A cluster state record that contains a list of all running persistent tasks
  */
-public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom {
+public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom {
     public static final String TYPE = "persistent_tasks";
 
     private static final String API_CONTEXT = MetaData.XContentContext.API.toString();
 
     // TODO: Implement custom Diff for tasks
-    private final Map<Long, PersistentTaskInProgress<?>> tasks;
+    private final Map<Long, PersistentTask<?>> tasks;
 
     private final long currentId;
 
-    public PersistentTasksInProgress(long currentId, Map<Long, PersistentTaskInProgress<?>> tasks) {
+    public PersistentTasks(long currentId, Map<Long, PersistentTask<?>> tasks) {
         this.currentId = currentId;
         this.tasks = tasks;
     }
 
-    private static final ObjectParser<Builder, Void> PERSISTENT_TASKS_IN_PROGRESS_PARSER = new ObjectParser<>(TYPE, Builder::new);
+    private static final ObjectParser<Builder, Void> PERSISTENT_TASKS_PARSER = new ObjectParser<>(TYPE, Builder::new);
 
-    private static final ObjectParser<TaskBuilder<PersistentActionRequest>, Void> PERSISTENT_TASK_IN_PROGRESS_PARSER =
-            new ObjectParser<>("running_tasks", TaskBuilder::new);
+    private static final ObjectParser<TaskBuilder<PersistentActionRequest>, Void> PERSISTENT_TASK_PARSER =
+            new ObjectParser<>("tasks", TaskBuilder::new);
 
     public static final ConstructingObjectParser<Assignment, Void> ASSIGNMENT_PARSER =
             new ConstructingObjectParser<>("assignment", objects -> new Assignment((String) objects[0], (String) objects[1]));
@@ -73,22 +73,20 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
 
     static {
         // Tasks parser initialization
-        PERSISTENT_TASKS_IN_PROGRESS_PARSER.declareLong(Builder::setCurrentId, new ParseField("current_id"));
-        PERSISTENT_TASKS_IN_PROGRESS_PARSER.declareObjectArray(Builder::setTasks, PERSISTENT_TASK_IN_PROGRESS_PARSER,
-                new ParseField("running_tasks"));
-
+        PERSISTENT_TASKS_PARSER.declareLong(Builder::setCurrentId, new ParseField("current_id"));
+        PERSISTENT_TASKS_PARSER.declareObjectArray(Builder::setTasks, PERSISTENT_TASK_PARSER, new ParseField("tasks"));
 
         // Assignment parser
         ASSIGNMENT_PARSER.declareStringOrNull(constructorArg(), new ParseField("executor_node"));
         ASSIGNMENT_PARSER.declareStringOrNull(constructorArg(), new ParseField("explanation"));
 
         // Task parser initialization
-        PERSISTENT_TASK_IN_PROGRESS_PARSER.declareLong(TaskBuilder::setId, new ParseField("id"));
-        PERSISTENT_TASK_IN_PROGRESS_PARSER.declareString(TaskBuilder::setAction, new ParseField("action"));
-        PERSISTENT_TASK_IN_PROGRESS_PARSER.declareLong(TaskBuilder::setAllocationId, new ParseField("allocation_id"));
-        PERSISTENT_TASK_IN_PROGRESS_PARSER.declareBoolean(TaskBuilder::setRemoveOnCompletion, new ParseField("remove_on_completion"));
-        PERSISTENT_TASK_IN_PROGRESS_PARSER.declareBoolean(TaskBuilder::setStopped, new ParseField("stopped"));
-        PERSISTENT_TASK_IN_PROGRESS_PARSER.declareNamedObjects(
+        PERSISTENT_TASK_PARSER.declareLong(TaskBuilder::setId, new ParseField("id"));
+        PERSISTENT_TASK_PARSER.declareString(TaskBuilder::setAction, new ParseField("action"));
+        PERSISTENT_TASK_PARSER.declareLong(TaskBuilder::setAllocationId, new ParseField("allocation_id"));
+        PERSISTENT_TASK_PARSER.declareBoolean(TaskBuilder::setRemoveOnCompletion, new ParseField("remove_on_completion"));
+        PERSISTENT_TASK_PARSER.declareBoolean(TaskBuilder::setStopped, new ParseField("stopped"));
+        PERSISTENT_TASK_PARSER.declareNamedObjects(
                 (TaskBuilder<PersistentActionRequest> taskBuilder, List<PersistentActionRequest> objects) -> {
                     if (objects.size() != 1) {
                         throw new IllegalArgumentException("only one action request per task is allowed");
@@ -96,7 +94,7 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
                     taskBuilder.setRequest(objects.get(0));
                 }, REQUEST_PARSER, new ParseField("request"));
 
-        PERSISTENT_TASK_IN_PROGRESS_PARSER.declareNamedObjects(
+        PERSISTENT_TASK_PARSER.declareNamedObjects(
                 (TaskBuilder<PersistentActionRequest> taskBuilder, List<Status> objects) -> {
                     if (objects.size() != 1) {
                         throw new IllegalArgumentException("only one status per task is allowed");
@@ -105,31 +103,31 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
                 }, STATUS_PARSER, new ParseField("status"));
 
 
-        PERSISTENT_TASK_IN_PROGRESS_PARSER.declareObject(TaskBuilder::setAssignment, ASSIGNMENT_PARSER, new ParseField("assignment"));
-        PERSISTENT_TASK_IN_PROGRESS_PARSER.declareLong(TaskBuilder::setAllocationIdOnLastStatusUpdate,
+        PERSISTENT_TASK_PARSER.declareObject(TaskBuilder::setAssignment, ASSIGNMENT_PARSER, new ParseField("assignment"));
+        PERSISTENT_TASK_PARSER.declareLong(TaskBuilder::setAllocationIdOnLastStatusUpdate,
                 new ParseField("allocation_id_on_last_status_update"));
     }
 
-    public Collection<PersistentTaskInProgress<?>> tasks() {
+    public Collection<PersistentTask<?>> tasks() {
         return this.tasks.values();
     }
 
-    public Map<Long, PersistentTaskInProgress<?>> taskMap() {
+    public Map<Long, PersistentTask<?>> taskMap() {
         return this.tasks;
     }
 
-    public PersistentTaskInProgress<?> getTask(long id) {
+    public PersistentTask<?> getTask(long id) {
         return this.tasks.get(id);
     }
 
-    public Collection<PersistentTaskInProgress<?>> findTasks(String actionName, Predicate<PersistentTaskInProgress<?>> predicate) {
+    public Collection<PersistentTask<?>> findTasks(String actionName, Predicate<PersistentTask<?>> predicate) {
         return this.tasks().stream()
                 .filter(p -> actionName.equals(p.getAction()))
                 .filter(predicate)
                 .collect(Collectors.toList());
     }
 
-    public boolean tasksExist(String actionName, Predicate<PersistentTaskInProgress<?>> predicate) {
+    public boolean tasksExist(String actionName, Predicate<PersistentTask<?>> predicate) {
         return this.tasks().stream()
                 .filter(p -> actionName.equals(p.getAction()))
                 .anyMatch(predicate);
@@ -139,7 +137,7 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PersistentTasksInProgress that = (PersistentTasksInProgress) o;
+        PersistentTasks that = (PersistentTasks) o;
         return currentId == that.currentId &&
                 Objects.equals(tasks, that.tasks);
     }
@@ -168,8 +166,8 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
         return ALL_CONTEXTS;
     }
 
-    public static PersistentTasksInProgress fromXContent(XContentParser parser) throws IOException {
-        return PERSISTENT_TASKS_IN_PROGRESS_PARSER.parse(parser, null).build();
+    public static PersistentTasks fromXContent(XContentParser parser) throws IOException {
+        return PERSISTENT_TASKS_PARSER.parse(parser, null).build();
     }
 
     public static class Assignment {
@@ -223,7 +221,7 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
     /**
      * A record that represents a single running persistent task
      */
-    public static class PersistentTaskInProgress<Request extends PersistentActionRequest> implements Writeable, ToXContent {
+    public static class PersistentTask<Request extends PersistentActionRequest> implements Writeable, ToXContent {
         private final long id;
         private final long allocationId;
         private final String action;
@@ -237,24 +235,22 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
         private final Long allocationIdOnLastStatusUpdate;
 
 
-        public PersistentTaskInProgress(long id, String action, Request request, boolean stopped, boolean removeOnCompletion,
-                                        Assignment assignment) {
+        public PersistentTask(long id, String action, Request request, boolean stopped, boolean removeOnCompletion, Assignment assignment) {
             this(id, 0L, action, request, stopped, removeOnCompletion, null, assignment, null);
         }
 
-        public PersistentTaskInProgress(PersistentTaskInProgress<Request> task, boolean stopped, Assignment assignment) {
+        public PersistentTask(PersistentTask<Request> task, boolean stopped, Assignment assignment) {
             this(task.id, task.allocationId + 1L, task.action, task.request, stopped, task.removeOnCompletion, task.status,
                     assignment, task.allocationId);
         }
 
-        public PersistentTaskInProgress(PersistentTaskInProgress<Request> task, Status status) {
+        public PersistentTask(PersistentTask<Request> task, Status status) {
             this(task.id, task.allocationId, task.action, task.request, task.stopped, task.removeOnCompletion, status,
                     task.assignment, task.allocationId);
         }
 
-        private PersistentTaskInProgress(long id, long allocationId, String action, Request request,
-                                         boolean stopped, boolean removeOnCompletion, Status status,
-                                         Assignment assignment, Long allocationIdOnLastStatusUpdate) {
+        private PersistentTask(long id, long allocationId, String action, Request request, boolean stopped, boolean removeOnCompletion,
+                               Status status, Assignment assignment, Long allocationIdOnLastStatusUpdate) {
             this.id = id;
             this.allocationId = allocationId;
             this.action = action;
@@ -269,7 +265,7 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
         }
 
         @SuppressWarnings("unchecked")
-        private PersistentTaskInProgress(StreamInput in) throws IOException {
+        private PersistentTask(StreamInput in) throws IOException {
             id = in.readLong();
             allocationId = in.readLong();
             action = in.readString();
@@ -299,7 +295,7 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            PersistentTaskInProgress<?> that = (PersistentTaskInProgress<?>) o;
+            PersistentTask<?> that = (PersistentTask<?>) o;
             return id == that.id &&
                     allocationId == that.allocationId &&
                     Objects.equals(action, that.action) &&
@@ -481,8 +477,8 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
             return this;
         }
 
-        public PersistentTaskInProgress<Request> build() {
-            return new PersistentTaskInProgress<>(id, allocationId, action, request, stopped, removeOnCompletion, status,
+        public PersistentTask<Request> build() {
+            return new PersistentTask<>(id, allocationId, action, request, stopped, removeOnCompletion, status,
                     assignment, allocationIdOnLastStatusUpdate);
         }
     }
@@ -492,9 +488,9 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
         return TYPE;
     }
 
-    public PersistentTasksInProgress(StreamInput in) throws IOException {
+    public PersistentTasks(StreamInput in) throws IOException {
         currentId = in.readLong();
-        tasks = in.readMap(StreamInput::readLong, PersistentTaskInProgress::new);
+        tasks = in.readMap(StreamInput::readLong, PersistentTask::new);
     }
 
     @Override
@@ -517,8 +513,8 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.field("current_id", currentId);
-        builder.startArray("running_tasks");
-        for (PersistentTaskInProgress<?> entry : tasks.values()) {
+        builder.startArray("tasks");
+        for (PersistentTask<?> entry : tasks.values()) {
             entry.toXContent(builder, params);
         }
         builder.endArray();
@@ -529,19 +525,19 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
         return new Builder();
     }
 
-    public static Builder builder(PersistentTasksInProgress tasks) {
+    public static Builder builder(PersistentTasks tasks) {
         return new Builder(tasks);
     }
 
     public static class Builder {
-        private final Map<Long, PersistentTaskInProgress<?>> tasks = new HashMap<>();
+        private final Map<Long, PersistentTask<?>> tasks = new HashMap<>();
         private long currentId;
         private boolean changed;
 
         public Builder() {
         }
 
-        public Builder(PersistentTasksInProgress tasksInProgress) {
+        public Builder(PersistentTasks tasksInProgress) {
             if (tasksInProgress != null) {
                 tasks.putAll(tasksInProgress.tasks);
                 currentId = tasksInProgress.currentId;
@@ -557,7 +553,7 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
 
         private <Request extends PersistentActionRequest> Builder setTasks(List<TaskBuilder<Request>> tasks) {
             for (TaskBuilder builder : tasks) {
-                PersistentTaskInProgress<?> task = builder.build();
+                PersistentTask<?> task = builder.build();
                 this.tasks.put(task.getId(), task);
             }
             return this;
@@ -572,7 +568,7 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
                                                                          boolean removeOnCompletion, Assignment assignment) {
             changed = true;
             currentId++;
-            tasks.put(currentId, new PersistentTaskInProgress<>(currentId, action, request, stopped, removeOnCompletion, assignment));
+            tasks.put(currentId, new PersistentTask<>(currentId, action, request, stopped, removeOnCompletion, assignment));
             return this;
         }
 
@@ -580,10 +576,10 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
          * Reassigns the task to another node if the task exist
          */
         public Builder reassignTask(long taskId, Assignment assignment) {
-            PersistentTaskInProgress<?> taskInProgress = tasks.get(taskId);
+            PersistentTask<?> taskInProgress = tasks.get(taskId);
             if (taskInProgress != null) {
                 changed = true;
-                tasks.put(taskId, new PersistentTaskInProgress<>(taskInProgress, false, assignment));
+                tasks.put(taskId, new PersistentTask<>(taskInProgress, false, assignment));
             }
             return this;
         }
@@ -597,12 +593,12 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
         @SuppressWarnings("unchecked")
         public <Request extends PersistentActionRequest> Builder assignTask(long taskId,
                                                                             BiFunction<String, Request, Assignment> executorNodeFunc) {
-            PersistentTaskInProgress<Request> taskInProgress = (PersistentTaskInProgress<Request>) tasks.get(taskId);
+            PersistentTask<Request> taskInProgress = (PersistentTask<Request>) tasks.get(taskId);
             if (taskInProgress != null && taskInProgress.assignment.isAssigned() == false) { // only assign unassigned tasks
                 Assignment assignment = executorNodeFunc.apply(taskInProgress.action, taskInProgress.request);
                 if (assignment.isAssigned() || taskInProgress.isStopped()) {
                     changed = true;
-                    tasks.put(taskId, new PersistentTaskInProgress<>(taskInProgress, false, assignment));
+                    tasks.put(taskId, new PersistentTask<>(taskInProgress, false, assignment));
                 }
             }
             return this;
@@ -614,11 +610,11 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
         @SuppressWarnings("unchecked")
         public <Request extends PersistentActionRequest> Builder reassignTask(long taskId,
                                                                               BiFunction<String, Request, Assignment> executorNodeFunc) {
-            PersistentTaskInProgress<Request> taskInProgress = (PersistentTaskInProgress<Request>) tasks.get(taskId);
+            PersistentTask<Request> taskInProgress = (PersistentTask<Request>) tasks.get(taskId);
             if (taskInProgress != null) {
                 changed = true;
                 Assignment assignment = executorNodeFunc.apply(taskInProgress.action, taskInProgress.request);
-                tasks.put(taskId, new PersistentTaskInProgress<>(taskInProgress, false, assignment));
+                tasks.put(taskId, new PersistentTask<>(taskInProgress, false, assignment));
             }
             return this;
         }
@@ -627,10 +623,10 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
          * Updates the task status if the task exist
          */
         public Builder updateTaskStatus(long taskId, Status status) {
-            PersistentTaskInProgress<?> taskInProgress = tasks.get(taskId);
+            PersistentTask<?> taskInProgress = tasks.get(taskId);
             if (taskInProgress != null) {
                 changed = true;
-                tasks.put(taskId, new PersistentTaskInProgress<>(taskInProgress, status));
+                tasks.put(taskId, new PersistentTask<>(taskInProgress, status));
             }
             return this;
         }
@@ -651,13 +647,13 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
          * If the task is marked with removeOnCompletion flag, it is removed from the list, otherwise it is stopped.
          */
         public Builder finishTask(long taskId) {
-            PersistentTaskInProgress<?> taskInProgress = tasks.get(taskId);
+            PersistentTask<?> taskInProgress = tasks.get(taskId);
             if (taskInProgress != null) {
                 changed = true;
                 if (taskInProgress.removeOnCompletion) {
                     tasks.remove(taskId);
                 } else {
-                    tasks.put(taskId, new PersistentTaskInProgress<>(taskInProgress, true, FINISHED_TASK_ASSIGNMENT));
+                    tasks.put(taskId, new PersistentTask<>(taskInProgress, true, FINISHED_TASK_ASSIGNMENT));
                 }
             }
             return this;
@@ -684,8 +680,8 @@ public final class PersistentTasksInProgress extends AbstractNamedDiffable<MetaD
             return changed;
         }
 
-        public PersistentTasksInProgress build() {
-            return new PersistentTasksInProgress(currentId, Collections.unmodifiableMap(tasks));
+        public PersistentTasks build() {
+            return new PersistentTasks(currentId, Collections.unmodifiableMap(tasks));
         }
     }
 }

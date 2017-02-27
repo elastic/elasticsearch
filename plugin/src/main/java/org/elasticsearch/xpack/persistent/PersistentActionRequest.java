@@ -17,6 +17,6 @@ import org.elasticsearch.tasks.TaskId;
 public abstract class PersistentActionRequest extends ActionRequest implements NamedWriteable, ToXContent {
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-        return new PersistentTask(id, type, action, getDescription(), parentTaskId);
+        return new NodePersistentTask(id, type, action, getDescription(), parentTaskId);
     }
 }

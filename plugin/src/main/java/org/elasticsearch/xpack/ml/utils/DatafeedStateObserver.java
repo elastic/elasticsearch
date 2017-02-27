@@ -14,7 +14,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.MlMetadata;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasks;
 
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -35,7 +35,7 @@ public class DatafeedStateObserver {
         ClusterStateObserver observer =
                 new ClusterStateObserver(clusterService, LOGGER, threadPool.getThreadContext());
         Predicate<ClusterState> predicate = (newState) -> {
-            PersistentTasksInProgress tasks = newState.getMetaData().custom(PersistentTasksInProgress.TYPE);
+            PersistentTasks tasks = newState.getMetaData().custom(PersistentTasks.TYPE);
             DatafeedState datafeedState = MlMetadata.getDatafeedState(datafeedId, tasks);
             return datafeedState == expectedState;
         };

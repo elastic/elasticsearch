@@ -21,9 +21,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.Assignment;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.Builder;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasks.Assignment;
+import org.elasticsearch.xpack.persistent.PersistentTasks.Builder;
+import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
 import org.elasticsearch.xpack.persistent.TestPersistentActionPlugin.Status;
 import org.elasticsearch.xpack.persistent.TestPersistentActionPlugin.TestPersistentAction;
 import org.elasticsearch.xpack.persistent.TestPersistentActionPlugin.TestRequest;
@@ -37,12 +37,12 @@ import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_GATEWAY;
 import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_SNAPSHOT;
 import static org.elasticsearch.xpack.persistent.TransportPersistentAction.NO_NODE_FOUND;
 
-public class PersistentTasksInProgressTests extends AbstractDiffableSerializationTestCase<Custom> {
+public class PersistentTasksTests extends AbstractDiffableSerializationTestCase<Custom> {
 
     @Override
-    protected PersistentTasksInProgress createTestInstance() {
+    protected PersistentTasks createTestInstance() {
         int numberOfTasks = randomInt(10);
-        PersistentTasksInProgress.Builder tasks = PersistentTasksInProgress.builder();
+        PersistentTasks.Builder tasks = PersistentTasks.builder();
         for (int i = 0; i < numberOfTasks; i++) {
             boolean stopped = randomBoolean();
             tasks.addTask(TestPersistentAction.NAME, new TestRequest(randomAsciiOfLength(10)),
@@ -57,14 +57,14 @@ public class PersistentTasksInProgressTests extends AbstractDiffableSerializatio
 
     @Override
     protected Writeable.Reader<Custom> instanceReader() {
-        return PersistentTasksInProgress::new;
+        return PersistentTasks::new;
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(Arrays.asList(
-                new Entry(MetaData.Custom.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::new),
-                new Entry(NamedDiff.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::readDiffFrom),
+                new Entry(MetaData.Custom.class, PersistentTasks.TYPE, PersistentTasks::new),
+                new Entry(NamedDiff.class, PersistentTasks.TYPE, PersistentTasks::readDiffFrom),
                 new Entry(PersistentActionRequest.class, TestPersistentAction.NAME, TestRequest::new),
                 new Entry(Task.Status.class, Status.NAME, Status::new)
         ));
@@ -72,7 +72,7 @@ public class PersistentTasksInProgressTests extends AbstractDiffableSerializatio
 
     @Override
     protected Custom makeTestChanges(Custom testInstance) {
-        PersistentTasksInProgress tasksInProgress = (PersistentTasksInProgress) testInstance;
+        PersistentTasks tasksInProgress = (PersistentTasks) testInstance;
         Builder builder = new Builder();
         switch (randomInt(3)) {
             case 0:
@@ -105,12 +105,12 @@ public class PersistentTasksInProgressTests extends AbstractDiffableSerializatio
 
     @Override
     protected Writeable.Reader<Diff<Custom>> diffReader() {
-        return PersistentTasksInProgress::readDiffFrom;
+        return PersistentTasks::readDiffFrom;
     }
 
     @Override
-    protected PersistentTasksInProgress doParseInstance(XContentParser parser) throws IOException {
-        return PersistentTasksInProgress.fromXContent(parser);
+    protected PersistentTasks doParseInstance(XContentParser parser) throws IOException {
+        return PersistentTasks.fromXContent(parser);
     }
 
     @Override
@@ -142,7 +142,7 @@ public class PersistentTasksInProgressTests extends AbstractDiffableSerializatio
         return builder;
     }
 
-    private long pickRandomTask(PersistentTasksInProgress testInstance) {
+    private long pickRandomTask(PersistentTasks testInstance) {
         return randomFrom(new ArrayList<>(testInstance.tasks())).getId();
     }
 
@@ -157,9 +157,9 @@ public class PersistentTasksInProgressTests extends AbstractDiffableSerializatio
 
     @SuppressWarnings("unchecked")
     public void testSerializationContext() throws Exception {
-        PersistentTasksInProgress testInstance = createTestInstance();
+        PersistentTasks testInstance = createTestInstance();
         for (int i = 0; i < randomInt(10); i++) {
-            testInstance = (PersistentTasksInProgress) makeTestChanges(testInstance);
+            testInstance = (PersistentTasks) makeTestChanges(testInstance);
         }
 
         ToXContent.MapParams params = new ToXContent.MapParams(
@@ -170,12 +170,12 @@ public class PersistentTasksInProgressTests extends AbstractDiffableSerializatio
         XContentBuilder shuffled = shuffleXContent(builder);
 
         XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled.bytes());
-        PersistentTasksInProgress newInstance = doParseInstance(parser);
+        PersistentTasks newInstance = doParseInstance(parser);
         assertNotSame(newInstance, testInstance);
 
         assertEquals(testInstance.tasks().size(), newInstance.tasks().size());
-        for (PersistentTaskInProgress<?> testTask : testInstance.tasks()) {
-            PersistentTaskInProgress<TestRequest> newTask = (PersistentTaskInProgress<TestRequest>) newInstance.getTask(testTask.getId());
+        for (PersistentTask<?> testTask : testInstance.tasks()) {
+            PersistentTask<TestRequest> newTask = (PersistentTask<TestRequest>) newInstance.getTask(testTask.getId());
             assertNotNull(newTask);
 
             // Things that should be serialized
@@ -192,14 +192,14 @@ public class PersistentTasksInProgressTests extends AbstractDiffableSerializatio
     }
 
     public void testBuilder() {
-        PersistentTasksInProgress persistentTasksInProgress = null;
+        PersistentTasks persistentTasks = null;
         long lastKnownTask = -1;
         for (int i = 0; i < randomIntBetween(10, 100); i++) {
             final Builder builder;
             if (randomBoolean()) {
                 builder = new Builder();
             } else {
-                builder = new Builder(persistentTasksInProgress);
+                builder = new Builder(persistentTasks);
             }
             boolean changed = false;
             for (int j = 0; j < randomIntBetween(1, 10); j++) {
@@ -220,7 +220,7 @@ public class PersistentTasksInProgressTests extends AbstractDiffableSerializatio
                         break;
                     case 2:
                         if (builder.hasTask(lastKnownTask)) {
-                            PersistentTaskInProgress<?> task = builder.build().getTask(lastKnownTask);
+                            PersistentTask<?> task = builder.build().getTask(lastKnownTask);
                             if (randomBoolean()) {
                                 // Trying to reassign to the same node
                                 builder.assignTask(lastKnownTask, (s, request) -> task.getAssignment());
@@ -263,7 +263,7 @@ public class PersistentTasksInProgressTests extends AbstractDiffableSerializatio
                 }
             }
             assertEquals(changed, builder.isChanged());
-            persistentTasksInProgress = builder.build();
+            persistentTasks = builder.build();
         }
 
     }

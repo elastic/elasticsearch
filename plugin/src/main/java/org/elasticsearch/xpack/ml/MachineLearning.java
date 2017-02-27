@@ -127,7 +127,7 @@ import org.elasticsearch.xpack.persistent.PersistentActionRegistry;
 import org.elasticsearch.xpack.persistent.PersistentActionRequest;
 import org.elasticsearch.xpack.persistent.PersistentActionService;
 import org.elasticsearch.xpack.persistent.PersistentTaskClusterService;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasks;
 import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
 import org.elasticsearch.xpack.persistent.StartPersistentTaskAction;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
@@ -212,8 +212,8 @@ public class MachineLearning extends Plugin implements ActionPlugin {
                 // Custom metadata
                 new NamedWriteableRegistry.Entry(MetaData.Custom.class, "ml", MlMetadata::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, "ml", MlMetadata.MlMetadataDiff::new),
-                new NamedWriteableRegistry.Entry(MetaData.Custom.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::new),
-                new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasksInProgress.TYPE, PersistentTasksInProgress::readDiffFrom),
+                new NamedWriteableRegistry.Entry(MetaData.Custom.class, PersistentTasks.TYPE, PersistentTasks::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasks.TYPE, PersistentTasks::readDiffFrom),
 
                 // Persistent action requests
                 new NamedWriteableRegistry.Entry(PersistentActionRequest.class, StartDatafeedAction.NAME, StartDatafeedAction.Request::new),
@@ -233,8 +233,8 @@ public class MachineLearning extends Plugin implements ActionPlugin {
                 // Custom metadata
                 new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField("ml"),
                         parser -> MlMetadata.ML_METADATA_PARSER.parse(parser, null).build()),
-                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(PersistentTasksInProgress.TYPE),
-                        PersistentTasksInProgress::fromXContent),
+                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(PersistentTasks.TYPE),
+                        PersistentTasks::fromXContent),
 
                 // Persistent action requests
                 new NamedXContentRegistry.Entry(PersistentActionRequest.class, new ParseField(StartDatafeedAction.NAME),

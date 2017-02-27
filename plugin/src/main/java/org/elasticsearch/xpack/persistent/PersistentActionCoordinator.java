@@ -24,7 +24,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportResponse.Empty;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -62,15 +62,15 @@ public class PersistentActionCoordinator extends AbstractComponent implements Cl
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        PersistentTasksInProgress tasks = event.state().getMetaData().custom(PersistentTasksInProgress.TYPE);
-        PersistentTasksInProgress previousTasks = event.previousState().getMetaData().custom(PersistentTasksInProgress.TYPE);
+        PersistentTasks tasks = event.state().getMetaData().custom(PersistentTasks.TYPE);
+        PersistentTasks previousTasks = event.previousState().getMetaData().custom(PersistentTasks.TYPE);
 
         if (Objects.equals(tasks, previousTasks) == false || event.nodesChanged()) {
             // We have some changes let's check if they are related to our node
             String localNodeId = event.state().getNodes().getLocalNodeId();
             Set<PersistentTaskId> notVisitedTasks = new HashSet<>(runningTasks.keySet());
             if (tasks != null) {
-                for (PersistentTaskInProgress<?> taskInProgress : tasks.tasks()) {
+                for (PersistentTask<?> taskInProgress : tasks.tasks()) {
                     if (localNodeId.equals(taskInProgress.getExecutorNode())) {
                         PersistentTaskId persistentTaskId = new PersistentTaskId(taskInProgress.getId(), taskInProgress.getAllocationId());
                         RunningPersistentTask persistentTask = runningTasks.get(persistentTaskId);
@@ -111,10 +111,10 @@ public class PersistentActionCoordinator extends AbstractComponent implements Cl
 
     }
 
-    private <Request extends PersistentActionRequest> void startTask(PersistentTaskInProgress<Request> taskInProgress) {
+    private <Request extends PersistentActionRequest> void startTask(PersistentTask<Request> taskInProgress) {
         PersistentActionRegistry.PersistentActionHolder<Request> holder =
                 persistentActionRegistry.getPersistentActionHolderSafe(taskInProgress.getAction());
-        PersistentTask task = (PersistentTask) taskManager.register("persistent", taskInProgress.getAction() + "[c]",
+        NodePersistentTask task = (NodePersistentTask) taskManager.register("persistent", taskInProgress.getAction() + "[c]",
                 taskInProgress.getRequest());
         boolean processed = false;
         try {
@@ -283,23 +283,23 @@ public class PersistentActionCoordinator extends AbstractComponent implements Cl
     }
 
     private static class RunningPersistentTask implements Provider<Task.Status> {
-        private final PersistentTask task;
+        private final NodePersistentTask task;
         private final long id;
         private final AtomicReference<State> state;
         @Nullable
         private Exception failure;
 
-        RunningPersistentTask(PersistentTask task, long id) {
+        RunningPersistentTask(NodePersistentTask task, long id) {
             this(task, id, State.STARTED);
         }
 
-        RunningPersistentTask(PersistentTask task, long id, State state) {
+        RunningPersistentTask(NodePersistentTask task, long id, State state) {
             this.task = task;
             this.id = id;
             this.state = new AtomicReference<>(state);
         }
 
-        public PersistentTask getTask() {
+        public NodePersistentTask getTask() {
             return task;
         }
 

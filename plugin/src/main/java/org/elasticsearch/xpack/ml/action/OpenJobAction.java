@@ -54,10 +54,10 @@ import org.elasticsearch.xpack.persistent.PersistentActionRegistry;
 import org.elasticsearch.xpack.persistent.PersistentActionRequest;
 import org.elasticsearch.xpack.persistent.PersistentActionResponse;
 import org.elasticsearch.xpack.persistent.PersistentActionService;
-import org.elasticsearch.xpack.persistent.PersistentTask;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.Assignment;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
+import org.elasticsearch.xpack.persistent.NodePersistentTask;
+import org.elasticsearch.xpack.persistent.PersistentTasks;
+import org.elasticsearch.xpack.persistent.PersistentTasks.Assignment;
+import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
 import org.elasticsearch.xpack.persistent.TransportPersistentAction;
 
 import java.io.IOException;
@@ -218,7 +218,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         }
     }
 
-    public static class JobTask extends PersistentTask {
+    public static class JobTask extends NodePersistentTask {
 
         private final String jobId;
         private volatile Consumer<String> cancelHandler;
@@ -320,12 +320,12 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         @Override
         public void validate(Request request, ClusterState clusterState) {
             MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
-            PersistentTasksInProgress tasks = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
+            PersistentTasks tasks = clusterState.getMetaData().custom(PersistentTasks.TYPE);
             OpenJobAction.validate(request.getJobId(), mlMetadata, tasks, clusterState.nodes());
         }
 
         @Override
-        protected void nodeOperation(PersistentTask task, Request request, ActionListener<TransportResponse.Empty> listener) {
+        protected void nodeOperation(NodePersistentTask task, Request request, ActionListener<TransportResponse.Empty> listener) {
             autodetectProcessManager.setJobState(task.getPersistentTaskId(), JobState.OPENING, e1 -> {
                 if (e1 != null) {
                     listener.onFailure(e1);
@@ -376,7 +376,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
      * Fail fast before trying to update the job state on master node if the job doesn't exist or its state
      * is not what it should be.
      */
-    static void validate(String jobId, MlMetadata mlMetadata, @Nullable PersistentTasksInProgress tasks, DiscoveryNodes nodes) {
+    static void validate(String jobId, MlMetadata mlMetadata, @Nullable PersistentTasks tasks, DiscoveryNodes nodes) {
         Job job = mlMetadata.getJobs().get(jobId);
         if (job == null) {
             throw ExceptionsHelper.missingJobException(jobId);
@@ -385,7 +385,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
             throw new ElasticsearchStatusException("Cannot open job [" + jobId + "] because it has been marked as deleted",
                     RestStatus.CONFLICT);
         }
-        PersistentTaskInProgress<?> task = MlMetadata.getJobTask(jobId, tasks);
+        PersistentTask<?> task = MlMetadata.getJobTask(jobId, tasks);
         JobState jobState = MlMetadata.getJobState(jobId, tasks);
         if (task != null && jobState == JobState.OPENED) {
             if (task.isAssigned() == false) {
@@ -418,7 +418,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         long maxAvailable = Long.MIN_VALUE;
         List<String> reasons = new LinkedList<>();
         DiscoveryNode minLoadedNode = null;
-        PersistentTasksInProgress persistentTasksInProgress = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
+        PersistentTasks persistentTasks = clusterState.getMetaData().custom(PersistentTasks.TYPE);
         for (DiscoveryNode node : clusterState.getNodes()) {
             Map<String, String> nodeAttributes = node.getAttributes();
             String maxNumberOfOpenJobsStr = nodeAttributes.get(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey());
@@ -431,9 +431,9 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
 
             long numberOfAssignedJobs;
             int numberOfAllocatingJobs;
-            if (persistentTasksInProgress != null) {
-                numberOfAssignedJobs = persistentTasksInProgress.getNumberOfTasksOnNode(node.getId(), OpenJobAction.NAME);
-                numberOfAllocatingJobs = persistentTasksInProgress.findTasks(OpenJobAction.NAME, task -> {
+            if (persistentTasks != null) {
+                numberOfAssignedJobs = persistentTasks.getNumberOfTasksOnNode(node.getId(), OpenJobAction.NAME);
+                numberOfAllocatingJobs = persistentTasks.findTasks(OpenJobAction.NAME, task -> {
                     if (node.getId().equals(task.getExecutorNode()) == false) {
                         return false;
                     }

@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.persistent.PersistentActionRequest;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasks;
+import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
 
 import java.util.Collections;
 
@@ -47,10 +47,10 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
     }
 
     public void testValidate() {
-        PersistentTaskInProgress<?> task = new PersistentTaskInProgress<PersistentActionRequest>(1L, StartDatafeedAction.NAME,
-                new StartDatafeedAction.Request("foo", 0L), false, false, new PersistentTasksInProgress.Assignment("node_id", ""));
-        task = new PersistentTaskInProgress<>(task, DatafeedState.STARTED);
-        PersistentTasksInProgress tasks = new PersistentTasksInProgress(1L, Collections.singletonMap(1L, task));
+        PersistentTask<?> task = new PersistentTask<PersistentActionRequest>(1L, StartDatafeedAction.NAME,
+                new StartDatafeedAction.Request("foo", 0L), false, false, new PersistentTasks.Assignment("node_id", ""));
+        task = new PersistentTask<>(task, DatafeedState.STARTED);
+        PersistentTasks tasks = new PersistentTasks(1L, Collections.singletonMap(1L, task));
 
         Job job = createDatafeedJob().build();
         MlMetadata mlMetadata1 = new MlMetadata.Builder().putJob(job, false).build();
@@ -66,14 +66,14 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
     }
 
     public void testValidate_alreadyStopped() {
-        PersistentTasksInProgress tasks;
+        PersistentTasks tasks;
         if (randomBoolean()) {
-            PersistentTaskInProgress<?> task = new PersistentTaskInProgress<PersistentActionRequest>(1L, StartDatafeedAction.NAME,
-                    new StartDatafeedAction.Request("foo", 0L), false, false, new PersistentTasksInProgress.Assignment("node_id", ""));
-            task = new PersistentTaskInProgress<>(task, DatafeedState.STOPPED);
-            tasks = new PersistentTasksInProgress(1L, Collections.singletonMap(1L, task));
+            PersistentTask<?> task = new PersistentTask<PersistentActionRequest>(1L, StartDatafeedAction.NAME,
+                    new StartDatafeedAction.Request("foo", 0L), false, false, new PersistentTasks.Assignment("node_id", ""));
+            task = new PersistentTask<>(task, DatafeedState.STOPPED);
+            tasks = new PersistentTasks(1L, Collections.singletonMap(1L, task));
         } else {
-            tasks = randomBoolean() ? null : new PersistentTasksInProgress(0L, Collections.emptyMap());
+            tasks = randomBoolean() ? null : new PersistentTasks(0L, Collections.emptyMap());
         }
 
         Job job = createDatafeedJob().build();

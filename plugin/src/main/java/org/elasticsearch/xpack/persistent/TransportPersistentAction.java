@@ -16,7 +16,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.Assignment;
+import org.elasticsearch.xpack.persistent.PersistentTasks.Assignment;
 
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -66,14 +66,14 @@ public abstract class TransportPersistentAction<Request extends PersistentAction
     protected DiscoveryNode selectLeastLoadedNode(ClusterState clusterState, Predicate<DiscoveryNode> selector) {
         long minLoad = Long.MAX_VALUE;
         DiscoveryNode minLoadedNode = null;
-        PersistentTasksInProgress persistentTasksInProgress = clusterState.getMetaData().custom(PersistentTasksInProgress.TYPE);
+        PersistentTasks persistentTasks = clusterState.getMetaData().custom(PersistentTasks.TYPE);
         for (DiscoveryNode node : clusterState.getNodes()) {
             if (selector.test(node)) {
-                if (persistentTasksInProgress == null) {
+                if (persistentTasks == null) {
                     // We don't have any task running yet, pick the first available node
                     return node;
                 }
-                long numberOfTasks = persistentTasksInProgress.getNumberOfTasksOnNode(node.getId(), actionName);
+                long numberOfTasks = persistentTasks.getNumberOfTasksOnNode(node.getId(), actionName);
                 if (minLoad > numberOfTasks) {
                     minLoad = numberOfTasks;
                     minLoadedNode = node;
@@ -103,7 +103,7 @@ public abstract class TransportPersistentAction<Request extends PersistentAction
      * The status can be used to store the current progress of the task or provide an insight for the
      * task allocator about the state of the currently running tasks.
      */
-    protected void updatePersistentTaskStatus(PersistentTask task, Task.Status status, ActionListener<Empty> listener) {
+    protected void updatePersistentTaskStatus(NodePersistentTask task, Task.Status status, ActionListener<Empty> listener) {
         persistentActionService.updateStatus(task.getPersistentTaskId(), status,
                 new ActionListener<UpdatePersistentTaskStatusAction.Response>() {
                     @Override
@@ -125,7 +125,7 @@ public abstract class TransportPersistentAction<Request extends PersistentAction
      * possibly on a different node. If listener.onResponse() is called, the task is considered to be successfully
      * completed and will be removed from the cluster state and not restarted.
      */
-    protected abstract void nodeOperation(PersistentTask task, Request request, ActionListener<Empty> listener);
+    protected abstract void nodeOperation(NodePersistentTask task, Request request, ActionListener<Empty> listener);
 
     public String getExecutor() {
         return executor;

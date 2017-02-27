@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobStorageDeletionTask;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
+import org.elasticsearch.xpack.persistent.PersistentTasks;
 
 import java.util.Collections;
 import java.util.List;
@@ -127,7 +127,7 @@ public class JobManager extends AbstractComponent {
     }
 
     public JobState getJobState(String jobId) {
-        PersistentTasksInProgress tasks = clusterService.state().getMetaData().custom(PersistentTasksInProgress.TYPE);
+        PersistentTasks tasks = clusterService.state().getMetaData().custom(PersistentTasks.TYPE);
         return MlMetadata.getJobState(jobId, tasks);
     }
 
@@ -281,7 +281,7 @@ public class JobManager extends AbstractComponent {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     MlMetadata.Builder builder = createMlMetadataBuilder(currentState);
-                    builder.deleteJob(jobId, currentState.getMetaData().custom(PersistentTasksInProgress.TYPE));
+                    builder.deleteJob(jobId, currentState.getMetaData().custom(PersistentTasks.TYPE));
                     return buildNewClusterState(currentState, builder);
                 }
             });
@@ -307,7 +307,7 @@ public class JobManager extends AbstractComponent {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 MlMetadata currentMlMetadata = currentState.metaData().custom(MlMetadata.TYPE);
-                PersistentTasksInProgress tasks = currentState.metaData().custom(PersistentTasksInProgress.TYPE);
+                PersistentTasks tasks = currentState.metaData().custom(PersistentTasks.TYPE);
                 MlMetadata.Builder builder = new MlMetadata.Builder(currentMlMetadata);
                 builder.markJobAsDeleted(jobId, tasks);
                 return buildNewClusterState(currentState, builder);

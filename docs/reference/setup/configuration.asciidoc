@@ -167,8 +167,7 @@ bind and publish to:
 
 [source,yaml]
 --------------------------------------------------
-network :
-    host : 10.0.0.4
+network.host: 10.0.0.4
 --------------------------------------------------
 
 
@@ -181,9 +180,8 @@ data and log files:
 
 [source,yaml]
 --------------------------------------------------
-path:
-  logs: /var/log/elasticsearch
-  data: /var/data/elasticsearch
+path.logs: /var/log/elasticsearch
+path.data: /var/data/elasticsearch
 --------------------------------------------------
 
 [float]
@@ -195,8 +193,7 @@ to discover and auto-join other nodes:
 
 [source,yaml]
 --------------------------------------------------
-cluster:
-  name: <NAME OF YOUR CLUSTER>
+cluster.name: <NAME OF YOUR CLUSTER>
 --------------------------------------------------
 
 Make sure that you don't reuse the same cluster names in different
@@ -215,8 +212,7 @@ when your node starts up.
 
 [source,yaml]
 --------------------------------------------------
-node:
-  name: <NAME OF YOUR NODE>
+node.name: <NAME OF YOUR NODE>
 --------------------------------------------------
 
 The hostname of the machine is provided in the environment
@@ -226,8 +222,7 @@ the node name to the hostname using the `${...}` notation:
 
 [source,yaml]
 --------------------------------------------------
-node:
-  name: ${HOSTNAME}
+node.name: ${HOSTNAME}
 --------------------------------------------------
 
 Internally, all settings are collapsed into "namespaced" settings. For
@@ -283,8 +278,7 @@ will allow you to see the value as you type it in. For example:
 
 [source,yaml]
 --------------------------------------------------
-node:
-  name: ${prompt.text}
+node.name: ${prompt.text}
 --------------------------------------------------
 
 On execution of the `elasticsearch` command, you will be prompted to enter

@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.Index;
@@ -101,7 +102,8 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
     }
 
     public void testForceAllocatePrimaryOnSameNodeNotAllowed() {
-        SameShardAllocationDecider decider = new SameShardAllocationDecider(Settings.EMPTY);
+        SameShardAllocationDecider decider = new SameShardAllocationDecider(
+            Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomIntBetween(2, 4), 1);
         Index index = clusterState.getMetaData().index("idx").getIndex();
         ShardRouting primaryShard = clusterState.routingTable().index(index).shard(0).primaryShard();

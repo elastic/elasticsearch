@@ -172,7 +172,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new NodeVersionAllocationDecider(settings));
         addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new FilterAllocationDecider(settings, clusterSettings));
-        addAllocationDecider(deciders, new SameShardAllocationDecider(settings));
+        addAllocationDecider(deciders, new SameShardAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new DiskThresholdDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new ThrottlingAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new ShardsLimitAllocationDecider(settings, clusterSettings));

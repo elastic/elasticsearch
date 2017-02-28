@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
@@ -211,7 +212,9 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testThrottleWhenAllocatingToMatchingNode() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(new AllocationDeciders(Settings.EMPTY,
-            Arrays.asList(new TestAllocateDecision(Decision.YES), new SameShardAllocationDecider(Settings.EMPTY),
+            Arrays.asList(new TestAllocateDecision(Decision.YES),
+                new SameShardAllocationDecider(
+                    Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
                 new AllocationDecider(Settings.EMPTY) {
                     @Override
                     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {

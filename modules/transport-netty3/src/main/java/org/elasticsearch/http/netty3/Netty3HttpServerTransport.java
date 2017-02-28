@@ -224,6 +224,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
     public Netty3HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
             NamedXContentRegistry xContentRegistry, HttpServerTransport.Dispatcher dispatcher) {
         super(settings);
+        deprecationLogger.deprecated("http type [netty3] is deprecated");
         this.networkService = networkService;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;

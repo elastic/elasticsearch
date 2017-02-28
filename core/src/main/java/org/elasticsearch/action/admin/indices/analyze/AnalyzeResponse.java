@@ -117,7 +117,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             startOffset = in.readInt();
             endOffset = in.readInt();
             position = in.readVInt();
-            if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
+            if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
                 Integer len = in.readOptionalVInt();
                 if (len != null) {
                     positionLength = len;
@@ -137,7 +137,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             out.writeInt(startOffset);
             out.writeInt(endOffset);
             out.writeVInt(position);
-            if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
+            if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
                 out.writeOptionalVInt(positionLength > 1 ? positionLength : null);
             }
             out.writeOptionalString(type);

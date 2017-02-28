@@ -112,7 +112,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (formatString != null) {
             format = Joda.forPattern(formatString);
         }
-        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
+        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
             String relationString = in.readOptionalString();
             if (relationString != null) {
                 relation = ShapeRelation.getRelationByName(relationString);
@@ -133,7 +133,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             formatString = this.format.format();
         }
         out.writeOptionalString(formatString);
-        if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
+        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
             String relationString = null;
             if (this.relation != null) {
                 relationString = this.relation.getRelationName();

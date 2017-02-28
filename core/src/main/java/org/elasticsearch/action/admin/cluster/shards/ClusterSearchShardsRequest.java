@@ -134,7 +134,7 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
         routing = in.readOptionalString();
         preference = in.readOptionalString();
 
-        if (in.getVersion().onOrBefore(Version.V_5_1_1)) {
+        if (in.getVersion().onOrBefore(Version.V_5_1_1_UNRELEASED)) {
             //types
             in.readStringArray();
         }
@@ -153,7 +153,7 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
 
-        if (out.getVersion().onOrBefore(Version.V_5_1_1)) {
+        if (out.getVersion().onOrBefore(Version.V_5_1_1_UNRELEASED)) {
             //types
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }

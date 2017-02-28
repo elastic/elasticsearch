@@ -51,7 +51,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     // a snapshot in progress from a pre 5.2.x node
     public static final long UNDEFINED_REPOSITORY_STATE_ID = -2L;
     // the version where repository state ids were introduced
-    private static final Version REPOSITORY_ID_INTRODUCED_VERSION = Version.V_5_2_0;
+    private static final Version REPOSITORY_ID_INTRODUCED_VERSION = Version.V_5_2_0_UNRELEASED;
 
     @Override
     public boolean equals(Object o) {

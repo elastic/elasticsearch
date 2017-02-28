@@ -323,14 +323,14 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
         out.writeLong(sumTotalTermFreq);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
-        if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
+        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
             out.writeBoolean(hasMinMax);
             if (hasMinMax) {
                 writeMinMax(out);
             }
         } else {
             assert hasMinMax : "cannot serialize null min/max fieldstats in a mixed-cluster " +
-                    "with pre-" + Version.V_5_2_0 + " nodes, remote version [" + out.getVersion() + "]";
+                    "with pre-" + Version.V_5_2_0_UNRELEASED + " nodes, remote version [" + out.getVersion() + "]";
             writeMinMax(out);
         }
     }
@@ -705,7 +705,7 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
         boolean isSearchable = in.readBoolean();
         boolean isAggregatable = in.readBoolean();
         boolean hasMinMax = true;
-        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
+        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
             hasMinMax = in.readBoolean();
         }
         switch (type) {

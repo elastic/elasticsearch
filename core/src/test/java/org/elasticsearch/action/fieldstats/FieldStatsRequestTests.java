@@ -113,7 +113,7 @@ public class FieldStatsRequestTests extends ESTestCase {
             FieldStatsShardResponse deserialized = new FieldStatsShardResponse();
             deserialized.readFrom(input);
             final Map<String, FieldStats<?>> expected;
-            if (version.before(Version.V_5_2_0)) {
+            if (version.before(Version.V_5_2_0_UNRELEASED)) {
                 expected = deserialized.filterNullMinMax();
             } else {
                 expected = deserialized.getFieldStats();

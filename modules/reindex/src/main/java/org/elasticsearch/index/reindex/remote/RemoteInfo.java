@@ -90,7 +90,7 @@ public class RemoteInfo implements Writeable {
             headers.put(in.readString(), in.readString());
         }
         this.headers = unmodifiableMap(headers);
-        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
+        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
             socketTimeout = new TimeValue(in);
             connectTimeout = new TimeValue(in);
         } else {
@@ -112,7 +112,7 @@ public class RemoteInfo implements Writeable {
             out.writeString(header.getKey());
             out.writeString(header.getValue());
         }
-        if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
+        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
             socketTimeout.writeTo(out);
             connectTimeout.writeTo(out);
         }

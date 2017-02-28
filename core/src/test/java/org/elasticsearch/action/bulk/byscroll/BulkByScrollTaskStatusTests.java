@@ -74,7 +74,7 @@ public class BulkByScrollTaskStatusTests extends ESTestCase {
         assertEquals(expected.getRequestsPerSecond(), actual.getRequestsPerSecond(), 0f);
         assertEquals(expected.getReasonCancelled(), actual.getReasonCancelled());
         assertEquals(expected.getThrottledUntil(), actual.getThrottledUntil());
-        if (version.onOrAfter(Version.V_5_1_1)) {
+        if (version.onOrAfter(Version.V_5_1_1_UNRELEASED)) {
             assertThat(actual.getSliceStatuses(), hasSize(expected.getSliceStatuses().size()));
             for (int i = 0; i < expected.getSliceStatuses().size(); i++) {
                 BulkByScrollTask.StatusOrException sliceStatus = expected.getSliceStatuses().get(i);

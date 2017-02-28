@@ -74,7 +74,7 @@ public class SimulatePipelineRequestTests extends ESTestCase {
     public void testSerializationWithXContentBwc() throws IOException {
         final byte[] data = Base64.getDecoder().decode("AAAAAnt9AAA=");
         final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
+            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
         try (StreamInput in = StreamInput.wrap(data)) {
             in.setVersion(version);
             SimulatePipelineRequest request = new SimulatePipelineRequest();

@@ -417,7 +417,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("No automatic endpoint could be derived from region"));
         assertSettingDeprecationsAndWarnings(
-                new Setting[]{S3Repository.Repositories.REGION_SETTING},
+                new Setting<?>[]{S3Repository.Repositories.REGION_SETTING},
                 "Specifying region for an s3 repository is deprecated. Use endpoint " +
                         "to specify the region endpoint if the default behavior is not sufficient.");
     }

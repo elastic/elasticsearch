@@ -175,7 +175,7 @@ public class DeprecationLogger {
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
 
         if (iterator.hasNext()) {
-            final String formattedMessage = ALoggerMessageFormat.format(message, params);
+            final String formattedMessage = LoggerMessageFormat.format(message, params);
             final String warningHeaderValue = formatWarning(formattedMessage);
             assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
             assert extractWarningValueFromWarningHeader(warningHeaderValue).equals(escape(formattedMessage));

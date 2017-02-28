@@ -71,7 +71,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(AwsS3Service.SECRET_SETTING.getKey(), "aws_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "aws_key", "aws_secret");
-        assertSettingDeprecationsAndWarnings(new Setting[]{AwsS3Service.KEY_SETTING, AwsS3Service.SECRET_SETTING});
+         assertSettingDeprecationsAndWarnings(new Setting<?>[]{AwsS3Service.KEY_SETTING, AwsS3Service.SECRET_SETTING});
     }
 
     public void testAWSCredentialsWithElasticsearchS3SettingsBackcompat() {
@@ -81,7 +81,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(AwsS3Service.CLOUD_S3.SECRET_SETTING.getKey(), "s3_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "s3_key", "s3_secret");
-        assertSettingDeprecationsAndWarnings(new Setting[]{AwsS3Service.CLOUD_S3.KEY_SETTING, AwsS3Service.CLOUD_S3.SECRET_SETTING});
+         assertSettingDeprecationsAndWarnings(new Setting<?>[]{AwsS3Service.CLOUD_S3.KEY_SETTING, AwsS3Service.CLOUD_S3.SECRET_SETTING});
     }
 
     public void testAWSCredentialsWithElasticsearchAwsAndS3SettingsBackcompat() {
@@ -93,7 +93,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(AwsS3Service.CLOUD_S3.SECRET_SETTING.getKey(), "s3_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "s3_key", "s3_secret");
-        assertSettingDeprecationsAndWarnings(new Setting[]{
+         assertSettingDeprecationsAndWarnings(new Setting<?>[]{
                 AwsS3Service.KEY_SETTING,
                 AwsS3Service.SECRET_SETTING,
                 AwsS3Service.CLOUD_S3.KEY_SETTING,
@@ -107,7 +107,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repositories_key", "repositories_secret");
-        assertSettingDeprecationsAndWarnings(new Setting[]{S3Repository.Repositories.KEY_SETTING, S3Repository.Repositories.SECRET_SETTING});
+         assertSettingDeprecationsAndWarnings(
+                 new Setting<?>[]{S3Repository.Repositories.KEY_SETTING, S3Repository.Repositories.SECRET_SETTING});
     }
 
     public void testAWSCredentialsWithElasticsearchAwsAndRepositoriesSettingsBackcompat() {
@@ -119,7 +120,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repositories_key", "repositories_secret");
-        assertSettingDeprecationsAndWarnings(new Setting[] {
+         assertSettingDeprecationsAndWarnings(new Setting<?>[] {
                 AwsS3Service.KEY_SETTING,
                 AwsS3Service.SECRET_SETTING,
                 S3Repository.Repositories.KEY_SETTING,
@@ -137,7 +138,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repositories_key", "repositories_secret");
-        assertSettingDeprecationsAndWarnings(new Setting[] {
+         assertSettingDeprecationsAndWarnings(new Setting<?>[] {
                 AwsS3Service.KEY_SETTING,
                 AwsS3Service.SECRET_SETTING,
                 AwsS3Service.CLOUD_S3.KEY_SETTING,
@@ -153,7 +154,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repository_key", "repository_secret");
-        assertSettingDeprecationsAndWarnings(new Setting[]{S3Repository.Repository.KEY_SETTING, S3Repository.Repository.SECRET_SETTING});
+         assertSettingDeprecationsAndWarnings(
+                 new Setting<?>[]{S3Repository.Repository.KEY_SETTING, S3Repository.Repository.SECRET_SETTING});
     }
 
     public void testAWSCredentialsWithElasticsearchAwsAndRepositoriesSettingsAndRepositorySettingsBackcompat() {
@@ -165,7 +167,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repository_key", "repository_secret");
-        assertSettingDeprecationsAndWarnings(new Setting[]{S3Repository.Repository.KEY_SETTING, S3Repository.Repository.SECRET_SETTING});
+         assertSettingDeprecationsAndWarnings(
+                 new Setting<?>[]{S3Repository.Repository.KEY_SETTING, S3Repository.Repository.SECRET_SETTING});
     }
 
     public void testAWSCredentialsWithElasticsearchAwsAndS3AndRepositoriesSettingsAndRepositorySettingsBackcompat() {
@@ -179,7 +182,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
             .build();
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repository_key", "repository_secret");
-        assertSettingDeprecationsAndWarnings(new Setting[]{S3Repository.Repository.KEY_SETTING, S3Repository.Repository.SECRET_SETTING});
+         assertSettingDeprecationsAndWarnings(
+                 new Setting<?>[]{S3Repository.Repository.KEY_SETTING, S3Repository.Repository.SECRET_SETTING});
     }
 
     protected void launchAWSCredentialsWithElasticsearchSettingsTest(Settings singleRepositorySettings, Settings settings,
@@ -226,7 +230,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .build();
         launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username",
             "aws_proxy_password", "AWS3SignerType", 3, false, 10000);
-        assertSettingDeprecationsAndWarnings(new Setting[]{
+         assertSettingDeprecationsAndWarnings(new Setting<?>[]{
                 AwsS3Service.PROXY_USERNAME_SETTING,
                 AwsS3Service.PROXY_PASSWORD_SETTING,
                 AwsS3Service.PROTOCOL_SETTING,
@@ -256,7 +260,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .build();
         launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTPS, "s3_proxy_host", 8081, "s3_proxy_username",
             "s3_proxy_password", "NoOpSignerType", 3, false, 10000);
-        assertSettingDeprecationsAndWarnings(new Setting[] {
+         assertSettingDeprecationsAndWarnings(new Setting<?>[] {
                 AwsS3Service.PROXY_USERNAME_SETTING,
                 AwsS3Service.PROXY_PASSWORD_SETTING,
                 AwsS3Service.PROTOCOL_SETTING,
@@ -356,13 +360,13 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     public void testEndpointSettingBackcompat() {
         assertEndpoint(generateRepositorySettings("repository_key", "repository_secret", null, "repository.endpoint", null),
             Settings.EMPTY, "repository.endpoint");
-        assertSettingDeprecationsAndWarnings(new Setting[]{S3Repository.Repository.ENDPOINT_SETTING});
+         assertSettingDeprecationsAndWarnings(new Setting<?>[]{S3Repository.Repository.ENDPOINT_SETTING});
         Settings settings = Settings.builder()
             .put(S3Repository.Repositories.ENDPOINT_SETTING.getKey(), "repositories.endpoint")
             .build();
         assertEndpoint(generateRepositorySettings("repository_key", "repository_secret", null, null, null), settings,
             "repositories.endpoint");
-        assertSettingDeprecationsAndWarnings(new Setting[]{S3Repository.Repositories.ENDPOINT_SETTING});
+         assertSettingDeprecationsAndWarnings(new Setting<?>[]{S3Repository.Repositories.ENDPOINT_SETTING});
     }
 
     public void testRegionSettingBackcompat() {
@@ -375,7 +379,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             "s3.eu-central-1.amazonaws.com");
         assertEndpoint(generateRepositorySettings("repository_key", "repository_secret", null, "repository.endpoint", null),
             settings, "repository.endpoint");
-        assertSettingDeprecationsAndWarnings(new Setting[]{
+         assertSettingDeprecationsAndWarnings(new Setting<?>[]{
                         InternalAwsS3Service.REGION_SETTING,
                         S3Repository.Repository.REGION_SETTING,
                         S3Repository.Repository.ENDPOINT_SETTING},
@@ -394,7 +398,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             "s3.eu-central-1.amazonaws.com");
         assertEndpoint(generateRepositorySettings("repository_key", "repository_secret", null, "repository.endpoint", null),
             settings, "repository.endpoint");
-        assertSettingDeprecationsAndWarnings(new Setting[]{
+         assertSettingDeprecationsAndWarnings(new Setting<?>[]{
                         InternalAwsS3Service.REGION_SETTING,
                         S3Repository.Repository.REGION_SETTING,
                         InternalAwsS3Service.CLOUD_S3.REGION_SETTING,

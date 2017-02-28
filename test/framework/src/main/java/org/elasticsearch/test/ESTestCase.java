@@ -290,7 +290,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @param settings the settings that are expected to be deprecated
      * @param warnings other expected general deprecation warnings
      */
-    protected final void assertSettingDeprecationsAndWarnings(Setting[] settings, String... warnings) {
+    protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final String... warnings) {
         assertWarnings(
                 Stream.concat(
                         Arrays

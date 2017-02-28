@@ -376,11 +376,11 @@ public class Setting<T> extends ToXContentToBytes {
         if (exists(primary)) {
             return get(primary);
         }
-        if (fallbackSetting == null) {
-            return exists(secondary) ? get(secondary) : get(primary);
-        }
         if (exists(secondary)) {
             return get(secondary);
+        }
+        if (fallbackSetting == null) {
+            return get(primary);
         }
         if (fallbackSetting.exists(primary)) {
             return fallbackSetting.get(primary);

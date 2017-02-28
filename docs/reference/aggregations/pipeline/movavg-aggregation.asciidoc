@@ -27,7 +27,7 @@ A `moving_avg` aggregation looks like this in isolation:
         "buckets_path": "the_sum",
         "model": "holt",
         "window": 5,
-        "gap_policy": "insert_zero",
+        "gap_policy": "insert_zeros",
         "settings": {
             "alpha": 0.8
         }

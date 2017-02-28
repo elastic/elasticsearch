@@ -68,7 +68,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final String TOTAL_SHARDS = "total_shards";
     private static final String SUCCESSFUL_SHARDS = "successful_shards";
 
-    private static final Version VERSION_INCOMPATIBLE_INTRODUCED = Version.V_5_2_0_UNRELEASED;
+    private static final Version VERSION_INCOMPATIBLE_INTRODUCED = Version.V_5_2_0;
 
     private final SnapshotId snapshotId;
 

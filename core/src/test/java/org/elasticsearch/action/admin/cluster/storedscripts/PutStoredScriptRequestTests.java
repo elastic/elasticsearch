@@ -51,7 +51,7 @@ public class PutStoredScriptRequestTests extends ESTestCase {
     public void testSerializationBwc() throws IOException {
         final byte[] rawStreamBytes = Base64.getDecoder().decode("ADwDCG11c3RhY2hlAQZzY3JpcHQCe30A");
         final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
         try (StreamInput in = StreamInput.wrap(rawStreamBytes)) {
             in.setVersion(version);
             PutStoredScriptRequest serialized = new PutStoredScriptRequest();

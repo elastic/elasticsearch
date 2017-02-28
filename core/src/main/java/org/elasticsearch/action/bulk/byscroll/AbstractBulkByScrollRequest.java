@@ -402,7 +402,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         retryBackoffInitialTime = new TimeValue(in);
         maxRetries = in.readVInt();
         requestsPerSecond = in.readFloat();
-        if (in.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
             slices = in.readVInt();
         } else {
             slices = 1;
@@ -421,12 +421,12 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         retryBackoffInitialTime.writeTo(out);
         out.writeVInt(maxRetries);
         out.writeFloat(requestsPerSecond);
-        if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
             out.writeVInt(slices);
         } else {
             if (slices > 1) {
                 throw new IllegalArgumentException("Attempting to send sliced reindex-style request to a node that doesn't support "
-                        + "it. Version is [" + out.getVersion() + "] but must be [" + Version.V_5_1_1_UNRELEASED + "]");
+                        + "it. Version is [" + out.getVersion() + "] but must be [" + Version.V_5_1_1 + "]");
             }
         }
     }

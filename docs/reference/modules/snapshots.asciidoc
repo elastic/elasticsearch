@@ -79,12 +79,12 @@ the shared file system repository it is necessary to mount the same shared files
 master and data nodes. This location (or one of its parent directories) has to be registered in the `path.repo`
 setting on all master and data nodes.
 
-Assuming that the shared filesystem is mounted to `/mount/backups/my_backup`, the following setting should be added to
+Assuming that the shared filesystem is mounted to `/mount/backups`, the following setting should be added to
 `elasticsearch.yml` file:
 
 [source,yaml]
 --------------
-path.repo: ["/mount/backups", "/mount/longterm_backups"]
+path.repo: ["/mount/backups"]
 --------------
 
 The `path.repo` setting supports Microsoft Windows UNC paths as long as at least server name and share are specified as

@@ -377,7 +377,7 @@ public class Setting<T> extends ToXContentToBytes {
             return get(primary);
         }
         if (fallbackSetting == null) {
-            return get(secondary);
+            return exists(secondary) ? get(secondary) : get(primary);
         }
         if (exists(secondary)) {
             return get(secondary);

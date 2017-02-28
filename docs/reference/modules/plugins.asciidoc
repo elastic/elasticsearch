@@ -339,4 +339,5 @@ deprecated[1.5.0,Rivers have been deprecated.  See https://www.elastic.co/blog/d
 * https://github.com/codelibs/elasticsearch-taste[Elasticsearch Taste Plugin] (by CodeLibs Project)
 * http://siren.solutions/siren/downloads/[Elasticsearch SIREn Plugin]: Nested data search (by SIREn Solutions)
 * https://github.com/hadashiA/elasticsearch-flavor[Elasticsearch Flavor Plugin] using http://mahout.apache.org/[Mahout] Collaboration filtering (by hadashiA)
+* https://github.com/jurgc11/es-change-feed-plugin[WebSocket Change Feed Plugin] (by ForgeRock/Chris Clifton)
 

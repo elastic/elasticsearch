@@ -34,7 +34,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -177,7 +177,7 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             MlFilter filter = request.getFilter();
             final String filterId = filter.getId();
-            IndexRequest indexRequest = new IndexRequest(JobProvider.ML_META_INDEX, MlFilter.TYPE.getPreferredName(), filterId);
+            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.ML_META_INDEX, MlFilter.TYPE.getPreferredName(), filterId);
             XContentBuilder builder = XContentFactory.jsonBuilder();
             indexRequest.source(filter.toXContent(builder, ToXContent.EMPTY_PARAMS));
             transportIndexAction.execute(indexRequest, new ActionListener<IndexResponse>() {

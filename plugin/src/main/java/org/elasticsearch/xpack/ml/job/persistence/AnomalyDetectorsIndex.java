@@ -12,6 +12,12 @@ import org.elasticsearch.xpack.ml.MlMetadata;
  * Methods for handling index naming related functions
  */
 public final class AnomalyDetectorsIndex {
+    /**
+     * Where to store the ml info in Elasticsearch - must match what's
+     * expected by kibana/engineAPI/app/directives/mlLogUsage.js
+     */
+    public static final String ML_META_INDEX = ".ml-meta";
+
     private static final String RESULTS_INDEX_PREFIX = ".ml-anomalies-";
     private static final String STATE_INDEX_NAME = ".ml-state";
 

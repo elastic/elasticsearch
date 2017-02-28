@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
@@ -28,7 +27,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Nullable;
@@ -39,11 +37,9 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
@@ -78,10 +74,6 @@ import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.notifications.AuditActivity;
-import org.elasticsearch.xpack.ml.notifications.AuditMessage;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -95,25 +87,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex.ML_META_INDEX;
+
 public class JobProvider {
     private static final Logger LOGGER = Loggers.getLogger(JobProvider.class);
-
-    /**
-     * Where to store the ml info in Elasticsearch - must match what's
-     * expected by kibana/engineAPI/app/directives/mlLogUsage.js
-     */
-    public static final String ML_META_INDEX = ".ml-meta";
-
-    private static final String ASYNC = "async";
 
     private static final List<String> SECONDARY_SORT = Arrays.asList(
             AnomalyRecord.ANOMALY_SCORE.getPreferredName(),
@@ -128,166 +112,11 @@ public class JobProvider {
 
 
     private final Client client;
-    private final int numberOfReplicas;
-    // Allows us in test mode to disable the delay of shard allocation, so that in tests we don't have to wait for
-    // for at least a minute for shards to get allocated.
-    private final TimeValue delayedNodeTimeOutSetting;
-
     private final Settings settings;
 
     public JobProvider(Client client, int numberOfReplicas, Settings settings) {
         this.client = Objects.requireNonNull(client);
-        this.numberOfReplicas = numberOfReplicas;
         this.settings = settings;
-
-        // Whether we are using native process is a good way to detect whether we are in dev / test mode:
-        if (MachineLearning.AUTODETECT_PROCESS.get(settings)) {
-            delayedNodeTimeOutSetting = UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings);
-        } else {
-            delayedNodeTimeOutSetting = TimeValue.timeValueNanos(0);
-        }
-    }
-
-    /**
-     * Index template for notifications
-     */
-    public void putNotificationMessageIndexTemplate(BiConsumer<Boolean, Exception> listener) {
-        try {
-            PutIndexTemplateRequest templateRequest = new PutIndexTemplateRequest(Auditor.NOTIFICATIONS_INDEX);
-            templateRequest.patterns(Collections.singletonList(Auditor.NOTIFICATIONS_INDEX));
-            templateRequest.settings(mlNotificationIndexSettings());
-            templateRequest.mapping(AuditMessage.TYPE.getPreferredName(), ElasticsearchMappings.auditMessageMapping());
-            templateRequest.mapping(AuditActivity.TYPE.getPreferredName(), ElasticsearchMappings.auditActivityMapping());
-
-            client.admin().indices().putTemplate(templateRequest,
-                    ActionListener.wrap(r -> listener.accept(true, null), e -> listener.accept(false, e)));
-        } catch (IOException e) {
-            LOGGER.warn("Error putting the template for the notification message index", e);
-        }
-    }
-
-    /**
-     * Index template for meta data
-     */
-    public void putMetaIndexTemplate(BiConsumer<Boolean, Exception> listener) {
-        PutIndexTemplateRequest templateRequest = new PutIndexTemplateRequest(ML_META_INDEX);
-        templateRequest.patterns(Collections.singletonList(ML_META_INDEX));
-        templateRequest.settings(mlNotificationIndexSettings());
-
-        client.admin().indices().putTemplate(templateRequest,
-                ActionListener.wrap(r -> listener.accept(true, null), e -> listener.accept(false, e)));
-    }
-
-    public void putJobStateIndexTemplate(BiConsumer<Boolean, Exception> listener) {
-        try {
-            XContentBuilder categorizerStateMapping = ElasticsearchMappings.categorizerStateMapping();
-            XContentBuilder quantilesMapping = ElasticsearchMappings.quantilesMapping();
-            XContentBuilder modelStateMapping = ElasticsearchMappings.modelStateMapping();
-
-            PutIndexTemplateRequest templateRequest = new PutIndexTemplateRequest(AnomalyDetectorsIndex.jobStateIndexName());
-            templateRequest.patterns(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexName()));
-            templateRequest.settings(mlStateIndexSettings());
-            templateRequest.mapping(CategorizerState.TYPE, categorizerStateMapping);
-            templateRequest.mapping(Quantiles.TYPE.getPreferredName(), quantilesMapping);
-            templateRequest.mapping(ModelState.TYPE.getPreferredName(), modelStateMapping);
-
-            client.admin().indices().putTemplate(templateRequest,
-                    ActionListener.wrap(r -> listener.accept(true, null), e -> listener.accept(false, e)));
-        } catch (Exception e) {
-            LOGGER.error("Error putting the template for the " + AnomalyDetectorsIndex.jobStateIndexName() + " index", e);
-        }
-    }
-
-    /**
-     * Build the Elasticsearch index settings that we want to apply to results
-     * indexes.  It's better to do this in code rather than in elasticsearch.yml
-     * because then the settings can be applied regardless of whether we're
-     * using our own Elasticsearch to store results or a customer's pre-existing
-     * Elasticsearch.
-     *
-     * @return An Elasticsearch builder initialised with the desired settings
-     * for Ml indexes.
-     */
-    Settings.Builder mlResultsIndexSettings() {
-        return Settings.builder()
-                // Our indexes are small and one shard puts the
-                // least possible burden on Elasticsearch
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
-                // Sacrifice durability for performance: in the event of power
-                // failure we can lose the last 5 seconds of changes, but it's
-                // much faster
-                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), ASYNC)
-                // We need to allow fields not mentioned in the mappings to
-                // pick up default mappings and be used in queries
-                .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), true)
-                // set the default all search field
-                .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), ElasticsearchMappings.ALL_FIELD_VALUES);
-    }
-
-    /**
-     * Build the Elasticsearch index settings that we want to apply to the state
-     * index.  It's better to do this in code rather than in elasticsearch.yml
-     * because then the settings can be applied regardless of whether we're
-     * using our own Elasticsearch to store results or a customer's pre-existing
-     * Elasticsearch.
-     *
-     * @return An Elasticsearch builder initialised with the desired settings
-     * for Ml indexes.
-     */
-    Settings.Builder mlStateIndexSettings() {
-        // TODO review these settings
-        return Settings.builder()
-                // Our indexes are small and one shard puts the
-                // least possible burden on Elasticsearch
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
-                // Sacrifice durability for performance: in the event of power
-                // failure we can lose the last 5 seconds of changes, but it's
-                // much faster
-                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), ASYNC);
-    }
-
-    /**
-     * Settings for the notification messages index
-     *
-     * @return An Elasticsearch builder initialised with the desired settings
-     * for Ml indexes.
-     */
-    Settings.Builder mlNotificationIndexSettings() {
-        return Settings.builder()
-                // Our indexes are small and one shard puts the
-                // least possible burden on Elasticsearch
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
-                // We need to allow fields not mentioned in the mappings to
-                // pick up default mappings and be used in queries
-                .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), true);
-    }
-
-    public void putJobResultsIndexTemplate(BiConsumer<Boolean, Exception> listener) {
-        try {
-            XContentBuilder resultsMapping = ElasticsearchMappings.resultsMapping();
-            XContentBuilder categoryDefinitionMapping = ElasticsearchMappings.categoryDefinitionMapping();
-            XContentBuilder dataCountsMapping = ElasticsearchMappings.dataCountsMapping();
-            XContentBuilder modelSnapshotMapping = ElasticsearchMappings.modelSnapshotMapping();
-
-            PutIndexTemplateRequest templateRequest = new PutIndexTemplateRequest(AnomalyDetectorsIndex.jobResultsIndexPrefix());
-            templateRequest.patterns(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"));
-            templateRequest.settings(mlResultsIndexSettings());
-            templateRequest.mapping(Result.TYPE.getPreferredName(), resultsMapping);
-            templateRequest.mapping(CategoryDefinition.TYPE.getPreferredName(), categoryDefinitionMapping);
-            templateRequest.mapping(DataCounts.TYPE.getPreferredName(), dataCountsMapping);
-            templateRequest.mapping(ModelSnapshot.TYPE.getPreferredName(), modelSnapshotMapping);
-
-            client.admin().indices().putTemplate(templateRequest,
-                    ActionListener.wrap(r -> listener.accept(true, null), e -> listener.accept(false, e)));
-        } catch (Exception e) {
-            LOGGER.error("Error putting the template for the " + AnomalyDetectorsIndex.jobResultsIndexPrefix() + " indices", e);
-        }
     }
 
     /**

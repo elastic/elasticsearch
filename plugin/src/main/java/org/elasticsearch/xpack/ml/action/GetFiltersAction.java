@@ -44,6 +44,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 
 import java.io.IOException;
@@ -262,7 +263,7 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
         }
 
         private void getFilter(String filterId, ActionListener<Response> listener) {
-            GetRequest getRequest = new GetRequest(JobProvider.ML_META_INDEX, MlFilter.TYPE.getPreferredName(), filterId);
+            GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.ML_META_INDEX, MlFilter.TYPE.getPreferredName(), filterId);
             transportGetAction.execute(getRequest, new ActionListener<GetResponse>() {
                 @Override
                 public void onResponse(GetResponse getDocResponse) {
@@ -299,7 +300,7 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
                     .from(pageParams.getFrom())
                     .size(pageParams.getSize());
 
-            SearchRequest searchRequest = new SearchRequest(new String[]{JobProvider.ML_META_INDEX}, sourceBuilder)
+            SearchRequest searchRequest = new SearchRequest(new String[]{AnomalyDetectorsIndex.ML_META_INDEX}, sourceBuilder)
                     .indicesOptions(JobProvider.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS))
                     .types(MlFilter.TYPE.getPreferredName());
 

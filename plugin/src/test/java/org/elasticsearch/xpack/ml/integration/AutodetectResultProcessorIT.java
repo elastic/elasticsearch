@@ -5,15 +5,19 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.XPackSingleNodeTestCase;
+import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
@@ -51,8 +55,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -95,7 +102,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
     }
 
     public void testProcessResults() throws Exception {
-        putResultsIndexMappingTemplate();
+        putIndexTemplates();
 
         ResultsBuilder builder = new ResultsBuilder();
         Bucket bucket = createBucket(false);
@@ -155,7 +162,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
     }
 
     public void testDeleteInterimResults() throws Exception {
-        putResultsIndexMappingTemplate();
+        putIndexTemplates();
         Bucket nonInterimBucket = createBucket(false);
         Bucket interimBucket = createBucket(true);
 
@@ -184,7 +191,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
     }
 
     public void testMultipleFlushesBetweenPersisting() throws Exception {
-        putResultsIndexMappingTemplate();
+        putIndexTemplates();
         Bucket finalBucket = createBucket(true);
         List<AnomalyRecord> finalAnomalyRecords = createRecords(true);
 
@@ -214,7 +221,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
     }
 
     public void testEndOfStreamTriggersPersisting() throws Exception {
-        putResultsIndexMappingTemplate();
+        putIndexTemplates();
         Bucket bucket = createBucket(false);
         List<AnomalyRecord> firstSetOfRecords = createRecords(false);
         List<AnomalyRecord> secondSetOfRecords = createRecords(false);
@@ -236,10 +243,17 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
         assertResultsAreSame(allRecords, persistedRecords);
     }
 
-    private void putResultsIndexMappingTemplate() throws InterruptedException {
-        CountDownLatch latch = new CountDownLatch(1);
-        jobProvider.putJobResultsIndexTemplate((aBoolean, e) -> {latch.countDown();});
-        latch.await();
+    private void putIndexTemplates() throws InterruptedException {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ExecutorService executorService = mock(ExecutorService.class);
+        doAnswer(invocation -> {
+            ((Runnable) invocation.getArguments()[0]).run();
+            return null;
+        }).when(executorService).execute(any(Runnable.class));
+        when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(executorService);
+
+         new MachineLearningTemplateRegistry(Settings.EMPTY, mock(ClusterService.class), client(), threadPool)
+                 .addTemplatesIfMissing(client().admin().cluster().state(new ClusterStateRequest().all()).actionGet().getState());
     }
 
     private Bucket createBucket(boolean isInterim) {

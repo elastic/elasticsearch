@@ -315,7 +315,7 @@ public class OpenJobActionTests extends ESTestCase {
     private void addJobAndIndices(MetaData.Builder metaData, RoutingTable.Builder routingTable, String... jobIds) {
         List<String> indices = new ArrayList<>();
         indices.add(AnomalyDetectorsIndex.jobStateIndexName());
-        indices.add(JobProvider.ML_META_INDEX);
+        indices.add(AnomalyDetectorsIndex.ML_META_INDEX);
         indices.add(Auditor.NOTIFICATIONS_INDEX);
         for (String jobId : jobIds) {
             indices.add(AnomalyDetectorsIndex.jobResultsIndexName(jobId));

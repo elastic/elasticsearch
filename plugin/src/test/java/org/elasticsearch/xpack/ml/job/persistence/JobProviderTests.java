@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -41,12 +40,10 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
@@ -56,9 +53,6 @@ import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.notifications.AuditActivity;
-import org.elasticsearch.xpack.ml.notifications.AuditMessage;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayOutputStream;
@@ -76,7 +70,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
-import static org.elasticsearch.xpack.ml.job.persistence.JobProvider.ML_META_INDEX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Matchers.any;
@@ -136,40 +129,6 @@ public class JobProviderTests extends ESTestCase {
         Quantiles quantiles = holder[0];
         assertNotNull(quantiles);
         assertEquals("", quantiles.getQuantileState());
-    }
-
-    public void testMlResultsIndexSettings() {
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
-        JobProvider provider = createProvider(clientBuilder.build());
-        Settings settings = provider.mlResultsIndexSettings().build();
-
-        assertEquals("1", settings.get("index.number_of_shards"));
-        assertEquals("0", settings.get("index.number_of_replicas"));
-        assertEquals("async", settings.get("index.translog.durability"));
-        assertEquals("true", settings.get("index.mapper.dynamic"));
-        assertEquals("all_field_values", settings.get("index.query.default_field"));
-    }
-
-    public void testPutJobResultsIndexTemplate() {
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
-        ArgumentCaptor<PutIndexTemplateRequest> captor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
-        clientBuilder.putTemplate(captor);
-
-        Job.Builder job = buildJobBuilder("foo");
-        JobProvider provider = createProvider(clientBuilder.build());
-
-        provider.putJobResultsIndexTemplate((result, error) -> {
-            assertTrue(result);
-            PutIndexTemplateRequest request = captor.getValue();
-            assertNotNull(request);
-            assertEquals(provider.mlResultsIndexSettings().build(), request.settings());
-            assertTrue(request.mappings().containsKey(Result.TYPE.getPreferredName()));
-            assertTrue(request.mappings().containsKey(CategoryDefinition.TYPE.getPreferredName()));
-            assertTrue(request.mappings().containsKey(DataCounts.TYPE.getPreferredName()));
-            assertTrue(request.mappings().containsKey(ModelSnapshot.TYPE.getPreferredName()));
-            assertEquals(4, request.mappings().size());
-            assertEquals(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"), request.patterns());
-        });
     }
 
     @SuppressWarnings("unchecked")
@@ -353,85 +312,7 @@ public class JobProviderTests extends ESTestCase {
         });
     }
 
-    public void testMlAuditIndexSettings() {
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
-        JobProvider provider = createProvider(clientBuilder.build());
-        Settings settings = provider.mlResultsIndexSettings().build();
-
-        assertEquals("1", settings.get("index.number_of_shards"));
-        assertEquals("0", settings.get("index.number_of_replicas"));
-        assertEquals("async", settings.get("index.translog.durability"));
-        assertEquals("true", settings.get("index.mapper.dynamic"));
-    }
-
-    public void testPutNotificationIndexTemplate() {
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
-        ArgumentCaptor<PutIndexTemplateRequest> captor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
-        clientBuilder.putTemplate(captor);
-
-        JobProvider provider = createProvider(clientBuilder.build());
-
-        provider.putNotificationMessageIndexTemplate((result, error) -> {
-                assertTrue(result);
-                PutIndexTemplateRequest request = captor.getValue();
-                assertNotNull(request);
-                assertEquals(provider.mlNotificationIndexSettings().build(), request.settings());
-                assertTrue(request.mappings().containsKey(AuditMessage.TYPE.getPreferredName()));
-                assertTrue(request.mappings().containsKey(AuditActivity.TYPE.getPreferredName()));
-                assertEquals(2, request.mappings().size());
-                assertEquals(Collections.singletonList(Auditor.NOTIFICATIONS_INDEX), request.patterns());
-            });
-    }
-
-    public void testPutMetaIndexTemplate() {
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
-        ArgumentCaptor<PutIndexTemplateRequest> captor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
-        clientBuilder.putTemplate(captor);
-
-        JobProvider provider = createProvider(clientBuilder.build());
-
-        provider.putMetaIndexTemplate((result, error) -> {
-            assertTrue(result);
-            PutIndexTemplateRequest request = captor.getValue();
-            assertNotNull(request);
-            assertEquals(provider.mlNotificationIndexSettings().build(), request.settings());
-            assertEquals(0, request.mappings().size());
-            assertEquals(Collections.singletonList(ML_META_INDEX), request.patterns());
-        });
-    }
-
-    public void testMlStateIndexSettings() {
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
-        JobProvider provider = createProvider(clientBuilder.build());
-        Settings settings = provider.mlResultsIndexSettings().build();
-
-        assertEquals("1", settings.get("index.number_of_shards"));
-        assertEquals("0", settings.get("index.number_of_replicas"));
-        assertEquals("async", settings.get("index.translog.durability"));
-    }
-
-    public void testPutJobStateIndexTemplate() {
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
-        ArgumentCaptor<PutIndexTemplateRequest> captor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
-        clientBuilder.putTemplate(captor);
-
-        Job.Builder job = buildJobBuilder("foo");
-        JobProvider provider = createProvider(clientBuilder.build());
-
-        provider.putJobStateIndexTemplate((result, error) -> {
-                assertTrue(result);
-                PutIndexTemplateRequest request = captor.getValue();
-                assertNotNull(request);
-                assertEquals(provider.mlStateIndexSettings().build(), request.settings());
-                assertTrue(request.mappings().containsKey(CategorizerState.TYPE));
-                assertTrue(request.mappings().containsKey(Quantiles.TYPE.getPreferredName()));
-                assertTrue(request.mappings().containsKey(ModelState.TYPE.getPreferredName()));
-                assertEquals(3, request.mappings().size());
-                assertEquals(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexName()), request.patterns());
-            });
-    }
-
-    public void testDeleteJobRelatedIndices() throws InterruptedException, ExecutionException, IOException {
+      public void testDeleteJobRelatedIndices() throws InterruptedException, ExecutionException, IOException {
         @SuppressWarnings("unchecked")
         ActionListener<DeleteJobAction.Response> actionListener = mock(ActionListener.class);
         String jobId = "ThisIsMyJob";
@@ -1258,10 +1139,7 @@ public class JobProviderTests extends ESTestCase {
     }
 
     private JobProvider createProvider(Client client) {
-        Settings.Builder builder = Settings.builder()
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1))
-                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1000L);
-        return new JobProvider(client, 0, builder.build());
+        return new JobProvider(client, 0, Settings.EMPTY);
     }
 
     private static GetResponse createGetResponse(boolean exists, Map<String, Object> source) throws IOException {

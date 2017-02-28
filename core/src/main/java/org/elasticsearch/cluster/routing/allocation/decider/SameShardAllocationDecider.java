@@ -23,7 +23,9 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -46,14 +48,18 @@ public class SameShardAllocationDecider extends AllocationDecider {
     public static final String NAME = "same_shard";
 
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING =
-        Setting.boolSetting("cluster.routing.allocation.same_shard.host", false, Setting.Property.NodeScope);
+        Setting.boolSetting("cluster.routing.allocation.same_shard.host", false, Property.Dynamic, Property.NodeScope);
 
-    private final boolean sameHost;
+    private volatile boolean sameHost;
 
-    public SameShardAllocationDecider(Settings settings) {
+    public SameShardAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
-
         this.sameHost = CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING, this::setSameHost);
+    }
+
+    public void setSameHost(boolean sameHost) {
+        this.sameHost = sameHost;
     }
 
     @Override

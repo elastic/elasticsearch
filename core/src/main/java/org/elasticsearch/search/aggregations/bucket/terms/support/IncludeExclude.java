@@ -430,7 +430,7 @@ public class IncludeExclude implements Writeable, ToXContent {
         } else {
             excludeValues = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
             incNumPartitions = in.readVInt();
             incZeroBasedPartition = in.readVInt();
         } else {
@@ -463,7 +463,7 @@ public class IncludeExclude implements Writeable, ToXContent {
                     out.writeBytesRef(value);
                 }
             }
-            if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
                 out.writeVInt(incNumPartitions);
                 out.writeVInt(incZeroBasedPartition);
             }

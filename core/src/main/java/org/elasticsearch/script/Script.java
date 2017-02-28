@@ -496,7 +496,7 @@ public final class Script implements ToXContentObject, Writeable {
         // Version 5.1 to 5.3 (exclusive) requires all Script members to be non-null and supports the potential
         // for more options than just XContentType.  Reorders the read in contents to be in
         // same order as the constructor.
-        } else if (in.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        } else if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
             this.type = ScriptType.readFrom(in);
             this.lang = in.readString();
 
@@ -565,7 +565,7 @@ public final class Script implements ToXContentObject, Writeable {
         // Version 5.1 to 5.3 (exclusive) requires all Script members to be non-null and supports the potential
         // for more options than just XContentType.  Reorders the written out contents to be in
         // same order as the constructor.
-        } else if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        } else if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
             type.writeTo(out);
 
             if (lang == null) {

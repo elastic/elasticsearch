@@ -106,7 +106,7 @@ public class RefreshStats implements Streamable, ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         total = in.readVLong();
         totalTimeInMillis = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
             listeners = in.readVInt();
         } else {
             listeners = 0;
@@ -117,7 +117,7 @@ public class RefreshStats implements Streamable, ToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(total);
         out.writeVLong(totalTimeInMillis);
-        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
             out.writeVInt(listeners);
         }
     }

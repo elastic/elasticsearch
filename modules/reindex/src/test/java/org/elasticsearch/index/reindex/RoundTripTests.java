@@ -162,7 +162,7 @@ public class RoundTripTests extends ESTestCase {
             assertEquals(request.getRemoteInfo().getUsername(), tripped.getRemoteInfo().getUsername());
             assertEquals(request.getRemoteInfo().getPassword(), tripped.getRemoteInfo().getPassword());
             assertEquals(request.getRemoteInfo().getHeaders(), tripped.getRemoteInfo().getHeaders());
-            if (version.onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            if (version.onOrAfter(Version.V_5_2_0)) {
                 assertEquals(request.getRemoteInfo().getSocketTimeout(), tripped.getRemoteInfo().getSocketTimeout());
                 assertEquals(request.getRemoteInfo().getConnectTimeout(), tripped.getRemoteInfo().getConnectTimeout());
             } else {

@@ -68,7 +68,7 @@ public class FieldStatsShardResponse extends BroadcastShardResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         final Map<String, FieldStats<?> > stats;
-        if (out.getVersion().before(Version.V_5_2_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_2_0)) {
             /**
              * FieldStats with null min/max are not (de)serializable in versions prior to {@link Version.V_5_2_0_UNRELEASED}
              */

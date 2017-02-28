@@ -89,7 +89,7 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
     public void testPutIndexTemplateRequestSerializationXContentBwc() throws IOException {
         final byte[] data = Base64.getDecoder().decode("ADwDAANmb28IdGVtcGxhdGUAAAAAAAABA2Jhcg8tLS0KZm9vOiAiYmFyIgoAAAAAAAAAAAAAAAA=");
         final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
         try (StreamInput in = StreamInput.wrap(data)) {
             in.setVersion(version);
             PutIndexTemplateRequest request = new PutIndexTemplateRequest();

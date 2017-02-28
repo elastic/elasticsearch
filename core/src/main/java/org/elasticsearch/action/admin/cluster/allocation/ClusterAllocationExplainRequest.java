@@ -249,8 +249,8 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
     }
 
     private void checkVersion(Version version) {
-        if (version.before(Version.V_5_2_0_UNRELEASED)) {
-            throw new IllegalArgumentException("cannot explain shards in a mixed-cluster with pre-" + Version.V_5_2_0_UNRELEASED +
+        if (version.before(Version.V_5_2_0)) {
+            throw new IllegalArgumentException("cannot explain shards in a mixed-cluster with pre-" + Version.V_5_2_0 +
                                                " nodes, node version [" + version + "]");
         }
     }

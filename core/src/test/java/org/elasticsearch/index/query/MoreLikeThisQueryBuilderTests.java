@@ -308,7 +308,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     public void testItemSerializationBwc() throws IOException {
         final byte[] data = Base64.getDecoder().decode("AQVpbmRleAEEdHlwZQEODXsiZm9vIjoiYmFyIn0A/wD//////////QAAAAAAAAAA");
         final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
         try (StreamInput in = StreamInput.wrap(data)) {
             in.setVersion(version);
             Item item = new Item(in);

@@ -11,11 +11,17 @@ Aggregations::
 * Restore support for the `include/pattern` syntax. {pull}23140[#23140] (issue: {issue}22933[#22933])
 
 Cluster::
-* Don't set local node on cluster state used for node join validation {pull}23311[#23311] (issues: {issue}21830[#21830])
+* Don't set local node on cluster state used for node join validation {pull}23311[#23311] (issue: {issue}21830[#21830])
 * Cluster allocation explain to never return empty response body {pull}23054[#23054]
 
 Index APIs::
 * Ensure shrunk indices carry over version information from its source {pull}22469[#22469] (issue: {issue}22373[#22373])
+
+Internal::
+* Always restore the ThreadContext for operations delayed due to a block {pull}23349[#23349]
+
+Java REST Client::
+* RestClient asynchronous execution should not throw exceptions {pull}23307[#23307]
 
 Network::
 * Respect promises on pipelined responses {pull}23317[#23317] (issues: {issue}23310[#23310], {issue}23322[#23322])

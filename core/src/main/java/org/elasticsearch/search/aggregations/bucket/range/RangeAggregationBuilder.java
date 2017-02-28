@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -51,7 +52,11 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     }
 
     public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        return PARSER.parse(context.parser(), new RangeAggregationBuilder(aggregationName), context);
+        RangeAggregationBuilder builder = PARSER.parse(context.parser(), new RangeAggregationBuilder(aggregationName), context);
+        if(builder.ranges().size() == 0){
+            throw new ElasticsearchParseException("No [ranges] specified for the [" + builder.getName() + "] aggregation");
+        }
+        return builder;
     }
 
     private static Range parseRange(XContentParser parser, QueryParseContext context) throws IOException {

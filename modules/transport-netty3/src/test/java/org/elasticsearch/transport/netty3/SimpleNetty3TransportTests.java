@@ -39,6 +39,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.jboss.netty.channel.Channel;
+import org.junit.After;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -50,6 +51,13 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 
 public class SimpleNetty3TransportTests extends AbstractSimpleTransportTestCase {
+
+    @Override
+    @After
+    public void tearDown() throws Exception {
+        assertWarnings("transport type [netty3] is deprecated");
+        super.tearDown();
+    }
 
     public static MockTransportService nettyFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
                                                            ClusterSettings clusterSettings, boolean doHandshake) {

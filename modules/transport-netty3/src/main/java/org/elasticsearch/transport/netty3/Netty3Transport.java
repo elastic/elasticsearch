@@ -38,7 +38,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -144,6 +143,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
     public Netty3Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                            NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super("netty3", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+        deprecationLogger.deprecated(deprecationMessage());
         this.workerCount = WORKER_COUNT.get(settings);
         this.maxCumulationBufferCapacity = NETTY_MAX_CUMULATION_BUFFER_CAPACITY.get(settings);
         this.maxCompositeBufferComponents = NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
@@ -157,6 +157,10 @@ public class Netty3Transport extends TcpTransport<Channel> {
             receiveBufferSizePredictorFactory = new AdaptiveReceiveBufferSizePredictorFactory((int) receivePredictorMin.getBytes(),
                 (int) receivePredictorMin.getBytes(), (int) receivePredictorMax.getBytes());
         }
+    }
+
+    protected String deprecationMessage() {
+        return "transport type [netty3] is deprecated";
     }
 
     TransportServiceAdapter transportServiceAdapter() {

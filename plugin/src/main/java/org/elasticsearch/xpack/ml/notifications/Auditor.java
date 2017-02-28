@@ -56,7 +56,7 @@ public class Auditor {
 
                     @Override
                     public void onFailure(Exception e) {
-                        LOGGER.error(new ParameterizedMessage("Error writing {}", new Object[]{true}, e));
+                        LOGGER.error(new ParameterizedMessage("Error writing {}", new Object[]{type}, e));
                     }
                 });
     }

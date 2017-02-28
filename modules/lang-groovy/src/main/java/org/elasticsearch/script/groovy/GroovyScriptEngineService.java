@@ -98,8 +98,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     public GroovyScriptEngineService(Settings settings) {
         super(settings);
 
-        deprecationLogger.deprecated("[groovy] scripts are deprecated, use [painless] scripts instead");
-
         // Creates the classloader here in order to isolate Groovy-land code
         final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {

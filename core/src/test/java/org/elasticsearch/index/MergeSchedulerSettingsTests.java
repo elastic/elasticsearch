@@ -176,7 +176,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
         assertThat(exc.getMessage(), containsString("maxThreadCount (= 40) should be <= maxMergeCount (= 30)"));
 
         exc = expectThrows(IllegalArgumentException.class,
-            () -> finalSettings.updateIndexMetaData(createMetaData(-1, 3, -1)));
-        assertThat(exc.getMessage(), containsString("should be <= maxMergeCount (= 3)"));
+            () -> finalSettings.updateIndexMetaData(createMetaData(-1, 3, 8)));
+        assertThat(exc.getMessage(), containsString("maxThreadCount (= 4) should be <= maxMergeCount (= 3)"));
     }
 }

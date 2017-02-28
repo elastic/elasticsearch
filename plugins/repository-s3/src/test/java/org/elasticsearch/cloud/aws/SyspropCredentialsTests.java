@@ -30,6 +30,7 @@ public class SyspropCredentialsTests extends ESTestCase {
         // NOTE: sys props are setup by the test runner in gradle
         assertEquals("sysprop_access", provider.getCredentials().getAWSAccessKeyId());
         assertEquals("sysprop_secret", provider.getCredentials().getAWSSecretKey());
-        assertWarnings("Supplying S3 credentials through system properties is deprecated");
+        assertWarnings("Supplying S3 credentials through system properties is deprecated. " + "" +
+                "See the breaking changes lists in the documentation for details.");
     }
 }

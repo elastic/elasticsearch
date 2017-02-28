@@ -390,17 +390,30 @@ public class PluginsService extends AbstractComponent {
         }
     }
 
+    static SortedSet<URL> getUniqueSortedUrls(Collection<URL> urls) {
+        SortedSet<URL> result = new TreeSet<URL>(new Comparator<URL>() {
+            @Override
+            public int compare(URL a, URL b) {
+                return a.toString().compareTo(b.toString());
+            }
+        });
+        result.addAll(urls);
+        return result;
+    }
+
     private ImmutableList<Tuple<PluginInfo,Plugin>> loadPluginsFromClasspath(Settings settings) {
         ImmutableList.Builder<Tuple<PluginInfo, Plugin>> plugins = ImmutableList.builder();
 
         // Trying JVM plugins: looking for es-plugin.properties files
         try {
-            Enumeration<URL> pluginUrls = settings.getClassLoader().getResources(esPluginPropertiesFile);
-
             // use a set for uniqueness as some classloaders such as groovy's can return the same URL multiple times and
-            // these plugins should only be loaded once
-            HashSet<URL> uniqueUrls = new HashSet<>(Collections.list(pluginUrls));
-            for (URL pluginUrl : uniqueUrls) {
+            // these plugins should only be loaded once. We also want to have a deterministic order for loading the URLs.
+            // Plugins should load independent of the order. If they do not, at least load them in an order that does not
+            // change based on the hash of the URL.
+            SortedSet<URL> uniqueSortedPluginUrls = getUniqueSortedUrls(Collections.list(settings.getClassLoader().getResources(esPluginPropertiesFile)));
+
+            for (URL pluginUrl : uniqueSortedPluginUrls) {
+                logger.trace("loading plugin " + pluginUrl.toString());
                 Properties pluginProps = new Properties();
                 InputStream is = null;
                 try {

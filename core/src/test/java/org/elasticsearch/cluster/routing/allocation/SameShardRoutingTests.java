@@ -125,33 +125,4 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         decision = decider.canForceAllocatePrimary(newPrimary, unassignedNode, routingAllocation);
         assertEquals(Decision.Type.YES, decision.type());
     }
-
-    public void testUpdateSameHostSetting() {
-        AllocationService strategy = createAllocationService(
-            Settings.builder().put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true).build());
-
-        MetaData metaData = MetaData.builder()
-                                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
-                                .build();
-
-        RoutingTable routingTable = RoutingTable.builder()
-                                        .addAsNew(metaData.index("test"))
-                                        .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData)
-                                        .routingTable(routingTable).build();
-
-        logger.info("--> adding two nodes with the same host");
-        clusterState = ClusterState.builder(clusterState).nodes(
-            DiscoveryNodes.builder()
-                .add(new DiscoveryNode("node1", "node1", "node1", "test1", "test1", buildNewFakeTransportAddress(), emptyMap(),
-                                          MASTER_DATA_ROLES, Version.CURRENT))
-                .add(new DiscoveryNode("node2", "node2", "node2", "test1", "test1", buildNewFakeTransportAddress(), emptyMap(),
-                                          MASTER_DATA_ROLES, Version.CURRENT))).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
-
-        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
-
-        logger.info("--> start all primary shards, no replica will be started since its on the same host");
-        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
-    }
 }

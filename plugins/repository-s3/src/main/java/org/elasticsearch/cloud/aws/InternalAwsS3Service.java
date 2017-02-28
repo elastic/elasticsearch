@@ -203,7 +203,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
             logger.debug("no repository level endpoint has been defined. Trying to guess from repository region [{}]", region);
             if (!region.isEmpty()) {
                 deprecationLogger.deprecated("Specifying region for an s3 repository is deprecated. Use endpoint " +
-                                             " to specify the region endpoint if the default behavior is not sufficient.");
+                                             "to specify the region endpoint if the default behavior is not sufficient.");
                 endpoint = getEndpoint(region);
                 logger.debug("using s3 region [{}], with endpoint [{}]", region, endpoint);
             } else {

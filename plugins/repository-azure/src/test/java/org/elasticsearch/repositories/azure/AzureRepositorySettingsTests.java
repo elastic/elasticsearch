@@ -24,6 +24,7 @@ import com.microsoft.azure.storage.StorageException;
 import org.apache.logging.log4j.core.net.Protocol;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -136,13 +137,13 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             .put(AzureStorageService.Storage.LOCATION_MODE_SETTING.getKey(), "primary_only")
             .build();
         azureRepository(settings);
-        assertSettingDeprecations(
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{
                 AzureStorageService.Storage.ACCOUNT_SETTING,
                 AzureStorageService.Storage.BASE_PATH_SETTING,
                 AzureStorageService.Storage.CHUNK_SIZE_SETTING,
                 AzureStorageService.Storage.COMPRESS_SETTING,
                 AzureStorageService.Storage.CONTAINER_SETTING,
-                AzureStorageService.Storage.LOCATION_MODE_SETTING);
+                AzureStorageService.Storage.LOCATION_MODE_SETTING});
     }
 
 }

@@ -38,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.util.Objects;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -70,7 +71,7 @@ public class BulkProcessor implements Closeable {
 
         /**
          * Callback after a failed execution of bulk request.
-         *
+         * <p>
          * Note that in case an instance of <code>InterruptedException</code> is passed, which means that request processing has been
          * cancelled externally, the thread's interruption status has been restored prior to calling this method.
          */
@@ -98,12 +99,10 @@ public class BulkProcessor implements Closeable {
          * Creates a builder of bulk processor with the client to use and the listener that will be used
          * to be notified on the completion of bulk requests.
          */
-        public Builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener, Settings settings,
-                       ThreadPool threadPool) {
+        public Builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener, Settings settings) {
             this.consumer = consumer;
             this.listener = listener;
             this.settings = settings;
-            this.threadPool = threadPool;
         }
 
         /**
@@ -154,13 +153,13 @@ public class BulkProcessor implements Closeable {
         }
 
         /**
-         * Sets a custom backoff policy. The backoff policy defines how the bulk processor should handle retries of bulk requests internally
-         * in case they have failed due to resource constraints (i.e. a thread pool was full).
          *
-         * The default is to back off exponentially.
-         *
-         * @see org.elasticsearch.action.bulk.BackoffPolicy#exponentialBackoff()
          */
+        public Builder setThreadPool(ThreadPool threadPool) {
+            this.threadPool = threadPool;
+            return this;
+        }
+
         public Builder setBackoffPolicy(BackoffPolicy backoffPolicy) {
             if (backoffPolicy == null) {
                 throw new NullPointerException("'backoffPolicy' must not be null. To disable backoff, pass BackoffPolicy.noBackoff()");
@@ -177,27 +176,20 @@ public class BulkProcessor implements Closeable {
         }
     }
 
-    public static Builder builder() {
-//        Objects.requireNonNull(consumer, "consumer");
-//        Objects.requireNonNull(listener, "listener");
-//
-//        return new Builder(consumer, listener, settings, threadPool);
-        return null;
-    }
-
     public static Builder builder(Client client, Listener listener) {
         Objects.requireNonNull(client, "client");
         Objects.requireNonNull(listener, "listener");
 
-        return new Builder(client::bulk, listener, client.settings(), client.threadPool());
+        return new Builder(client::bulk, listener, client.settings()).setThreadPool(client.threadPool());
     }
 
     private final int bulkActions;
     private final long bulkSize;
 
 
-    private final ScheduledThreadPoolExecutor scheduler;
-    private final ScheduledFuture<?> scheduledFuture;
+    private final ScheduledExecutorService schedulerToStop;
+    private final Retry.Scheduler scheduler;
+    private final Runnable cancelTask;
 
     private final AtomicLong executionIdGen = new AtomicLong();
 
@@ -208,26 +200,30 @@ public class BulkProcessor implements Closeable {
 
     BulkProcessor(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, Listener listener,
                   @Nullable String name, int concurrentRequests, int bulkActions, ByteSizeValue bulkSize, @Nullable TimeValue flushInterval,
-                  ThreadPool threadPool, Settings settings) {
+                  @Nullable ThreadPool threadPool, Settings settings) {
         this.bulkActions = bulkActions;
         this.bulkSize = bulkSize.getBytes();
         this.bulkRequest = new BulkRequest();
 
-        if (concurrentRequests == 0) {
-            this.bulkRequestHandler = BulkRequestHandler.syncHandler(consumer, backoffPolicy, listener, settings, threadPool);
+        if (threadPool == null) {
+            ScheduledThreadPoolExecutor scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(settings, (name != null ? "[" + name + "]" : "") + "bulk_processor"));
+            scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+            scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+            this.schedulerToStop = scheduler;
+            this.scheduler = Retry.Scheduler.fromScheduledExecutorService(scheduler);
         } else {
-            this.bulkRequestHandler = BulkRequestHandler.asyncHandler(consumer, backoffPolicy, listener, settings, threadPool, concurrentRequests);
+            this.schedulerToStop = null;
+            this.scheduler = Retry.Scheduler.fromThreadPool(threadPool);
         }
 
-        if (flushInterval != null) {
-            this.scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(settings, (name != null ? "[" + name + "]" : "") + "bulk_processor"));
-            this.scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
-            this.scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-            this.scheduledFuture = this.scheduler.scheduleWithFixedDelay(new Flush(), flushInterval.millis(), flushInterval.millis(), TimeUnit.MILLISECONDS);
+        if (concurrentRequests == 0) {
+            this.bulkRequestHandler = BulkRequestHandler.syncHandler(consumer, backoffPolicy, listener, settings, scheduler);
         } else {
-            this.scheduler = null;
-            this.scheduledFuture = null;
+            this.bulkRequestHandler = BulkRequestHandler.asyncHandler(consumer, backoffPolicy, listener, settings, scheduler, concurrentRequests);
         }
+
+        // Start period flushing task after everything is setup
+        this.cancelTask = startFlush(flushInterval, threadPool);
     }
 
     /**
@@ -237,20 +233,20 @@ public class BulkProcessor implements Closeable {
     public void close() {
         try {
             awaitClose(0, TimeUnit.NANOSECONDS);
-        } catch(InterruptedException exc) {
+        } catch (InterruptedException exc) {
             Thread.currentThread().interrupt();
         }
     }
 
     /**
      * Closes the processor. If flushing by time is enabled, then it's shutdown. Any remaining bulk actions are flushed.
-     *
+     * <p>
      * If concurrent requests are not enabled, returns {@code true} immediately.
      * If concurrent requests are enabled, waits for up to the specified timeout for all bulk requests to complete then returns {@code true},
      * If the specified waiting time elapses before all bulk requests complete, {@code false} is returned.
      *
      * @param timeout The maximum time to wait for the bulk requests to complete
-     * @param unit The time unit of the {@code timeout} argument
+     * @param unit    The time unit of the {@code timeout} argument
      * @return {@code true} if all bulk requests completed and {@code false} if the waiting time elapsed before all the bulk requests completed
      * @throws InterruptedException If the current thread is interrupted
      */
@@ -259,9 +255,11 @@ public class BulkProcessor implements Closeable {
             return true;
         }
         closed = true;
-        if (this.scheduledFuture != null) {
-            FutureUtils.cancel(this.scheduledFuture);
-            this.scheduler.shutdown();
+
+        this.cancelTask.run();
+
+        if (schedulerToStop != null) {
+            this.schedulerToStop.shutdown();
         }
         if (bulkRequest.numberOfActions() > 0) {
             execute();
@@ -324,10 +322,24 @@ public class BulkProcessor implements Closeable {
      * Adds the data from the bytes to be processed by the bulk processor
      */
     public synchronized BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
-                                  @Nullable String defaultPipeline, @Nullable Object payload, XContentType xContentType) throws Exception {
+                                          @Nullable String defaultPipeline, @Nullable Object payload, XContentType xContentType) throws Exception {
         bulkRequest.add(data, defaultIndex, defaultType, null, null, null, defaultPipeline, payload, true, xContentType);
         executeIfNeeded();
         return this;
+    }
+
+    private Runnable startFlush(@Nullable TimeValue flushInterval, @Nullable ThreadPool threadPool) {
+        if (flushInterval == null) {
+            return () -> {};
+        }
+
+        if (this.schedulerToStop == null) {
+            ThreadPool.Cancellable cancellable = threadPool.scheduleWithFixedDelay(new Flush(), flushInterval, ThreadPool.Names.SAME);
+            return cancelTask(cancellable);
+        } else {
+            ScheduledFuture<?> scheduledFuture = this.schedulerToStop.scheduleWithFixedDelay(new Flush(), flushInterval.millis(), flushInterval.millis(), TimeUnit.MILLISECONDS);
+            return cancelTask(scheduledFuture);
+        }
     }
 
     private void executeIfNeeded() {
@@ -355,6 +367,14 @@ public class BulkProcessor implements Closeable {
             return true;
         }
         return false;
+    }
+
+    private Runnable cancelTask(ThreadPool.Cancellable cancellable) {
+        return cancellable::cancel;
+    }
+
+    private Runnable cancelTask(ScheduledFuture<?> future) {
+        return () -> FutureUtils.cancel(future);
     }
 
     /**

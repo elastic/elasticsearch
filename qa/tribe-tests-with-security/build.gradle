@@ -1,0 +1,83 @@
+import org.elasticsearch.gradle.test.ClusterConfiguration
+import org.elasticsearch.gradle.test.ClusterFormationTasks
+import org.elasticsearch.gradle.test.NodeInfo
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
+    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
+}
+
+ClusterConfiguration configOne = new ClusterConfiguration(project)
+configOne.clusterName = 'cluster1'
+configOne.setting('node.name', 'cluster1-node1')
+configOne.setting('xpack.monitoring.enabled', false)
+configOne.setting('xpack.ml.enabled', false)
+configOne.plugin(':x-pack-elasticsearch:plugin')
+configOne.setupCommand('setupDummyUser',
+        'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser')
+configOne.waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}",
+            dest: tmpFile.toString(),
+            username: 'test_user',
+            password: 'changeme',
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
+}
+List<NodeInfo> cluster1Nodes = ClusterFormationTasks.setup(project, 'clusterOne', integTestRunner, configOne)
+
+ClusterConfiguration configTwo = new ClusterConfiguration(project)
+configTwo.clusterName = 'cluster2'
+configTwo.setting('node.name', 'cluster2-node1')
+configTwo.setting('xpack.monitoring.enabled', false)
+configTwo.setting('xpack.ml.enabled', false)
+configTwo.plugin(':x-pack-elasticsearch:plugin')
+configTwo.setupCommand('setupDummyUser',
+        'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser')
+configTwo.waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}",
+            dest: tmpFile.toString(),
+            username: 'test_user',
+            password: 'changeme',
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
+    }
+List<NodeInfo> cluster2Nodes = ClusterFormationTasks.setup(project, 'clusterTwo', integTestRunner, configTwo)
+
+integTestCluster {
+    plugin ':x-pack-elasticsearch:plugin'
+    setupCommand 'setupDummyUser',
+            'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
+    setting 'xpack.monitoring.enabled', false
+    setting 'xpack.ml.enabled', false
+    setting 'node.name', 'tribe-node'
+    setting 'tribe.on_conflict', 'prefer_cluster1'
+    setting 'tribe.cluster1.cluster.name', 'cluster1'
+    setting 'tribe.cluster1.discovery.zen.ping.unicast.hosts', "'${-> cluster1Nodes.get(0).transportUri()}'"
+    setting 'tribe.cluster1.http.enabled', 'true'
+    setting 'tribe.cluster2.cluster.name', 'cluster2'
+    setting 'tribe.cluster2.discovery.zen.ping.unicast.hosts', "'${-> cluster2Nodes.get(0).transportUri()}'"
+    setting 'tribe.cluster2.http.enabled', 'true'
+    waitCondition = { node, ant ->
+        File tmpFile = new File(node.cwd, 'wait.success')
+        ant.get(src: "http://${node.httpUri()}",
+                dest: tmpFile.toString(),
+                username: 'test_user',
+                password: 'changeme',
+                ignoreerrors: true,
+                retries: 10)
+        return tmpFile.exists()
+    }
+}
+
+integTestRunner {
+    systemProperty 'tests.cluster', "${-> cluster1Nodes.get(0).transportUri()}"
+    systemProperty 'tests.cluster2', "${-> cluster2Nodes.get(0).transportUri()}"
+    systemProperty 'tests.tribe', "${-> integTest.nodes.get(0).transportUri()}"
+}

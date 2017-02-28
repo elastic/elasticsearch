@@ -51,7 +51,7 @@ How many merge operations have the shards for the `wiki` completed?
 
 [source,shell]
 --------------------------------------------------
-% curl 'localhost:9200/_cat/indices/wiki?pri&v&h=health,index,prirep,docs.count,mt'
+% curl 'localhost:9200/_cat/indices/wiki?pri&v&h=health,index,pri,rep,docs.count,mt'
 health index docs.count mt pri.mt
 green  wiki        9646 16     16
 --------------------------------------------------

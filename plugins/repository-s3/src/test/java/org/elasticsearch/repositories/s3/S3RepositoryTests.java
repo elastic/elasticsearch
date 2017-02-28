@@ -25,6 +25,7 @@ import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -78,7 +79,7 @@ public class S3RepositoryTests extends ESTestCase {
                      getValue(Settings.EMPTY, globalSettings, Repository.KEY_SETTING, Repositories.KEY_SETTING));
         assertEquals(new SecureString("".toCharArray()),
                      getValue(Settings.EMPTY, Settings.EMPTY, Repository.KEY_SETTING, Repositories.KEY_SETTING));
-        assertSettingDeprecations(Repository.KEY_SETTING, Repositories.KEY_SETTING);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{Repository.KEY_SETTING, Repositories.KEY_SETTING});
     }
 
     public void testInvalidChunkBufferSizeSettings() throws IOException {

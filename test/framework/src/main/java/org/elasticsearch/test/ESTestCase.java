@@ -131,6 +131,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -303,13 +304,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    protected final void assertSettingDeprecations(Setting... settings) {
+    /**
+     * Convenience method to assert warnings for settings deprecations and general deprecation warnings.
+     *
+     * @param settings the settings that are expected to be deprecated
+     * @param warnings other expected general deprecation warnings
+     */
+    protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final String... warnings) {
         assertWarnings(
-                Arrays
-                        .stream(settings)
-                        .map(Setting::getKey)
-                        .map(k -> "[" + k + "] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-                                "See the breaking changes documentation for the next major version.")
+                Stream.concat(
+                        Arrays
+                                .stream(settings)
+                                .map(Setting::getKey)
+                                .map(k -> "[" + k + "] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                                        "See the breaking changes documentation for the next major version."),
+                        Arrays.stream(warnings))
                         .toArray(String[]::new));
     }
 

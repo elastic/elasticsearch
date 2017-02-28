@@ -158,6 +158,28 @@ The following are options allowed on the filter:
     sure the `geo_point` type index lat lon in this case), or `none` which
     disables bounding box optimization.
 
+`_name`::
+
+    Optional name field to identify the filter
+
+`_cache`::
+
+    Set to `true` to cache the *result* of the filter.
+    Defaults to `false`. See <<Caching,Caching>> below for further details.
+
+`_cache_key`::
+
+    Associate a unique custom cache key to use instead of the actual filter.
+
+`ignore_malformed`::
+
+    Set to `true` to accept geo points with invalid latitude or
+    longitude (default is `false`).
+
+`coerce`::
+
+    Set to `true` to normalize longitude and latitude values to a standard -180:180 / -90:90
+    coordinate system. (default is `false`).
 
 [float]
 ==== geo_point Type

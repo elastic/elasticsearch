@@ -101,4 +101,58 @@ public class GeoPolygonTests extends ElasticsearchIntegrationTest {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
         }
     }
+
+    @Test
+    public void polygonNormalizationTest() throws Exception {
+        String invalidPolyFilter = "{\"geo_polygon\": { \"location\": { \"points\": [{\"lat\": 400.7, \"lon\": -74.0}, " +
+                "{\"lat\": 40.7, \"lon\": -74.1}, {\"lat\": 40.8, \"lon\": -74.1}, {\"lat\": 40.8, \"lon\": -74.0}, " +
+                "{\"lat\": 40.7, \"lon\": -74.0}]}, \"normalize\": false}}";
+
+        // test proper error handling for invalid poly (validation enabled, normalization disabled)
+        try {
+            client().prepareSearch("test") // from NY
+                    .setQuery(matchAllQuery()).setPostFilter(invalidPolyFilter).execute().actionGet();
+        } catch (Exception e) {
+            if (!e.getMessage().contains("illegal latitude value"))
+                throw new Exception("expected: 'QueryParsingException on latitude'\n got: " + e.getMessage());
+        }
+
+        // test correct filtering with valid poly (validation enabled, normalization disabled)
+        String validPolyFilter = "{\"geo_polygon\": { \"location\": { \"points\": [{\"lat\": 400.7, \"lon\": -74.0}, " +
+                "{\"lat\": 40.7, \"lon\": -74.1}, {\"lat\": 40.8, \"lon\": -74.1}, {\"lat\": 40.8, \"lon\": -74.0}, " +
+                "{\"lat\": 40.7, \"lon\": -74.0}]}, \"validate\": true, \"normalize\": true}}";
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(matchAllQuery()).setPostFilter(validPolyFilter).execute().actionGet();
+        assertHitCount(searchResponse, 4);
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        for (SearchHit hit : searchResponse.getHits()) {
+            assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
+        }
+
+        // test error handling for invalid poly
+        String invalidPoly = "{\"geo_polygon\": { \"location\": { \"points\": [{\"lat\": 400.7, \"lon\": -74.0}, " +
+                "{\"lat\": 40.7, \"lon\": -74.1}, {\"lat\": 40.8, \"lon\": -74.1}, {\"lat\": 40.8, \"lon\": -74.0}, " +
+                "{\"lat\": 40.7, \"lon\": -74.0}]}, \"validate\": false, \"normalize\": false}}";
+
+        // test proper error handling for invalid poly (validation enabled, normalization disabled)
+        try {
+            client().prepareSearch("test") // from NY
+                    .setQuery(matchAllQuery()).setPostFilter(invalidPoly).execute().actionGet();
+        } catch (Exception e) {
+            if (!e.getMessage().contains("illegal latitude value"))
+                throw new Exception("expected: 'QueryParsingException on latitude'\n got: " + e.getMessage());
+        }
+
+        // test correct filtering with valid poly (validation enabled, normalization disabled)
+        String validPoly = "{\"geo_polygon\": { \"location\": { \"points\": [{\"lat\": 40.7, \"lon\": -74.0}, " +
+                "{\"lat\": 40.7, \"lon\": -74.1}, {\"lat\": 40.8, \"lon\": -74.1}, {\"lat\": 40.8, \"lon\": -74.0}, " +
+                "{\"lat\": 40.7, \"lon\": -74.0}]}, \"validate\": false, \"normalize\": false}}";
+        searchResponse = client().prepareSearch("test")
+                .setQuery(matchAllQuery()).setPostFilter(validPoly).execute().actionGet();
+        assertHitCount(searchResponse, 4);
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        for (SearchHit hit : searchResponse.getHits()) {
+            assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
+        }
+    }
 }

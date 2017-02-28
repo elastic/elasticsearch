@@ -78,8 +78,8 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
         DistanceUnit unit = DistanceUnit.DEFAULT;
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         String optimizeBbox = "memory";
-        boolean normalizeLon = true;
-        boolean normalizeLat = true;
+        boolean ignoreMalformed = false;
+        boolean coerce = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -162,13 +162,25 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
                 } else if ("optimize_bbox".equals(currentFieldName) || "optimizeBbox".equals(currentFieldName)) {
                     optimizeBbox = parser.textOrNull();
-                } else if ("normalize".equals(currentFieldName)) {
-                    normalizeLat = parser.booleanValue();
-                    normalizeLon = parser.booleanValue();
+                } else if ("ignore_malformed".equals(currentFieldName)) {
+                    ignoreMalformed = parser.booleanValue();
+                } else if ("coerce".equals(currentFieldName)) {
+                    coerce = parser.booleanValue();
                 } else {
                     point.resetFromString(parser.text());
                     fieldName = currentFieldName;
                 }
+            }
+        }
+
+        if (coerce) {
+            GeoUtils.normalizePoint(point, coerce, coerce);
+        } else if (!ignoreMalformed) {
+            if (point.lat() > 90.0 || point.lat() < -90.0) {
+                throw new QueryParsingException(parseContext.index(), "illegal latitude value [" + point.lat() + "] for " + filterName);
+            }
+            if (point.lon() > 180.0 || point.lon() < -180) {
+                throw new QueryParsingException(parseContext.index(), "illegal longitude value [" + point.lon() + "] for " + filterName);
             }
         }
 
@@ -189,10 +201,6 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
                 to = DistanceUnit.parse((String) vTo, unit, DistanceUnit.DEFAULT);
             }
             to = geoDistance.normalize(to, DistanceUnit.DEFAULT);
-        }
-
-        if (normalizeLat || normalizeLon) {
-            GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
         }
 
         MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);

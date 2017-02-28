@@ -406,7 +406,7 @@ curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
 }'
 --------------------------------------------------
 
-The above changes the name of the document with the ID of 1 from "John Doe" to "Jane Doe". If, on the other hand, we use a different ID, a new document will be indexed and the existing document(s) already in the index remains untouched.
+The above changes the name's value in the document with the ID of 1 from "John Doe" to "Jane Doe". If, on the other hand, we use a different ID, a new document will be indexed and the existing document(s) already in the index remains untouched.
 
 [source,sh]
 --------------------------------------------------

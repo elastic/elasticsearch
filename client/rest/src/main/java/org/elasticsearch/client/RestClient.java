@@ -282,12 +282,16 @@ public class RestClient implements Closeable {
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                     ResponseListener responseListener, Header... headers) {
-        URI uri = buildUri(pathPrefix, endpoint, params);
-        HttpRequestBase request = createHttpRequest(method, uri, entity);
-        setHeaders(request, headers);
-        FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
-        long startTime = System.nanoTime();
-        performRequestAsync(startTime, nextHost().iterator(), request, httpAsyncResponseConsumerFactory, failureTrackingResponseListener);
+        try {
+            URI uri = buildUri(pathPrefix, endpoint, params);
+            HttpRequestBase request = createHttpRequest(method, uri, entity);
+            setHeaders(request, headers);
+            FailureTrackingResponseListener failureTrackingListener = new FailureTrackingResponseListener(responseListener);
+            long startTime = System.nanoTime();
+            performRequestAsync(startTime, nextHost().iterator(), request, httpAsyncResponseConsumerFactory, failureTrackingListener);
+        } catch (Exception e) {
+            responseListener.onFailure(e);
+        }
     }
 
     private void performRequestAsync(final long startTime, final Iterator<HttpHost> hosts, final HttpRequestBase request,

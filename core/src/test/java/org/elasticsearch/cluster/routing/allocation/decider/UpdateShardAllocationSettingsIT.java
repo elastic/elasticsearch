@@ -18,23 +18,28 @@
  */
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Set;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Simple integration for {@link EnableAllocationDecider} there is a more exhaustive unittest in
- * {@link EnableAllocationTests} this test is meant to check if the actual update of the settings
- * works as expected.
+ * An integration test for testing updating shard allocation/routing settings and
+ * ensuring the updated settings take effect as expected.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class EnableAllocationDeciderIT extends ESIntegTestCase {
+public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
 
+    /**
+     * Tests that updating the {@link EnableAllocationDecider} related settings works as expected.
+     */
     public void testEnableRebalance() throws InterruptedException {
         final String firstNode = internalCluster().startNode();
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)).get();
@@ -73,5 +78,33 @@ public class EnableAllocationDeciderIT extends ESIntegTestCase {
 
         test = assertAllShardsOnNodes("test", firstNode, secondNode);
         assertThat("index: [test] expected to be rebalanced on both nodes", test.size(), equalTo(2));
+    }
+
+    /**
+     * Tests that updating the {@link SameShardAllocationDecider#CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING} setting works as expected.
+     */
+    public void testUpdateSameHostSetting() {
+        internalCluster().startNodes(2);
+        // same same_host to true, since 2 nodes are started on the same host,
+        // only primaries should be assigned
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+            Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true)
+        ).get();
+        final String indexName = "idx";
+        client().admin().indices().prepareCreate(indexName).setSettings(
+            Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+        ).get();
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        assertFalse("replica should be unassigned",
+            clusterState.getRoutingTable().index(indexName).shardsWithState(ShardRoutingState.UNASSIGNED).isEmpty());
+        // now, update the same_host setting to allow shards to be allocated to multiple nodes on
+        // the same host - the replica should get assigned
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+            Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), false)
+        ).get();
+        clusterState = client().admin().cluster().prepareState().get().getState();
+        assertTrue("all shards should be assigned",
+            clusterState.getRoutingTable().index(indexName).shardsWithState(ShardRoutingState.UNASSIGNED).isEmpty());
     }
 }

@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
@@ -98,7 +99,8 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
     }
 
     public void testForceAllocatePrimaryOnSameNodeNotAllowed() {
-        SameShardAllocationDecider decider = new SameShardAllocationDecider(Settings.EMPTY);
+        SameShardAllocationDecider decider = new SameShardAllocationDecider(
+            Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomIntBetween(2, 4), 1);
         Index index = clusterState.getMetaData().index("idx").getIndex();
         ShardRouting primaryShard = clusterState.routingTable().index(index).shard(0).primaryShard();
@@ -122,5 +124,34 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         }
         decision = decider.canForceAllocatePrimary(newPrimary, unassignedNode, routingAllocation);
         assertEquals(Decision.Type.YES, decision.type());
+    }
+
+    public void testUpdateSameHostSetting() {
+        AllocationService strategy = createAllocationService(
+            Settings.builder().put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true).build());
+
+        MetaData metaData = MetaData.builder()
+                                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
+                                .build();
+
+        RoutingTable routingTable = RoutingTable.builder()
+                                        .addAsNew(metaData.index("test"))
+                                        .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData)
+                                        .routingTable(routingTable).build();
+
+        logger.info("--> adding two nodes with the same host");
+        clusterState = ClusterState.builder(clusterState).nodes(
+            DiscoveryNodes.builder()
+                .add(new DiscoveryNode("node1", "node1", "node1", "test1", "test1", buildNewFakeTransportAddress(), emptyMap(),
+                                          MASTER_DATA_ROLES, Version.CURRENT))
+                .add(new DiscoveryNode("node2", "node2", "node2", "test1", "test1", buildNewFakeTransportAddress(), emptyMap(),
+                                          MASTER_DATA_ROLES, Version.CURRENT))).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
+
+        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
+
+        logger.info("--> start all primary shards, no replica will be started since its on the same host");
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
     }
 }

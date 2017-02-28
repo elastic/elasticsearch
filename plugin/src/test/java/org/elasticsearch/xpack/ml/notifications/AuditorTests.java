@@ -21,7 +21,6 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -88,9 +87,9 @@ public class AuditorTests extends ESTestCase {
         IndexRequestBuilder indexRequestBuilder = mock(IndexRequestBuilder.class);
         when(indexRequestBuilder.setSource(jsonCaptor.capture())).thenReturn(indexRequestBuilder);
         when(indexRequestBuilder.execute()).thenReturn(indexResponse);
-        when(client.prepareIndex(indexCaptor.capture(), typeCaptor.capture(), any()))
+        when(client.prepareIndex(indexCaptor.capture(), typeCaptor.capture()))
         .thenReturn(indexRequestBuilder);
-        when(client.prepareIndex(indexCaptor.capture(), typeCaptor.capture(), any()))
+        when(client.prepareIndex(indexCaptor.capture(), typeCaptor.capture()))
         .thenReturn(indexRequestBuilder);
     }
 

@@ -106,6 +106,8 @@ Removing plugins typically take the following form:
 plugin --remove <pluginname>
 -----------------------------------
 
+NOTE: If using a custom location (other than `$ES_HOME/plugins`), you will need to pass the `-Des.plugins.path=/path/to/plugins/folder` flag to the plugin script .
+
 [float]
 ==== Silent/Verbose mode
 

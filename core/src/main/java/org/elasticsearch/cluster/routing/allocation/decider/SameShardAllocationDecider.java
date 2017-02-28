@@ -58,7 +58,12 @@ public class SameShardAllocationDecider extends AllocationDecider {
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING, this::setSameHost);
     }
 
-    public void setSameHost(boolean sameHost) {
+    /**
+     * Sets the same host setting.  {@code true} if allocating the same shard copy to the same host
+     * should not be allowed, even when multiple nodes are being run on the same host.  {@code false}
+     * otherwise.
+     */
+    private void setSameHost(boolean sameHost) {
         this.sameHost = sameHost;
     }
 

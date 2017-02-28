@@ -217,11 +217,9 @@ public class RangeAggregator extends BucketsAggregator {
         this.ranges = ranges;
 
         maxTo = new double[this.ranges.length];
-        if(ranges.length > 0){
-            maxTo[0] = this.ranges[0].to;
-            for (int i = 1; i < this.ranges.length; ++i) {
-                maxTo[i] = Math.max(this.ranges[i].to,maxTo[i-1]);
-            }
+        maxTo[0] = this.ranges[0].to;
+        for (int i = 1; i < this.ranges.length; ++i) {
+            maxTo[i] = Math.max(this.ranges[i].to,maxTo[i-1]);
         }
 
     }

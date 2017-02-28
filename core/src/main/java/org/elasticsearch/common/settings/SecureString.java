@@ -113,62 +113,38 @@ public final class SecureString implements CharSequence, Closeable {
     }
 
     /**
-     * Returns a closeable object that provides access to an array of chars that is a copy of this SecureString's backing chars. Upon
-     * closing this object the char array will be cleared without affecting this SecureString. This is useful for APIs which accept a
-     * char[]. For example:
+     * Returns a new copy of this object that is backed by its own char array. Closing the new instance has no effect on the instance it
+     * was created from. This is useful for APIs which accept a char array and you want to be safe about the API potentially modifying the
+     * char array. For example:
      *
      * <pre>
-     *     try (CloseableChars closeableChars = secureString.getAsCloseableChars()) {
+     *     try (SecureString copy = secureString.newCopy()) {
      *         // execute code that uses the char[] one time and no longer needs it such as the keystore API
      *         KeyStore store = KeyStore.getInstance("jks");
-     *         store.load(inputStream, closeableChars.getUnderlyingChars());
+     *         store.load(inputStream, copy.getChars());
      *         ...
      *     }
      * </pre>
      */
-    public synchronized CloseableChars getAsCloseableChars() {
+    public synchronized SecureString newCopy() {
         ensureNotClosed();
-        return new CloseableChars(chars);
+        return new SecureString(Arrays.copyOf(chars, chars.length));
+    }
+
+    /**
+     * Returns the underlying char[]. This is a dangerous operation as the array may be modified while it is being used by other threads
+     * or a consumer may modify the values in the array. For safety, it is preferable to use {@link #newCopy()} and pass its chars to the
+     * consumer when the chars are needed multiple times.
+     */
+    public synchronized char[] getChars() {
+        ensureNotClosed();
+        return chars;
     }
 
     /** Throw an exception if this string has been closed, indicating something is trying to access the data after being closed. */
     private void ensureNotClosed() {
         if (chars == null) {
             throw new IllegalStateException("SecureString has already been closed");
-        }
-    }
-
-    /**
-     * A wrapper around a char[] that provides direct access to the char[]. The class can be closed, which will wipe the contents of
-     * the char[]. Any subsequent attempts to access the char[] will result in a {@link IllegalStateException}
-     */
-    public static class CloseableChars implements Closeable {
-
-        private char[] chars;
-
-        /**
-         * Creates a new instance of this class and copies the passed in char[].
-         */
-        private CloseableChars(char[] chars) {
-            this.chars = Arrays.copyOf(chars, chars.length);
-        }
-
-        /**
-         * Returns the underlying char[] of this instance. It is important to not hold on to this reference as it may be closed and the
-         */
-        public synchronized char[] getUnderlyingChars() {
-            if (chars == null) {
-                throw new IllegalStateException("CloseableChars has already been closed");
-            }
-            return chars;
-        }
-
-        @Override
-        public synchronized void close() {
-            if (chars != null) {
-                Arrays.fill(chars, '\0');
-                chars = null;
-            }
         }
     }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.common.settings.SecureString.CloseableChars;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -34,9 +33,9 @@ public class SecureStringTests extends ESTestCase {
         final char[] password = randomAsciiOfLengthBetween(1, 32).toCharArray();
         SecureString secureString = new SecureString(password);
         assertSecureStringEqualToChars(password, secureString);
-        try (CloseableChars closeableChars = secureString.getAsCloseableChars()) {
-            assertArrayEquals(password, closeableChars.getUnderlyingChars());
-            assertThat(closeableChars.getUnderlyingChars(), not(sameInstance(password)));
+        try (SecureString copy = secureString.newCopy()) {
+            assertArrayEquals(password, copy.getChars());
+            assertThat(copy.getChars(), not(sameInstance(password)));
         }
         assertSecureStringEqualToChars(password, secureString);
     }
@@ -45,29 +44,29 @@ public class SecureStringTests extends ESTestCase {
         final char[] password = randomAsciiOfLengthBetween(1, 32).toCharArray();
         SecureString secureString = new SecureString(password);
         assertSecureStringEqualToChars(password, secureString);
-        CloseableChars closeableChars = secureString.getAsCloseableChars();
-        assertArrayEquals(password, closeableChars.getUnderlyingChars());
-        assertThat(closeableChars.getUnderlyingChars(), not(sameInstance(password)));
+        SecureString copy = secureString.newCopy();
+        assertArrayEquals(password, copy.getChars());
+        assertThat(copy.getChars(), not(sameInstance(password)));
         final char[] passwordCopy = Arrays.copyOf(password, password.length);
         assertArrayEquals(password, passwordCopy);
         secureString.close();
         assertNotEquals(password[0], passwordCopy[0]);
-        assertArrayEquals(passwordCopy, closeableChars.getUnderlyingChars());
+        assertArrayEquals(passwordCopy, copy.getChars());
     }
 
     public void testClosingChars() {
         final char[] password = randomAsciiOfLengthBetween(1, 32).toCharArray();
         SecureString secureString = new SecureString(password);
         assertSecureStringEqualToChars(password, secureString);
-        CloseableChars closeableChars = secureString.getAsCloseableChars();
-        assertArrayEquals(password, closeableChars.getUnderlyingChars());
-        assertThat(closeableChars.getUnderlyingChars(), not(sameInstance(password)));
-        closeableChars.close();
+        SecureString copy = secureString.newCopy();
+        assertArrayEquals(password, copy.getChars());
+        assertThat(copy.getChars(), not(sameInstance(password)));
+        copy.close();
         if (randomBoolean()) {
             // close another time and no exception is thrown
-            closeableChars.close();
+            copy.close();
         }
-        IllegalStateException e = expectThrows(IllegalStateException.class, closeableChars::getUnderlyingChars);
+        IllegalStateException e = expectThrows(IllegalStateException.class, copy::getChars);
         assertThat(e.getMessage(), containsString("already been closed"));
     }
 
@@ -80,7 +79,7 @@ public class SecureStringTests extends ESTestCase {
             // close another time and no exception is thrown
             secureString.close();
         }
-        IllegalStateException e = expectThrows(IllegalStateException.class, secureString::getAsCloseableChars);
+        IllegalStateException e = expectThrows(IllegalStateException.class, secureString::newCopy);
         assertThat(e.getMessage(), containsString("already been closed"));
     }
 

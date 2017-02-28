@@ -207,13 +207,86 @@ We could write the query as:
 ==================================
 As written above, this template is not valid JSON because it includes the
 _section_ markers like `{{#line_no}}`.  For this reason, the template should
-either be stored in a file (see <<pre-registered-templates>>) or, when used 
-via the REST API, should be written as a string:
+either be stored in a file 
 
-[source,json]
+Register search templates by storing it in the config/scripts directory, in a file using the .mustache extension ((see <<pre-registered-templates>>))
+
+Store the below query in ES installation>config>scripts>conditionalclause_template.mustache
+
+[source,js]
+------------------------------------------
+{
+  "query": {
+    "filtered": {
+      "query": {
+        "match": {
+          "line": "{{text}}" <1>
+        }
+      },
+      "filter": {
+        {{#line_no}} <2>
+          "range": {
+            "line_no": {
+              {{#start}} <3>
+                "gte": "{{start}}" <4>
+                {{#end}},{{/end}} <5>
+              {{/start}} <3>
+              {{#end}} <6>
+                "lte": "{{end}}" <7>
+              {{/end}} <6>
+            }
+          }
+        {{/line_no}} <2>
+      }
+    }
+  }
+}
+------------------------------------------
+
+The above template stored in the file can be used for search by the below query
+
+[source,js]
+------------------------------------------
+GET /_search/template
+{
+    "file": "conditionalclause_template", 
+    "params": {
+        "text":      "words to search for",
+        "line_no": { <1>
+            "start": 10, <1>
+            "end":   20  <1>
+        }
+    }
+}
+------------------------------------------
+
+or, when used via the REST API, should be written as a string:
+
+[source,js]
 --------------------
+
+POST /_search/template/conditionalclause_template
+{
 "template": "{\"query\":{\"filtered\":{\"query\":{\"match\":{\"line\":\"{{text}}\"}},\"filter\":{{{#line_no}}\"range\":{\"line_no\":{{{#start}}\"gte\":\"{{start}}\"{{#end}},{{/end}}{{/start}}{{#end}}\"lte\":\"{{end}}\"{{/end}}}}{{/line_no}}}}}}"
+}
 --------------------
+
+which can be retrieved by the following query
+
+[source,js]
+------------------------------------------
+GET /_search/template
+{
+    "template": {
+        "id": "conditionalclause_template" 
+    },
+    "params": {
+        "query_string": "search for these words"
+    }
+}
+------------------------------------------
+
+Note that we used "file":"filename" to specify the filename and use "id":"templatename" to specify the tempalte.
 
 ==================================
 

@@ -56,12 +56,12 @@ public class RestClientTests extends RestClientTestCase {
     public void testPerformAsyncWithNullHeaders() throws Exception {
         RestClient.SyncResponseListener listener = new RestClient.SyncResponseListener(10000);
         try (RestClient restClient = createRestClient()) {
-            restClient.performRequestAsync("GET", randomAsciiOfLength(5), listener, null);
+            restClient.performRequestAsync("GET", randomAsciiOfLength(5), listener, (Header) null);
             listener.get();
 
             fail("should have failed because of null headers");
         } catch (NullPointerException exception) {
-            assertEquals("request headers must not be null", exception.getMessage());
+            assertEquals("request header must not be null", exception.getMessage());
         }
     }
 

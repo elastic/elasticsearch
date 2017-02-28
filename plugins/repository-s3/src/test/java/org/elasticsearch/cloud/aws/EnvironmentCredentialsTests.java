@@ -31,6 +31,7 @@ public class EnvironmentCredentialsTests extends ESTestCase {
         // NOTE: env vars are setup by the test runner in gradle
         assertEquals("env_access", provider.getCredentials().getAWSAccessKeyId());
         assertEquals("env_secret", provider.getCredentials().getAWSSecretKey());
-        assertWarnings("Supplying S3 credentials through environment variables is deprecated");
+        assertWarnings("Supplying S3 credentials through environment variables is deprecated. "
+                + "See the breaking changes lists in the documentation for details.");
     }
 }

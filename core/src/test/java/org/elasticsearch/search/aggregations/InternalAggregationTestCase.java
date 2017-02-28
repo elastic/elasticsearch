@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -36,9 +37,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
             new SearchModule(Settings.EMPTY, false, emptyList()).getNamedWriteables());
 
-    protected abstract T createTestInstance(String name,
-            List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData);
+    protected abstract T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
 
     /** Return an instance on an unmapped field. */
     protected T createUnmappedInstance(String name,
@@ -57,19 +56,28 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             inputs.add(t);
             toReduce.add(t);
         }
-        if (randomBoolean()) {
-            // we leave at least one in the list
-            List<InternalAggregation> internalAggregations = randomSubsetOf(randomIntBetween(1, toReduceSize), toReduce);
-            InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(null, null, false);
+        ScriptService mockScriptService = mockScriptService();
+        if (randomBoolean() && toReduce.size() > 1) {
+            // we leave at least the first element in the list
+            List<InternalAggregation> internalAggregations = randomSubsetOf(randomIntBetween(1, toReduceSize - 1),
+                    toReduce.subList(1, toReduceSize));
+            InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(null, mockScriptService, false);
             @SuppressWarnings("unchecked")
             T reduced = (T) inputs.get(0).reduce(internalAggregations, context);
             toReduce.removeAll(internalAggregations);
             toReduce.add(reduced);
         }
-        InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(null, null, true);
+        InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(null, mockScriptService, true);
         @SuppressWarnings("unchecked")
         T reduced = (T) inputs.get(0).reduce(toReduce, context);
         assertReduced(reduced, inputs);
+    }
+
+    /**
+     * overwrite in tests that need it
+     */
+    protected ScriptService mockScriptService() {
+        return null;
     }
 
     protected abstract void assertReduced(T reduced, List<T> inputs);

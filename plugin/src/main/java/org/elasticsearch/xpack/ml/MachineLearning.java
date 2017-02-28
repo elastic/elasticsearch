@@ -160,6 +160,8 @@ public class MachineLearning extends Plugin implements ActionPlugin {
     private final Environment env;
     private boolean enabled;
     private boolean transportClientMode;
+    private final boolean tribeNode;
+    private final boolean tribeNodeClient;
 
     public MachineLearning(Settings settings) {
         this(settings, new Environment(settings));
@@ -170,6 +172,8 @@ public class MachineLearning extends Plugin implements ActionPlugin {
         this.settings = settings;
         this.env = env;
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
+        this.tribeNode = XPackPlugin.isTribeNode(settings);
+        this.tribeNodeClient = XPackPlugin.isTribeClientNode(settings);
     }
 
     @Override
@@ -187,7 +191,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
 
     @Override
     public Settings additionalSettings() {
-        if (enabled == false || this.transportClientMode) {
+        if (enabled == false || this.transportClientMode || this.tribeNode || this.tribeNodeClient) {
             return super.additionalSettings();
         }
 
@@ -248,7 +252,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry) {
-        if (this.transportClientMode) {
+        if (this.transportClientMode || this.tribeNodeClient) {
             return emptyList();
         }
 
@@ -257,7 +261,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
         // Even when ML is disabled the native controller will be running if it's installed, and it
         // prevents graceful shutdown on Windows unless we tell it to stop.  Hence when disabled we
         // still return a lifecycle service that will tell the native controller to stop.
-        if (false == enabled) {
+        if (false == enabled || this.tribeNode) {
             return Collections.singletonList(mlLifeCycleService);
         }
 
@@ -330,7 +334,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        if (false == enabled) {
+        if (false == enabled || tribeNodeClient) {
             return emptyList();
         }
         return Arrays.asList(
@@ -415,7 +419,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (false == enabled) {
+        if (false == enabled || tribeNode || tribeNodeClient) {
             return emptyList();
         }
         int maxNumberOfJobs = AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.get(settings);

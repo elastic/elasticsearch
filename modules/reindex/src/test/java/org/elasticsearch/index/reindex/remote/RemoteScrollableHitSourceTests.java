@@ -470,7 +470,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     public void testNoContentTypeIsError() throws Exception {
         Exception e = expectThrows(RuntimeException.class, () ->
                 sourceWithMockedRemoteCall(false, null, "main/0_20_5.json").lookupRemoteVersion(null));
-        assertThat(e.getCause().getCause().getMessage(), containsString("Response didn't include Content-Type: body={"));
+        assertThat(e.getCause().getCause().getCause().getMessage(), containsString("Response didn't include Content-Type: body={"));
     }
 
     private RemoteScrollableHitSource sourceWithMockedRemoteCall(String... paths) throws Exception {

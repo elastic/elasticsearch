@@ -21,6 +21,8 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -57,17 +59,18 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             toReduce.add(t);
         }
         ScriptService mockScriptService = mockScriptService();
+        MockBigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
         if (randomBoolean() && toReduce.size() > 1) {
             // we leave at least the first element in the list
             List<InternalAggregation> internalAggregations = randomSubsetOf(randomIntBetween(1, toReduceSize - 1),
                     toReduce.subList(1, toReduceSize));
-            InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(null, mockScriptService, false);
+            InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(bigArrays, mockScriptService, false);
             @SuppressWarnings("unchecked")
             T reduced = (T) inputs.get(0).reduce(internalAggregations, context);
             toReduce.removeAll(internalAggregations);
             toReduce.add(reduced);
         }
-        InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(null, mockScriptService, true);
+        InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(bigArrays, mockScriptService, true);
         @SuppressWarnings("unchecked")
         T reduced = (T) inputs.get(0).reduce(toReduce, context);
         assertReduced(reduced, inputs);

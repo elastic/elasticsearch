@@ -6,16 +6,11 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -40,14 +35,12 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.utils.JobStateObserver;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress;
 import org.elasticsearch.xpack.persistent.PersistentTasksInProgress.PersistentTaskInProgress;
 
@@ -226,22 +219,17 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
-        private final JobStateObserver observer;
         private final ClusterService clusterService;
-        private final TransportListTasksAction listTasksAction;
-        private final TransportCancelTasksAction cancelTasksAction;
+        private final CloseJobService closeJobService;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ClusterService clusterService, TransportListTasksAction listTasksAction,
-                               TransportCancelTasksAction cancelTasksAction) {
+                               ClusterService clusterService, CloseJobService closeJobService) {
             super(settings, CloseJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
-            this.observer = new JobStateObserver(threadPool, clusterService);
             this.clusterService = clusterService;
-            this.listTasksAction = listTasksAction;
-            this.cancelTasksAction = cancelTasksAction;
+            this.closeJobService = closeJobService;
         }
 
         @Override
@@ -277,29 +265,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
                         @Override
                         protected void doRun() throws Exception {
-                            ListTasksRequest listTasksRequest = new ListTasksRequest();
-                            listTasksRequest.setDetailed(true);
-                            listTasksRequest.setActions(OpenJobAction.NAME + "[c]");
-                            listTasksAction.execute(listTasksRequest, ActionListener.wrap(listTasksResponse -> {
-                                String expectedDescription = "job-" + request.getJobId();
-                                for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
-                                    if (expectedDescription.equals(taskInfo.getDescription())) {
-                                        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
-                                        cancelTasksRequest.setTaskId(taskInfo.getTaskId());
-                                        cancelTasksAction.execute(cancelTasksRequest, ActionListener.wrap(cancelTaskResponse -> {
-                                            observer.waitForState(request.getJobId(), request.getTimeout(), JobState.CLOSED, e -> {
-                                                if (e == null) {
-                                                    listener.onResponse(new CloseJobAction.Response(true));
-                                                } else {
-                                                    listener.onFailure(e);
-                                                }
-                                            });
-                                        }, listener::onFailure));
-                                        return;
-                                    }
-                                }
-                                listener.onFailure(new ResourceNotFoundException("task not found for job [" + request.getJobId() + "]"));
-                            }, listener::onFailure));
+                            closeJobService.closeJob(request, listener);
                         }
                     });
                 }

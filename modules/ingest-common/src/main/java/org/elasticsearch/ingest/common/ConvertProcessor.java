@@ -42,9 +42,9 @@ public final class ConvertProcessor extends AbstractProcessor {
             @Override
             public Object convert(Object value) {
                 try {
-                    return Integer.parseInt(value.toString());
+                    return Long.parseLong(value.toString());
                 } catch(NumberFormatException e) {
-                    throw new IllegalArgumentException("unable to convert [" + value + "] to integer", e);
+                    throw new IllegalArgumentException("unable to convert [" + value + "] to long", e);
                 }
 
             }
@@ -52,9 +52,9 @@ public final class ConvertProcessor extends AbstractProcessor {
             @Override
             public Object convert(Object value) {
                 try {
-                    return Float.parseFloat(value.toString());
+                    return Double.parseDouble(value.toString());
                 } catch(NumberFormatException e) {
-                    throw new IllegalArgumentException("unable to convert [" + value + "] to float", e);
+                    throw new IllegalArgumentException("unable to convert [" + value + "] to double", e);
                 }
             }
         }, BOOLEAN {

@@ -172,7 +172,7 @@ This syntax is from versions prior to 1.0:
 --------------------------------------------------
 curl -XPUT localhost:9200/_cluster/settings -d '{
     "persistent" : {
-    "cluster.routing.allocation.disable_allocation" : true
+    	"cluster.routing.allocation.disable_allocation" : true
     }
 }'
 --------------------------------------------------
@@ -180,7 +180,7 @@ curl -XPUT localhost:9200/_cluster/settings -d '{
 * Stop all Elasticsearch services on all nodes in the cluster.
 [source,sh]
 ------------------------------------------------------
-	curl -XPOST 'http://localhost:9200/_shutdown'
+curl -XPOST 'http://localhost:9200/_shutdown'
 ------------------------------------------------------
 
 * On the first node to be upgraded, extract the archive or install the new package as described above in the Rolling Upgrades section.  Repeat for all nodes.
@@ -196,8 +196,8 @@ This syntax is from release 1.0 and later:
 ------------------------------------------------------
 curl -XPUT localhost:9200/_cluster/settings -d '{
         "persistent" : {
-    "cluster.routing.allocation.disable_allocation": false,
-        "cluster.routing.allocation.enable" : "all"
+    		"cluster.routing.allocation.disable_allocation": false,
+        	"cluster.routing.allocation.enable" : "all"
         }
 }'
 ------------------------------------------------------

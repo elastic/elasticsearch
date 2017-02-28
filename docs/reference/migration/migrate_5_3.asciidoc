@@ -22,13 +22,6 @@ three properties:
 
 The property `es.logs` is deprecated and will be removed in Elasticsearch 6.0.0.
 
-[float]
-==== Use of Netty 3 is deprecated
-
-Usage of Netty 3 for transport (`transport.type=netty3`) or HTTP
-(`http.type=netty3`) is deprecated and will be removed in Elasticsearch
-6.0.0.
-
 [[breaking_53_settings_changes]]
 [float]
 === Settings changes
@@ -59,3 +52,4 @@ is deprecated.
 
 Usage of any value other than `false`, `"false", `true` and `"true"` for
 boolean values in mappings is deprecated.
+

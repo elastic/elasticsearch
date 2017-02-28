@@ -272,7 +272,8 @@ def provision(config,
       rm -rf /tmp/gradle.zip 
       ln -s /opt/gradle-3.3/bin/gradle /usr/bin/gradle
       # make nfs mounted gradle home dir writeable
-      chown vagrant:vagrant /home/vagrant/.gradle
+      # TODO: also chgrp to vagrant once sles and opensuse have vagrant group...
+      chown vagrant /home/vagrant/.gradle
     }
 
 

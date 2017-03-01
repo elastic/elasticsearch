@@ -9,10 +9,7 @@ http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[Ma
 Central]. The minimum Java version required is `1.8`.
 
 The high-level REST client is subject to the same release cycle as
-elasticsearch. Replace the version with the desired client version, first
-released with `5.x.x`. There is no relation between the client version
-and the elasticsearch version that the client can communicate with as
-it depends on the <<java-rest-low>> which is compatible with all elasticsearch versions.
+elasticsearch. Replace the version with the desired client version.
 
 [[java-rest-high-usage-maven-maven]]
 ===== Maven configuration

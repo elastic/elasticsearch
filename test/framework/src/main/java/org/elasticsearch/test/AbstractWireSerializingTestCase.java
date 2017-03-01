@@ -61,6 +61,7 @@ public abstract class AbstractWireSerializingTestCase<T extends Writeable> exten
 
             T secondInstance = copyInstance(firstInstance);
             assertEquals("instance is not equal to self", secondInstance, secondInstance);
+            assertEquals("instance is not equal to its copy", firstInstance, secondInstance);
             assertEquals("equals is not symmetric", secondInstance, firstInstance);
             assertThat("instance copy's hashcode is different from original hashcode", secondInstance.hashCode(),
                     equalTo(firstInstance.hashCode()));

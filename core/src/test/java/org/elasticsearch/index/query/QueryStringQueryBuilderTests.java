@@ -46,11 +46,14 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
@@ -836,6 +839,28 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         expected = new DisjunctionMaxQuery(fieldQueries, 0f);
         assertThat(query, equalTo(expected));
     }
+
+    public void testDisabledFieldNamesField() throws Exception {
+        QueryShardContext context = createShardContext();
+        context.getMapperService().merge("new_type",
+            new CompressedXContent(
+                PutMappingRequest.buildFromSimplifiedDef("new_type",
+                    "foo", "type=text",
+                    "_field_names", "enabled=false").string()),
+            MapperService.MergeReason.MAPPING_UPDATE, true);
+        QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
+        Query query = queryBuilder.toQuery(context);
+        Query expected = new WildcardQuery(new Term("foo", "*"));
+        assertThat(query, equalTo(expected));
+        context.getMapperService().merge("new_type",
+            new CompressedXContent(
+                PutMappingRequest.buildFromSimplifiedDef("new_type",
+                    "foo", "type=text",
+                    "_field_names", "enabled=true").string()),
+            MapperService.MergeReason.MAPPING_UPDATE, true);
+    }
+
+
 
     public void testFromJson() throws IOException {
         String json =

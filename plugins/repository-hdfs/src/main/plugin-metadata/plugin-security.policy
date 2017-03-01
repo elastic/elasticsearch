@@ -36,6 +36,9 @@ grant {
   permission javax.security.auth.AuthPermission "doAs";
   permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
 
+  // Retrieval of private hadoop credentials from any Subject in cases where authentication is enabled
+  permission javax.security.auth.PrivateCredentialPermission "org.apache.hadoop.security.Credentials * \"*\"", "read";
+
   // hdfs client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";
 };

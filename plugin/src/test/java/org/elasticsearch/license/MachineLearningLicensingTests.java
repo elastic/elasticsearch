@@ -8,12 +8,14 @@ package org.elasticsearch.license;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.TestXPackTransportClient;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
@@ -34,6 +36,20 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
 public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), true);
+        return settings.build();
+    }
+
+    @Override
+    protected Settings transportClientSettings() {
+        Settings.Builder settings = Settings.builder().put(super.transportClientSettings());
+        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), true);
+        return settings.build();
+    }
 
     @Before
     public void resetLicensing() {

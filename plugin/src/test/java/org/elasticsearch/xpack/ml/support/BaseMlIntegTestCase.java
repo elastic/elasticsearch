@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.node.NodeMocksPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -38,10 +40,13 @@ import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.junit.After;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -67,6 +72,10 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
         settings.put(MachineLearning.AUTODETECT_PROCESS.getKey(), false);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
+        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
+        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
+        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
+        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         return settings.build();
     }
 
@@ -74,7 +83,18 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
     protected Settings transportClientSettings() {
         Settings.Builder settings = Settings.builder().put(super.transportClientSettings());
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
+        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
+        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
+        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
+        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         return settings.build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        Set<Class<? extends Plugin>> mocks = new HashSet<>(super.getMockPlugins());
+        mocks.remove(NodeMocksPlugin.class);
+        return mocks;
     }
 
     protected Job.Builder createJob(String id) {
@@ -148,15 +168,16 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
     public void cleanupWorkaround() throws Exception {
         deleteAllDatafeeds(client());
         deleteAllJobs(client());
-        internalCluster().wipe(Collections.emptySet());
-        assertBusy(() -> {
-            RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries()
-                    .setActiveOnly(true)
-                    .get();
-            for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
-                assertThat(recoveryStates.size(), equalTo(0));
-            }
-        });
+        if (ignoreExternalCluster()) {
+            assertBusy(() -> {
+                RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries()
+                        .setActiveOnly(true)
+                        .get();
+                for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
+                    assertThat(recoveryStates.size(), equalTo(0));
+                }
+            });
+        }
     }
 
     protected void indexDocs(String index, long numDocs, long start, long end) {

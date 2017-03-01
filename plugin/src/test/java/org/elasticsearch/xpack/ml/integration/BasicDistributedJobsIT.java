@@ -47,11 +47,11 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         Job.Builder job = createJob("job_id");
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build());
-        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
+        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         assertTrue(putJobResponse.isAcknowledged());
         ensureGreen();
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
-        client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
+        client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         assertBusy(() -> {
             GetJobsStatsAction.Response statsResponse =
                     client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
@@ -83,18 +83,18 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         Job.Builder job = createScheduledJob("job_id");
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build());
-        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
+        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         assertTrue(putJobResponse.isAcknowledged());
         DatafeedConfig.Builder configBuilder = createDatafeedBuilder("data_feed_id", job.getId(), Collections.singletonList("*"));
         configBuilder.setFrequency(120);
         DatafeedConfig config = configBuilder.build();
         PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(config);
-        PutDatafeedAction.Response putDatadeedResponse = client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).get();
+        PutDatafeedAction.Response putDatadeedResponse = client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).actionGet();
         assertTrue(putDatadeedResponse.isAcknowledged());
 
         ensureGreen();
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
-        client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
+        client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         assertBusy(() -> {
             GetJobsStatsAction.Response statsResponse =
                     client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
@@ -157,11 +157,11 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         Job.Builder job = createJob("job_id");
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build());
-        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
+        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         assertTrue(putJobResponse.isAcknowledged());
 
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
-        client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
+        client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             PersistentTasks tasks = clusterState.getMetaData().custom(PersistentTasks.TYPE);
@@ -237,11 +237,11 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         for (int i = 0; i < numJobs; i++) {
             Job.Builder job = createJob(Integer.toString(i));
             PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build());
-            PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
+            PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
             assertTrue(putJobResponse.isAcknowledged());
 
             OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
-            client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
+            client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         }
 
         assertBusy(() -> {
@@ -301,23 +301,23 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         internalCluster().ensureAtMostNumDataNodes(0);
         // start non ml node, but that will hold the indices
         logger.info("Start non ml node:");
-        internalCluster().startNode(Settings.builder()
+        String nonMlNode = internalCluster().startNode(Settings.builder()
                 .put("node.data", true)
                 .put(MachineLearning.ML_ENABLED.getKey(), false));
         ensureStableCluster(1);
         logger.info("Starting ml node");
-        internalCluster().startNode(Settings.builder()
+        String mlNode = internalCluster().startNode(Settings.builder()
                 .put("node.data", false)
                 .put(MachineLearning.ML_ENABLED.getKey(), true));
         ensureStableCluster(2);
 
         Job.Builder job = createFareQuoteJob("job_id");
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build());
-        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
+        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         assertTrue(putJobResponse.isAcknowledged());
 
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
-        client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
+        client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
 
         PostDataAction.Request postDataRequest = new PostDataAction.Request("job_id");
         postDataRequest.setContent(new BytesArray(
@@ -344,11 +344,12 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         assertTrue(e.getMessage().endsWith("because not all primary shards are active for the following indices [.ml-anomalies-shared]]"));
 
         logger.info("Start data node");
-        internalCluster().startNode(Settings.builder()
+        nonMlNode = internalCluster().startNode(Settings.builder()
                 .put("node.data", true)
                 .put(MachineLearning.ML_ENABLED.getKey(), false));
-        ensureStableCluster(2);
-        client().execute(OpenJobAction.INSTANCE, openJobRequest).get();
+        ensureStableCluster(2, mlNode);
+        ensureStableCluster(2, nonMlNode);
+        client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         assertBusy(() -> assertJobTask("job_id", JobState.OPENED, true));
     }
 

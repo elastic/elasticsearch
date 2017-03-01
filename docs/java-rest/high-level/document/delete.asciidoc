@@ -8,7 +8,7 @@ The most simple Delete Request needs is:
 
 ["source","java",subs="attributes,callouts"]
 --------------------------------------------------
-sys2::[perl -ne 'exit if /end::delete-request/; print if $tag; $tag = $tag || /tag::delete-request/' {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/DocumentationIT.java]
+sys2::[perl -ne 'exit if /end::delete-request/; print if $tag; $tag = $tag || /tag::delete-request/' {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/DeleteDocumentationIT.java]
 --------------------------------------------------
 <1> Index name
 <2> Type
@@ -18,7 +18,7 @@ You can also provide the following properties:
 
 ["source","java",subs="attributes,callouts"]
 --------------------------------------------------
-sys2::[perl -ne 'exit if /end::delete-request-props/; print if $tag; $tag = $tag || /tag::delete-request-props/' {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/DocumentationIT.java]
+sys2::[perl -ne 'exit if /end::delete-request-props/; print if $tag; $tag = $tag || /tag::delete-request-props/' {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/DeleteDocumentationIT.java]
 --------------------------------------------------
 <1> Timeout
 <2> Timeout as String
@@ -32,7 +32,7 @@ sys2::[perl -ne 'exit if /end::delete-request-props/; print if $tag; $tag = $tag
 
 ["source","java",subs="attributes,callouts"]
 --------------------------------------------------
-sys2::[perl -ne 'exit if /end::delete-execute/; print if $tag; $tag = $tag || /tag::delete-execute/' {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/DocumentationIT.java]
+sys2::[perl -ne 'exit if /end::delete-execute/; print if $tag; $tag = $tag || /tag::delete-execute/' {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/DeleteDocumentationIT.java]
 --------------------------------------------------
 
 [[java-rest-high-document-delete-async]]
@@ -40,7 +40,7 @@ sys2::[perl -ne 'exit if /end::delete-execute/; print if $tag; $tag = $tag || /t
 
 ["source","java",subs="attributes,callouts"]
 --------------------------------------------------
-sys2::[perl -ne 'exit if /end::delete-execute-async/; print if $tag; $tag = $tag || /tag::delete-execute-async/' {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/DocumentationIT.java]
+sys2::[perl -ne 'exit if /end::delete-execute-async/; print if $tag; $tag = $tag || /tag::delete-execute-async/' {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/DeleteDocumentationIT.java]
 --------------------------------------------------
 <1> Implement if needed when execution did not throw an exception
 <2> Implement if needed in case of failure
@@ -52,22 +52,16 @@ In the Delete Response object, you can check for example the result of the opera
 
 ["source","java",subs="attributes,callouts"]
 --------------------------------------------------
-sys2::[perl -ne 'exit if /end::delete-notfound/; print if $tag; $tag = $tag || /tag::delete-notfound/' {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/DocumentationIT.java]
+sys2::[perl -ne 'exit if /end::delete-notfound/; print if $tag; $tag = $tag || /tag::delete-notfound/' {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/DeleteDocumentationIT.java]
 --------------------------------------------------
 <1> Do something if we did not find the document which should have been deleted
 
 Note that if you have a version conflict because you defined the version within the
 <<java-rest-high-document-delete-request>>, it will raise an `ElasticsearchException` like:
 
-[source,java]
+["source","java",subs="attributes,callouts"]
 --------------------------------------------------
-try {
-    client.delete(request);
-} catch (ElasticsearchException exception) {
-    if (exception.status().equals(RestStatus.CONFLICT) {
-        <1>
-    }
-}
+sys2::[perl -ne 'exit if /end::delete-conflict/; print if $tag; $tag = $tag || /tag::delete-conflict/' {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/DeleteDocumentationIT.java]
 --------------------------------------------------
 <1> We got a version conflict
 

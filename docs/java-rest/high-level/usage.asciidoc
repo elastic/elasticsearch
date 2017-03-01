@@ -69,12 +69,7 @@ Then you have access to the high level APIs such as:
 
 include::apis.asciidoc[]
 
-Each API comes with 2 ways of executing it:
-
-* Synchronously, for example method <<java-rest-high-document-delete,`delete`>>
-
-* Asynchronously which has `Async` added to the synchronous method name. Like
-<<java-rest-high-document-delete,`deleteAsync`>>. In which case you will have to
-provide a listener.
-
-
+Each API can be executed synchronously (i.e. <<java-rest-high-document-delete,`delete`>>) or
+asynchronously (i.e. <<java-rest-high-document-delete,`deleteAsync`>>).
+The asynchronous APIs require a listener that is called on thread pool managed by the low level client
+when the response is received.

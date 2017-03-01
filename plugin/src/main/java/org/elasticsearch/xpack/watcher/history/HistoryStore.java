@@ -106,9 +106,11 @@ public class HistoryStore extends AbstractComponent {
         } catch (VersionConflictEngineException vcee) {
             watchRecord = new WatchRecord.MessageWatchRecord(watchRecord, ExecutionState.EXECUTED_MULTIPLE_TIMES,
                     "watch record [{ " + watchRecord.id() + " }] has been stored before, previous state [" + watchRecord.state() + "]");
-            IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
-                    .source(XContentFactory.jsonBuilder().value(watchRecord));
-            client.index(request, (TimeValue) null);
+            try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+                IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
+                        .source(xContentBuilder.value(watchRecord));
+                client.index(request, (TimeValue) null);
+            }
         } catch (IOException ioe) {
             throw ioException("failed to persist watch record [{}]", ioe, watchRecord);
         } finally {

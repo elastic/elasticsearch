@@ -51,10 +51,6 @@ public class XContentSource implements ToXContent {
         this(builder.bytes(), builder.contentType());
     }
 
-    public XContentSource(ToXContent content) throws IOException {
-        this(content.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
-    }
-
     /**
      * @return The bytes reference of the source
      */

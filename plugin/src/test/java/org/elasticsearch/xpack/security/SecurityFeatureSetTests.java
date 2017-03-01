@@ -5,14 +5,12 @@
  */
 package org.elasticsearch.xpack.security;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackFeatureSet;
@@ -25,6 +23,11 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.junit.Before;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
@@ -156,7 +159,11 @@ public class SecurityFeatureSetTests extends ESTestCase {
             assertThat(usage.name(), is(XPackPlugin.SECURITY));
             assertThat(usage.enabled(), is(enabled));
             assertThat(usage.available(), is(authcAuthzAvailable));
-            XContentSource source = new XContentSource(usage);
+            XContentSource source;
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                source = new XContentSource(builder);
+            }
 
             if (enabled) {
                 if (authcAuthzAvailable) {

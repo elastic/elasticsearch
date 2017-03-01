@@ -117,7 +117,9 @@ public class WatchSourceBuilder extends ToXContentToBytes implements ToXContent 
     }
 
     public XContentSource build() throws IOException {
-        return new XContentSource(toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS));
+        try (XContentBuilder builder = jsonBuilder()) {
+            return new XContentSource(toXContent(builder, ToXContent.EMPTY_PARAMS));
+        }
     }
 
     @Override

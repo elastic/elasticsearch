@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -56,13 +55,16 @@ public class RestHijackOperationAction extends WatcherRestHandler {
         if (request.hasParam("id")) {
             request.param("id");
         }
-        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-        jsonBuilder.startObject().field("error", "This endpoint is not supported for " +
-                request.method().name() + " on " + Watch.INDEX + " index. Please use " +
-                request.method().name() + " " + URI_BASE + "/watch/<watch_id> instead");
-        jsonBuilder.field("status", RestStatus.BAD_REQUEST.getStatus());
-        jsonBuilder.endObject();
-        return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, jsonBuilder));
+        return channel -> {
+            try (XContentBuilder builder = channel.newErrorBuilder()) {
+                builder.startObject().field("error", "This endpoint is not supported for " +
+                        request.method().name() + " on " + Watch.INDEX + " index. Please use " +
+                        request.method().name() + " " + URI_BASE + "/watch/<watch_id> instead");
+                builder.field("status", RestStatus.BAD_REQUEST.getStatus());
+                builder.endObject();
+                channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, builder));
+            }
+        };
     }
 
     private static class UnsupportedHandler extends WatcherRestHandler {
@@ -77,14 +79,16 @@ public class RestHijackOperationAction extends WatcherRestHandler {
             if (request.hasParam("id")) {
                 request.param("id");
             }
-            XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-            jsonBuilder.startObject().field("error", "This endpoint is not supported for " +
-                    request.method().name() + " on " + Watch.INDEX + " index.");
-            jsonBuilder.field("status", RestStatus.BAD_REQUEST.getStatus());
-            jsonBuilder.endObject();
-            return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, jsonBuilder));
+
+            return channel -> {
+                try (XContentBuilder builder = channel.newErrorBuilder()) {
+                    builder.startObject().field("error", "This endpoint is not supported for " +
+                            request.method().name() + " on " + Watch.INDEX + " index.");
+                    builder.field("status", RestStatus.BAD_REQUEST.getStatus());
+                    builder.endObject();
+                    channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, builder));
+                }
+            };
         }
-
     }
-
 }

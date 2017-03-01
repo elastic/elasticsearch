@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackFeatureSet;
@@ -21,6 +19,11 @@ import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
@@ -99,7 +102,11 @@ public class MonitoringFeatureSetTests extends ESTestCase {
         for (XPackFeatureSet.Usage usage : Arrays.asList(monitoringUsage, serializedUsage)) {
             assertThat(usage.name(), is(featureSet.name()));
             assertThat(usage.enabled(), is(featureSet.enabled()));
-            XContentSource source = new XContentSource(usage);
+            XContentSource source;
+            try (XContentBuilder builder = jsonBuilder()) {
+                usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                source = new XContentSource(builder);
+            }
             assertThat(source.getValue("enabled_exporters"), is(notNullValue()));
             if (localCount > 0) {
                 assertThat(source.getValue("enabled_exporters.local"), is(localCount));

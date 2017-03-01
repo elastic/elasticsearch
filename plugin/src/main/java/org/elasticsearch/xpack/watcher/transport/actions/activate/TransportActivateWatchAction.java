@@ -109,14 +109,16 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
     }
 
     private XContentBuilder activateWatchBuilder(boolean active, DateTime now) throws IOException {
-        XContentBuilder builder = jsonBuilder().startObject()
-                .startObject(Watch.Field.STATUS.getPreferredName())
-                .startObject(WatchStatus.Field.STATE.getPreferredName())
-                .field(WatchStatus.Field.ACTIVE.getPreferredName(), active);
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject()
+                    .startObject(Watch.Field.STATUS.getPreferredName())
+                    .startObject(WatchStatus.Field.STATE.getPreferredName())
+                    .field(WatchStatus.Field.ACTIVE.getPreferredName(), active);
 
-        writeDate(WatchStatus.Field.TIMESTAMP.getPreferredName(), builder, now);
-        builder.endObject().endObject().endObject();
-        return builder;
+            writeDate(WatchStatus.Field.TIMESTAMP.getPreferredName(), builder, now);
+            builder.endObject().endObject().endObject();
+            return builder;
+        }
     }
 
     @Override

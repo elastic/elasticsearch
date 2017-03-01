@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -109,7 +110,9 @@ public class TriggeredWatchStore extends AbstractComponent {
         for (TriggeredWatch triggeredWatch : triggeredWatches) {
             try {
                 IndexRequest indexRequest = new IndexRequest(INDEX_NAME, DOC_TYPE, triggeredWatch.id().value());
-                indexRequest.source(XContentFactory.jsonBuilder().value(triggeredWatch));
+                try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+                    indexRequest.source(xContentBuilder.value(triggeredWatch));
+                }
                 indexRequest.opType(IndexRequest.OpType.CREATE);
                 request.add(indexRequest);
             } catch (IOException e) {
@@ -141,7 +144,9 @@ public class TriggeredWatchStore extends AbstractComponent {
             BulkRequest request = new BulkRequest();
             for (TriggeredWatch triggeredWatch : triggeredWatches) {
                 IndexRequest indexRequest = new IndexRequest(INDEX_NAME, DOC_TYPE, triggeredWatch.id().value());
-                indexRequest.source(XContentFactory.jsonBuilder().value(triggeredWatch));
+                try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+                    indexRequest.source(xContentBuilder.value(triggeredWatch));
+                }
                 indexRequest.opType(IndexRequest.OpType.CREATE);
                 request.add(indexRequest);
             }

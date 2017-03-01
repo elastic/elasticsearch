@@ -13,6 +13,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -87,18 +88,23 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         indexRequest.id(docId);
 
         data = addTimestampToDocument(data, ctx.executionTime());
-        indexRequest.source(jsonBuilder().prettyPrint().map(data));
+        IndexResponse response;
+        BytesReference bytesReference;
+        try (XContentBuilder builder = jsonBuilder()) {
+            indexRequest.source(builder.prettyPrint().map(data));
+        }
 
         if (ctx.simulateAction(actionId)) {
             return new IndexAction.Simulated(indexRequest.index(), action.docType, docId, new XContentSource(indexRequest.source(),
                     XContentType.JSON));
         }
 
-        IndexResponse response = client.index(indexRequest, timeout);
-        XContentBuilder jsonBuilder = jsonBuilder();
-        indexResponseToXContent(jsonBuilder, response);
-
-        return new IndexAction.Result(Status.SUCCESS, new XContentSource(jsonBuilder));
+        response = client.index(indexRequest, timeout);
+        try (XContentBuilder builder = jsonBuilder()) {
+            indexResponseToXContent(builder, response);
+            bytesReference = builder.bytes();
+        }
+        return new IndexAction.Result(Status.SUCCESS, new XContentSource(bytesReference, XContentType.JSON));
     }
 
     Action.Result indexBulk(Iterable list, String actionId, WatchExecutionContext ctx) throws Exception {
@@ -121,24 +127,27 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
                 indexRequest.id(doc.remove(ID_FIELD).toString());
             }
             doc = addTimestampToDocument(doc, ctx.executionTime());
-            indexRequest.source(jsonBuilder().prettyPrint().map(doc));
+            try (XContentBuilder builder = jsonBuilder()) {
+                indexRequest.source(builder.prettyPrint().map(doc));
+            }
             bulkRequest.add(indexRequest);
         }
         BulkResponse bulkResponse = client.bulk(bulkRequest, action.timeout);
-        XContentBuilder jsonBuilder = jsonBuilder().startArray();
-        for (BulkItemResponse item : bulkResponse) {
-            itemResponseToXContent(jsonBuilder, item);
-        }
-        jsonBuilder.endArray();
+        try (XContentBuilder jsonBuilder = jsonBuilder().startArray()) {
+            for (BulkItemResponse item : bulkResponse) {
+                itemResponseToXContent(jsonBuilder, item);
+            }
+            jsonBuilder.endArray();
 
-        // different error states, depending on how successful the bulk operation was
-        long failures = Stream.of(bulkResponse.getItems()).filter(BulkItemResponse::isFailed).count();
-        if (failures == 0) {
-            return new IndexAction.Result(Status.SUCCESS, new XContentSource(jsonBuilder.bytes(), XContentType.JSON));
-        } else if (failures == bulkResponse.getItems().length) {
-            return new IndexAction.Result(Status.FAILURE, new XContentSource(jsonBuilder.bytes(), XContentType.JSON));
-        } else {
-            return new IndexAction.Result(Status.PARTIAL_FAILURE, new XContentSource(jsonBuilder.bytes(), XContentType.JSON));
+            // different error states, depending on how successful the bulk operation was
+            long failures = Stream.of(bulkResponse.getItems()).filter(BulkItemResponse::isFailed).count();
+            if (failures == 0) {
+                return new IndexAction.Result(Status.SUCCESS, new XContentSource(jsonBuilder.bytes(), XContentType.JSON));
+            } else if (failures == bulkResponse.getItems().length) {
+                return new IndexAction.Result(Status.FAILURE, new XContentSource(jsonBuilder.bytes(), XContentType.JSON));
+            } else {
+                return new IndexAction.Result(Status.PARTIAL_FAILURE, new XContentSource(jsonBuilder.bytes(), XContentType.JSON));
+            }
         }
     }
 

@@ -41,6 +41,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
@@ -153,7 +154,7 @@ public class BulkProcessor implements Closeable {
         }
 
         /**
-         *
+         * Sets an optional thread pool on which to schedules flush actions and request retries
          */
         public Builder setThreadPool(ThreadPool threadPool) {
             this.threadPool = threadPool;
@@ -188,7 +189,6 @@ public class BulkProcessor implements Closeable {
 
 
     private final ScheduledExecutorService schedulerToStop;
-    private final Retry.Scheduler scheduler;
     private final Runnable cancelTask;
 
     private final AtomicLong executionIdGen = new AtomicLong();
@@ -205,15 +205,17 @@ public class BulkProcessor implements Closeable {
         this.bulkSize = bulkSize.getBytes();
         this.bulkRequest = new BulkRequest();
 
+        Retry.Scheduler scheduler;
         if (threadPool == null) {
-            ScheduledThreadPoolExecutor scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(settings, (name != null ? "[" + name + "]" : "") + "bulk_processor"));
-            scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
-            scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-            this.schedulerToStop = scheduler;
-            this.scheduler = Retry.Scheduler.fromScheduledExecutorService(scheduler);
+            ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, (name != null ? "[" + name + "]" : "") + "bulk_processor");
+            ScheduledThreadPoolExecutor scheduledExecutor = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, threadFactory);
+            scheduledExecutor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+            scheduledExecutor.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+            this.schedulerToStop = scheduledExecutor;
+            scheduler = Retry.Scheduler.fromScheduledExecutorService(scheduledExecutor);
         } else {
             this.schedulerToStop = null;
-            this.scheduler = Retry.Scheduler.fromThreadPool(threadPool);
+            scheduler = Retry.Scheduler.fromThreadPool(threadPool);
         }
 
         if (concurrentRequests == 0) {
@@ -328,7 +330,7 @@ public class BulkProcessor implements Closeable {
         return this;
     }
 
-    private Runnable startFlush(@Nullable TimeValue flushInterval, @Nullable ThreadPool threadPool) {
+    private Runnable startFlush(TimeValue flushInterval, ThreadPool threadPool) {
         if (flushInterval == null) {
             return () -> {};
         }

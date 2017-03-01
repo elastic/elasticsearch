@@ -20,24 +20,44 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.bulk.BulkProcessor;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.Before;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class BulkProcessorIntegTest extends ESRestTestCase {
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-    private static RestHighLevelClient restHighLevelClient;
+public class BulkProcessorIntegTest extends ESTestCase {
 
-    @Before
-    public void initHighLevelClient() throws IOException {
-        super.initClient();
-        if (restHighLevelClient == null) {
-            restHighLevelClient = new RestHighLevelClient(client());
-        }
-    }
+    private RestHighLevelClient restHighLevelClient;
 
-    public void testThing() {
-        BulkProcessor.builder(restHighLevelClient::bulkAsync, null, null, null);
+    public void testSuccess() throws IOException {
+        RestHighLevelClient restHighLevelClient = mock(RestHighLevelClient.class);
+
+        when(restHighLevelClient.bulk(any())).thenReturn(null);
+
+
+        BulkProcessor processor = new BulkProcessor.Builder(restHighLevelClient::bulkAsync, new BulkProcessor.Listener() {
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {
+                System.out.println(request);
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                System.out.println(response);
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+
+            }
+        }, Settings.EMPTY).build();
+
+        processor.flush();
     }
 }

@@ -23,11 +23,14 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Stack;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 
@@ -123,4 +126,75 @@ public final class XContentTestUtils {
         }
     }
 
+    public static List<String> getInsertPaths(XContentParser parser) throws IOException{
+        if (parser.currentToken() == null) {
+            parser.nextToken();
+        }
+        return getInsertPaths(parser, new Stack<String>());
+    }
+
+    private static List<String> getInsertPaths(XContentParser parser, Stack<String> currentPath) throws IOException {
+        assert (parser.currentToken() == XContentParser.Token.START_OBJECT || parser.currentToken() == XContentParser.Token.START_ARRAY);
+        List<String> validPaths = new ArrayList<>();
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            if (parser.currentName() != null) {
+                currentPath.push(parser.currentName());
+            }
+            validPaths.add(String.join(".", currentPath.toArray(new String[currentPath.size()])));
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                if (parser.currentToken() == XContentParser.Token.START_OBJECT
+                        || parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                    validPaths.addAll(getInsertPaths(parser, currentPath));
+                }
+            }
+            if (parser.currentName() != null) {
+                currentPath.pop();
+            }
+        } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+            currentPath.push(parser.currentName());
+            int itemCount = 0;
+            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                if (parser.currentToken() == XContentParser.Token.START_OBJECT
+                        || parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                    currentPath.push(Integer.toString(itemCount));
+                    validPaths.addAll(getInsertPaths(parser, currentPath));
+                    currentPath.pop();
+                }
+                itemCount++;
+            }
+            currentPath.pop();
+        }
+        return validPaths;
+    }
+
+    public static XContentBuilder insertIntoXContent(XContentParser original, List<String> paths, Supplier<String> key,
+            Supplier<Object> value) throws IOException {
+        Map<String, Object> originalMap = original.mapOrdered();
+        for (String path : paths) {
+            Object insertObject = originalMap;
+            // an empty path means we want to insert into this map directly
+            if (path.isEmpty() == false) {
+                String[] pathParts = path.contains(".") ? path.split("\\.") : new String[] { path };
+                for (String pathPart : pathParts) {
+                    if (insertObject instanceof Map) {
+                        insertObject = ((Map<String, Object>) insertObject).get(pathPart);
+                        if (insertObject == null) {
+                            throw new IllegalStateException("Not a valid insert path: " + paths);
+                        }
+                    } else if (insertObject instanceof List) {
+                        int position = Integer.parseInt(pathPart);
+                        List<Object> insertList = (List<Object>) insertObject;
+                        if (position > insertList.size()) {
+                            throw new IllegalStateException("Not a valid insert path: " + paths);
+                        }
+                        insertObject = insertList.get(position);
+                    }
+                }
+            }
+            ((Map<String, Object>) insertObject).put(key.get(), value.get());
+        }
+        XContentBuilder builder = XContentBuilder.builder(original.contentType().xContent());
+        builder.map(originalMap);
+        return builder;
+    }
 }

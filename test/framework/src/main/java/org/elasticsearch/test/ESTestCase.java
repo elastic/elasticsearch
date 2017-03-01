@@ -97,7 +97,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
@@ -139,12 +138,9 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -909,6 +905,75 @@ public abstract class ESTestCase extends LuceneTestCase {
             try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
                 return builder.bytes();
             }
+        }
+    }
+
+    /**
+     * This method takes the input xContent data and adds a random field value, inner object or array into each
+     * json object. This can e.g. be used to test if parsers that handle the resulting xContent can handle the
+     * augmented xContent correctly, for example when testing lenient parsing.
+     *
+     * If the xContent output contains objects that should be skipped of such treatment, an optional filtering
+     * {@link Predicate} can be supplied that checks xContent paths that should be excluded from this treatment.
+     *
+     * This predicate should check the xContent path that we want to insert to and return <tt>true</tt> if the
+     * path should be excluded. Paths are string concatenating field names and array indices, so e.g. in:
+     *
+     * <pre>
+     * {
+     *      "foo1 : {
+     *          "bar" : [
+     *              { ... },
+     *              { ... },
+     *              {
+     *                  "baz" : {
+     *                      // insert here
+     *                  }
+     *              }
+     *          ]
+     *      }
+     * }
+     * </pre>
+     *
+     * "foo1.bar.2.baz" would point to the desired insert location.
+     *
+     * To exclude inserting into the "foo1" object we would user a {@link Predicate} like
+     * <pre>
+     * {@code
+     *      (path) -> path.endsWith("foo1")
+     * }
+     * </pre>
+     *
+     * or if we don't want any random insertions in the "foo1" tree we could use
+     * <pre>
+     * {@code
+     *      (path) -> path.contains("foo1")
+     * }
+     * </pre>
+     */
+    public XContentBuilder insertRandomFields(XContentType contentType, BytesReference xContent, Predicate<String> excludeFilter)
+            throws IOException {
+        List<String> insertPaths = new ArrayList<>();
+        if (excludeFilter == null) {
+            excludeFilter = path -> false;
+        }
+        try (XContentParser parser = createParser(contentType.xContent(), xContent)) {
+            List<String> possiblePaths = XContentTestUtils.getInsertPaths(parser);
+            possiblePaths.stream().filter(excludeFilter.negate()).forEach(insertPaths::add);
+        }
+        try (XContentParser parser = createParser(contentType.xContent(), xContent)) {
+            Supplier<Object> value = () -> {
+                if (randomBoolean()) {
+                    return randomAlphaOfLength(10);
+                } else {
+                    if (randomBoolean()) {
+                        return Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10));
+                    } else {
+                        return Collections.singletonList(randomAlphaOfLength(10));
+                    }
+                }
+            };
+            return XContentTestUtils.insertIntoXContent(parser, insertPaths, () -> randomAlphaOfLength(10), value);
         }
     }
 

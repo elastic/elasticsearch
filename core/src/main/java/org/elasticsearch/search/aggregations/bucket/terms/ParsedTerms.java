@@ -136,6 +136,7 @@ public abstract class ParsedTerms extends ParsedMultiBucketAggregation<ParsedTer
                         bucket.showDocCountError = true;
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
+                    System.out.println(parser.currentName());
                     aggregations.add(XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class));
                 }
             }

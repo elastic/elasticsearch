@@ -57,6 +57,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -374,16 +375,19 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testWildcardFilteredRawMetadataFromPdf() throws Exception {
+        // Randomly add an explicit field name in addition to wildcards "pdf:PDFVersion"
+        HashSet<String> fields = Sets.newHashSet("pdf:*");
+        if (rarely()) {
+            fields.add("pdf:PDFVersion");
+        }
+
         processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
-            Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("pdf:*")));
+            Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(fields));
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
         // We check that we have all expected field starting with "pdf:"
-        assertThat(attachmentData, hasEntry("pdf:PDFVersion", "1.4"));
-        assertThat(attachmentData, hasEntry("pdf:docinfo:creator_tool", "Writer"));
-        assertThat(attachmentData, hasEntry("pdf:encrypted", "false"));
-        assertThat(attachmentData, hasEntry("pdf:docinfo:producer", "LibreOffice 5.2"));
-        assertThat(attachmentData, hasEntry("pdf:docinfo:created", "2016-09-30T13:19:58Z"));
+        assertThat(attachmentData.keySet(), containsInAnyOrder("pdf:PDFVersion", "pdf:docinfo:creator_tool", "pdf:encrypted",
+            "pdf:docinfo:producer", "pdf:docinfo:created"));
 
         // We check that we did not extract any other field
         assertThat(attachmentData, not(hasKey("X-Parsed-By")));
@@ -398,7 +402,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(attachmentData, hasEntry("pdf:PDFVersion", "1.4"));
 
         // We check that we did not extract any other field
-        assertThat(attachmentData, not(hasKey("pdf:encrypted")));
+        assertThat(attachmentData.keySet(), iterableWithSize(1));
     }
 
     public void testRawMetadataWith2FiltersFromPdf() throws Exception {
@@ -407,27 +411,13 @@ public class AttachmentProcessorTests extends ESTestCase {
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
         // We check that we have only expected fields
+        assertThat(attachmentData.keySet(), containsInAnyOrder("pdf:PDFVersion", "pdf:encrypted"));
+
         assertThat(attachmentData, hasEntry("pdf:PDFVersion", "1.4"));
         assertThat(attachmentData, hasEntry("pdf:encrypted", "false"));
 
         // We check that we did not extract any other field
         assertThat(attachmentData, not(hasKey("pdf:docinfo:creator_tool")));
-    }
-
-    public void testWildcardAndFiltersRawMetadataFromPdf() throws Exception {
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
-            Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("pdf:PDFVersion", "pdf:*")));
-        Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
-
-        // We check that we have all expected field starting with "pdf:"
-        assertThat(attachmentData, hasEntry("pdf:PDFVersion", "1.4"));
-        assertThat(attachmentData, hasEntry("pdf:docinfo:creator_tool", "Writer"));
-        assertThat(attachmentData, hasEntry("pdf:encrypted", "false"));
-        assertThat(attachmentData, hasEntry("pdf:docinfo:producer", "LibreOffice 5.2"));
-        assertThat(attachmentData, hasEntry("pdf:docinfo:created", "2016-09-30T13:19:58Z"));
-
-        // We check that we did not extract any other field
-        assertThat(attachmentData, not(hasKey("X-Parsed-By")));
     }
 
     public void testFilteredRawMetadataPlusSomeReservedFieldsFromPdf() throws Exception {
@@ -438,11 +428,8 @@ public class AttachmentProcessorTests extends ESTestCase {
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
         // We check that we have all expected field starting with "pdf:"
-        assertThat(attachmentData, hasEntry("pdf:PDFVersion", "1.4"));
-        assertThat(attachmentData, hasEntry("pdf:docinfo:creator_tool", "Writer"));
-        assertThat(attachmentData, hasEntry("pdf:encrypted", "false"));
-        assertThat(attachmentData, hasEntry("pdf:docinfo:producer", "LibreOffice 5.2"));
-        assertThat(attachmentData, hasEntry("pdf:docinfo:created", "2016-09-30T13:19:58Z"));
+        assertThat(attachmentData.keySet(), containsInAnyOrder("pdf:PDFVersion", "pdf:docinfo:creator_tool", "pdf:encrypted",
+            "pdf:docinfo:producer", "pdf:docinfo:created"));
 
         // We check that we did not extract any other field
         assertThat(attachmentData, not(hasKey("X-Parsed-By")));

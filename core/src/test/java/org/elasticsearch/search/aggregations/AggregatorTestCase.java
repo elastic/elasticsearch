@@ -125,13 +125,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         SearchLookup searchLookup = new SearchLookup(mapperService, ifds, new String[]{"type"});
         when(searchContext.lookup()).thenReturn(searchLookup);
 
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        for (MappedFieldType fieldType : fieldTypes) {
-            when(queryShardContext.fieldMapper(fieldType.name())).thenReturn(fieldType);
-            when(queryShardContext.getForField(fieldType)).then(invocation -> fieldType.fielddataBuilder().build(
-                    indexSettings, fieldType, new IndexFieldDataCache.None(), circuitBreakerService, mock(MapperService.class)));
-            when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
-        }
+        QueryShardContext queryShardContext = queryShardContextMock(fieldTypes, indexSettings, circuitBreakerService);
+        when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
 
         @SuppressWarnings("unchecked")
         A aggregator = (A) aggregationBuilder.build(searchContext, null).create(null, true);
@@ -143,6 +138,20 @@ public abstract class AggregatorTestCase extends ESTestCase {
      */
     protected MapperService mapperServiceMock() {
         return mock(MapperService.class);
+    }
+
+    /**
+     * sub-tests that need a more complex mock can overwrite this
+     */
+    protected QueryShardContext queryShardContextMock(MappedFieldType[] fieldTypes, IndexSettings indexSettings,
+            CircuitBreakerService circuitBreakerService) {
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        for (MappedFieldType fieldType : fieldTypes) {
+            when(queryShardContext.fieldMapper(fieldType.name())).thenReturn(fieldType);
+            when(queryShardContext.getForField(fieldType)).then(invocation -> fieldType.fielddataBuilder().build(indexSettings, fieldType,
+                    new IndexFieldDataCache.None(), circuitBreakerService, mock(MapperService.class)));
+        }
+        return queryShardContext;
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A search(IndexSearcher searcher,

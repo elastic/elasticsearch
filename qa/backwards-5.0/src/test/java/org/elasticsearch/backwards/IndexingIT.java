@@ -21,14 +21,12 @@ package org.elasticsearch.backwards;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -36,7 +34,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -50,13 +47,6 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexingIT extends ESRestTestCase {
-
-    private ObjectPath objectPath(Response response) throws IOException {
-        String body = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
-        String contentType = response.getHeader("Content-Type");
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(contentType);
-        return ObjectPath.createFromXContent(xContentType.xContent(), body);
-    }
 
     private void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
@@ -272,7 +262,7 @@ public class IndexingIT extends ESRestTestCase {
     private void assertCount(final String index, final String preference, final int expectedCount) throws IOException {
         final Response response = client().performRequest("GET", index + "/_count", Collections.singletonMap("preference", preference));
         assertOK(response);
-        final int actualCount = Integer.parseInt(objectPath(response).evaluate("count").toString());
+        final int actualCount = Integer.parseInt(ObjectPath.createFromResponse(response).evaluate("count").toString());
         assertThat(actualCount, equalTo(expectedCount));
     }
 
@@ -280,7 +270,7 @@ public class IndexingIT extends ESRestTestCase {
         final Response response = client().performRequest("GET", index + "/test/" + docId,
                 Collections.singletonMap("preference", preference));
         assertOK(response);
-        final int actualVersion = Integer.parseInt(objectPath(response).evaluate("_version").toString());
+        final int actualVersion = Integer.parseInt(ObjectPath.createFromResponse(response).evaluate("_version").toString());
         assertThat("version mismatch for doc [" + docId + "] preference [" + preference + "]", actualVersion, equalTo(expectedVersion));
     }
 
@@ -323,7 +313,7 @@ public class IndexingIT extends ESRestTestCase {
 
     private List<Shard> buildShards(Nodes nodes, RestClient client) throws IOException {
         Response response = client.performRequest("GET", "test/_stats", singletonMap("level", "shards"));
-        List<Object> shardStats = objectPath(response).evaluate("indices.test.shards.0");
+        List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices.test.shards.0");
         ArrayList<Shard> shards = new ArrayList<>();
         for (Object shard : shardStats) {
             final String nodeId = ObjectPath.evaluate(shard, "routing.node");
@@ -345,7 +335,7 @@ public class IndexingIT extends ESRestTestCase {
 
     private Nodes buildNodeAndVersions() throws IOException {
         Response response = client().performRequest("GET", "_nodes");
-        ObjectPath objectPath = objectPath(response);
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
         Nodes nodes = new Nodes();
         for (String id : nodesAsMap.keySet()) {
@@ -356,7 +346,7 @@ public class IndexingIT extends ESRestTestCase {
                 HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))));
         }
         response = client().performRequest("GET", "_cluster/state");
-        nodes.setMasterNodeId(objectPath(response).evaluate("master_node"));
+        nodes.setMasterNodeId(ObjectPath.createFromResponse(response).evaluate("master_node"));
         return nodes;
     }
 

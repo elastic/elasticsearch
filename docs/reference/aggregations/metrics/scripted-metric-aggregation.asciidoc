@@ -147,7 +147,7 @@ final combined profit which will be returned in the response of the aggregation.
 
 ==== Worked Example
 
-Imagine a situation where you index the following documents into and index with 2 shards:
+Imagine a situation where you index the following documents into an index with 2 shards:
 
 [source,js]
 --------------------------------------------------

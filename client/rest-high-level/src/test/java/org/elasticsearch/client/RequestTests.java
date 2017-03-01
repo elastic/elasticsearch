@@ -66,6 +66,14 @@ public class RequestTests extends ESTestCase {
         assertEquals("HEAD", request.method);
     }
 
+    public void testInfo() {
+        Request request = Request.info();
+        assertEquals("/", request.endpoint);
+        assertEquals(0, request.params.size());
+        assertNull(request.entity);
+        assertEquals("GET", request.method);
+    }
+
     public void testGet() {
         getAndExistsTest(Request::get, "GET");
     }

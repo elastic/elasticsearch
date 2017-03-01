@@ -118,8 +118,8 @@ setup:
 "Indices stats warns on percolate":
   - skip:
       features: "warnings"
-      version: " - 5.0.99"
-      reason:  The warning was introduced in 5.1
+      version: " - 5.2.99"
+      reason:  The warning was introduced in 5.1 and its format changed in 5.3.0
   - do:
       warnings:
           - 'percolate stats are no longer available and requests for percolate stats will fail starting in 6.0.0'

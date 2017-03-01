@@ -3,8 +3,8 @@
 
  - skip:
     features: "warnings"
-    version: " - 5.0.0"
-    reason:  headers were introduced in 5.0.1
+    version: " - 5.2.99"
+    reason: warning headers were introduced in 5.0.1 and their format changed in 5.3.0
 
  - do:
       warnings:

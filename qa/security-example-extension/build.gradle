@@ -57,6 +57,8 @@ integTestCluster {
   setting 'xpack.security.authc.realms.custom.filtered_setting', 'should be filtered'
   setting 'xpack.security.authc.realms.esusers.order', '1'
   setting 'xpack.security.authc.realms.esusers.type', 'file'
+  setting 'xpack.security.authc.realms.native.type', 'native'
+  setting 'xpack.security.authc.realms.native.order', '2'
 
   setupCommand 'setupDummyUser',
                'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'

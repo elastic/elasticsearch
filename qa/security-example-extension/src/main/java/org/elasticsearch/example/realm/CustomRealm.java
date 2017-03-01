@@ -21,8 +21,8 @@ public class CustomRealm extends Realm {
     public static final String USER_HEADER = "User";
     public static final String PW_HEADER = "Password";
 
-    static final String KNOWN_USER = "custom_user";
-    static final String KNOWN_PW = "changeme";
+    public static final String KNOWN_USER = "custom_user";
+    public static final String KNOWN_PW = "changeme";
     static final String[] ROLES = new String[] { "superuser" };
 
     public CustomRealm(RealmConfig config) {

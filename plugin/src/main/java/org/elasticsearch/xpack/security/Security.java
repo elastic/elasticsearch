@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
@@ -100,6 +101,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SetSecurityUserProcessor;
@@ -143,6 +145,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -329,8 +332,12 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService, licenseState);
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, licenseState, securityLifecycleService);
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
-        final CompositeRolesStore allRolesStore =
-                new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore, licenseState);
+        List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>> rolesProviders = new ArrayList<>();
+        for (XPackExtension extension : extensions) {
+            rolesProviders.addAll(extension.getRolesProviders(settings, resourceWatcherService));
+        }
+        final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
+            reservedRolesStore, rolesProviders, threadPool.getThreadContext(), licenseState);
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
         licenseState.addListener(allRolesStore::invalidateAll);

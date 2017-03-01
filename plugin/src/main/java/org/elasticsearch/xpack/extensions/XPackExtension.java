@@ -10,12 +10,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 
 
 /**
@@ -80,6 +84,31 @@ public abstract class XPackExtension {
      * desired setting.
      */
     public List<String> getSettingsFilter() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Returns an ordered list of role providers that are used to resolve role names
+     * to {@link RoleDescriptor} objects.  Each provider is invoked in order to
+     * resolve any role names not resolved by the reserved or native roles stores.
+     *
+     * Each role provider is represented as a {@link BiConsumer} which takes a set
+     * of roles to resolve as the first parameter to consume and an {@link ActionListener}
+     * as the second parameter to consume.  The implementation of the role provider
+     * should be asynchronous if the computation is lengthy or any disk and/or network
+     * I/O is involved.  The implementation is responsible for resolving whatever roles
+     * it can into a set of {@link RoleDescriptor} instances.  If successful, the
+     * implementation must invoke {@link ActionListener#onResponse(Object)} to pass along
+     * the resolved set of role descriptors.  If a failure was encountered, the
+     * implementation must invoke {@link ActionListener#onFailure(Exception)}.
+     *
+     * By default, an empty list is returned.
+     *
+     * @param settings The configured settings for the node
+     * @param resourceWatcherService Use to watch configuration files for changes
+     */
+    public List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>>
+    getRolesProviders(Settings settings, ResourceWatcherService resourceWatcherService) {
         return Collections.emptyList();
     }
 }

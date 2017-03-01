@@ -15,10 +15,12 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xpack.common.IteratingActionListener;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
@@ -32,12 +34,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.Security.setting;
@@ -70,10 +74,15 @@ public class CompositeRolesStore extends AbstractComponent {
     private final XPackLicenseState licenseState;
     private final Cache<Set<String>, Role> roleCache;
     private final Set<String> negativeLookupCache;
+    private final ThreadContext threadContext;
     private final AtomicLong numInvalidation = new AtomicLong();
+    private final List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>> customRolesProviders;
 
     public CompositeRolesStore(Settings settings, FileRolesStore fileRolesStore, NativeRolesStore nativeRolesStore,
-                               ReservedRolesStore reservedRolesStore, XPackLicenseState licenseState) {
+                               ReservedRolesStore reservedRolesStore,
+                               List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>> rolesProviders,
+                               ThreadContext threadContext,
+                               XPackLicenseState licenseState) {
         super(settings);
         this.fileRolesStore = fileRolesStore;
         // invalidating all on a file based role update is heavy handed to say the least, but in general this should be infrequent so the
@@ -88,7 +97,9 @@ public class CompositeRolesStore extends AbstractComponent {
             builder.setMaximumWeight(cacheSize);
         }
         this.roleCache = builder.build();
+        this.threadContext = threadContext;
         this.negativeLookupCache = ConcurrentCollections.newConcurrentSet();
+        this.customRolesProviders = Collections.unmodifiableList(rolesProviders);
     }
 
     public void roles(Set<String> roleNames, FieldPermissionsCache fieldPermissionsCache, ActionListener<Role> roleActionListener) {
@@ -141,9 +152,34 @@ public class CompositeRolesStore extends AbstractComponent {
                 if (builtInRoleDescriptors.size() != filteredRoleNames.size()) {
                     final Set<String> missing = difference(filteredRoleNames, builtInRoleDescriptors);
                     assert missing.isEmpty() == false : "the missing set should not be empty if the sizes didn't match";
-                    negativeLookupCache.addAll(missing);
+                    if (!customRolesProviders.isEmpty()) {
+                        new IteratingActionListener<>(roleDescriptorActionListener, (rolesProvider, listener) -> {
+                            // resolve descriptors with role provider
+                            rolesProvider.accept(missing, ActionListener.wrap((resolvedDescriptors) -> {
+                                builtInRoleDescriptors.addAll(resolvedDescriptors);
+                                // remove resolved descriptors from the set of roles still needed to be resolved
+                                for (RoleDescriptor descriptor : resolvedDescriptors) {
+                                    missing.remove(descriptor.getName());
+                                }
+                                if (missing.isEmpty()) {
+                                    // no more roles to resolve, send the response
+                                    listener.onResponse(Collections.unmodifiableSet(builtInRoleDescriptors));
+                                } else {
+                                    // still have roles to resolve, keep trying with the next roles provider
+                                    listener.onResponse(null);
+                                }
+                            }, listener::onFailure));
+                        }, customRolesProviders, threadContext, () -> {
+                            negativeLookupCache.addAll(missing);
+                            return builtInRoleDescriptors;
+                        }).run();
+                    } else {
+                        negativeLookupCache.addAll(missing);
+                        roleDescriptorActionListener.onResponse(Collections.unmodifiableSet(builtInRoleDescriptors));
+                    }
+                } else {
+                    roleDescriptorActionListener.onResponse(Collections.unmodifiableSet(builtInRoleDescriptors));
                 }
-                roleDescriptorActionListener.onResponse(Collections.unmodifiableSet(builtInRoleDescriptors));
             }, roleDescriptorActionListener::onFailure));
         }
     }

@@ -5,22 +5,35 @@
  */
 package org.elasticsearch.example;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.example.realm.CustomAuthenticationFailureHandler;
 import org.elasticsearch.example.realm.CustomRealm;
+import org.elasticsearch.example.role.CustomInMemoryRolesProvider;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.security.authc.Realm;
+import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.BiConsumer;
 
-public class ExampleRealmExtension extends XPackExtension {
+import static org.elasticsearch.example.role.CustomInMemoryRolesProvider.ROLE_A;
+import static org.elasticsearch.example.role.CustomInMemoryRolesProvider.ROLE_B;
+
+/**
+ * An example x-pack extension for testing custom realms and custom role providers.
+ */
+public class ExampleExtension extends XPackExtension {
 
     static {
         // check that the extension's policy works.
@@ -58,5 +71,16 @@ public class ExampleRealmExtension extends XPackExtension {
     @Override
     public List<String> getSettingsFilter() {
         return Collections.singletonList("xpack.security.authc.realms.*.filtered_setting");
+    }
+
+    @Override
+    public List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>>
+    getRolesProviders(Settings settings, ResourceWatcherService resourceWatcherService) {
+        CustomInMemoryRolesProvider rp1 = new CustomInMemoryRolesProvider(settings, Collections.singletonMap(ROLE_A, "read"));
+        Map<String, String> roles = new HashMap<>();
+        roles.put(ROLE_A, "all");
+        roles.put(ROLE_B, "all");
+        CustomInMemoryRolesProvider rp2 = new CustomInMemoryRolesProvider(settings, roles);
+        return Arrays.asList(rp1, rp2);
     }
 }

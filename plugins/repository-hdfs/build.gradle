@@ -42,7 +42,7 @@ dependencies {
   compile "org.apache.hadoop:hadoop-auth:${versions.hadoop2}"
   compile "org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}"
   compile 'org.apache.htrace:htrace-core:3.1.0-incubating'
-  compile 'com.google.guava:guava:16.0.1'
+  compile 'com.google.guava:guava:11.0.2'
   compile 'com.google.protobuf:protobuf-java:2.5.0'
   compile 'commons-logging:commons-logging:1.1.3'
   compile 'commons-cli:commons-cli:1.2'
@@ -338,9 +338,6 @@ thirdPartyAudit.excludes = [
   'org.apache.hadoop.security.SecurityUtil$QualifiedHostResolver',
 
   // internal java api: sun.misc.Unsafe
-  'com.google.common.cache.Striped64',
-  'com.google.common.cache.Striped64$1',
-  'com.google.common.cache.Striped64$Cell',
   'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator', 
   'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
   'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer',

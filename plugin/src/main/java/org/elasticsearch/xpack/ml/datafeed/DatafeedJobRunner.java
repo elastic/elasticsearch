@@ -41,6 +41,8 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -113,7 +115,7 @@ public class DatafeedJobRunner extends AbstractComponent {
         holder.future = threadPool.executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME).submit(() -> {
             Long next = null;
             try {
-                next = holder.datafeedJob.runLookBack(startTime, endTime);
+                next = holder.executeLoopBack(startTime, endTime);
             } catch (DatafeedJob.ExtractionProblemException e) {
                 if (endTime == null) {
                     next = e.nextDelayInMsSinceEpoch;
@@ -136,13 +138,13 @@ public class DatafeedJobRunner extends AbstractComponent {
                 }
             } catch (Exception e) {
                 logger.error("Failed lookback import for job [" + holder.datafeed.getJobId() + "]", e);
-                holder.stop("general_lookback_failure", e);
+                holder.stop("general_lookback_failure", TimeValue.timeValueSeconds(20), e);
                 return;
             }
             if (next != null) {
                 doDatafeedRealtime(next, holder.datafeed.getJobId(), holder);
             } else {
-                holder.stop("no_realtime", null);
+                holder.stop("no_realtime", TimeValue.timeValueSeconds(20), null);
                 holder.problemTracker.finishReport();
             }
         });
@@ -155,7 +157,7 @@ public class DatafeedJobRunner extends AbstractComponent {
             holder.future = threadPool.schedule(delay, MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME, () -> {
                 long nextDelayInMsSinceEpoch;
                 try {
-                    nextDelayInMsSinceEpoch = holder.datafeedJob.runRealtime();
+                    nextDelayInMsSinceEpoch = holder.executeRealTime();
                     holder.problemTracker.reportNoneEmptyCount();
                 } catch (DatafeedJob.ExtractionProblemException e) {
                     nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
@@ -168,11 +170,13 @@ public class DatafeedJobRunner extends AbstractComponent {
                     holder.problemTracker.reportEmptyDataCount();
                 } catch (Exception e) {
                     logger.error("Unexpected datafeed failure for job [" + jobId + "] stopping...", e);
-                    holder.stop("general_realtime_error", e);
+                    holder.stop("general_realtime_error", TimeValue.timeValueSeconds(20), e);
                     return;
                 }
                 holder.problemTracker.finishReport();
-                doDatafeedRealtime(nextDelayInMsSinceEpoch, jobId, holder);
+                if (nextDelayInMsSinceEpoch >= 0) {
+                    doDatafeedRealtime(nextDelayInMsSinceEpoch, jobId, holder);
+                }
             });
         }
     }
@@ -241,6 +245,8 @@ public class DatafeedJobRunner extends AbstractComponent {
     public class Holder {
 
         private final DatafeedConfig datafeed;
+        // To ensure that we wait until loopback / realtime search has completed before we stop the datafeed
+        private final ReentrantLock datafeedJobLock = new ReentrantLock(true);
         private final DatafeedJob datafeedJob;
         private final boolean autoCloseJob;
         private final ProblemTracker problemTracker;
@@ -260,10 +266,12 @@ public class DatafeedJobRunner extends AbstractComponent {
             return datafeedJob.isRunning();
         }
 
-        public void stop(String source, Exception e) {
+        public void stop(String source, TimeValue timeout, Exception e) {
             logger.info("[{}] attempt to stop datafeed [{}] for job [{}]", source, datafeed.getId(), datafeed.getJobId());
             if (datafeedJob.stop()) {
+                boolean acquired = false;
                 try {
+                    acquired = datafeedJobLock.tryLock(timeout.millis(), TimeUnit.MILLISECONDS);
                     logger.info("[{}] stopping datafeed [{}] for job [{}]...", source, datafeed.getId(), datafeed.getJobId());
                     FutureUtils.cancel(future);
                     auditor.info(datafeed.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
@@ -271,11 +279,42 @@ public class DatafeedJobRunner extends AbstractComponent {
                     if (autoCloseJob) {
                         closeJob();
                     }
+                } catch (InterruptedException e1) {
+                    Thread.currentThread().interrupt();
                 } finally {
                     handler.accept(e);
+                    if (acquired) {
+                        datafeedJobLock.unlock();
+                    }
                 }
             } else {
                 logger.info("[{}] datafeed [{}] for job [{}] was already stopped", source, datafeed.getId(), datafeed.getJobId());
+            }
+        }
+
+        private Long executeLoopBack(long startTime, Long endTime) throws Exception {
+            datafeedJobLock.lock();
+            try {
+                if (isRunning()) {
+                    return datafeedJob.runLookBack(startTime, endTime);
+                } else {
+                    return null;
+                }
+            } finally {
+                datafeedJobLock.unlock();
+            }
+        }
+
+        private long executeRealTime() throws Exception {
+            datafeedJobLock.lock();
+            try {
+                if (isRunning()) {
+                    return datafeedJob.runRealtime();
+                } else {
+                    return -1L;
+                }
+            } finally {
+                datafeedJobLock.unlock();
             }
         }
 

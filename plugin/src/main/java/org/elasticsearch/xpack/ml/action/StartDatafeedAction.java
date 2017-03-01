@@ -49,11 +49,11 @@ import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.persistent.NodePersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentActionRegistry;
 import org.elasticsearch.xpack.persistent.PersistentActionRequest;
 import org.elasticsearch.xpack.persistent.PersistentActionResponse;
 import org.elasticsearch.xpack.persistent.PersistentActionService;
-import org.elasticsearch.xpack.persistent.NodePersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTasks;
 import org.elasticsearch.xpack.persistent.PersistentTasks.Assignment;
 import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
@@ -265,12 +265,15 @@ public class StartDatafeedAction
             stop();
         }
 
-        /* public for testing */
         public void stop() {
+            stop(TimeValue.timeValueSeconds(20));
+        }
+
+        public void stop(TimeValue timeout) {
             if (holder == null) {
                 throw new IllegalStateException("task cancel ran before datafeed runner assigned the holder");
             }
-            holder.stop("cancel", null);
+            holder.stop("cancel", timeout, null);
         }
     }
 

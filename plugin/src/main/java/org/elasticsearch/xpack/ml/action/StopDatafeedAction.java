@@ -99,6 +99,7 @@ public class StopDatafeedAction
         public Request(String jobId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(jobId, DatafeedConfig.ID.getPreferredName());
             setActions(StartDatafeedAction.NAME);
+            setTimeout(TimeValue.timeValueSeconds(20));
         }
 
         Request() {
@@ -251,7 +252,7 @@ public class StopDatafeedAction
 
         @Override
         protected void taskOperation(Request request, StartDatafeedAction.DatafeedTask task, ActionListener<Response> listener) {
-            task.stop();
+            task.stop(request.getTimeout());
             listener.onResponse(new Response(true));
         }
 

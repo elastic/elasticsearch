@@ -44,7 +44,8 @@ import java.io.IOException;
  * Then in the documentation, you can extract what is between tag and end tags with
  * ["source","java",subs="attributes,callouts"]
  * --------------------------------------------------
- * sys2::[perl -ne 'exit if /end::example/; print if $tag; $tag = $tag || /tag::example/' {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/DeleteDocumentationIT.java]
+ * sys2::[perl -ne 'exit if /end::example/; print if $tag; $tag = $tag || /tag::example/' \
+ *     {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/DeleteDocumentationIT.java]
  * --------------------------------------------------
  */
 public class DeleteDocumentationIT extends ESRestHighLevelClientTestCase {

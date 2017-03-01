@@ -12,11 +12,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.XPackSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
@@ -45,7 +42,6 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.EnumSet;
@@ -63,7 +59,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
+public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     private static final String JOB_ID = "foo";
 
     private Renormalizer renormalizer;
@@ -71,19 +67,6 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
     private JobProvider jobProvider;
     private List<ModelSnapshot> capturedUpdateModelSnapshotOnJobRequests;
     private AutoDetectResultProcessor resultProcessor;
-
-    @Override
-    protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings())
-                .put(super.nodeSettings())
-                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-                .build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(XPackPlugin.class);
-    }
 
     @Before
     public void createComponents() {

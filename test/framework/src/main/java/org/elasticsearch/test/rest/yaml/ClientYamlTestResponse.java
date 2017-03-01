@@ -85,7 +85,7 @@ public class ClientYamlTestResponse {
             if (header.getName().equals("Warning")) {
                 if (nodeVersion.onOrAfter(Version.V_5_3_0_UNRELEASED) && response.getRequestLine().getMethod().equals("GET")
                     && response.getRequestLine().getUri().contains("source")
-                    && response.getRequestLine().getUri().contains("source_content_type") == false && header.getValue().startsWith(
+                    && response.getRequestLine().getUri().contains("source_content_type") == false && header.getValue().contains(
                         "Deprecated use of the [source] parameter without the [source_content_type] parameter.")) {
                     // this is because we do not send the source content type header when the node is 5.3.0 or below and the request
                     // might have been sent to a node with a version > 5.3.0 when running backwards 5.0 tests. The Java RestClient

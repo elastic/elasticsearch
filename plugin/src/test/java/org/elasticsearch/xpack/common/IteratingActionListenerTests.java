@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.common;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.HppcMaps.Object;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 
@@ -46,11 +48,50 @@ public class IteratingActionListenerTests extends ESTestCase {
         }, (e) -> {
             logger.error("unexpected exception", e);
             fail("exception should not have been thrown");
-        }), consumer, items);
+        }), consumer, items, new ThreadContext(Settings.EMPTY));
         iteratingListener.run();
 
         // we never really went async, its all chained together so verify this for sanity
         assertEquals(numberOfIterations, iterations.get());
+    }
+
+    public void testIterationDoesntAllowThreadContextLeak() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final int numberOfItems = scaledRandomIntBetween(1, 32);
+        final int numberOfIterations = scaledRandomIntBetween(1, numberOfItems);
+        List<Object> items = new ArrayList<>(numberOfItems);
+        for (int i = 0; i < numberOfItems; i++) {
+            items.add(new Object());
+        }
+
+        threadContext.putHeader("outside", "listener");
+        final AtomicInteger iterations = new AtomicInteger(0);
+        final BiConsumer<Object, ActionListener<Object>> consumer = (listValue, listener) -> {
+            final int current = iterations.incrementAndGet();
+            assertEquals("listener", threadContext.getHeader("outside"));
+            if (current == numberOfIterations) {
+                threadContext.putHeader("foo", "bar");
+                listener.onResponse(items.get(current - 1));
+            } else {
+                listener.onResponse(null);
+            }
+        };
+
+        IteratingActionListener<Object, Object> iteratingListener = new IteratingActionListener<>(ActionListener.wrap((object) -> {
+            assertNotNull(object);
+            assertThat(object, sameInstance(items.get(numberOfIterations - 1)));
+            assertEquals("bar", threadContext.getHeader("foo"));
+            assertEquals("listener", threadContext.getHeader("outside"));
+        }, (e) -> {
+            logger.error("unexpected exception", e);
+            fail("exception should not have been thrown");
+        }), consumer, items, threadContext);
+        iteratingListener.run();
+
+        // we never really went async, its all chained together so verify this for sanity
+        assertEquals(numberOfIterations, iterations.get());
+        assertNull(threadContext.getHeader("foo"));
+        assertEquals("listener", threadContext.getHeader("outside"));
     }
 
     public void testIterationEmptyList() {
@@ -60,7 +101,7 @@ public class IteratingActionListenerTests extends ESTestCase {
                     fail("exception should not have been thrown");
                 }), (listValue, iteratingListener) -> {
                     fail("consumer should not have been called!!!");
-                }, Collections.emptyList());
+                }, Collections.emptyList(), new ThreadContext(Settings.EMPTY));
         listener.run();
     }
 
@@ -88,7 +129,7 @@ public class IteratingActionListenerTests extends ESTestCase {
         }, (e) -> {
             assertEquals("expected exception", e.getMessage());
             assertTrue(onFailureCalled.compareAndSet(false, true));
-        }), consumer, items);
+        }), consumer, items, new ThreadContext(Settings.EMPTY));
         iteratingListener.run();
 
         // we never really went async, its all chained together so verify this for sanity

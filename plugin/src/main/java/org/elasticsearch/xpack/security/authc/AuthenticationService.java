@@ -251,7 +251,7 @@ public class AuthenticationService extends AbstractComponent {
                 final IteratingActionListener<User, Realm> authenticatingListener =
                         new IteratingActionListener<>(ActionListener.wrap(this::consumeUser,
                                 (e) -> listener.onFailure(request.exceptionProcessingRequest(e, token))),
-                        realmAuthenticatingConsumer, realmsList);
+                        realmAuthenticatingConsumer, realmsList, threadContext);
                 try {
                     authenticatingListener.run();
                 } catch (Exception e) {
@@ -352,7 +352,7 @@ public class AuthenticationService extends AbstractComponent {
             final IteratingActionListener<User, Realm> userLookupListener =
                     new IteratingActionListener<>(ActionListener.wrap((lookupUser) -> userConsumer.accept(new User(user, lookupUser)),
                             (e) -> listener.onFailure(request.exceptionProcessingRequest(e, authenticationToken))),
-                            realmLookupConsumer, realmsList);
+                            realmLookupConsumer, realmsList, threadContext);
             try {
                 userLookupListener.run();
             } catch (Exception e) {

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.common;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.Collections;
 import java.util.List;
@@ -27,13 +28,16 @@ public final class IteratingActionListener<T, U> implements ActionListener<T>, R
     private final List<U> consumables;
     private final ActionListener<T> delegate;
     private final BiConsumer<U, ActionListener<T>> consumer;
+    private final ThreadContext threadContext;
 
     private int position = 0;
 
-    public IteratingActionListener(ActionListener<T> delegate, BiConsumer<U, ActionListener<T>> consumer, List<U> consumables) {
+    public IteratingActionListener(ActionListener<T> delegate, BiConsumer<U, ActionListener<T>> consumer, List<U> consumables,
+                                   ThreadContext threadContext) {
         this.delegate = delegate;
         this.consumer = consumer;
         this.consumables = Collections.unmodifiableList(consumables);
+        this.threadContext = threadContext;
     }
 
     @Override
@@ -43,25 +47,35 @@ public final class IteratingActionListener<T, U> implements ActionListener<T>, R
         } else if (position < 0 || position >= consumables.size()) {
             onFailure(new IllegalStateException("invalid position [" + position + "]. List size [" + consumables.size() + "]"));
         } else {
-            consumer.accept(consumables.get(position++), this);
+            try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
+                consumer.accept(consumables.get(position++), this);
+            }
         }
     }
 
     @Override
     public void onResponse(T response) {
-        if (response == null) {
-            if (position == consumables.size()) {
-                delegate.onResponse(null);
+        // we need to store the context here as there is a chance that this method is called from a thread outside of the ThreadPool
+        // like a LDAP connection reader thread and we can pollute the context in certain cases
+        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
+            if (response == null) {
+                if (position == consumables.size()) {
+                    delegate.onResponse(null);
+                } else {
+                    consumer.accept(consumables.get(position++), this);
+                }
             } else {
-                consumer.accept(consumables.get(position++), this);
+                delegate.onResponse(response);
             }
-        } else {
-            delegate.onResponse(response);
         }
     }
 
     @Override
     public void onFailure(Exception e) {
-        delegate.onFailure(e);
+        // we need to store the context here as there is a chance that this method is called from a thread outside of the ThreadPool
+        // like a LDAP connection reader thread and we can pollute the context in certain cases
+        try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
+            delegate.onFailure(e);
+        }
     }
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -38,6 +39,9 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -50,6 +54,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonMap;
 
@@ -577,6 +582,100 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         assertTrue(bulkResponse.getTookInMillis() > 0);
         assertEquals(nbItems, bulkResponse.getItems().length);
 
+        validateBulkResponses(nbItems, errors, bulkResponse, bulkRequest);
+    }
+
+    public void testBulkProcessorIntegration() throws IOException, InterruptedException {
+        int nbItems = randomIntBetween(10, 100);
+        boolean[] errors = new boolean[nbItems];
+
+        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+
+        AtomicReference<BulkResponse> responseRef = new AtomicReference<>();
+        AtomicReference<BulkRequest> requestRef = new AtomicReference<>();
+        AtomicReference<Throwable> error = new AtomicReference<>();
+
+        BulkProcessor processor = new BulkProcessor.Builder(highLevelClient()::bulkAsync, new BulkProcessor.Listener() {
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {
+
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                responseRef.set(response);
+                requestRef.set(request);
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                error.set(failure);
+            }
+        }, Settings.EMPTY)
+            .setConcurrentRequests(0)
+            .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.GB))
+            .setBulkActions(nbItems + 1000)
+            .build();
+
+        for (int i = 0; i < nbItems; i++) {
+            String id = String.valueOf(i);
+            boolean erroneous = randomBoolean();
+            errors[i] = erroneous;
+
+            DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
+            if (opType == DocWriteRequest.OpType.DELETE) {
+                if (erroneous == false) {
+                    assertEquals(RestStatus.CREATED,
+                        highLevelClient().index(new IndexRequest("index", "test", id).source("field", -1)).status());
+                }
+                DeleteRequest deleteRequest = new DeleteRequest("index", "test", id);
+                processor.add(deleteRequest);
+
+            } else {
+                BytesReference source = XContentBuilder.builder(xContentType.xContent()).startObject().field("id", i).endObject().bytes();
+                if (opType == DocWriteRequest.OpType.INDEX) {
+                    IndexRequest indexRequest = new IndexRequest("index", "test", id).source(source, xContentType);
+                    if (erroneous) {
+                        indexRequest.version(12L);
+                    }
+                    processor.add(indexRequest);
+
+                } else if (opType == DocWriteRequest.OpType.CREATE) {
+                    IndexRequest createRequest = new IndexRequest("index", "test", id).source(source, xContentType).create(true);
+                    if (erroneous) {
+                        assertEquals(RestStatus.CREATED, highLevelClient().index(createRequest).status());
+                    }
+                    processor.add(createRequest);
+
+                } else if (opType == DocWriteRequest.OpType.UPDATE) {
+                    UpdateRequest updateRequest = new UpdateRequest("index", "test", id)
+                        .doc(new IndexRequest().source(source, xContentType));
+                    if (erroneous == false) {
+                        assertEquals(RestStatus.CREATED,
+                            highLevelClient().index(new IndexRequest("index", "test", id).source("field", -1)).status());
+                    }
+                    processor.add(updateRequest);
+                }
+            }
+        }
+
+        assertNull(responseRef.get());
+        assertNull(requestRef.get());
+
+        processor.flush();
+
+        BulkResponse bulkResponse = responseRef.get();
+        BulkRequest bulkRequest = requestRef.get();
+
+        assertEquals(RestStatus.OK, bulkResponse.status());
+        assertTrue(bulkResponse.getTookInMillis() > 0);
+        assertEquals(nbItems, bulkResponse.getItems().length);
+        assertNull(error.get());
+
+        validateBulkResponses(nbItems, errors, bulkResponse, bulkRequest);
+    }
+
+    private void validateBulkResponses(int nbItems, boolean[] errors, BulkResponse bulkResponse, BulkRequest bulkRequest) {
         for (int i = 0; i < nbItems; i++) {
             BulkItemResponse bulkItemResponse = bulkResponse.getItems()[i];
 

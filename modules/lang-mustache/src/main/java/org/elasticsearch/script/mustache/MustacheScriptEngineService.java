@@ -20,15 +20,16 @@ package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheFactory;
+
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.GeneralScriptException;
@@ -52,7 +53,8 @@ import java.util.Map;
  * process: First compile the string representing the template, the resulting
  * {@link Mustache} object can then be re-used for subsequent executions.
  */
-public final class MustacheScriptEngineService extends AbstractComponent implements ScriptEngineService {
+public final class MustacheScriptEngineService implements ScriptEngineService {
+    private static final Logger logger = ESLoggerFactory.getLogger(MustacheScriptEngineService.class);
 
     public static final String NAME = "mustache";
 
@@ -69,13 +71,6 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
         }
         writer.reset();
         return writer;
-    }
-
-    /**
-     * @param settings automatically wired by Guice.
-     * */
-    public MustacheScriptEngineService(Settings settings) {
-        super(settings);
     }
 
     /**

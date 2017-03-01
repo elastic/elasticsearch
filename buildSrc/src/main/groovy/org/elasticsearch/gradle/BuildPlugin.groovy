@@ -464,7 +464,7 @@ class BuildPlugin implements Plugin<Project> {
                         'Build-Java-Version': project.javaVersion)
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {
                     logger.warn('Building without git revision id.')
-                    jarTask.manifest.attributes('Change': 'N/A')
+                    jarTask.manifest.attributes('Change': 'Unknown')
                 }
             }
         }

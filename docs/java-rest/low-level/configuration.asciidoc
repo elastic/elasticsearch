@@ -1,4 +1,4 @@
-== Common configuration
+=== Common configuration
 
 The `RestClientBuilder` supports providing both a `RequestConfigCallback` and
 an `HttpClientConfigCallback` which allow for any customization that the Apache
@@ -8,7 +8,7 @@ configuration that the `RestClient` is initialized with. This section
 describes some common scenarios that require additional configuration for the
 low-level Java REST Client.
 
-=== Timeouts
+==== Timeouts
 
 Configuring requests timeouts can be done by providing an instance of
 `RequestConfigCallback` while building the `RestClient` through its builder.
@@ -34,7 +34,7 @@ RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
         .build();
 --------------------------------------------------
 
-=== Number of threads
+==== Number of threads
 
 The Apache Http Async Client starts by default one dispatcher thread, and a
 number of worker threads used by the connection manager, as many as the number
@@ -55,7 +55,7 @@ RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
         .build();
 --------------------------------------------------
 
-=== Basic authentication
+==== Basic authentication
 
 Configuring basic authentication can be done by providing an
 `HttpClientConfigCallback` while building the `RestClient` through its builder.
@@ -104,7 +104,7 @@ RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
         .build();
 --------------------------------------------------
 
-=== Encrypted communication
+==== Encrypted communication
 
 Encrypted communication can also be configured through the
 `HttpClientConfigCallback`. The
@@ -130,7 +130,7 @@ RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
         .build();
 --------------------------------------------------
 
-=== Others
+==== Others
 
 For any other required configuration needed, the Apache HttpAsyncClient docs
 should be consulted: https://hc.apache.org/httpcomponents-asyncclient-4.1.x/ .

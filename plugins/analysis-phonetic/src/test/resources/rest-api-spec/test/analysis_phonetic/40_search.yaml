@@ -26,13 +26,13 @@
                                 analyzer: my_analyzer
 
     - do:
-      index:
-          index:  phonetic_sample
-          type:   type
-          id:     1
-          body:   { "text": "hello world" }
+        index:
+            index:  phonetic_sample
+            type:   type
+            id:     1
+            body:   { "text": "hello world" }
     - do:
-      indices.refresh: {}
+        indices.refresh: {}
 
     - do:
         search:

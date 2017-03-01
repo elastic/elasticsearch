@@ -24,6 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -75,6 +76,8 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -205,6 +208,20 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             throw new CorruptIndexException("Hit unexpected exception while reading segment infos", "commit(" + commit + ")", ex);
         }
 
+    }
+
+    /**
+     * Loads the local checkpoint and the maximum sequence number from the latest Lucene commit point and returns the triplet of local and
+     * global checkpoints, and maximum sequence number as an instance of {@link SeqNoStats}. The global checkpoint must be provided
+     * externally as it is not stored in the commit point.
+     *
+     * @param globalCheckpoint the provided global checkpoint
+     * @return an instance of {@link SeqNoStats} populated with the local and global checkpoints, and the maximum sequence number
+     * @throws IOException if an I/O exception occurred reading the latest Lucene commit point from disk
+     */
+    public SeqNoStats loadSeqNoStats(final long globalCheckpoint) throws IOException {
+        final Map<String, String> userData = SegmentInfos.readLatestCommit(directory).getUserData();
+        return SequenceNumbers.loadSeqNoStatsFromLuceneCommit(globalCheckpoint, userData.entrySet());
     }
 
     final void ensureOpen() {
@@ -338,7 +355,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Decreases the refCount of this Store instance.If the refCount drops to 0, then this
+     * Decreases the refCount of this Store instance. If the refCount drops to 0, then this
      * store is closed.
      *
      * @see #incRef
@@ -841,7 +858,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 Logger logger, Version version, boolean readFileAsHash) throws IOException {
             final String checksum;
             final BytesRefBuilder fileHash = new BytesRefBuilder();
-            try (final IndexInput in = directory.openInput(file, IOContext.READONCE)) {
+            try (IndexInput in = directory.openInput(file, IOContext.READONCE)) {
                 final long length;
                 try {
                     length = in.length();
@@ -1177,11 +1194,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         private final byte[] checksum = new byte[8];
         private long verifiedPosition = 0;
 
-        public VerifyingIndexInput(IndexInput input) {
+        VerifyingIndexInput(IndexInput input) {
             this(input, new BufferedChecksum(new CRC32()));
         }
 
-        public VerifyingIndexInput(IndexInput input, Checksum digest) {
+        VerifyingIndexInput(IndexInput input, Checksum digest) {
             super("VerifyingIndexInput(" + input + ")");
             this.input = input;
             this.digest = digest;
@@ -1349,7 +1366,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private static class StoreStatsCache extends SingleObjectCache<StoreStats> {
         private final Directory directory;
 
-        public StoreStatsCache(TimeValue refreshInterval, Directory directory) throws IOException {
+        StoreStatsCache(TimeValue refreshInterval, Directory directory) throws IOException {
             super(refreshInterval, new StoreStats(estimateSize(directory)));
             this.directory = directory;
         }

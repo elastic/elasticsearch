@@ -29,18 +29,14 @@ import org.apache.lucene.search.suggest.document.TopSuggestDocs;
 import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggester;
-import org.elasticsearch.search.suggest.SuggestionBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -112,7 +108,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
             private List<TopSuggestDocs.SuggestScoreDoc> suggestScoreDocs;
 
-            public SuggestDoc(int doc, CharSequence key, CharSequence context, float score) {
+            SuggestDoc(int doc, CharSequence key, CharSequence context, float score) {
                 super(doc, key, context, score);
             }
 
@@ -156,7 +152,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
         private static final class SuggestDocPriorityQueue extends PriorityQueue<SuggestDoc> {
 
-            public SuggestDocPriorityQueue(int maxSize) {
+            SuggestDocPriorityQueue(int maxSize) {
                 super(maxSize);
             }
 
@@ -188,8 +184,10 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         private final SuggestDocPriorityQueue pq;
         private final Map<Integer, SuggestDoc> scoreDocMap;
 
-        public TopDocumentsCollector(int num) {
-            super(1); // TODO hack, we don't use the underlying pq, so we allocate a size of 1
+        // TODO: expose dup removal
+        
+        TopDocumentsCollector(int num) {
+            super(1, false); // TODO hack, we don't use the underlying pq, so we allocate a size of 1
             this.num = num;
             this.scoreDocMap = new LinkedHashMap<>(num);
             this.pq = new SuggestDocPriorityQueue(num);
@@ -240,15 +238,5 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 return TopSuggestDocs.EMPTY;
             }
         }
-    }
-
-    @Override
-    public SuggestionBuilder<?> innerFromXContent(QueryParseContext context) throws IOException {
-        return CompletionSuggestionBuilder.innerFromXContent(context);
-    }
-
-    @Override
-    public SuggestionBuilder<?> read(StreamInput in) throws IOException {
-        return new CompletionSuggestionBuilder(in);
     }
 }

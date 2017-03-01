@@ -157,19 +157,19 @@ public class EnableAllocationDecider extends AllocationDecider {
             case ALL:
                 return allocation.decision(Decision.YES, NAME, "all rebalancing is allowed");
             case NONE:
-                return allocation.decision(Decision.NO, NAME, "no rebalancing is allowed due to {}", setting(enable, usedIndexSetting));
+                return allocation.decision(Decision.NO, NAME, "no rebalancing is allowed due to %s", setting(enable, usedIndexSetting));
             case PRIMARIES:
                 if (shardRouting.primary()) {
                     return allocation.decision(Decision.YES, NAME, "primary rebalancing is allowed");
                 } else {
-                    return allocation.decision(Decision.NO, NAME, "replica rebalancing is forbidden due to {}",
+                    return allocation.decision(Decision.NO, NAME, "replica rebalancing is forbidden due to %s",
                                                 setting(enable, usedIndexSetting));
                 }
             case REPLICAS:
                 if (shardRouting.primary() == false) {
                     return allocation.decision(Decision.YES, NAME, "replica rebalancing is allowed");
                 } else {
-                    return allocation.decision(Decision.NO, NAME, "primary rebalancing is forbidden due to {}",
+                    return allocation.decision(Decision.NO, NAME, "primary rebalancing is forbidden due to %s",
                                                 setting(enable, usedIndexSetting));
                 }
             default:
@@ -178,10 +178,12 @@ public class EnableAllocationDecider extends AllocationDecider {
     }
 
     private static String setting(Allocation allocation, boolean usedIndexSetting) {
-        StringBuilder buf = new StringBuilder("[");
+        StringBuilder buf = new StringBuilder();
         if (usedIndexSetting) {
+            buf.append("index setting [");
             buf.append(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey());
         } else {
+            buf.append("cluster setting [");
             buf.append(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey());
         }
         buf.append("=").append(allocation.toString().toLowerCase(Locale.ROOT)).append("]");
@@ -189,10 +191,12 @@ public class EnableAllocationDecider extends AllocationDecider {
     }
 
     private static String setting(Rebalance rebalance, boolean usedIndexSetting) {
-        StringBuilder buf = new StringBuilder("[");
+        StringBuilder buf = new StringBuilder();
         if (usedIndexSetting) {
+            buf.append("index setting [");
             buf.append(INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey());
         } else {
+            buf.append("cluster setting [");
             buf.append(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey());
         }
         buf.append("=").append(rebalance.toString().toLowerCase(Locale.ROOT)).append("]");

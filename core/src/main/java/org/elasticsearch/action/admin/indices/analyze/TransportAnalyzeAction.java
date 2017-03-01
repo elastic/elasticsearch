@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
@@ -52,6 +53,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.AllFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -130,10 +132,17 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 }
                 MappedFieldType fieldType = indexService.mapperService().fullName(request.field());
                 if (fieldType != null) {
-                    if (fieldType.tokenized() == false) {
+                    if (fieldType.tokenized()) {
+                        analyzer = fieldType.indexAnalyzer();
+                    } else if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+                        analyzer = ((KeywordFieldMapper.KeywordFieldType) fieldType).normalizer();
+                        if (analyzer == null) {
+                            // this will be KeywordAnalyzer
+                            analyzer = fieldType.indexAnalyzer();
+                        }
+                    } else {
                         throw new IllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are only supported on tokenized fields");
                     }
-                    analyzer = fieldType.indexAnalyzer();
                     field = fieldType.name();
                 }
             }
@@ -218,13 +227,15 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 PositionIncrementAttribute posIncr = stream.addAttribute(PositionIncrementAttribute.class);
                 OffsetAttribute offset = stream.addAttribute(OffsetAttribute.class);
                 TypeAttribute type = stream.addAttribute(TypeAttribute.class);
+                PositionLengthAttribute posLen = stream.addAttribute(PositionLengthAttribute.class);
 
                 while (stream.incrementToken()) {
                     int increment = posIncr.getPositionIncrement();
                     if (increment > 0) {
                         lastPosition = lastPosition + increment;
                     }
-                    tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(), lastOffset + offset.endOffset(), type.type(), null));
+                    tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(),
+                        lastOffset + offset.endOffset(), posLen.getPositionLength(), type.type(), null));
 
                 }
                 stream.end();
@@ -381,6 +392,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 PositionIncrementAttribute posIncr = stream.addAttribute(PositionIncrementAttribute.class);
                 OffsetAttribute offset = stream.addAttribute(OffsetAttribute.class);
                 TypeAttribute type = stream.addAttribute(TypeAttribute.class);
+                PositionLengthAttribute posLen = stream.addAttribute(PositionLengthAttribute.class);
 
                 while (stream.incrementToken()) {
                     int increment = posIncr.getPositionIncrement();
@@ -388,7 +400,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                         lastPosition = lastPosition + increment;
                     }
                     tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(),
-                        lastOffset + offset.endOffset(), type.type(), extractExtendedAttributes(stream, includeAttributes)));
+                        lastOffset + offset.endOffset(), posLen.getPositionLength(), type.type(), extractExtendedAttributes(stream, includeAttributes)));
 
                 }
                 stream.end();

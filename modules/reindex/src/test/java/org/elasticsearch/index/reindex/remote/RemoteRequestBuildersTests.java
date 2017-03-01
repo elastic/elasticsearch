@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -113,7 +114,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
 
         // Test request without any fields
-        Version remoteVersion = Version.fromId(between(Version.V_2_0_0_beta1_ID, Version.CURRENT.id));
+        Version remoteVersion = VersionUtils.randomVersion(random());
         assertThat(initialSearchParams(searchRequest, remoteVersion),
                 not(either(hasKey("stored_fields")).or(hasKey("fields"))));
 
@@ -121,16 +122,12 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         searchRequest.source().storedField("_source").storedField("_id");
 
         // Test stored_fields for versions that support it
-        remoteVersion = Version.fromId(between(Version.V_5_0_0_alpha4_ID, Version.CURRENT.id));
+        remoteVersion = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0_alpha4, null);
         assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("stored_fields", "_source,_id"));
 
         // Test fields for versions that support it
-        remoteVersion = Version.fromId(between(Version.V_2_0_0_beta1_ID, Version.V_5_0_0_alpha4_ID - 1));
+        remoteVersion = VersionUtils.randomVersionBetween(random(), null, Version.V_5_0_0_alpha3);
         assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("fields", "_source,_id"));
-
-        // Test extra fields for versions that need it
-        remoteVersion = Version.fromId(between(0, Version.V_2_0_0_beta1_ID - 1));
-        assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("fields", "_source,_id,_parent,_routing,_ttl"));
     }
 
     public void testInitialSearchParamsMisc() {
@@ -155,20 +152,29 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertThat(params, scroll == null ? not(hasKey("scroll")) : hasEntry("scroll", scroll.toString()));
         assertThat(params, hasEntry("size", Integer.toString(size)));
         assertThat(params, fetchVersion == null || fetchVersion == true ? hasEntry("version", null) : not(hasEntry("version", null)));
-        assertThat(params, hasEntry("_source", "true"));
     }
 
     public void testInitialSearchEntity() throws IOException {
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.source(new SearchSourceBuilder());
         String query = "{\"match_all\":{}}";
-        HttpEntity entity = initialSearchEntity(new BytesArray(query));
+        HttpEntity entity = initialSearchEntity(searchRequest, new BytesArray(query));
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
-        assertEquals("{\"query\":" + query + "}",
+        assertEquals("{\"query\":" + query + ",\"_source\":true}",
+                Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+
+        // Source filtering is included if set up
+        searchRequest.source().fetchSource(new String[] {"in1", "in2"}, new String[] {"out"});
+        entity = initialSearchEntity(searchRequest, new BytesArray(query));
+        assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
+        assertEquals("{\"query\":" + query + ",\"_source\":{\"includes\":[\"in1\",\"in2\"],\"excludes\":[\"out\"]}}",
                 Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
 
         // Invalid XContent fails
-        RuntimeException e = expectThrows(RuntimeException.class, () -> initialSearchEntity(new BytesArray("{}, \"trailing\": {}")));
+        RuntimeException e = expectThrows(RuntimeException.class,
+                () -> initialSearchEntity(searchRequest, new BytesArray("{}, \"trailing\": {}")));
         assertThat(e.getCause().getMessage(), containsString("Unexpected character (',' (code 44))"));
-        e = expectThrows(RuntimeException.class, () -> initialSearchEntity(new BytesArray("{")));
+        e = expectThrows(RuntimeException.class, () -> initialSearchEntity(searchRequest, new BytesArray("{")));
         assertThat(e.getCause().getMessage(), containsString("Unexpected end-of-input"));
     }
 
@@ -180,7 +186,8 @@ public class RemoteRequestBuildersTests extends ESTestCase {
     public void testScrollEntity() throws IOException {
         String scroll = randomAsciiOfLength(30);
         HttpEntity entity = scrollEntity(scroll);
-        assertEquals(ContentType.TEXT_PLAIN.toString(), entity.getContentType().getValue());
-        assertEquals(scroll, Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+        assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
+        assertThat(Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)),
+            containsString("\"" + scroll + "\""));
     }
 }

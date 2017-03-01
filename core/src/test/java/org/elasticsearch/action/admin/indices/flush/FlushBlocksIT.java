@@ -46,7 +46,7 @@ public class FlushBlocksIT extends ESIntegTestCase {
         }
 
         // Request is not blocked
-        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
+        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
             try {
                 enableIndexBlock("test", blockSetting);
                 FlushResponse response = client().admin().indices().prepareFlush("test").execute().actionGet();
@@ -55,29 +55,6 @@ public class FlushBlocksIT extends ESIntegTestCase {
             } finally {
                 disableIndexBlock("test", blockSetting);
             }
-        }
-
-        // Request is blocked
-        for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
-            try {
-                enableIndexBlock("test", blockSetting);
-                FlushResponse flushResponse = client().admin().indices().prepareFlush("test").get();
-                assertBlocked(flushResponse);
-            } finally {
-                disableIndexBlock("test", blockSetting);
-            }
-        }
-
-        // Flushing all indices is blocked when the cluster is read-only
-        try {
-            FlushResponse response = client().admin().indices().prepareFlush().execute().actionGet();
-            assertNoFailures(response);
-            assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
-
-            setClusterReadOnly(true);
-            assertBlocked(client().admin().indices().prepareFlush().get());
-        } finally {
-            setClusterReadOnly(false);
         }
     }
 }

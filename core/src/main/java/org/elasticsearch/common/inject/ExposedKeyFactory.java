@@ -33,7 +33,7 @@ class ExposedKeyFactory<T> implements InternalFactory<T>, BindingProcessor.Creat
     private final PrivateElements privateElements;
     private BindingImpl<T> delegate;
 
-    public ExposedKeyFactory(Key<T> key, PrivateElements privateElements) {
+    ExposedKeyFactory(Key<T> key, PrivateElements privateElements) {
         this.key = key;
         this.privateElements = privateElements;
     }

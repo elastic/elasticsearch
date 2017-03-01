@@ -20,3 +20,6 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+
+Filter clauses are executed in <<query-filter-context,filter context>>,
+meaning that scoring is ignored and clauses are considered for caching.

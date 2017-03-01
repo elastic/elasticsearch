@@ -396,7 +396,7 @@ public class AllocationService extends AbstractComponent {
         }
 
         /**
-         * thre resulting cluster state, after the commands were applied
+         * the resulting cluster state, after the commands were applied
          */
         public ClusterState getClusterState() {
             return clusterState;

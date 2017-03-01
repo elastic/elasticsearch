@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -44,7 +43,6 @@ public class RestUpdateAction extends BaseRestHandler {
     private static final DeprecationLogger DEPRECATION_LOGGER =
         new DeprecationLogger(Loggers.getLogger(RestUpdateAction.class));
 
-    @Inject
     public RestUpdateAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_update", this);
@@ -80,13 +78,12 @@ public class RestUpdateAction extends BaseRestHandler {
         updateRequest.versionType(VersionType.fromString(request.param("version_type"), updateRequest.versionType()));
 
 
-        // see if we have it in the body
-        if (request.hasContent()) {
-            updateRequest.fromXContent(request.content());
+        request.applyContentParser(parser -> {
+            updateRequest.fromXContent(parser);
             IndexRequest upsertRequest = updateRequest.upsertRequest();
             if (upsertRequest != null) {
                 upsertRequest.routing(request.param("routing"));
-                upsertRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+                upsertRequest.parent(request.param("parent"));
                 upsertRequest.version(RestActions.parseVersion(request));
                 upsertRequest.versionType(VersionType.fromString(request.param("version_type"), upsertRequest.versionType()));
             }
@@ -97,9 +94,10 @@ public class RestUpdateAction extends BaseRestHandler {
                 doc.version(RestActions.parseVersion(request));
                 doc.versionType(VersionType.fromString(request.param("version_type"), doc.versionType()));
             }
-        }
+        });
 
         return channel ->
-            client.update(updateRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(updateRequest.routing())));
+                client.update(updateRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(updateRequest.routing())));
     }
+
 }

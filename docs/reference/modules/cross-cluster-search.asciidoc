@@ -1,0 +1,134 @@
+[[modules-cross-cluster-search]]
+== Cross cluster search
+
+experimental[]
+
+The _cross cluster search_ feature allows any node to act as a federated client across
+multiple clusters. In contrast to the _tribe_ feature, a  _cross cluster search_ node won't
+join the remote cluster, instead it connects to a remote cluster in a light fashion in order to execute
+federated search requests.
+
+The _cross cluster search_ feature works by configuring a remote cluster in the cluster state and connects only to a
+limited number of nodes in the remote cluster. Each remote cluster is referenced by a name and a list of seed nodes.
+Those seed nodes are used to discover other nodes eligible as so-called _gateway nodes_. Each node in a cluster that
+has remote clusters configured connects to one or more _gateway nodes_ and uses them to federate search requests to
+the remote cluster.
+
+Remote clusters can either be configured as part of the `elasticsearch.yml` file or be dynamically updated via
+the <<cluster-update-settings,cluster settings API>>. If a remote cluster is configured via `elasticsearch.yml` only
+the nodes with the configuration set will be connecting to the remote cluster in which case federated search requests
+will have to be sent specifically to those nodes. Remote clusters set via the
+<<cluster-update-settings,cluster settings API>> will be available on every node in the cluster.
+
+The `elasticsearch.yml` config file for a _cross cluster search_ node just needs to list the
+remote clusters that should be connected to, for instance:
+
+[source,yaml]
+--------------------------------
+search:
+    remote:
+        cluster_one: <1>
+            seeds: 127.0.0.1:9300
+        cluster_two: <1>
+            seeds: 127.0.0.1:9301
+
+--------------------------------
+<1> `cluster_one` and `cluster_two` are arbitrary cluster aliases representing the connection to each cluster.
+These names are subsequently used to distinguish between local and remote indices.
+
+[float]
+=== Using cross cluster search
+
+To search the `twitter` index on remote cluster `cluster_1` the index name must be prefixed with the cluster alias
+separated by a `:` character:
+
+[source,js]
+--------------------------------------------------
+POST /cluster_one:twitter/tweet/_search
+{
+    "match_all": {}
+}
+--------------------------------------------------
+
+In contrast to the `tribe` feature cross cluster search can also search indices with the same name on different
+clusters:
+
+[source,js]
+--------------------------------------------------
+POST /cluster_one:twitter,twitter/tweet/_search
+{
+    "match_all": {}
+}
+--------------------------------------------------
+
+Search results are disambiguated the same way as the indices are disambiguated in the request. Even if index names are
+identical these indices will be treated as different indices when results are merged. All results retrieved from a
+remote index
+will be prefixed with their remote cluster name:
+
+[source,js]
+--------------------------------------------------
+ {
+  "took" : 89,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 10,
+    "successful" : 10,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : 2,
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "cluster_one:twitter",
+        "_type" : "tweet",
+        "_id" : "1",
+        "_score" : 1.0,
+        "_source" : {
+          "user" : "kimchy",
+          "postDate" : "2009-11-15T14:12:12",
+          "message" : "trying out Elasticsearch"
+        }
+      },
+      {
+        "_index" : "twitter",
+        "_type" : "tweet",
+        "_id" : "1",
+        "_score" : 1.0,
+        "_source" : {
+          "user" : "kimchy",
+          "postDate" : "2009-11-15T14:12:12",
+          "message" : "trying out Elasticsearch"
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+
+[float]
+=== Cross cluster search settings
+
+`search.remote.connections_per_cluster`::
+
+  The number of nodes to connect to per remote cluster. The default is `3`.
+
+`search.remote.initial_connect_timeout`::
+
+  The time to wait for remote connections to be established when the node starts. The default is `30s`.
+
+`search.remote.node.attr`::
+
+  A node attribute to filter out nodes that are eligible as a gateway node in
+  the remote cluster. For instance a node can have a node attribute
+  `node.attr.gateway: true` such that only nodes with this attribute will be
+  connected to if `search.remote.node.attr` is set to `gateway`.
+
+`search.remote.connect`::
+ By default, any node in the cluster can act as a cross-cluster client and connect to remote clusters.
+ The `search.remote.connect` setting can be set to `false` (defaults to `true`) to prevent certain nodes from
+ connecting to remote clusters. Cross-cluster search requests must be sent to a node that is allowed to act as a
+ cross-cluster client.
+
+

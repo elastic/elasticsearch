@@ -19,18 +19,15 @@ x * Licensed to Elasticsearch under one or more contributor
 
 package org.elasticsearch.search.sort;
 
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
@@ -44,24 +41,19 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 
 public class SortBuilderTests extends ESTestCase {
-
     private static final int NUMBER_OF_RUNS = 20;
 
-    protected static NamedWriteableRegistry namedWriteableRegistry;
-
-    static IndicesQueriesRegistry indicesQueriesRegistry;
+    private static NamedXContentRegistry xContentRegistry;
 
     @BeforeClass
     public static void init() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
-        namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-        indicesQueriesRegistry = searchModule.getQueryParserRegistry();
+        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
-        namedWriteableRegistry = null;
-        indicesQueriesRegistry = null;
+        xContentRegistry = null;
     }
 
     /**
@@ -238,9 +230,14 @@ public class SortBuilderTests extends ESTestCase {
         assertEquals(new ScoreSortBuilder(), result.get(5));
     }
 
-    private static List<SortBuilder<?>> parseSort(String jsonString) throws IOException {
-        XContentParser itemParser = XContentHelper.createParser(new BytesArray(jsonString));
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
+    }
+
+    private List<SortBuilder<?>> parseSort(String jsonString) throws IOException {
+        XContentParser itemParser = createParser(JsonXContent.jsonXContent, jsonString);
+        QueryParseContext context = new QueryParseContext(itemParser);
 
         assertEquals(XContentParser.Token.START_OBJECT, itemParser.nextToken());
         assertEquals(XContentParser.Token.FIELD_NAME, itemParser.nextToken());

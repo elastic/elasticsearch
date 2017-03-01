@@ -21,9 +21,8 @@ package org.elasticsearch.search.sort;
 
 
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 
@@ -62,26 +61,26 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
     public void testParseOrder() throws IOException {
         SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
         String scoreSortString = "{ \"_score\": { \"order\": \""+ order.toString() +"\" }}";
-        XContentParser parser = XContentFactory.xContent(scoreSortString).createParser(scoreSortString);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, scoreSortString);
         // need to skip until parser is located on second START_OBJECT
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(parser);
         ScoreSortBuilder scoreSort = ScoreSortBuilder.fromXContent(context, "_score");
         assertEquals(order, scoreSort.order());
     }
 
     public void testReverseOptionFails() throws IOException {
         String json = "{ \"_score\": { \"reverse\": true }}";
-        XContentParser parser = XContentFactory.xContent(json).createParser(json);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
         // need to skip until parser is located on second START_OBJECT
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+        QueryParseContext context = new QueryParseContext(parser);
 
         try {
           ScoreSortBuilder.fromXContent(context, "_score");

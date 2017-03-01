@@ -89,7 +89,7 @@ public class CodecTests extends ESTestCase {
         dir.close();
     }
 
-    private static CodecService createCodecService() throws IOException {
+    private CodecService createCodecService() throws IOException {
         Settings nodeSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
@@ -97,7 +97,8 @@ public class CodecTests extends ESTestCase {
         SimilarityService similarityService = new SimilarityService(settings, Collections.emptyMap());
         IndexAnalyzers indexAnalyzers = createTestAnalysis(settings, nodeSettings).indexAnalyzers;
         MapperRegistry mapperRegistry = new MapperRegistry(Collections.emptyMap(), Collections.emptyMap());
-        MapperService service = new MapperService(settings, indexAnalyzers, similarityService, mapperRegistry, () -> null);
+        MapperService service = new MapperService(settings, indexAnalyzers, xContentRegistry(), similarityService, mapperRegistry,
+                () -> null);
         return new CodecService(service, ESLoggerFactory.getLogger("test"));
     }
 

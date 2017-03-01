@@ -71,6 +71,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (getSearchRequest().indices() == null || getSearchRequest().indices().length == 0) {
             e = addValidationError("use _all if you really want to copy from all existing indexes", e);
         }
+        if (getSearchRequest().source().fetchSource() != null && getSearchRequest().source().fetchSource().fetchSource() == false) {
+            e = addValidationError("_source:false is not supported in this context", e);
+        }
         /*
          * Note that we don't call index's validator - it won't work because
          * we'll be filling in portions of it as we receive the docs. But we can
@@ -125,7 +128,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     @Override
-    ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice) {
+    protected ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice) {
         ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask);
         sliced.setRemoteInfo(remoteInfo);
         return sliced;

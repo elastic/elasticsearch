@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.search.RemoteClusterService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -54,9 +55,9 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ElectMasterService;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
@@ -80,11 +81,11 @@ import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
@@ -237,6 +238,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HttpTransportSettings.SETTING_CORS_ALLOW_METHODS,
                     HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS,
                     HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED,
+                    HttpTransportSettings.SETTING_HTTP_CONTENT_TYPE_REQUIRED,
                     HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH,
                     HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE,
                     HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE,
@@ -253,6 +255,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                     ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
                     TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
+                    RemoteClusterService.REMOTE_CLUSTERS_SEEDS,
+                    RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER,
+                    RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
+                    RemoteClusterService.REMOTE_NODE_ATTRIBUTE,
+                    RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
                     TransportService.TRACE_LOG_EXCLUDE_SETTING,
                     TransportService.TRACE_LOG_INCLUDE_SETTING,
                     TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
@@ -273,7 +280,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     TcpTransport.CONNECTIONS_PER_NODE_STATE,
                     TcpTransport.CONNECTIONS_PER_NODE_PING,
                     TcpTransport.PING_SCHEDULE,
-                    TcpTransport.TCP_BLOCKING_CLIENT,
                     TcpTransport.TCP_CONNECT_TIMEOUT,
                     NetworkService.NETWORK_SERVER,
                     TcpTransport.TCP_NO_DELAY,
@@ -281,7 +287,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     TcpTransport.TCP_REUSE_ADDRESS,
                     TcpTransport.TCP_SEND_BUFFER_SIZE,
                     TcpTransport.TCP_RECEIVE_BUFFER_SIZE,
-                    TcpTransport.TCP_BLOCKING_SERVER,
                     NetworkService.GLOBAL_NETWORK_HOST_SETTING,
                     NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING,
                     NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING,
@@ -290,13 +295,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     NetworkService.TcpSettings.TCP_REUSE_ADDRESS,
                     NetworkService.TcpSettings.TCP_SEND_BUFFER_SIZE,
                     NetworkService.TcpSettings.TCP_RECEIVE_BUFFER_SIZE,
-                    NetworkService.TcpSettings.TCP_BLOCKING,
-                    NetworkService.TcpSettings.TCP_BLOCKING_SERVER,
-                    NetworkService.TcpSettings.TCP_BLOCKING_CLIENT,
                     NetworkService.TcpSettings.TCP_CONNECT_TIMEOUT,
                     IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
                     IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
-                    PrimaryShardAllocator.NODE_INITIAL_SHARDS_SETTING,
                     ScriptService.SCRIPT_CACHE_SIZE_SETTING,
                     ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
                     ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING,
@@ -348,9 +349,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Node.NODE_INGEST_SETTING,
                     Node.NODE_ATTRIBUTES,
                     Node.NODE_LOCAL_STORAGE_SETTING,
-                    URLRepository.ALLOWED_URLS_SETTING,
-                    URLRepository.REPOSITORIES_URL_SETTING,
-                    URLRepository.SUPPORTED_PROTOCOLS_SETTING,
                     TransportMasterNodeReadAction.FORCE_LOCAL_SETTING,
                     AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
                     BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,
@@ -390,7 +388,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     PluginsService.MANDATORY_SETTING,
                     BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING,
                     BootstrapSettings.MEMORY_LOCK_SETTING,
-                    BootstrapSettings.SECCOMP_SETTING,
+                    BootstrapSettings.SYSTEM_CALL_FILTER_SETTING,
                     BootstrapSettings.CTRLHANDLER_SETTING,
                     IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
                     IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING,
@@ -403,6 +401,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ResourceWatcherService.RELOAD_INTERVAL_LOW,
                     SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
                     ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
+                    FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
                     Node.BREAKER_TYPE_KEY
             )));
 }

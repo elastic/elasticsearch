@@ -36,7 +36,6 @@ import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Implements the wildcard search query. Supported wildcards are <tt>*</tt>, which
@@ -133,7 +132,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         builder.endObject();
     }
 
-    public static Optional<WildcardQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static WildcardQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         String fieldName = null;
         String rewrite = null;
@@ -154,15 +153,15 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if (parseContext.getParseFieldMatcher().match(currentFieldName, WILDCARD_FIELD)) {
+                        if (WILDCARD_FIELD.match(currentFieldName)) {
                             value = parser.text();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
+                        } else if (VALUE_FIELD.match(currentFieldName)) {
                             value = parser.text();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                             boost = parser.floatValue();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
+                        } else if (REWRITE_FIELD.match(currentFieldName)) {
                             rewrite = parser.textOrNull();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                             queryName = parser.text();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
@@ -177,10 +176,10 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
             }
         }
 
-        return Optional.of(new WildcardQueryBuilder(fieldName, value)
+        return new WildcardQueryBuilder(fieldName, value)
                 .rewrite(rewrite)
                 .boost(boost)
-                .queryName(queryName));
+                .queryName(queryName);
     }
 
     @Override
@@ -195,7 +194,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         }
 
         WildcardQuery query = new WildcardQuery(term);
-        MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(context.getParseFieldMatcher(), rewrite, null);
+        MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(rewrite, null);
         QueryParsers.setRewriteMethod(query, rewriteMethod);
         return query;
     }

@@ -23,7 +23,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -31,7 +31,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-public class PendingClusterTasksResponse extends ActionResponse implements Iterable<PendingClusterTask>, ToXContent {
+public class PendingClusterTasksResponse extends ActionResponse implements Iterable<PendingClusterTask>, ToXContentObject {
 
     private List<PendingClusterTask> pendingTasks;
 
@@ -63,13 +63,15 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
         StringBuilder sb = new StringBuilder();
         sb.append("tasks: (").append(pendingTasks.size()).append("):\n");
         for (PendingClusterTask pendingClusterTask : this) {
-            sb.append(pendingClusterTask.getInsertOrder()).append("/").append(pendingClusterTask.getPriority()).append("/").append(pendingClusterTask.getSource()).append("/").append(pendingClusterTask.getTimeInQueue()).append("\n");
+            sb.append(pendingClusterTask.getInsertOrder()).append("/").append(pendingClusterTask.getPriority()).append("/")
+                    .append(pendingClusterTask.getSource()).append("/").append(pendingClusterTask.getTimeInQueue()).append("\n");
         }
         return sb.toString();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startArray(Fields.TASKS);
         for (PendingClusterTask pendingClusterTask : this) {
             builder.startObject();
@@ -82,6 +84,7 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
             builder.endObject();
         }
         builder.endArray();
+        builder.endObject();
         return builder;
     }
 

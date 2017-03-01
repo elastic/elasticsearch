@@ -55,7 +55,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     }
 
     @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+    public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final Long dMissingValue = (Long) missingObject(missingValue, reversed);

@@ -37,6 +37,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.Analysis;
@@ -136,6 +137,10 @@ public class AnalysisModuleTests extends ModuleTestCase {
         IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings);
         assertThat(indexAnalyzers.get("default").analyzer(), is(instanceOf(KeywordAnalyzer.class)));
         assertThat(indexAnalyzers.get("default_search").analyzer(), is(instanceOf(EnglishAnalyzer.class)));
+        assertWarnings("setting [index.analysis.analyzer.foobar.alias] is only allowed on index [test] because it was created before " +
+                        "5.x; analyzer aliases can no longer be created on new indices.",
+                "setting [index.analysis.analyzer.foobar_search.alias] is only allowed on index [test] because it was created before " +
+                        "5.x; analyzer aliases can no longer be created on new indices.");
     }
 
     public void testAnalyzerAliasReferencesAlias() throws IOException {
@@ -154,6 +159,10 @@ public class AnalysisModuleTests extends ModuleTestCase {
         assertThat(indexAnalyzers.get("default").analyzer(), is(instanceOf(GermanAnalyzer.class)));
         // analyzer types are bound early before we resolve aliases
         assertThat(indexAnalyzers.get("default_search").analyzer(), is(instanceOf(StandardAnalyzer.class)));
+        assertWarnings("setting [index.analysis.analyzer.foobar.alias] is only allowed on index [test] because it was created before " +
+                "5.x; analyzer aliases can no longer be created on new indices.",
+                "setting [index.analysis.analyzer.foobar_search.alias] is only allowed on index [test] because it was created before " +
+                        "5.x; analyzer aliases can no longer be created on new indices.");
     }
 
     public void testAnalyzerAliasDefault() throws IOException {
@@ -168,6 +177,8 @@ public class AnalysisModuleTests extends ModuleTestCase {
         IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings);
         assertThat(indexAnalyzers.get("default").analyzer(), is(instanceOf(KeywordAnalyzer.class)));
         assertThat(indexAnalyzers.get("default_search").analyzer(), is(instanceOf(KeywordAnalyzer.class)));
+        assertWarnings("setting [index.analysis.analyzer.foobar.alias] is only allowed on index [test] because it was created before " +
+                "5.x; analyzer aliases can no longer be created on new indices.");
     }
 
     public void testAnalyzerAliasMoreThanOnce() throws IOException {
@@ -183,6 +194,10 @@ public class AnalysisModuleTests extends ModuleTestCase {
         AnalysisRegistry newRegistry = getNewRegistry(settings);
         IllegalStateException ise = expectThrows(IllegalStateException.class, () -> getIndexAnalyzers(newRegistry, settings));
         assertEquals("alias [default] is already used by [foobar]", ise.getMessage());
+        assertWarnings("setting [index.analysis.analyzer.foobar.alias] is only allowed on index [test] because it was created before " +
+                "5.x; analyzer aliases can no longer be created on new indices.",
+                "setting [index.analysis.analyzer.foobar1.alias] is only allowed on index [test] because it was created before " +
+                        "5.x; analyzer aliases can no longer be created on new indices.");
     }
 
     public void testAnalyzerAliasNotAllowedPost5x() throws IOException {
@@ -292,7 +307,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
 //        assertThat(dictionaryDecompounderAnalyze.tokenFilters().length, equalTo(1));
 //        assertThat(dictionaryDecompounderAnalyze.tokenFilters()[0], instanceOf(DictionaryCompoundWordTokenFilterFactory.class));
 
-        Set<?> wordList = Analysis.getWordSet(null, settings, "index.analysis.filter.dict_dec.word_list");
+        Set<?> wordList = Analysis.getWordSet(null, Version.CURRENT, settings, "index.analysis.filter.dict_dec.word_list");
         MatcherAssert.assertThat(wordList.size(), equalTo(6));
 //        MatcherAssert.assertThat(wordList, hasItems("donau", "dampf", "schiff", "spargel", "creme", "suppe"));
     }
@@ -305,9 +320,10 @@ public class AnalysisModuleTests extends ModuleTestCase {
         String[] words = new String[]{"donau", "dampf", "schiff", "spargel", "creme", "suppe"};
 
         Path wordListFile = generateWordList(words);
-        settings = Settings.builder().loadFromSource("index: \n  word_list_path: " + wordListFile.toAbsolutePath()).build();
+        settings = Settings.builder().loadFromSource("index: \n  word_list_path: " + wordListFile.toAbsolutePath(), XContentType.YAML)
+            .build();
 
-        Set<?> wordList = Analysis.getWordSet(env, settings, "index.word_list");
+        Set<?> wordList = Analysis.getWordSet(env, Version.CURRENT, settings, "index.word_list");
         MatcherAssert.assertThat(wordList.size(), equalTo(6));
 //        MatcherAssert.assertThat(wordList, hasItems(words));
         Files.delete(wordListFile);
@@ -353,6 +369,8 @@ public class AnalysisModuleTests extends ModuleTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("analyzer name must not start with '_'. got \"_invalid_name\""));
         }
+        assertWarnings("setting [index.analysis.analyzer.valid_name.alias] is only allowed on index [test] because it was " +
+                "created before 5.x; analyzer aliases can no longer be created on new indices.");
     }
 
     public void testDeprecatedPositionOffsetGap() throws IOException {

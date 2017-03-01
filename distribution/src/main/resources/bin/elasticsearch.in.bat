@@ -1,7 +1,7 @@
 @echo off
 
 IF DEFINED JAVA_HOME (
-  set JAVA="%JAVA_HOME%"\bin\java.exe
+  set JAVA="%JAVA_HOME%\bin\java.exe"
 ) ELSE (
   FOR %%I IN (java.exe) DO set JAVA=%%~$PATH:I
 )
@@ -22,4 +22,12 @@ ECHO additional elements via the plugin mechanism, or if code must really be 1>&
 ECHO added to the main classpath, add jars to lib\, unsupported 1>&2
 EXIT /B 1
 )
+
+%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.JavaVersionChecker"
+
+IF ERRORLEVEL 1 (
+    ECHO Elasticsearch requires at least Java 8 but your Java version from %JAVA% does not meet this requirement
+    EXIT /B 1
+)
+
 set ES_PARAMS=-Delasticsearch -Des.path.home="%ES_HOME%"

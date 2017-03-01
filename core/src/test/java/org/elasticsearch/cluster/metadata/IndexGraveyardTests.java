@@ -20,19 +20,16 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -60,7 +57,7 @@ public class IndexGraveyardTests extends ESTestCase {
         final IndexGraveyard graveyard = createRandom();
         final BytesStreamOutput out = new BytesStreamOutput();
         graveyard.writeTo(out);
-        assertThat(IndexGraveyard.fromStream(out.bytes().streamInput()), equalTo(graveyard));
+        assertThat(new IndexGraveyard(out.bytes().streamInput()), equalTo(graveyard));
     }
 
     public void testXContent() throws IOException {
@@ -69,9 +66,9 @@ public class IndexGraveyardTests extends ESTestCase {
         builder.startObject();
         graveyard.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        XContentParser parser = XContentType.JSON.xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
         parser.nextToken(); // the beginning of the parser
-        assertThat(IndexGraveyard.PROTO.fromXContent(parser), equalTo(graveyard));
+        assertThat(IndexGraveyard.fromXContent(parser), equalTo(graveyard));
     }
 
     public void testAddTombstones() {

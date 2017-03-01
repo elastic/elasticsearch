@@ -29,7 +29,7 @@ fine for downloading and playing with Elasticsearch, and everyday
 development but it's useless for production systems. To form a cluster,
 Elasticsearch instances must be reachable via transport communication so
 they must bind transport to an external interface. Thus, we consider an
-Elaticsearch instance to be in development mode if it does not bind
+Elasticsearch instance to be in development mode if it does not bind
 transport to an external interface (the default), and is otherwise in
 production mode if it does bind transport to an external interface. Note
 that HTTP can be configured independently of transport via
@@ -156,7 +156,7 @@ The system call filter check ensures that if system call filters are enabled,
 then they were successfully installed. To pass the system call filter check you
 must either fix any configuration errors on your system that prevented system
 call filters from installing (check your logs), or *at your own risk* disable
-system call filters by setting `bootstrap.seccomp` to `false`.
+system call filters by setting `bootstrap.system_call_filter` to `false`.
 
 === OnError and OnOutOfMemoryError checks
 

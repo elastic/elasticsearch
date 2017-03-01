@@ -97,14 +97,6 @@ public abstract class AbstractNumericFieldMapperTestCase extends ESSingleNodeTes
 
     protected abstract void doTestCoerce(String type) throws IOException;
 
-    public void testIncludeInAll() throws Exception {
-        for (String type : TYPES) {
-            doTestIncludeInAll(type);
-        }
-    }
-
-    protected abstract void doTestIncludeInAll(String type) throws Exception;
-
     public void testNullValue() throws IOException {
         for (String type : TYPES) {
             doTestNullValue(type);

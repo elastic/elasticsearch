@@ -22,6 +22,7 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -115,7 +117,7 @@ public class TransportNodesListGatewayStartedShards extends
         try {
             final ShardId shardId = request.getShardId();
             logger.trace("{} loading local shard state info", shardId);
-            ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger,
+            ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
                 nodeEnv.availableShardPaths(request.shardId));
             if (shardStateMetaData != null) {
                 IndexMetaData metaData = clusterService.state().metaData().index(shardId.getIndex());
@@ -123,7 +125,8 @@ public class TransportNodesListGatewayStartedShards extends
                     // we may send this requests while processing the cluster state that recovered the index
                     // sometimes the request comes in before the local node processed that cluster state
                     // in such cases we can load it from disk
-                    metaData = IndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.indexPaths(shardId.getIndex()));
+                    metaData = IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
+                        nodeEnv.indexPaths(shardId.getIndex()));
                 }
                 if (metaData == null) {
                     ElasticsearchException e = new ElasticsearchException("failed to find local IndexMetaData");
@@ -152,19 +155,18 @@ public class TransportNodesListGatewayStartedShards extends
                             exception);
                         String allocationId = shardStateMetaData.allocationId != null ?
                             shardStateMetaData.allocationId.getId() : null;
-                        return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.legacyVersion,
-                            allocationId, shardStateMetaData.primary, exception);
+                        return new NodeGatewayStartedShards(clusterService.localNode(), allocationId, shardStateMetaData.primary,
+                            exception);
                     }
                 }
 
                 logger.debug("{} shard state info found: [{}]", shardId, shardStateMetaData);
                 String allocationId = shardStateMetaData.allocationId != null ?
                     shardStateMetaData.allocationId.getId() : null;
-                return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.legacyVersion,
-                    allocationId, shardStateMetaData.primary);
+                return new NodeGatewayStartedShards(clusterService.localNode(), allocationId, shardStateMetaData.primary);
             }
             logger.trace("{} no local shard info found", shardId);
-            return new NodeGatewayStartedShards(clusterService.localNode(), ShardStateMetaData.NO_VERSION, null, false);
+            return new NodeGatewayStartedShards(clusterService.localNode(), null, false);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to load started shards", e);
         }
@@ -255,7 +257,6 @@ public class TransportNodesListGatewayStartedShards extends
 
     public static class NodeGatewayStartedShards extends BaseNodeResponse {
 
-        private long legacyVersion = ShardStateMetaData.NO_VERSION; // for pre-3.0 shards that have not yet been active
         private String allocationId = null;
         private boolean primary = false;
         private Exception storeException = null;
@@ -263,21 +264,15 @@ public class TransportNodesListGatewayStartedShards extends
         public NodeGatewayStartedShards() {
         }
 
-        public NodeGatewayStartedShards(DiscoveryNode node, long legacyVersion, String allocationId, boolean primary) {
-            this(node, legacyVersion, allocationId, primary, null);
+        public NodeGatewayStartedShards(DiscoveryNode node, String allocationId, boolean primary) {
+            this(node, allocationId, primary, null);
         }
 
-        public NodeGatewayStartedShards(DiscoveryNode node, long legacyVersion, String allocationId, boolean primary,
-                                        Exception storeException) {
+        public NodeGatewayStartedShards(DiscoveryNode node, String allocationId, boolean primary, Exception storeException) {
             super(node);
-            this.legacyVersion = legacyVersion;
             this.allocationId = allocationId;
             this.primary = primary;
             this.storeException = storeException;
-        }
-
-        public long legacyVersion() {
-            return this.legacyVersion;
         }
 
         public String allocationId() {
@@ -295,7 +290,10 @@ public class TransportNodesListGatewayStartedShards extends
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            legacyVersion = in.readLong();
+            if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                // legacy version
+                in.readLong();
+            }
             allocationId = in.readOptionalString();
             primary = in.readBoolean();
             if (in.readBoolean()) {
@@ -306,7 +304,10 @@ public class TransportNodesListGatewayStartedShards extends
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeLong(legacyVersion);
+            if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                // legacy version
+                out.writeLong(-1L);
+            }
             out.writeOptionalString(allocationId);
             out.writeBoolean(primary);
             if (storeException != null) {
@@ -328,9 +329,6 @@ public class TransportNodesListGatewayStartedShards extends
 
             NodeGatewayStartedShards that = (NodeGatewayStartedShards) o;
 
-            if (legacyVersion != that.legacyVersion) {
-                return false;
-            }
             if (primary != that.primary) {
                 return false;
             }
@@ -343,8 +341,7 @@ public class TransportNodesListGatewayStartedShards extends
 
         @Override
         public int hashCode() {
-            int result = Long.hashCode(legacyVersion);
-            result = 31 * result + (allocationId != null ? allocationId.hashCode() : 0);
+            int result = (allocationId != null ? allocationId.hashCode() : 0);
             result = 31 * result + (primary ? 1 : 0);
             result = 31 * result + (storeException != null ? storeException.hashCode() : 0);
             return result;
@@ -355,8 +352,7 @@ public class TransportNodesListGatewayStartedShards extends
             StringBuilder buf = new StringBuilder();
             buf.append("NodeGatewayStartedShards[")
                .append("allocationId=").append(allocationId)
-               .append(",primary=").append(primary)
-               .append(",legacyVersion=").append(legacyVersion);
+               .append(",primary=").append(primary);
             if (storeException != null) {
                 buf.append(",storeException=").append(storeException);
             }

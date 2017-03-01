@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Optional;
 
 /**
  * A Query builder which allows building a query given JSON string or binary data provided as input. This is useful when you want
@@ -116,7 +115,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
         builder.endObject();
     }
 
-    public static Optional<WrapperQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static WrapperQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
@@ -124,7 +123,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
             throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed");
         }
         String fieldName = parser.currentName();
-        if (! parseContext.getParseFieldMatcher().match(fieldName, QUERY_FIELD)) {
+        if (! QUERY_FIELD.match(fieldName)) {
             throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed, expected `query` but was " + fieldName);
         }
         parser.nextToken();
@@ -136,7 +135,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
         if (source == null) {
             throw new ParsingException(parser.getTokenLocation(), "wrapper query has no [query] specified");
         }
-        return Optional.of(new WrapperQueryBuilder(source));
+        return new WrapperQueryBuilder(source);
     }
 
     @Override
@@ -161,11 +160,10 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext context) throws IOException {
-        try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(source)) {
+        try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(context.getXContentRegistry(), source)) {
             QueryParseContext parseContext = context.newParseContext(qSourceParser);
 
-            final QueryBuilder queryBuilder = parseContext.parseInnerQueryBuilder().orElseThrow(
-                    () -> new ParsingException(qSourceParser.getTokenLocation(), "inner query cannot be empty"));
+            final QueryBuilder queryBuilder = parseContext.parseInnerQueryBuilder();
             if (boost() != DEFAULT_BOOST || queryName() != null) {
                 final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
                 boolQueryBuilder.must(queryBuilder);

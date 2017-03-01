@@ -20,6 +20,7 @@
 package org.elasticsearch.action.termvectors;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
+
 import org.apache.lucene.analysis.payloads.PayloadHelper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DirectoryReader;
@@ -30,6 +31,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
@@ -42,6 +44,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -49,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -78,7 +82,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             assertThat(actionGet.getIndex(), equalTo("test"));
             assertThat(actionGet.isExists(), equalTo(false));
             // check response is nevertheless serializable to json
-            actionGet.toXContent(jsonBuilder().startObject(), ToXContent.EMPTY_PARAMS);
+            actionGet.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
         }
     }
 
@@ -1168,6 +1172,48 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                     .get();
             checkBestTerms(response.getFields().terms("tags"), tags.subList((numDocs - i - 1), numDocs));
         }
+    }
+
+    public void testArtificialDocWithPreference() throws ExecutionException, InterruptedException, IOException {
+        // setup indices
+        Settings.Builder settings = Settings.builder()
+                .put(indexSettings())
+                .put("index.analysis.analyzer", "standard");
+        assertAcked(prepareCreate("test")
+                .setSettings(settings)
+                .addMapping("type1", "field1", "type=text,term_vector=with_positions_offsets"));
+        ensureGreen();
+
+        // index document
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "random permutation"));
+
+        // Get search shards
+        ClusterSearchShardsResponse searchShardsResponse = client().admin().cluster().prepareSearchShards("test").get();
+        List<Integer> shardIds = Arrays.stream(searchShardsResponse.getGroups()).map(s -> s.getShardId().id()).collect(Collectors.toList());
+
+        // request termvectors of artificial document from each shard
+        int sumTotalTermFreq = 0;
+        int sumDocFreq = 0;
+        for (Integer shardId : shardIds) {
+            TermVectorsResponse tvResponse = client().prepareTermVectors()
+                    .setIndex("test")
+                    .setType("type1")
+                    .setPreference("_shards:" + shardId)
+                    .setDoc(jsonBuilder().startObject().field("field1", "random permutation").endObject())
+                    .setFieldStatistics(true)
+                    .setTermStatistics(true)
+                    .get();
+            Fields fields = tvResponse.getFields();
+            Terms terms = fields.terms("field1");
+            assertNotNull(terms);
+            TermsEnum termsEnum = terms.iterator();
+            while (termsEnum.next() != null) {
+                sumTotalTermFreq += termsEnum.totalTermFreq();
+                sumDocFreq += termsEnum.docFreq();
+            }
+        }
+        assertEquals("expected to find term statistics in exactly one shard!", 2, sumTotalTermFreq);
+        assertEquals("expected to find term statistics in exactly one shard!", 2, sumDocFreq);
     }
 
     private void checkBestTerms(Terms terms, List<String> expectedTerms) throws IOException {

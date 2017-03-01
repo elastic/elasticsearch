@@ -44,7 +44,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * A Query that matches documents within an range of terms.
@@ -344,7 +343,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         builder.endObject();
     }
 
-    public static Optional<RangeQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static RangeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -372,35 +371,35 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if (parseContext.getParseFieldMatcher().match(currentFieldName, FROM_FIELD)) {
+                        if (FROM_FIELD.match(currentFieldName)) {
                             from = parser.objectBytes();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, TO_FIELD)) {
+                        } else if (TO_FIELD.match(currentFieldName)) {
                             to = parser.objectBytes();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, INCLUDE_LOWER_FIELD)) {
+                        } else if (INCLUDE_LOWER_FIELD.match(currentFieldName)) {
                             includeLower = parser.booleanValue();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, INCLUDE_UPPER_FIELD)) {
+                        } else if (INCLUDE_UPPER_FIELD.match(currentFieldName)) {
                             includeUpper = parser.booleanValue();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                             boost = parser.floatValue();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, GT_FIELD)) {
+                        } else if (GT_FIELD.match(currentFieldName)) {
                             from = parser.objectBytes();
                             includeLower = false;
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, GTE_FIELD)) {
+                        } else if (GTE_FIELD.match(currentFieldName)) {
                             from = parser.objectBytes();
                             includeLower = true;
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LT_FIELD)) {
+                        } else if (LT_FIELD.match(currentFieldName)) {
                             to = parser.objectBytes();
                             includeUpper = false;
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LTE_FIELD)) {
+                        } else if (LTE_FIELD.match(currentFieldName)) {
                             to = parser.objectBytes();
                             includeUpper = true;
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, TIME_ZONE_FIELD)) {
+                        } else if (TIME_ZONE_FIELD.match(currentFieldName)) {
                             timeZone = parser.text();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, FORMAT_FIELD)) {
+                        } else if (FORMAT_FIELD.match(currentFieldName)) {
                             format = parser.text();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, RELATION_FIELD)) {
+                        } else if (RELATION_FIELD.match(currentFieldName)) {
                             relation = parser.text();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                             queryName = parser.text();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
@@ -409,9 +408,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                     }
                 }
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
+                if (NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, FIELDDATA_FIELD)) {
+                } else if (FIELDDATA_FIELD.match(currentFieldName)) {
                     // ignore
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[range] query does not support [" + currentFieldName + "]");
@@ -435,7 +434,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (relation != null) {
             rangeQuery.relation(relation);
         }
-        return Optional.of(rangeQuery);
+        return rangeQuery;
     }
 
     @Override
@@ -470,12 +469,12 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         case DISJOINT:
             return new MatchNoneQueryBuilder();
         case WITHIN:
-            if (from != null || to != null) {
+            if (from != null || to != null || format != null || timeZone != null) {
                 RangeQueryBuilder newRangeQuery = new RangeQueryBuilder(fieldName);
                 newRangeQuery.from(null);
                 newRangeQuery.to(null);
-                newRangeQuery.format = format;
-                newRangeQuery.timeZone = timeZone;
+                newRangeQuery.format = null;
+                newRangeQuery.timeZone = null;
                 return newRangeQuery;
             } else {
                 return this;

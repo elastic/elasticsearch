@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.shrink;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -26,15 +25,9 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -46,14 +39,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class ShrinkRequest extends AcknowledgedRequest<ShrinkRequest> implements IndicesRequest {
 
-    public static ObjectParser<ShrinkRequest, ParseFieldMatcherSupplier> PARSER =
-        new ObjectParser<>("shrink_request", null);
+    public static final ObjectParser<ShrinkRequest, Void> PARSER = new ObjectParser<>("shrink_request", null);
     static {
-        PARSER.declareField((parser, request, parseFieldMatcherSupplier) ->
-                request.getShrinkIndexRequest().settings(parser.map()),
+        PARSER.declareField((parser, request, context) -> request.getShrinkIndexRequest().settings(parser.map()),
             new ParseField("settings"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, request, parseFieldMatcherSupplier) ->
-                request.getShrinkIndexRequest().aliases(parser.map()),
+        PARSER.declareField((parser, request, context) -> request.getShrinkIndexRequest().aliases(parser.map()),
             new ParseField("aliases"), ObjectParser.ValueType.OBJECT);
     }
 
@@ -151,18 +141,5 @@ public class ShrinkRequest extends AcknowledgedRequest<ShrinkRequest> implements
      */
     public void setWaitForActiveShards(final int waitForActiveShards) {
         setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
-    }
-
-    public void source(BytesReference source) {
-        XContentType xContentType = XContentFactory.xContentType(source);
-        if (xContentType != null) {
-            try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(source)) {
-                PARSER.parse(parser, this, () -> ParseFieldMatcher.EMPTY);
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parse source for shrink index", e);
-            }
-        } else {
-            throw new ElasticsearchParseException("failed to parse content type for shrink index source");
-        }
     }
 }

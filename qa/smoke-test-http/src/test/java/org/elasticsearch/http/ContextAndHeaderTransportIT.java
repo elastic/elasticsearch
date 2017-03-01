@@ -22,7 +22,6 @@ package org.elasticsearch.http;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -37,6 +36,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
@@ -110,9 +110,9 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1) // A single shard will help to keep the tests repeatable.
             .build();
         assertAcked(transportClient().admin().indices().prepareCreate(lookupIndex)
-            .setSettings(settings).addMapping("type", mapping));
+            .setSettings(settings).addMapping("type", mapping, XContentType.JSON));
         assertAcked(transportClient().admin().indices().prepareCreate(queryIndex)
-            .setSettings(settings).addMapping("type", mapping));
+            .setSettings(settings).addMapping("type", mapping, XContentType.JSON));
         ensureGreen(queryIndex, lookupIndex);
         requests.clear();
     }
@@ -317,13 +317,8 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
         }
 
         @Override
-        protected boolean apply(String action, ActionRequest request, ActionListener listener) {
+        protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
             requests.add(new RequestAndHeaders(threadPool.getThreadContext().getHeaders(), request));
-            return true;
-        }
-
-        @Override
-        protected boolean apply(String action, ActionResponse response, ActionListener listener) {
             return true;
         }
     }

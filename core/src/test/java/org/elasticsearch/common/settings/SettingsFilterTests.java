@@ -118,7 +118,7 @@ public class SettingsFilterTests extends ESTestCase {
         source.toXContent(xContentBuilder, request);
         xContentBuilder.endObject();
         String filteredSettingsString = xContentBuilder.string();
-        filteredSettings = Settings.builder().loadFromSource(filteredSettingsString).build();
+        filteredSettings = Settings.builder().loadFromSource(filteredSettingsString, xContentBuilder.contentType()).build();
         assertThat(filteredSettings.getAsMap().entrySet(), equalTo(filtered.getAsMap().entrySet()));
     }
 }

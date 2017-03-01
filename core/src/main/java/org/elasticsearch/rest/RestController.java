@@ -19,26 +19,44 @@
 
 package org.elasticsearch.rest;
 
-import java.io.IOException;
-import java.util.Objects;
-import java.util.Set;
-import java.util.function.UnaryOperator;
-
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
+import static org.elasticsearch.rest.RestStatus.FORBIDDEN;
+import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
+import static org.elasticsearch.rest.RestStatus.NOT_ACCEPTABLE;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class RestController extends AbstractComponent {
+public class RestController extends AbstractComponent implements HttpServerTransport.Dispatcher {
+
     private final PathTrie<RestHandler> getHandlers = new PathTrie<>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> postHandlers = new PathTrie<>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> putHandlers = new PathTrie<>(RestUtils.REST_DECODER);
@@ -48,16 +66,23 @@ public class RestController extends AbstractComponent {
 
     private final UnaryOperator<RestHandler> handlerWrapper;
 
+    private final NodeClient client;
+
+    private final CircuitBreakerService circuitBreakerService;
+
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<String> headersToCopy;
 
-    public RestController(Settings settings, Set<String> headersToCopy, UnaryOperator<RestHandler> handlerWrapper) {
+    public RestController(Settings settings, Set<String> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
+                          NodeClient client, CircuitBreakerService circuitBreakerService) {
         super(settings);
         this.headersToCopy = headersToCopy;
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }
         this.handlerWrapper = handlerWrapper;
+        this.client = client;
+        this.circuitBreakerService = circuitBreakerService;
     }
 
     /**
@@ -137,33 +162,130 @@ public class RestController extends AbstractComponent {
         return (handler != null) ? handler.canTripCircuitBreaker() : true;
     }
 
-    public void dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client, ThreadContext threadContext) throws Exception {
-        if (!checkRequestParameters(request, channel)) {
+    @Override
+    public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+        if (request.rawPath().equals("/favicon.ico")) {
+            handleFavicon(request, channel);
             return;
         }
-        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-            for (String key : headersToCopy) {
-                String httpHeader = request.header(key);
-                if (httpHeader != null) {
-                    threadContext.putHeader(key, httpHeader);
-                }
-            }
-
+        RestChannel responseChannel = channel;
+        try {
+            final int contentLength = request.hasContent() ? request.content().length() : 0;
+            assert contentLength >= 0 : "content length was negative, how is that possible?";
             final RestHandler handler = getHandler(request);
 
-            if (handler == null) {
-                if (request.method() == RestRequest.Method.OPTIONS) {
-                    // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
-                    channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-                } else {
-                    final String msg = "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]";
-                    channel.sendResponse(new BytesRestResponse(BAD_REQUEST, msg));
-                }
+            if (contentLength > 0 && hasContentType(request, handler) == false) {
+                sendContentTypeErrorMessage(request, responseChannel);
+            } else if (contentLength > 0 && handler != null && handler.supportsContentStream() &&
+                request.getXContentType() != XContentType.JSON && request.getXContentType() != XContentType.SMILE) {
+                responseChannel.sendResponse(BytesRestResponse.createSimpleErrorResponse(RestStatus.NOT_ACCEPTABLE, "Content-Type [" +
+                    request.getXContentType() + "] does not support stream parsing. Use JSON or SMILE instead"));
             } else {
-                final RestHandler wrappedHandler = Objects.requireNonNull(handlerWrapper.apply(handler));
-                wrappedHandler.handleRequest(request, channel, client);
+                if (canTripCircuitBreaker(request)) {
+                    inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
+                } else {
+                    inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
+                }
+                // iff we could reserve bytes for the request we need to send the response also over this channel
+                responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+                dispatchRequest(request, responseChannel, client, threadContext, handler);
+            }
+        } catch (Exception e) {
+            try {
+                responseChannel.sendResponse(new BytesRestResponse(channel, e));
+            } catch (Exception inner) {
+                inner.addSuppressed(e);
+                logger.error((Supplier<?>) () ->
+                    new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()), inner);
             }
         }
+    }
+
+    @Override
+    public void dispatchBadRequest(
+            final RestRequest request,
+            final RestChannel channel,
+            final ThreadContext threadContext,
+            final Throwable cause) {
+        try {
+            final Exception e;
+            if (cause == null) {
+                e = new ElasticsearchException("unknown cause");
+            } else if (cause instanceof Exception) {
+                e = (Exception) cause;
+            } else {
+                e = new ElasticsearchException(cause);
+            }
+            channel.sendResponse(new BytesRestResponse(channel, BAD_REQUEST, e));
+        } catch (final IOException e) {
+            if (cause != null) {
+                e.addSuppressed(cause);
+            }
+            logger.warn("failed to send bad request response", e);
+            channel.sendResponse(new BytesRestResponse(INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        }
+    }
+
+    void dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client, ThreadContext threadContext,
+                         final RestHandler handler) throws Exception {
+        if (checkRequestParameters(request, channel) == false) {
+            channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(BAD_REQUEST, "error traces in responses are disabled."));
+        } else {
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                for (String key : headersToCopy) {
+                    String httpHeader = request.header(key);
+                    if (httpHeader != null) {
+                        threadContext.putHeader(key, httpHeader);
+                    }
+                }
+
+                if (handler == null) {
+                    if (request.method() == RestRequest.Method.OPTIONS) {
+                        // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
+
+                        channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+                    } else {
+                        final String msg = "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]";
+                        channel.sendResponse(new BytesRestResponse(BAD_REQUEST, msg));
+                    }
+                } else {
+                    final RestHandler wrappedHandler = Objects.requireNonNull(handlerWrapper.apply(handler));
+                    wrappedHandler.handleRequest(request, channel, client);
+                }
+            }
+        }
+    }
+
+    /**
+     * If a request contains content, this method will return {@code true} if the {@code Content-Type} header is present, matches an
+     * {@link XContentType} or the handler supports a content stream and the content type header is for newline delimited JSON,
+     */
+    private boolean hasContentType(final RestRequest restRequest, final RestHandler restHandler) {
+        if (restRequest.getXContentType() == null) {
+            if (restHandler != null && restHandler.supportsContentStream() && restRequest.header("Content-Type") != null) {
+                final String lowercaseMediaType = restRequest.header("Content-Type").toLowerCase(Locale.ROOT);
+                // we also support newline delimited JSON: http://specs.okfnlabs.org/ndjson/
+                if (lowercaseMediaType.equals("application/x-ndjson")) {
+                    restRequest.setXContentType(XContentType.JSON);
+                    return true;
+                }
+            }
+            return false;
+        }
+        return true;
+    }
+
+    private void sendContentTypeErrorMessage(RestRequest restRequest, RestChannel channel) throws IOException {
+        final List<String> contentTypeHeader = restRequest.getAllHeaderValues("Content-Type");
+        final String errorMessage;
+        if (contentTypeHeader == null) {
+            errorMessage = "Content-Type header is missing";
+        } else {
+            errorMessage = "Content-Type header [" +
+                Strings.collectionToCommaDelimitedString(restRequest.getAllHeaderValues("Content-Type")) + "] is not supported";
+        }
+
+        channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(NOT_ACCEPTABLE, errorMessage));
     }
 
     /**
@@ -174,15 +296,6 @@ public class RestController extends AbstractComponent {
         // error_trace cannot be used when we disable detailed errors
         // we consume the error_trace parameter first to ensure that it is always consumed
         if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
-            try {
-                XContentBuilder builder = channel.newErrorBuilder();
-                builder.startObject().field("error", "error traces in responses are disabled.").endObject().string();
-                RestResponse response = new BytesRestResponse(BAD_REQUEST, builder);
-                response.addHeader("Content-Type", "application/json");
-                channel.sendResponse(response);
-            } catch (IOException e) {
-                logger.warn("Failed to send response", e);
-            }
             return false;
         }
 
@@ -223,4 +336,85 @@ public class RestController extends AbstractComponent {
         // my_index/my_type/http%3A%2F%2Fwww.google.com
         return request.rawPath();
     }
+
+    void handleFavicon(RestRequest request, RestChannel channel) {
+        if (request.method() == RestRequest.Method.GET) {
+            try {
+                try (InputStream stream = getClass().getResourceAsStream("/config/favicon.ico")) {
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    Streams.copy(stream, out);
+                    BytesRestResponse restResponse = new BytesRestResponse(RestStatus.OK, "image/x-icon", out.toByteArray());
+                    channel.sendResponse(restResponse);
+                }
+            } catch (IOException e) {
+                channel.sendResponse(new BytesRestResponse(INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+        } else {
+            channel.sendResponse(new BytesRestResponse(FORBIDDEN, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        }
+    }
+
+    private static final class ResourceHandlingHttpChannel implements RestChannel {
+        private final RestChannel delegate;
+        private final CircuitBreakerService circuitBreakerService;
+        private final int contentLength;
+        private final AtomicBoolean closed = new AtomicBoolean();
+
+        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
+            this.delegate = delegate;
+            this.circuitBreakerService = circuitBreakerService;
+            this.contentLength = contentLength;
+        }
+
+        @Override
+        public XContentBuilder newBuilder() throws IOException {
+            return delegate.newBuilder();
+        }
+
+        @Override
+        public XContentBuilder newErrorBuilder() throws IOException {
+            return delegate.newErrorBuilder();
+        }
+
+        @Override
+        public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
+            return delegate.newBuilder(xContentType, useFiltering);
+        }
+
+        @Override
+        public BytesStreamOutput bytesOutput() {
+            return delegate.bytesOutput();
+        }
+
+        @Override
+        public RestRequest request() {
+            return delegate.request();
+        }
+
+        @Override
+        public boolean detailedErrorsEnabled() {
+            return delegate.detailedErrorsEnabled();
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            close();
+            delegate.sendResponse(response);
+        }
+
+        private void close() {
+            // attempt to close once atomically
+            if (closed.compareAndSet(false, true) == false) {
+                throw new IllegalStateException("Channel is already closed");
+            }
+            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+        }
+
+    }
+
+    private static CircuitBreaker inFlightRequestsBreaker(CircuitBreakerService circuitBreakerService) {
+        // We always obtain a fresh breaker to reflect changes to the breaker configuration.
+        return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+    }
+
 }

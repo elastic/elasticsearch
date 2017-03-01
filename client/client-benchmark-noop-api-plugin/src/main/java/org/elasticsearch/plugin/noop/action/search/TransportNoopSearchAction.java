@@ -28,8 +28,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
@@ -49,10 +49,10 @@ public class TransportNoopSearchAction extends HandledTransportAction<SearchRequ
     @Override
     protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
         listener.onResponse(new SearchResponse(new InternalSearchResponse(
-            new InternalSearchHits(
-                new InternalSearchHit[0], 0L, 0.0f),
+            new SearchHits(
+                new SearchHit[0], 0L, 0.0f),
             new InternalAggregations(Collections.emptyList()),
             new Suggest(Collections.emptyList()),
-            new SearchProfileShardResults(Collections.emptyMap()), false, false), "", 1, 1, 0, new ShardSearchFailure[0]));
+            new SearchProfileShardResults(Collections.emptyMap()), false, false, 1), "", 1, 1, 0, new ShardSearchFailure[0]));
     }
 }

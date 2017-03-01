@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequestTestCase;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -28,6 +29,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.slice.SliceBuilder;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 /**
@@ -37,8 +39,9 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
     public void testReindexFromRemoteDoesNotSupportSearchQuery() {
         ReindexRequest reindex = newRequest();
-        reindex.setRemoteInfo(new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), between(1, Integer.MAX_VALUE),
-                new BytesArray("real_query"), null, null, emptyMap()));
+        reindex.setRemoteInfo(
+                new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), between(1, Integer.MAX_VALUE), new BytesArray("real_query"),
+                        null, null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
         reindex.getSearchRequest().source().query(matchAllQuery()); // Unsupported place to put query
         ActionRequestValidationException e = reindex.validate();
         assertEquals("Validation Failed: 1: reindex from remote sources should use RemoteInfo's query instead of source's query;",
@@ -47,8 +50,9 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
     public void testReindexFromRemoteDoesNotSupportWorkers() {
         ReindexRequest reindex = newRequest();
-        reindex.setRemoteInfo(new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), between(1, Integer.MAX_VALUE),
-                new BytesArray("real_query"), null, null, emptyMap()));
+        reindex.setRemoteInfo(
+                new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), between(1, Integer.MAX_VALUE), new BytesArray("real_query"),
+                        null, null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
         reindex.setSlices(between(2, Integer.MAX_VALUE));
         ActionRequestValidationException e = reindex.validate();
         assertEquals(
@@ -71,7 +75,9 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         }
         if (randomBoolean()) {
             original.setRemoteInfo(new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), between(1, 10000),
-                    new BytesArray(randomAsciiOfLength(5)), null, null, emptyMap()));
+                    new BytesArray(randomAsciiOfLength(5)), null, null, emptyMap(),
+                    parseTimeValue(randomPositiveTimeValue(), "socket_timeout"),
+                    parseTimeValue(randomPositiveTimeValue(), "connect_timeout")));
         }
     }
 

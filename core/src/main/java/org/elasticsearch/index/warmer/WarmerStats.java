@@ -86,12 +86,6 @@ public class WarmerStats implements Streamable, ToXContent {
         return new TimeValue(totalTimeInMillis);
     }
 
-    public static WarmerStats readWarmerStats(StreamInput in) throws IOException {
-        WarmerStats refreshStats = new WarmerStats();
-        refreshStats.readFrom(in);
-        return refreshStats;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.WARMER);

@@ -95,16 +95,3 @@ The following settings are supported:
 
     Override the chunk size. (Disabled by default)
 
-
-Alternatively, you can define the `hdfs` repository and its settings in your `elasticsearch.yml`:
-[source,yaml]
-----
-repositories:
-  hdfs:
-    uri: "hdfs://<host>:<port>/"    \# required - HDFS address only
-    path: "some/path"               \# required - path within the file-system where data is stored/loaded
-    load_defaults: "true"           \# optional - whether to load the default Hadoop configuration (default) or not
-    conf.<key> : "<value>"          \# optional - 'inlined' key=value added to the Hadoop configuration
-    compress: "false"               \# optional - whether to compress the metadata or not (default)
-    chunk_size: "10mb"              \# optional - chunk size (disabled by default)
-----

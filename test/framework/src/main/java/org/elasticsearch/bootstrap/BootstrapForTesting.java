@@ -24,7 +24,9 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.SecureSM;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.plugins.PluginInfo;
 import org.junit.Assert;
 
@@ -89,6 +91,9 @@ public class BootstrapForTesting {
             throw new RuntimeException("found jar hell in test classpath", e);
         }
 
+        // Log ifconfig output before SecurityManager is installed
+        IfConfig.logIfNecessary();
+
         // install security manager if requested
         if (systemPropertyAsBoolean("tests.security.manager", true)) {
             try {
@@ -151,7 +156,7 @@ public class BootstrapForTesting {
                 // this just makes unit testing more realistic
                 for (URL url : Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.ES_PLUGIN_PROPERTIES))) {
                     Properties properties = new Properties();
-                    try (InputStream stream = url.openStream()) {
+                    try (InputStream stream = FileSystemUtils.openFileURLStream(url)) {
                         properties.load(stream);
                     }
                     String clazz = properties.getProperty("classname");

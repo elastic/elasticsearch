@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -48,7 +48,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -246,7 +245,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         final boolean allStrings = list.stream().allMatch(o -> o != null && STRING_TYPES.contains(o.getClass()));
         if (allStrings) {
             final BytesRefBuilder builder = new BytesRefBuilder();
-            try (final BytesStreamOutput bytesOut = new BytesStreamOutput()) {
+            try (BytesStreamOutput bytesOut = new BytesStreamOutput()) {
                 final int[] endOffsets = new int[list.size()];
                 int i = 0;
                 for (Object o : list) {
@@ -254,7 +253,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     if (o instanceof BytesRef) {
                         b = (BytesRef) o;
                     } else {
-                        builder.copyChars(o.toString()); 
+                        builder.copyChars(o.toString());
                         b = builder.get();
                     }
                     bytesOut.writeBytes(b.bytes, b.offset, b.length);
@@ -321,7 +320,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         builder.endObject();
     }
 
-    public static Optional<TermsQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static TermsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -354,9 +353,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 fieldName = currentFieldName;
                 termsLookup = TermsLookup.parseTermsLookup(parser);
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -372,9 +371,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] query requires a field name, " +
                     "followed by array of terms or a document lookup specification");
         }
-        return Optional.of(new TermsQueryBuilder(fieldName, values, termsLookup)
+        return new TermsQueryBuilder(fieldName, values, termsLookup)
                 .boost(boost)
-                .queryName(queryName));
+                .queryName(queryName);
     }
 
     private static List<Object> parseValues(XContentParser parser) throws IOException {
@@ -411,7 +410,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             for (int i = 0; i < filterValues.length; i++) {
                 filterValues[i] = BytesRefs.toBytesRef(values.get(i));
             }
-            return new TermsQuery(fieldName, filterValues);
+            return new TermInSetQuery(fieldName, filterValues);
         }
     }
 

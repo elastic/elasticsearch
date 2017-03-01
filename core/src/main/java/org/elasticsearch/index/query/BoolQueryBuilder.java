@@ -37,7 +37,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
@@ -58,7 +57,6 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     private static final String MUST = "must";
     private static final ParseField DISABLE_COORD_FIELD = new ParseField("disable_coord");
     private static final ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match");
-    private static final ParseField MINIMUM_NUMBER_SHOULD_MATCH = new ParseField("minimum_number_should_match");
     private static final ParseField ADJUST_PURE_NEGATIVE = new ParseField("adjust_pure_negative");
 
     private final List<QueryBuilder> mustClauses = new ArrayList<>();
@@ -168,7 +166,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * <tt>MUST</tt> clauses one or more <code>SHOULD</code> clauses must match a document
      * for the BooleanQuery to match. No <tt>null</tt> value allowed.
      *
-     * @see #minimumNumberShouldMatch(int)
+     * @see #minimumShouldMatch(int)
      */
     public BoolQueryBuilder should(QueryBuilder queryBuilder) {
         if (queryBuilder == null) {
@@ -182,7 +180,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * Gets the list of clauses that <b>should</b> be matched by the returned documents.
      *
      * @see #should(QueryBuilder)
-     *  @see #minimumNumberShouldMatch(int)
+     *  @see #minimumShouldMatch(int)
      */
     public List<QueryBuilder> should() {
         return this.shouldClauses;
@@ -204,6 +202,22 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     /**
+     * @return the string representation of the minimumShouldMatch settings for this query
+     */
+    public String minimumShouldMatch() {
+        return this.minimumShouldMatch;
+    }
+
+    /**
+     * Sets the minimum should match parameter using the special syntax (for example, supporting percentage).
+     * @see BoolQueryBuilder#minimumShouldMatch(int)
+     */
+    public BoolQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
+        return this;
+    }
+
+    /**
      * Specifies a minimum number of the optional (should) boolean clauses which must be satisfied.
      * <p>
      * By default no optional clauses are necessary for a match
@@ -214,35 +228,10 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * any specific clauses are required (or prohibited).  This number will
      * only be compared against the number of matching optional clauses.
      *
-     * @param minimumNumberShouldMatch the number of optional clauses that must match
+     * @param minimumShouldMatch the number of optional clauses that must match
      */
-    public BoolQueryBuilder minimumNumberShouldMatch(int minimumNumberShouldMatch) {
-        this.minimumShouldMatch = Integer.toString(minimumNumberShouldMatch);
-        return this;
-    }
-
-
-    /**
-     * Specifies a minimum number of the optional (should) boolean clauses which must be satisfied.
-     * @see BoolQueryBuilder#minimumNumberShouldMatch(int)
-     */
-    public BoolQueryBuilder minimumNumberShouldMatch(String minimumNumberShouldMatch) {
-        this.minimumShouldMatch = minimumNumberShouldMatch;
-        return this;
-    }
-
-    /**
-     * @return the string representation of the minimumShouldMatch settings for this query
-     */
-    public String minimumShouldMatch() {
-        return this.minimumShouldMatch;
-    }
-
-    /**
-     * Sets the minimum should match using the special syntax (for example, supporting percentage).
-     */
-    public BoolQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
-        this.minimumShouldMatch = minimumShouldMatch;
+    public BoolQueryBuilder minimumShouldMatch(int minimumShouldMatch) {
+        this.minimumShouldMatch = Integer.toString(minimumShouldMatch);
         return this;
     }
 
@@ -299,7 +288,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         builder.endArray();
     }
 
-    public static Optional<BoolQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
+    public static BoolQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         boolean disableCoord = BoolQueryBuilder.DISABLE_COORD_DEFAULT;
@@ -323,17 +312,17 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 switch (currentFieldName) {
                 case MUST:
-                    parseContext.parseInnerQueryBuilder().ifPresent(mustClauses::add);
+                    mustClauses.add(parseContext.parseInnerQueryBuilder());
                     break;
                 case SHOULD:
-                    parseContext.parseInnerQueryBuilder().ifPresent(shouldClauses::add);
+                    shouldClauses.add(parseContext.parseInnerQueryBuilder());
                     break;
                 case FILTER:
-                    parseContext.parseInnerQueryBuilder().ifPresent(filterClauses::add);
+                    filterClauses.add(parseContext.parseInnerQueryBuilder());
                     break;
                 case MUST_NOT:
                 case MUSTNOT:
-                    parseContext.parseInnerQueryBuilder().ifPresent(mustNotClauses::add);
+                    mustNotClauses.add(parseContext.parseInnerQueryBuilder());
                     break;
                 default:
                     throw new ParsingException(parser.getTokenLocation(), "[bool] query does not support [" + currentFieldName + "]");
@@ -342,34 +331,32 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     switch (currentFieldName) {
                     case MUST:
-                        parseContext.parseInnerQueryBuilder().ifPresent(mustClauses::add);
+                        mustClauses.add(parseContext.parseInnerQueryBuilder());
                         break;
                     case SHOULD:
-                        parseContext.parseInnerQueryBuilder().ifPresent(shouldClauses::add);
+                        shouldClauses.add(parseContext.parseInnerQueryBuilder());
                         break;
                     case FILTER:
-                        parseContext.parseInnerQueryBuilder().ifPresent(filterClauses::add);
+                        filterClauses.add(parseContext.parseInnerQueryBuilder());
                         break;
                     case MUST_NOT:
                     case MUSTNOT:
-                        parseContext.parseInnerQueryBuilder().ifPresent(mustNotClauses::add);
+                        mustNotClauses.add(parseContext.parseInnerQueryBuilder());
                         break;
                     default:
                         throw new ParsingException(parser.getTokenLocation(), "bool query does not support [" + currentFieldName + "]");
                     }
                 }
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, DISABLE_COORD_FIELD)) {
+                if (DISABLE_COORD_FIELD.match(currentFieldName)) {
                     disableCoord = parser.booleanValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MINIMUM_SHOULD_MATCH)) {
+                } else if (MINIMUM_SHOULD_MATCH.match(currentFieldName)) {
                     minimumShouldMatch = parser.textOrNull();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MINIMUM_NUMBER_SHOULD_MATCH)) {
-                    minimumShouldMatch = parser.textOrNull();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ADJUST_PURE_NEGATIVE)) {
+                } else if (ADJUST_PURE_NEGATIVE.match(currentFieldName)) {
                     adjustPureNegative = parser.booleanValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[bool] query does not support [" + currentFieldName + "]");
@@ -392,9 +379,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         boolQuery.boost(boost);
         boolQuery.disableCoord(disableCoord);
         boolQuery.adjustPureNegative(adjustPureNegative);
-        boolQuery.minimumNumberShouldMatch(minimumShouldMatch);
+        boolQuery.minimumShouldMatch(minimumShouldMatch);
         boolQuery.queryName(queryName);
-        return Optional.of(boolQuery);
+        return boolQuery;
     }
 
     @Override

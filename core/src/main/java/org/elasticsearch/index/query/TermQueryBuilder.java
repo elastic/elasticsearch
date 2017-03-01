@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
-import java.util.Optional;
 
 /**
  * A Query that matches documents containing a term.
@@ -83,7 +82,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         super(in);
     }
 
-    public static Optional<TermQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static TermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String queryName = null;
@@ -104,13 +103,13 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if (parseContext.getParseFieldMatcher().match(currentFieldName, TERM_FIELD)) {
+                        if (TERM_FIELD.match(currentFieldName)) {
                             value = parser.objectBytes();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
+                        } else if (VALUE_FIELD.match(currentFieldName)) {
                             value = parser.objectBytes();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                             queryName = parser.text();
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                             boost = parser.floatValue();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
@@ -132,7 +131,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         if (queryName != null) {
             termQuery.queryName(queryName);
         }
-        return Optional.of(termQuery);
+        return termQuery;
     }
 
     @Override

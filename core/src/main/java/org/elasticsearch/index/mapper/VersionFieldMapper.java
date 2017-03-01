@@ -62,14 +62,15 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             return new VersionFieldMapper(indexSettings);
         }
     }
 
     static final class VersionFieldType extends MappedFieldType {
 
-        public VersionFieldType() {
+        VersionFieldType() {
         }
 
         protected VersionFieldType(VersionFieldType ref) {

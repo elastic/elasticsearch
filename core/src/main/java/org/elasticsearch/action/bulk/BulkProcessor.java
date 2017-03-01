@@ -30,6 +30,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.Closeable;
 import java.util.Objects;
@@ -288,12 +289,20 @@ public class BulkProcessor implements Closeable {
         executeIfNeeded();
     }
 
-    public BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
-        return add(data, defaultIndex, defaultType, null, null);
+    /**
+     * Adds the data from the bytes to be processed by the bulk processor
+     */
+    public BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
+                             XContentType xContentType) throws Exception {
+        return add(data, defaultIndex, defaultType, null, null, xContentType);
     }
 
-    public synchronized BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String defaultPipeline, @Nullable Object payload) throws Exception {
-        bulkRequest.add(data, defaultIndex, defaultType, null, null, null, defaultPipeline, payload, true);
+    /**
+     * Adds the data from the bytes to be processed by the bulk processor
+     */
+    public synchronized BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
+                                  @Nullable String defaultPipeline, @Nullable Object payload, XContentType xContentType) throws Exception {
+        bulkRequest.add(data, defaultIndex, defaultType, null, null, null, defaultPipeline, payload, true, xContentType);
         executeIfNeeded();
         return this;
     }

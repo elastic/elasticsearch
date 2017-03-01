@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -37,7 +36,6 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -49,8 +47,6 @@ import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
 public class RestIndicesStatsAction extends BaseRestHandler {
-
-    @Inject
     public RestIndicesStatsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_stats", this);
@@ -59,7 +55,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/_stats/{metric}", this);
     }
 
-    static Map<String, Consumer<IndicesStatsRequest>> METRICS;
+    static final Map<String, Consumer<IndicesStatsRequest>> METRICS;
 
     static {
         final Map<String, Consumer<IndicesStatsRequest>> metrics = new HashMap<>();
@@ -136,8 +132,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
                     request.paramAsStringArray("fielddata_fields", request.paramAsStringArray("fields", Strings.EMPTY_ARRAY)));
         }
 
-        if (indicesStatsRequest.segments() && request.hasParam("include_segment_file_sizes")) {
-            indicesStatsRequest.includeSegmentFileSizes(true);
+        if (indicesStatsRequest.segments()) {
+            indicesStatsRequest.includeSegmentFileSizes(request.paramAsBoolean("include_segment_file_sizes", false));
         }
 
         return channel -> client.admin().indices().stats(indicesStatsRequest, new RestBuilderListener<IndicesStatsResponse>(channel) {

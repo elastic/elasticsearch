@@ -20,18 +20,15 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -82,7 +79,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexableField sourceField = doc.rootDoc().getField("_source");
         Map<String, Object> sourceAsMap;
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(new BytesArray(sourceField.binaryValue()))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
             sourceAsMap = parser.map();
         }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(true));
@@ -103,7 +100,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexableField sourceField = doc.rootDoc().getField("_source");
         Map<String, Object> sourceAsMap;
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(new BytesArray(sourceField.binaryValue()))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
             sourceAsMap = parser.map();
         }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(false));
@@ -147,7 +144,8 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("_source").field("enabled", true).endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse("my_type", new CompressedXContent(mapping), defaultMapping);
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("my_type", new CompressedXContent(mapping), defaultMapping);
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(true));
     }

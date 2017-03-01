@@ -126,7 +126,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
     public void testNoRebalanceOnRollingRestart() throws Exception {
         // see https://github.com/elastic/elasticsearch/issues/14387
         internalCluster().startMasterOnlyNode(Settings.EMPTY);
-        internalCluster().startDataOnlyNodesAsync(3).get();
+        internalCluster().startDataOnlyNodes(3);
         /**
          * We start 3 nodes and a dedicated master. Restart on of the data-nodes and ensure that we got no relocations.
          * Yet we have 6 shards 0 replica so that means if the restarting node comes back both other nodes are subject

@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
@@ -54,11 +54,10 @@ import java.util.Set;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
 
-public class GatewayMetaState extends AbstractComponent implements ClusterStateListener {
+public class GatewayMetaState extends AbstractComponent implements ClusterStateApplier {
 
     private final NodeEnvironment nodeEnv;
     private final MetaStateService metaStateService;
-    private final DanglingIndicesState danglingIndicesState;
 
     @Nullable
     private volatile MetaData previousMetaData;
@@ -67,13 +66,12 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
     @Inject
     public GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
-                            DanglingIndicesState danglingIndicesState, TransportNodesListGatewayMetaState nodesListGatewayMetaState,
+                            TransportNodesListGatewayMetaState nodesListGatewayMetaState,
                             MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader)
         throws Exception {
         super(settings);
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
-        this.danglingIndicesState = danglingIndicesState;
         nodesListGatewayMetaState.init(this);
 
         if (DiscoveryNode.isDataNode(settings)) {
@@ -117,7 +115,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     }
 
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
+    public void applyClusterState(ClusterChangedEvent event) {
 
         final ClusterState state = event.state();
         if (state.blocks().disableStatePersistence()) {
@@ -181,7 +179,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             }
         }
 
-        danglingIndicesState.processDanglingIndices(newMetaData);
         if (success) {
             previousMetaData = newMetaData;
             previouslyWrittenIndices = unmodifiableSet(relevantIndices);

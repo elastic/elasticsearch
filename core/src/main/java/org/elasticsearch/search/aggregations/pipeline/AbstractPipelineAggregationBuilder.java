@@ -171,4 +171,8 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
 
     protected abstract boolean doEquals(Object obj);
 
+    @Override
+    public String getType() {
+        return type;
+    }
 }

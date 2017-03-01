@@ -38,11 +38,13 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -129,16 +131,22 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 public AsyncSender interceptSender(AsyncSender sender) {
                     return new AsyncSender() {
                         @Override
-                        public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
-                                                                  TransportRequestOptions options, TransportResponseHandler<T> handler) {
+                        public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
+                                                                              TransportRequest request,
+                                                                              TransportRequestOptions options,
+                                                                              TransportResponseHandler<T> handler) {
                             if (TransportLivenessAction.NAME.equals(action)) {
-                                sender.sendRequest(node, action, request, options, wrapLivenessResponseHandler(handler, node, clusterName));
+                                sender.sendRequest(connection, action, request, options, wrapLivenessResponseHandler(handler,
+                                    connection.getNode(), clusterName));
                             } else {
-                                sender.sendRequest(node, action, request, options, handler);
+                                sender.sendRequest(connection, action, request, options, handler);
                             }
                         }
                     };
                 }
+            }, (addr) -> {
+                assert addr == null : "boundAddress: " + addr;
+                return DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), UUIDs.randomBase64UUID());
             }, null);
             transportService.start();
             transportService.acceptIncomingRequests();
@@ -195,7 +203,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
     public void testListenerFailures() throws InterruptedException {
         int iters = iterations(10, 100);
         for (int i = 0; i <iters; i++) {
-            try(final TestIteration iteration = new TestIteration()) {
+            try(TestIteration iteration = new TestIteration()) {
                 iteration.transport.endConnectMode(); // stop transport from responding early
                 final CountDownLatch latch = new CountDownLatch(1);
                 final AtomicInteger finalFailures = new AtomicInteger();
@@ -277,7 +285,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
     public void testConnectedNodes() {
         int iters = iterations(10, 100);
         for (int i = 0; i <iters; i++) {
-            try(final TestIteration iteration = new TestIteration()) {
+            try(TestIteration iteration = new TestIteration()) {
                 assertThat(iteration.transportClientNodesService.connectedNodes().size(), lessThanOrEqualTo(iteration.listNodesCount));
                 for (DiscoveryNode discoveryNode : iteration.transportClientNodesService.connectedNodes()) {
                     assertThat(discoveryNode.getHostName(), startsWith("liveness-"));
@@ -299,7 +307,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
     private void checkRemoveAddress(boolean sniff) {
         Object[] extraSettings = {TransportClient.CLIENT_TRANSPORT_SNIFF.getKey(), sniff};
-        try(final TestIteration iteration = new TestIteration(extraSettings)) {
+        try(TestIteration iteration = new TestIteration(extraSettings)) {
             final TransportClientNodesService service = iteration.transportClientNodesService;
             assertEquals(iteration.listNodesCount + iteration.sniffNodesCount, service.connectedNodes().size());
             final TransportAddress addressToRemove = randomFrom(iteration.listNodeAddresses);

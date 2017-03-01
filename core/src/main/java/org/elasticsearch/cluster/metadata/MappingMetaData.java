@@ -21,27 +21,25 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Mapping configuration for a type.
  */
 public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
-
-    public static final MappingMetaData PROTO = new MappingMetaData();
 
     public static class Routing {
 
@@ -89,19 +87,12 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
     public MappingMetaData(CompressedXContent mapping) throws IOException {
         this.source = mapping;
-        Map<String, Object> mappingMap;
-        try (XContentParser parser = XContentHelper.createParser(mapping.compressedReference())) {
-            mappingMap = parser.mapOrdered();
-        }
+        Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
         if (mappingMap.size() != 1) {
             throw new IllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
         }
         this.type = mappingMap.keySet().iterator().next();
         initMappers((Map<String, Object>) mappingMap.get(this.type));
-    }
-
-    public MappingMetaData(Map<String, Object> mapping) throws IOException {
-        this(mapping.keySet().iterator().next(), mapping);
     }
 
     public MappingMetaData(String type, Map<String, Object> mapping) throws IOException {
@@ -132,7 +123,12 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("required")) {
-                    required = lenientNodeBooleanValue(fieldNode);
+                    try {
+                        required = nodeBooleanValue(fieldNode);
+                    } catch (IllegalArgumentException ex) {
+                        throw new IllegalArgumentException("Failed to create mapping for type [" + this.type() + "]. " +
+                            "Illegal value in field [_routing.required].", ex);
+                    }
                 }
             }
             this.routing = new Routing(required);
@@ -204,7 +200,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
             // timestamp
             out.writeBoolean(false); // enabled
             out.writeString(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format());
-            out.writeOptionalString(null);
+            out.writeOptionalString("now"); // 5.x default
             out.writeOptionalBoolean(null);
         }
         out.writeBoolean(hasParentField());
@@ -232,11 +228,11 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         return result;
     }
 
-    public MappingMetaData readFrom(StreamInput in) throws IOException {
-        String type = in.readString();
-        CompressedXContent source = CompressedXContent.readCompressedString(in);
+    public MappingMetaData(StreamInput in) throws IOException {
+        type = in.readString();
+        source = CompressedXContent.readCompressedString(in);
         // routing
-        Routing routing = new Routing(in.readBoolean());
+        routing = new Routing(in.readBoolean());
         if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
             // timestamp
             boolean enabled = in.readBoolean();
@@ -247,9 +243,11 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
             in.readOptionalString(); // defaultTimestamp
             in.readOptionalBoolean(); // ignoreMissing
         }
+        hasParentField = in.readBoolean();
+    }
 
-        final boolean hasParentField = in.readBoolean();
-        return new MappingMetaData(type, source, routing, hasParentField);
+    public static Diff<MappingMetaData> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(MappingMetaData::new, in);
     }
 
 }

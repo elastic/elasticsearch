@@ -28,6 +28,7 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -57,9 +58,9 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         String dateMathExp1 = "<.marvel-{now/d}>";
         String dateMathExp2 = "<.marvel-{now/d-1d}>";
         String dateMathExp3 = "<.marvel-{now/d-2d}>";
-        client().prepareIndex(dateMathExp1, "type", "1").setSource("{}").get();
-        client().prepareIndex(dateMathExp2, "type", "2").setSource("{}").get();
-        client().prepareIndex(dateMathExp3, "type", "3").setSource("{}").get();
+        client().prepareIndex(dateMathExp1, "type", "1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex(dateMathExp2, "type", "2").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex(dateMathExp3, "type", "3").setSource("{}", XContentType.JSON).get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3).get();
@@ -116,9 +117,9 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         String dateMathExp1 = "<.marvel-{now/d}>";
         String dateMathExp2 = "<.marvel-{now/d-1d}>";
         String dateMathExp3 = "<.marvel-{now/d-2d}>";
-        client().prepareIndex(dateMathExp1, "type", "1").setSource("{}").get();
-        client().prepareIndex(dateMathExp2, "type", "2").setSource("{}").get();
-        client().prepareIndex(dateMathExp3, "type", "3").setSource("{}").get();
+        client().prepareIndex(dateMathExp1, "type", "1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex(dateMathExp2, "type", "2").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex(dateMathExp3, "type", "3").setSource("{}", XContentType.JSON).get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3).get();

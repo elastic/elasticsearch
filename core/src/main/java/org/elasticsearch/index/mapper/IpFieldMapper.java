@@ -19,18 +19,18 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -38,6 +38,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -45,6 +46,7 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -110,7 +112,7 @@ public class IpFieldMapper extends FieldMapper {
                     builder.nullValue(InetAddresses.forString(propNode.toString()));
                     iterator.remove();
                 } else if (propName.equals("ignore_malformed")) {
-                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue("ignore_malformed", propNode, parserContext));
+                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue(name, "ignore_malformed", propNode, parserContext));
                     iterator.remove();
                 } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
                     iterator.remove();
@@ -122,7 +124,7 @@ public class IpFieldMapper extends FieldMapper {
 
     public static final class IpFieldType extends MappedFieldType {
 
-        IpFieldType() {
+        public IpFieldType() {
             super();
             setTokenized(false);
             setHasDocValues(true);
@@ -213,9 +215,13 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public FieldStats.Ip stats(IndexReader reader) throws IOException {
             String field = name();
+            FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(name());
+            if (fi == null) {
+                return null;
+            }
             long size = PointValues.size(reader, field);
             if (size == 0) {
-                return null;
+                return new FieldStats.Ip(reader.maxDoc(), 0, -1, -1, isSearchable(), isAggregatable());
             }
             int docCount = PointValues.getDocCount(reader, field);
             byte[] min = PointValues.getMinPackedValue(reader, field);
@@ -225,10 +231,45 @@ public class IpFieldMapper extends FieldMapper {
                 InetAddressPoint.decode(min), InetAddressPoint.decode(max));
         }
 
+        public static final class IpScriptDocValues extends ScriptDocValues<String> {
+
+            private final RandomAccessOrds values;
+
+            public IpScriptDocValues(RandomAccessOrds values) {
+                this.values = values;
+            }
+
+            @Override
+            public void setNextDocId(int docId) {
+                values.setDocument(docId);
+            }
+
+            public String getValue() {
+                if (isEmpty()) {
+                    return null;
+                } else {
+                    return get(0);
+                }
+            }
+
+            @Override
+            public String get(int index) {
+                BytesRef encoded = values.lookupOrd(values.ordAt(0));
+                InetAddress address = InetAddressPoint.decode(
+                        Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length));
+                return InetAddresses.toAddrString(address);
+            }
+
+            @Override
+            public int size() {
+                return values.cardinality();
+            }
+        }
+
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder();
+            return new DocValuesIndexFieldData.Builder().scriptFunction(IpScriptDocValues::new);
         }
 
         @Override

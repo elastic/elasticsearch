@@ -294,7 +294,7 @@ GET /_tasks/taskId:1
 
 The advantage of this API is that it integrates with `wait_for_completion=false`
 to transparently return the status of completed tasks. If the task is completed
-and `wait_for_completion=false` was set on it them it'll come back with a
+and `wait_for_completion=false` was set on it then it'll come back with
 `results` or an `error` field. The cost of this feature is the document that
 `wait_for_completion=false` creates at `.tasks/task/${taskId}`. It is up to
 you to delete that document.
@@ -467,6 +467,7 @@ Which results in a sensible `total` like this one:
 
 Adding `slices` to `_delete_by_query` just automates the manual process used in
 the section above, creating sub-requests which means it has some quirks:
+
 * You can see these requests in the
 <<docs-delete-by-query-task-api,Tasks APIs>>. These sub-requests are "child"
 tasks of the task for the request with `slices`.

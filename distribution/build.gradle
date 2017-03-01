@@ -23,6 +23,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.EmptyDirTask
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.UpdateShasTask
 import org.elasticsearch.gradle.test.RunTask
@@ -37,6 +38,22 @@ buildscript {
   dependencies {
     classpath 'com.netflix.nebula:gradle-ospackage-plugin:3.4.0'
   }
+}
+
+Collection distributions = project.subprojects.findAll { it.path.contains(':tools') == false }
+
+/*****************************************************************************
+ *                                Notice file                                *
+ *****************************************************************************/
+
+// integ test zip only uses core, so a different notice file is needed there
+task buildCoreNotice(type: NoticeTask) {
+  dependencies project(':core')
+}
+
+// other distributions include notices from modules as well, which are added below later
+task buildFullNotice(type: NoticeTask) {
+  dependencies project(':core')
 }
 
 /*****************************************************************************
@@ -54,6 +71,9 @@ ext.restTestExpansions = [
 // depend on it, but we don't actually configure it until here so we can do a single
 // loop over modules to also setup cross task dependencies and increment our modules counter
 project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each { Project module ->
+  buildFullNotice {
+    dependencies module
+  }
   buildModules {
     dependsOn({ project(module.path).bundlePlugin })
     into(module.name) {
@@ -61,25 +81,21 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each
     }
   }
   // We would like to make sure integ tests for the distribution run after
-  // integ tests for the modules included in the distribution. However, gradle
-  // has a bug where depending on a task with a finalizer can sometimes not make
-  // the finalizer task follow the original task immediately. To work around this,
-  // we make the mustRunAfter the finalizer task itself.
-  // See https://discuss.gradle.org/t/cross-project-task-dependencies-ordering-screws-up-finalizers/13190
-  project.configure(project.subprojects.findAll { it.name != 'integ-test-zip' }) { Project distribution ->
+  // integ tests for the modules included in the distribution.
+  project.configure(distributions.findAll { it.name != 'integ-test-zip' }) { Project distribution ->
     distribution.afterEvaluate({
       // some integTest tasks will have multiple finalizers
-      distribution.integTest.mustRunAfter module.tasks.find { t -> t.name.matches(".*integTest\$") }.getFinalizedBy()
+      distribution.integTest.mustRunAfter module.tasks.find { t -> t.name.matches(".*integTest\$") }
     })
   }
   // also want to make sure the module's integration tests run after the integ-test-zip (ie rest tests)
   module.afterEvaluate({
-    module.integTest.mustRunAfter(':distribution:integ-test-zip:integTest#stop')
+    module.integTest.mustRunAfter(':distribution:integ-test-zip:integTest')
   })
   restTestExpansions['expected.modules.count'] += 1
 }
 
-// Integ tests work over the rest http layer, so we need a transport included with the integ test zip. 
+// Integ tests work over the rest http layer, so we need a transport included with the integ test zip.
 // All transport modules are included so that they may be randomized for testing
 task buildTransportModules(type: Sync) {
   into 'build/transport-modules'
@@ -100,23 +116,23 @@ task clean(type: Delete) {
   delete 'build'
 }
 
-subprojects {
+configure(distributions) {
   /*****************************************************************************
    *                            Rest test config                               *
    *****************************************************************************/
+  apply plugin: 'elasticsearch.standalone-rest-test'
   apply plugin: 'elasticsearch.rest-test'
   project.integTest {
     dependsOn project.assemble
     includePackaged project.name == 'integ-test-zip'
-    cluster {
-      distribution = project.name
-    }
     if (project.name != 'integ-test-zip') {
-      // see note above with module mustRunAfter about why integTest#stop is used here
-      mustRunAfter ':distribution:integ-test-zip:integTest#stop'
+      mustRunAfter ':distribution:integ-test-zip:integTest'
     }
   }
-  
+  project.integTestCluster {
+    distribution = project.name
+  }
+
   processTestResources {
     inputs.properties(project(':distribution').restTestExpansions)
     MavenFilteringHack.filter(it, project(':distribution').restTestExpansions)
@@ -143,6 +159,8 @@ subprojects {
       into 'lib'
       from project(':core').jar
       from project(':core').configurations.runtime
+      // delay add tools using closures, since they have not yet been configured, so no jar task exists yet
+      from { project(':distribution:tools:java-version-checker').jar }
     }
 
     modulesFiles = copySpec {
@@ -171,9 +189,16 @@ subprojects {
 
     commonFiles = copySpec {
       from rootProject.projectDir
-      include 'NOTICE.txt'
       include 'LICENSE.txt'
       include 'README.textile'
+    }
+
+    noticeFile = copySpec {
+      if (project.name == 'integ-test-zip') {
+        from buildCoreNotice
+      } else {
+        from buildFullNotice
+      }
     }
   }
 
@@ -191,7 +216,7 @@ subprojects {
 /*****************************************************************************
  *                         Zip and tgz configuration                         *
  *****************************************************************************/
-configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.name) }) {
+configure(distributions.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.name) }) {
   // CopySpec does not make it easy to create an empty director so we create the directory that we want, and then point CopySpec to its
   // parent to copy to the root of the distribution
   File plugins = new File(buildDir, 'plugins-hack/plugins')
@@ -223,6 +248,7 @@ configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.nam
         }
       }
       with commonFiles
+      with noticeFile
       from('../src/main/resources') {
         include 'bin/*.exe'
       }
@@ -259,7 +285,7 @@ configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.nam
  *    rpm -qlp --dump path/to/elasticsearch.rpm
  *    dpkg -c path/to/elasticsearch.deb
  */
-configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
+configure(distributions.findAll { ['deb', 'rpm'].contains(it.name) }) {
   integTest.enabled = Os.isFamily(Os.FAMILY_WINDOWS) == false
   File packagingFiles = new File(buildDir, 'packaging')
   project.ext.packagingFiles = packagingFiles
@@ -374,6 +400,7 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
         exclude 'LICENSE.txt'
       }
     }
+    with noticeFile
 
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
     configurationFile '/etc/elasticsearch/jvm.options'

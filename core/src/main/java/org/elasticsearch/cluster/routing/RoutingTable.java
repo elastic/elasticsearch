@@ -56,8 +56,6 @@ import java.util.function.Predicate;
  */
 public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<RoutingTable> {
 
-    public static RoutingTable PROTO = builder().build();
-
     public static final RoutingTable EMPTY_ROUTING_TABLE = builder().build();
 
     private final long version;
@@ -349,18 +347,16 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return new RoutingTableDiff(previousState, this);
     }
 
-    @Override
-    public Diff<RoutingTable> readDiffFrom(StreamInput in) throws IOException {
+    public static Diff<RoutingTable> readDiffFrom(StreamInput in) throws IOException {
         return new RoutingTableDiff(in);
     }
 
-    @Override
-    public RoutingTable readFrom(StreamInput in) throws IOException {
+    public static RoutingTable readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder();
         builder.version = in.readLong();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            IndexRoutingTable index = IndexRoutingTable.Builder.readFrom(in);
+            IndexRoutingTable index = IndexRoutingTable.readFrom(in);
             builder.add(index);
         }
 
@@ -382,14 +378,15 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
         private final Diff<ImmutableOpenMap<String, IndexRoutingTable>> indicesRouting;
 
-        public RoutingTableDiff(RoutingTable before, RoutingTable after) {
+        RoutingTableDiff(RoutingTable before, RoutingTable after) {
             version = after.version;
             indicesRouting = DiffableUtils.diff(before.indicesRouting, after.indicesRouting, DiffableUtils.getStringKeySerializer());
         }
 
-        public RoutingTableDiff(StreamInput in) throws IOException {
+        RoutingTableDiff(StreamInput in) throws IOException {
             version = in.readLong();
-            indicesRouting = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexRoutingTable.PROTO);
+            indicesRouting = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexRoutingTable::readFrom,
+                IndexRoutingTable::readDiffFrom);
         }
 
         @Override
@@ -606,10 +603,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             RoutingTable table = new RoutingTable(version, indicesRouting.build());
             indicesRouting = null;
             return table;
-        }
-
-        public static RoutingTable readFrom(StreamInput in) throws IOException {
-            return PROTO.readFrom(in);
         }
     }
 

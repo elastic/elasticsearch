@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -69,6 +70,22 @@ public class ShardId implements Streamable, Comparable<ShardId> {
     @Override
     public String toString() {
         return "[" + index.getName() + "][" + shardId + "]";
+    }
+
+    /**
+     * Parse the string representation of this shardId back to an object.
+     * We lose index uuid information here, but since we use toString in
+     * rest responses, this is the best we can do to reconstruct the object
+     * on the client side.
+     */
+    public static ShardId fromString(String shardIdString) {
+        int splitPosition = shardIdString.indexOf("][");
+        if (splitPosition <= 0 || shardIdString.charAt(0) != '[' || shardIdString.charAt(shardIdString.length() - 1) != ']') {
+            throw new IllegalArgumentException("Unexpected shardId string format, expected [indexName][shardId] but got " + shardIdString);
+        }
+        String indexName = shardIdString.substring(1, splitPosition);
+        int shardId = Integer.parseInt(shardIdString.substring(splitPosition + 2, shardIdString.length() - 1));
+        return new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId);
     }
 
     @Override

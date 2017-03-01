@@ -36,6 +36,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -119,6 +120,10 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
 
         public B reduce(List<B> buckets, ReduceContext context) {
             long docCount = 0;
+            // For the per term doc count error we add up the errors from the
+            // shards that did not respond with the term. To do this we add up
+            // the errors from the shards that did respond with the terms and
+            // subtract that from the sum of the error from all shards
             long docCountError = 0;
             List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
             for (B bucket : buckets) {
@@ -134,6 +139,25 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             }
             InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
             return newBucket(docCount, aggs, docCountError);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            Bucket<?> that = (Bucket<?>) obj;
+            // No need to take format and showDocCountError, they are attributes
+            // of the parent terms aggregation object that are only copied here
+            // for serialization purposes
+            return Objects.equals(docCount, that.docCount)
+                    && Objects.equals(docCountError, that.docCountError)
+                    && Objects.equals(aggregations, that.aggregations);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getClass(), docCount, docCountError, aggregations);
         }
     }
 
@@ -205,7 +229,15 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             if (terms.getBucketsInternal().size() < getShardSize() || InternalOrder.isTermOrder(order)) {
                 thisAggDocCountError = 0;
             } else if (InternalOrder.isCountDesc(this.order)) {
-                thisAggDocCountError = terms.getBucketsInternal().get(terms.getBucketsInternal().size() - 1).docCount;
+                if (terms.getDocCountError() > 0) {
+                    // If there is an existing docCountError for this agg then
+                    // use this as the error for this aggregation
+                    thisAggDocCountError = terms.getDocCountError();
+                } else {
+                    // otherwise use the doc count of the last term in the
+                    // aggregation
+                    thisAggDocCountError = terms.getBucketsInternal().get(terms.getBucketsInternal().size() - 1).docCount;
+                }
             } else {
                 thisAggDocCountError = -1;
             }
@@ -218,7 +250,14 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             }
             setDocCountError(thisAggDocCountError);
             for (B bucket : terms.getBucketsInternal()) {
-                bucket.docCountError = thisAggDocCountError;
+                // If there is already a doc count error for this bucket
+                // subtract this aggs doc count error from it to make the
+                // new value for the bucket. This then means that when the
+                // final error for the bucket is calculated below we account
+                // for the existing error calculated in a previous reduce.
+                // Note that if the error is unbounded (-1) this will be fixed
+                // later in this method.
+                bucket.docCountError -= thisAggDocCountError;
                 List<B> bucketList = buckets.get(bucket.getKey());
                 if (bucketList == null) {
                     bucketList = new ArrayList<>();
@@ -228,18 +267,16 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             }
         }
 
-        final int size = Math.min(requiredSize, buckets.size());
-        BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator(null));
+        final int size = reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size());
+        final BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator(null));
         for (List<B> sameTermBuckets : buckets.values()) {
             final B b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
-            if (b.docCountError != -1) {
-                if (sumDocCountError == -1) {
-                    b.docCountError = -1;
-                } else {
-                    b.docCountError = sumDocCountError - b.docCountError;
-                }
+            if (sumDocCountError == -1) {
+                b.docCountError = -1;
+            } else {
+                b.docCountError += sumDocCountError;
             }
-            if (b.docCount >= minDocCount) {
+            if (b.docCount >= minDocCount || reduceContext.isFinalReduce() == false) {
                 B removed = ordered.insertWithOverflow(b);
                 if (removed != null) {
                     otherDocCount += removed.getDocCount();
@@ -269,4 +306,17 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
      * Create an array to hold some buckets. Used in collecting the results.
      */
     protected abstract B[] createBucketsArray(int size);
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalTerms<?,?> that = (InternalTerms<?,?>) obj;
+        return Objects.equals(minDocCount, that.minDocCount)
+                && Objects.equals(order, that.order)
+                && Objects.equals(requiredSize, that.requiredSize);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(minDocCount, order, requiredSize);
+    }
 }

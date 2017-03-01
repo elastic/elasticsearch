@@ -141,7 +141,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         try {
             searchSuggest("test", termSuggest);
             fail(" can not suggest across multiple indices with different analysis chains");
-        } catch (ReduceSearchPhaseException ex) {
+        } catch (SearchPhaseExecutionException ex) {
             assertThat(ex.getCause(), instanceOf(IllegalStateException.class));
             assertThat(ex.getCause().getMessage(),
                     anyOf(endsWith("Suggest entries have different sizes actual [1] expected [2]"),
@@ -160,7 +160,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         try {
             searchSuggest("test", termSuggest);
             fail(" can not suggest across multiple indices with different analysis chains");
-        } catch (ReduceSearchPhaseException ex) {
+        } catch (SearchPhaseExecutionException ex) {
             assertThat(ex.getCause(), instanceOf(IllegalStateException.class));
             assertThat(ex.getCause().getMessage(), anyOf(endsWith("Suggest entries have different text actual [ABCD] expected [abcd]"),
                     endsWith("Suggest entries have different text actual [abcd] expected [ABCD]")));
@@ -459,7 +459,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
                 .put("index.analysis.filter.my_shingle.max_shingle_size", 2));
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("_all").field("store", true).field("term_vector", "with_positions_offsets").endObject()
                 .startObject("properties")
                 .startObject("body").field("type", "text").field("analyzer", "body").endObject()
                 .startObject("body_reverse").field("type", "text").field("analyzer", "reverse").endObject()
@@ -502,10 +501,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .put("index.analysis.filter.my_shingle.max_shingle_size", 2)
                 .put("index.number_of_shards", 1));
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                    .startObject("_all")
-                        .field("store", true)
-                        .field("term_vector", "with_positions_offsets")
-                    .endObject()
                     .startObject("properties")
                         .startObject("body").
                             field("type", "text").
@@ -655,10 +650,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("type1")
-                        .startObject("_all")
-                            .field("store", true)
-                            .field("term_vector", "with_positions_offsets")
-                        .endObject()
                         .startObject("properties")
                             .startObject("body")
                                 .field("type", "text")
@@ -726,7 +717,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
                     .startObject().startObject("type1")
-                    .startObject("_all").field("store", true).field("term_vector", "with_positions_offsets").endObject()
                 .startObject("properties")
                 .startObject("body").field("type", "text").field("analyzer", "body").endObject()
                 .startObject("bigram").field("type", "text").field("analyzer", "bigram").endObject()
@@ -929,10 +919,6 @@ public class SuggestSearchIT extends ESIntegTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("type1")
-                        .startObject("_all")
-                            .field("store", true)
-                            .field("term_vector", "with_positions_offsets")
-                        .endObject()
                         .startObject("properties")
                             .startObject("body")
                                 .field("type", "text")

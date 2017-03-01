@@ -21,8 +21,8 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -38,8 +38,6 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * Registers repositories
  */
 public class RestPutRepositoryAction extends BaseRestHandler {
-
-    @Inject
     public RestPutRepositoryAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(PUT, "/_snapshot/{repository}", this);
@@ -50,7 +48,9 @@ public class RestPutRepositoryAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         PutRepositoryRequest putRepositoryRequest = putRepositoryRequest(request.param("repository"));
-        putRepositoryRequest.source(request.content().utf8ToString());
+        try (XContentParser parser = request.contentParser()) {
+            putRepositoryRequest.source(parser.mapOrdered());
+        }
         putRepositoryRequest.verify(request.paramAsBoolean("verify", true));
         putRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRepositoryRequest.masterNodeTimeout()));
         putRepositoryRequest.timeout(request.paramAsTime("timeout", putRepositoryRequest.timeout()));

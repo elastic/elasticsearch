@@ -68,7 +68,7 @@ public class WeightFactorFunction extends ScoreFunction {
 
     @Override
     public boolean needsScores() {
-        return false;
+        return scoreFunction.needsScores();
     }
 
     public Explanation explainWeight() {

@@ -31,8 +31,10 @@ public class ArmenianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Arme
 
     public ArmenianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new ArmenianAnalyzer(Analysis.parseStopWords(env, settings, ArmenianAnalyzer.getDefaultStopSet()),
-                                        Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer = new ArmenianAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, ArmenianAnalyzer.getDefaultStopSet()),
+            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
+        );
         analyzer.setVersion(version);
     }
 

@@ -22,18 +22,18 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -46,8 +46,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Order;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.FieldOptions;
@@ -75,7 +75,7 @@ public class HighlightBuilderTests extends ESTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;
-    private static IndicesQueriesRegistry indicesQueriesRegistry;
+    private static NamedXContentRegistry xContentRegistry;
 
     /**
      * setup for the whole base test class
@@ -84,13 +84,13 @@ public class HighlightBuilderTests extends ESTestCase {
     public static void init() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-        indicesQueriesRegistry = searchModule.getQueryParserRegistry();
+        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
-        indicesQueriesRegistry = null;
+        xContentRegistry = null;
     }
 
     /**
@@ -128,8 +128,8 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
             XContentBuilder shuffled = shuffleXContent(builder);
 
-            XContentParser parser = XContentHelper.createParser(shuffled.bytes());
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+            XContentParser parser = createParser(shuffled);
+            QueryParseContext context = new QueryParseContext(parser);
             parser.nextToken();
             HighlightBuilder secondHighlightBuilder;
             try {
@@ -168,9 +168,9 @@ public class HighlightBuilderTests extends ESTestCase {
         }
     }
 
-    private static <T extends Throwable> T expectParseThrows(Class<T> exceptionClass, String highlightElement) throws IOException {
-        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
+    private <T extends Throwable> T expectParseThrows(Class<T> exceptionClass, String highlightElement) throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
+        QueryParseContext context = new QueryParseContext(parser);
         return expectThrows(exceptionClass, () -> HighlightBuilder.fromXContent(context));
     }
 
@@ -265,8 +265,8 @@ public class HighlightBuilderTests extends ESTestCase {
         Index index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, indicesQueriesRegistry,
-                null, null, null, System::currentTimeMillis) {
+        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
+                null, null, System::currentTimeMillis) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
@@ -289,6 +289,7 @@ public class HighlightBuilderTests extends ESTestCase {
                         mergeBeforeChek(highlightBuilder, fieldBuilder, fieldOptions);
 
                 checkSame.accept(AbstractHighlighterBuilder::boundaryChars, FieldOptions::boundaryChars);
+                checkSame.accept(AbstractHighlighterBuilder::boundaryScannerType, FieldOptions::boundaryScannerType);
                 checkSame.accept(AbstractHighlighterBuilder::boundaryMaxScan, FieldOptions::boundaryMaxScan);
                 checkSame.accept(AbstractHighlighterBuilder::fragmentSize, FieldOptions::fragmentCharSize);
                 checkSame.accept(AbstractHighlighterBuilder::fragmenter, FieldOptions::fragmenter);
@@ -378,9 +379,9 @@ public class HighlightBuilderTests extends ESTestCase {
         String highlightElement = "{\n" +
                 "    \"tags_schema\" : \"styled\"\n" +
                 "}\n";
-        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+        QueryParseContext context = new QueryParseContext(parser);
         HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(context);
         assertArrayEquals("setting tags_schema 'styled' should alter pre_tags", HighlightBuilder.DEFAULT_STYLED_PRE_TAG,
                 highlightBuilder.preTags());
@@ -390,9 +391,9 @@ public class HighlightBuilderTests extends ESTestCase {
         highlightElement = "{\n" +
                 "    \"tags_schema\" : \"default\"\n" +
                 "}\n";
-        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+        context = new QueryParseContext(parser);
         highlightBuilder = HighlightBuilder.fromXContent(context);
         assertArrayEquals("setting tags_schema 'default' should alter pre_tags", HighlightBuilder.DEFAULT_PRE_TAGS,
                 highlightBuilder.preTags());
@@ -411,23 +412,23 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testParsingEmptyStructure() throws IOException {
         String highlightElement = "{ }";
-        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+        QueryParseContext context = new QueryParseContext(parser);
         HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("expected plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
 
         highlightElement = "{ \"fields\" : { } }";
-        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+        context = new QueryParseContext(parser);
         highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("defining no field should return plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
 
         highlightElement = "{ \"fields\" : { \"foo\" : { } } }";
-        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+        context = new QueryParseContext(parser);
         highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("expected HighlightBuilder with field", new HighlightBuilder().field(new Field("foo")), highlightBuilder);
     }
@@ -559,10 +560,21 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.forceSource(randomBoolean());
         }
         if (randomBoolean()) {
+            if (randomBoolean()) {
+                highlightBuilder.boundaryScannerType(randomFrom(BoundaryScannerType.values()));
+            } else {
+                // also test the string setter
+                highlightBuilder.boundaryScannerType(randomFrom(BoundaryScannerType.values()).toString());
+            }
+        }
+        if (randomBoolean()) {
             highlightBuilder.boundaryMaxScan(randomIntBetween(0, 10));
         }
         if (randomBoolean()) {
             highlightBuilder.boundaryChars(randomAsciiOfLengthBetween(1, 10).toCharArray());
+        }
+        if (randomBoolean()) {
+            highlightBuilder.boundaryScannerLocale(randomLocale(random()).toLanguageTag());
         }
         if (randomBoolean()) {
             highlightBuilder.noMatchSize(randomIntBetween(0, 10));
@@ -714,5 +726,10 @@ public class HighlightBuilderTests extends ESTestCase {
 
     private static HighlightBuilder serializedCopy(HighlightBuilder original) throws IOException {
         return ESTestCase.copyWriteable(original, namedWriteableRegistry, HighlightBuilder::new);
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
     }
 }

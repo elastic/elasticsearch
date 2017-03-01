@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
@@ -29,6 +30,7 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -39,6 +41,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.TaskManager;
@@ -57,6 +60,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
@@ -168,11 +172,16 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
     public static class TestNode implements Releasable {
         public TestNode(String name, ThreadPool threadPool, Settings settings) {
-            clusterService = createClusterService(threadPool);
+            final Function<BoundTransportAddress, DiscoveryNode> boundTransportAddressDiscoveryNodeFunction =
+                address -> {
+                 discoveryNode.set(new DiscoveryNode(name, address.publishAddress(), emptyMap(), emptySet(), Version.CURRENT));
+                 return discoveryNode.get();
+                };
             transportService = new TransportService(settings,
                     new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService(),
-                            new NamedWriteableRegistry(Collections.emptyList()), new NetworkService(settings, Collections.emptyList())),
-                    threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null) {
+                        new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+                        new NetworkService(settings, Collections.emptyList())),
+                    threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddressDiscoveryNodeFunction, null) {
                 @Override
                 protected TaskManager createTaskManager() {
                     if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
@@ -183,9 +192,8 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 }
             };
             transportService.start();
-            clusterService.add(transportService.getTaskManager());
-            discoveryNode = new DiscoveryNode(name, transportService.boundAddress().publishAddress(),
-                    emptyMap(), emptySet(), Version.CURRENT);
+            clusterService = createClusterService(threadPool, discoveryNode.get());
+            clusterService.addStateApplier(transportService.getTaskManager());
             IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
             ActionFilters actionFilters = new ActionFilters(emptySet());
             transportListTasksAction = new TransportListTasksAction(settings, threadPool, clusterService, transportService,
@@ -197,7 +205,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
         public final ClusterService clusterService;
         public final TransportService transportService;
-        public final DiscoveryNode discoveryNode;
+        private final SetOnce<DiscoveryNode> discoveryNode = new SetOnce<>();
         public final TransportListTasksAction transportListTasksAction;
         public final TransportCancelTasksAction transportCancelTasksAction;
 
@@ -208,22 +216,24 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
 
         public String getNodeId() {
-            return discoveryNode.getId();
+            return discoveryNode().getId();
         }
+
+        public DiscoveryNode discoveryNode() { return  discoveryNode.get(); }
     }
 
     public static void connectNodes(TestNode... nodes) {
         DiscoveryNode[] discoveryNodes = new DiscoveryNode[nodes.length];
         for (int i = 0; i < nodes.length; i++) {
-            discoveryNodes[i] = nodes[i].discoveryNode;
+            discoveryNodes[i] = nodes[i].discoveryNode();
         }
         DiscoveryNode master = discoveryNodes[0];
         for (TestNode node : nodes) {
-            setState(node.clusterService, ClusterStateCreationUtils.state(node.discoveryNode, master, discoveryNodes));
+            setState(node.clusterService, ClusterStateCreationUtils.state(node.discoveryNode(), master, discoveryNodes));
         }
         for (TestNode nodeA : nodes) {
             for (TestNode nodeB : nodes) {
-                nodeA.transportService.connectToNode(nodeB.discoveryNode);
+                nodeA.transportService.connectToNode(nodeB.discoveryNode());
             }
         }
     }
@@ -231,7 +241,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     public static RecordingTaskManagerListener[] setupListeners(TestNode[] nodes, String... actionMasks) {
         RecordingTaskManagerListener[] listeners = new RecordingTaskManagerListener[nodes.length];
         for (int i = 0; i < nodes.length; i++) {
-            listeners[i] = new RecordingTaskManagerListener(nodes[i].discoveryNode.getId(), actionMasks);
+            listeners[i] = new RecordingTaskManagerListener(nodes[i].getNodeId(), actionMasks);
             ((MockTaskManager) (nodes[i].transportService.getTaskManager())).addListener(listeners[i]);
         }
         return listeners;

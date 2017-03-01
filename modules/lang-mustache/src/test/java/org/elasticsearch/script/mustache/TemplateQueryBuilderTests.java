@@ -59,11 +59,12 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     private QueryBuilder templateBase;
 
     /**
-     * All tests create deprecation warnings when an new {@link TemplateQueryBuilder} is created.
-     * Instead of having to check them once in every single test, this is done here after each test is run
+     * All tests in this class cause deprecation warnings when a new {@link TemplateQueryBuilder} is created.
+     * Instead of having to check them in every single test, we do it after each test is run
      */
-    @After void checkWarningHeaders() throws IOException {
-        checkWarningHeaders("[template] query is deprecated, use search template api instead");
+    @After
+    public void checkWarning() {
+        assertWarnings("[template] query is deprecated, use search template api instead");
     }
 
     @Override
@@ -135,10 +136,11 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     @Override
     public void testUnknownField() throws IOException {
         TemplateQueryBuilder testQuery = createTestQueryBuilder();
-        String testQueryAsString = toXContent(testQuery, randomFrom(XContentType.JSON, XContentType.YAML)).string();
+        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.YAML);
+        String testQueryAsString = toXContent(testQuery, xContentType).string();
         String queryAsString = testQueryAsString.replace("inline", "bogusField");
         try {
-            parseQuery(queryAsString);
+            parseQuery(createParser(xContentType.xContent(), queryAsString));
             fail("IllegalArgumentException expected");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("[script] unknown field [bogusField], parser not found"));

@@ -226,7 +226,7 @@ public class TimeValueTests extends ESTestCase {
     }
 
     public void testCompareEquality() {
-        long randomLong = randomPositiveLong();
+        long randomLong = randomNonNegativeLong();
         TimeUnit randomUnit = randomFrom(TimeUnit.values());
         TimeValue firstValue = new TimeValue(randomLong, randomUnit);
         TimeValue secondValue = new TimeValue(randomLong, randomUnit);
@@ -234,8 +234,8 @@ public class TimeValueTests extends ESTestCase {
     }
 
     public void testCompareValue() {
-        long firstRandom = randomPositiveLong();
-        long secondRandom = randomValueOtherThan(firstRandom, ESTestCase::randomPositiveLong);
+        long firstRandom = randomNonNegativeLong();
+        long secondRandom = randomValueOtherThan(firstRandom, ESTestCase::randomNonNegativeLong);
         TimeUnit unit = randomFrom(TimeUnit.values());
         TimeValue firstValue = new TimeValue(firstRandom, unit);
         TimeValue secondValue = new TimeValue(secondRandom, unit);
@@ -244,7 +244,7 @@ public class TimeValueTests extends ESTestCase {
     }
 
     public void testCompareUnits() {
-        long number = randomPositiveLong();
+        long number = randomNonNegativeLong();
         TimeUnit randomUnit = randomValueOtherThan(TimeUnit.DAYS, ()->randomFrom(TimeUnit.values()));
         TimeValue firstValue = new TimeValue(number, randomUnit);
         TimeValue secondValue = new TimeValue(number, TimeUnit.DAYS);

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
@@ -35,25 +36,37 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class ConnectionProfile {
 
     /**
-     * A pre-built light connection profile that shares a single connection across all
-     * types.
+     * Builds a connection profile that is dedicated to a single channel type. Use this
+     * when opening single use connections
      */
-    public static final ConnectionProfile LIGHT_PROFILE = new ConnectionProfile(
-        Collections.singletonList(new ConnectionTypeHandle(0, 1, EnumSet.of(
-            TransportRequestOptions.Type.BULK,
-            TransportRequestOptions.Type.PING,
-            TransportRequestOptions.Type.RECOVERY,
-            TransportRequestOptions.Type.REG,
-            TransportRequestOptions.Type.STATE))), 1, null);
+    public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType,
+                                                              @Nullable TimeValue connectTimeout,
+                                                               @Nullable TimeValue handshakeTimeout) {
+        Builder builder = new Builder();
+        builder.addConnections(1, channelType);
+        final EnumSet<TransportRequestOptions.Type> otherTypes = EnumSet.allOf(TransportRequestOptions.Type.class);
+        otherTypes.remove(channelType);
+        builder.addConnections(0, otherTypes.stream().toArray(TransportRequestOptions.Type[]::new));
+        if (connectTimeout != null) {
+            builder.setConnectTimeout(connectTimeout);
+        }
+        if (handshakeTimeout != null) {
+            builder.setHandshakeTimeout(handshakeTimeout);
+        }
+        return builder.build();
+    }
 
     private final List<ConnectionTypeHandle> handles;
     private final int numConnections;
     private final TimeValue connectTimeout;
+    private final TimeValue handshakeTimeout;
 
-    private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout) {
+    private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout, TimeValue handshakeTimeout)
+    {
         this.handles = handles;
         this.numConnections = numConnections;
         this.connectTimeout = connectTimeout;
+        this.handshakeTimeout = handshakeTimeout;
     }
 
     /**
@@ -64,15 +77,38 @@ public final class ConnectionProfile {
         private final Set<TransportRequestOptions.Type> addedTypes = EnumSet.noneOf(TransportRequestOptions.Type.class);
         private int offset = 0;
         private TimeValue connectTimeout;
+        private TimeValue handshakeTimeout;
 
+        /** create an empty builder */
+        public Builder() {
+        }
+
+        /** copy constructor, using another profile as a base */
+        public Builder(ConnectionProfile source) {
+            handles.addAll(source.getHandles());
+            offset = source.getNumConnections();
+            handles.forEach(th -> addedTypes.addAll(th.types));
+            connectTimeout = source.getConnectTimeout();
+            handshakeTimeout = source.getHandshakeTimeout();
+        }
         /**
-         * Sets a connect connectTimeout for this connection profile
+         * Sets a connect timeout for this connection profile
          */
         public void setConnectTimeout(TimeValue connectTimeout) {
             if (connectTimeout.millis() < 0) {
                 throw new IllegalArgumentException("connectTimeout must be non-negative but was: " + connectTimeout);
             }
             this.connectTimeout = connectTimeout;
+        }
+
+        /**
+         * Sets a handshake timeout for this connection profile
+         */
+        public void setHandshakeTimeout(TimeValue handshakeTimeout) {
+            if (handshakeTimeout.millis() < 0) {
+                throw new IllegalArgumentException("handshakeTimeout must be non-negative but was: " + handshakeTimeout);
+            }
+            this.handshakeTimeout = handshakeTimeout;
         }
 
         /**
@@ -104,7 +140,7 @@ public final class ConnectionProfile {
             if (types.isEmpty() == false) {
                 throw new IllegalStateException("not all types are added for this connection profile - missing types: " + types);
             }
-            return new ConnectionProfile(Collections.unmodifiableList(handles), offset, connectTimeout);
+            return new ConnectionProfile(Collections.unmodifiableList(handles), offset, connectTimeout, handshakeTimeout);
         }
 
     }
@@ -114,6 +150,13 @@ public final class ConnectionProfile {
      */
     public TimeValue getConnectTimeout() {
         return connectTimeout;
+    }
+
+    /**
+     * Returns the handshake timeout or <code>null</code> if no explicit timeout is set on this profile.
+     */
+    public TimeValue getHandshakeTimeout() {
+        return handshakeTimeout;
     }
 
     /**
@@ -167,7 +210,7 @@ public final class ConnectionProfile {
          */
         <T> T getChannel(T[] channels) {
             if (length == 0) {
-                throw new IllegalStateException("can't select channel size is 0");
+                throw new IllegalStateException("can't select channel size is 0 for types: " + types);
             }
             assert channels.length >= offset + length : "illegal size: " + channels.length + " expected >= " + (offset + length);
             return channels[offset + Math.floorMod(counter.incrementAndGet(), length)];

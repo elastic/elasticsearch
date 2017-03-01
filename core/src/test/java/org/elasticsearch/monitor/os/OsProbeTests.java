@@ -41,7 +41,7 @@ public class OsProbeTests extends ESTestCase {
 
     public void testOsInfo() {
         int allocatedProcessors = randomIntBetween(1, Runtime.getRuntime().availableProcessors());
-        long refreshInterval = randomBoolean() ? -1 : randomPositiveLong();
+        long refreshInterval = randomBoolean() ? -1 : randomNonNegativeLong();
         OsInfo info = probe.osInfo(refreshInterval, allocatedProcessors);
         assertNotNull(info);
         assertEquals(refreshInterval, info.getRefreshInterval());
@@ -155,16 +155,15 @@ public class OsProbeTests extends ESTestCase {
             @Override
             List<String> readProcSelfCgroup() {
                 return Arrays.asList(
-                    "11:freezer:/",
-                    "10:net_cls,net_prio:/",
-                    "9:pids:/",
-                    "8:cpuset:/",
+                    "10:freezer:/",
+                    "9:net_cls,net_prio:/",
+                    "8:pids:/",
                     "7:blkio:/",
                     "6:memory:/",
                     "5:devices:/user.slice",
                     "4:hugetlb:/",
                     "3:perf_event:/",
-                    "2:cpu,cpuacct:/" + hierarchy,
+                    "2:cpu,cpuacct,cpuset:/" + hierarchy,
                     "1:name=systemd:/user.slice/user-1000.slice/session-2359.scope");
             }
 
@@ -195,7 +194,7 @@ public class OsProbeTests extends ESTestCase {
             }
 
             @Override
-            protected boolean areCgroupStatsAvailable() {
+            boolean areCgroupStatsAvailable() {
                 return areCgroupStatsAvailable;
             }
 

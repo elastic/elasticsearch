@@ -20,25 +20,32 @@ package org.elasticsearch.search.aggregations.bucket.range.ip;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -52,9 +59,61 @@ import java.util.Objects;
 public final class IpRangeAggregationBuilder
         extends ValuesSourceAggregationBuilder<ValuesSource.Bytes, IpRangeAggregationBuilder> {
     public static final String NAME = "ip_range";
-    private static final InternalAggregation.Type TYPE = new InternalAggregation.Type(NAME);
+    private static final ParseField MASK_FIELD = new ParseField("mask");
+
+    private static final ObjectParser<IpRangeAggregationBuilder, QueryParseContext> PARSER;
+    static {
+        PARSER = new ObjectParser<>(IpRangeAggregationBuilder.NAME);
+        ValuesSourceParserHelper.declareBytesFields(PARSER, false, false);
+
+        PARSER.declareBoolean(IpRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
+
+        PARSER.declareObjectArray((agg, ranges) -> {
+            for (Range range : ranges) agg.addRange(range);
+        }, IpRangeAggregationBuilder::parseRange, RangeAggregator.RANGES_FIELD);
+    }
+
+    public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return PARSER.parse(context.parser(), new IpRangeAggregationBuilder(aggregationName), context);
+    }
+
+    private static Range parseRange(XContentParser parser, QueryParseContext context) throws IOException {
+        String key = null;
+        String from = null;
+        String to = null;
+        String mask = null;
+
+        if (parser.currentToken() != Token.START_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(), "[ranges] must contain objects, but hit a " + parser.currentToken());
+        }
+        while (parser.nextToken() != Token.END_OBJECT) {
+            if (parser.currentToken() == Token.FIELD_NAME) {
+                continue;
+            }
+            if (RangeAggregator.Range.KEY_FIELD.match(parser.currentName())) {
+                key = parser.text();
+            } else if (RangeAggregator.Range.FROM_FIELD.match(parser.currentName())) {
+                from = parser.textOrNull();
+            } else if (RangeAggregator.Range.TO_FIELD.match(parser.currentName())) {
+                to = parser.textOrNull();
+            } else if (MASK_FIELD.match(parser.currentName())) {
+                mask = parser.text();
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected ip range parameter: [" + parser.currentName() + "]");
+            }
+        }
+        if (mask != null) {
+            if (key == null) {
+                key = mask;
+            }
+            return new Range(key, mask);
+        } else {
+            return new Range(key, from, to);
+        }
+    }
 
     public static class Range implements ToXContent {
+
         private final String key;
         private final String from;
         private final String to;
@@ -94,8 +153,18 @@ public final class IpRangeAggregationBuilder
             }
             this.key = key;
             try {
-                this.from = InetAddresses.toAddrString(InetAddress.getByAddress(lower));
-                this.to = InetAddresses.toAddrString(InetAddress.getByAddress(upper));
+                InetAddress fromAddress = InetAddress.getByAddress(lower);
+                if (fromAddress.equals(InetAddressPoint.MIN_VALUE)) {
+                    this.from = null;
+                } else {
+                    this.from = InetAddresses.toAddrString(fromAddress);
+                }
+                InetAddress inclusiveToAddress = InetAddress.getByAddress(upper);
+                if (inclusiveToAddress.equals(InetAddressPoint.MAX_VALUE)) {
+                    this.to = null;
+                } else {
+                    this.to = InetAddresses.toAddrString(InetAddressPoint.nextUp(inclusiveToAddress));
+                }
             } catch (UnknownHostException bogus) {
                 throw new AssertionError(bogus);
             }
@@ -162,11 +231,11 @@ public final class IpRangeAggregationBuilder
     private List<Range> ranges = new ArrayList<>();
 
     public IpRangeAggregationBuilder(String name) {
-        super(name, TYPE, ValuesSourceType.BYTES, ValueType.IP);
+        super(name, ValuesSourceType.BYTES, ValueType.IP);
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 
@@ -268,7 +337,7 @@ public final class IpRangeAggregationBuilder
     }
 
     public IpRangeAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE, ValuesSourceType.BYTES, ValueType.IP);
+        super(in, ValuesSourceType.BYTES, ValueType.IP);
         final int numRanges = in.readVInt();
         for (int i = 0; i < numRanges; ++i) {
             addRange(new Range(in));
@@ -296,14 +365,14 @@ public final class IpRangeAggregationBuilder
 
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource.Bytes, ?> innerBuild(
-            AggregationContext context, ValuesSourceConfig<ValuesSource.Bytes> config,
+            SearchContext context, ValuesSourceConfig<ValuesSource.Bytes> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder)
                     throws IOException {
         List<BinaryRangeAggregator.Range> ranges = new ArrayList<>();
         for (Range range : this.ranges) {
             ranges.add(new BinaryRangeAggregator.Range(range.key, toBytesRef(range.from), toBytesRef(range.to)));
         }
-        return new BinaryRangeAggregatorFactory(name, TYPE, config, ranges,
+        return new BinaryRangeAggregatorFactory(name, config, ranges,
                 keyed, context, parent, subFactoriesBuilder, metaData);
     }
 

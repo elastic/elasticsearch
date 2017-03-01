@@ -20,11 +20,10 @@
 package org.elasticsearch.index.query;
 
 
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -77,7 +76,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         if (queryBuilder.ids().size() == 0) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
-            assertThat(query, instanceOf(TermsQuery.class));
+            assertThat(query, instanceOf(TermInSetQuery.class));
         }
     }
 
@@ -161,14 +160,11 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
                 "    }\n" +
                 "}";
 
-        IdsQueryBuilder parsed = (IdsQueryBuilder) parseQuery(contentString, ParseFieldMatcher.EMPTY);
+        IdsQueryBuilder parsed = (IdsQueryBuilder) parseQuery(contentString);
         assertEquals(testQuery, parsed);
 
-        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(contentString));
-        checkWarningHeaders("Deprecated field [_type] used, expected [type] instead");
-        assertEquals("Deprecated field [_type] used, expected [type] instead", e.getMessage());
-        assertEquals(3, e.getLineNumber());
-        assertEquals(19, e.getColumnNumber());
+        parseQuery(contentString);
+        assertWarnings("Deprecated field [_type] used, expected [type] instead");
 
         //array of types can also be called types rather than type
         final String contentString2 = "{\n" +
@@ -177,13 +173,10 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
                 "        \"values\" : [ ]\n" +
                 "    }\n" +
                 "}";
-        parsed = (IdsQueryBuilder) parseQuery(contentString2, ParseFieldMatcher.EMPTY);
+        parsed = (IdsQueryBuilder) parseQuery(contentString2);
         assertEquals(testQuery, parsed);
 
-        e = expectThrows(ParsingException.class, () -> parseQuery(contentString2));
-        checkWarningHeaders("Deprecated field [types] used, expected [type] instead");
-        assertEquals("Deprecated field [types] used, expected [type] instead", e.getMessage());
-        assertEquals(3, e.getLineNumber());
-        assertEquals(19, e.getColumnNumber());
+        parseQuery(contentString2);
+        assertWarnings("Deprecated field [types] used, expected [type] instead");
     }
 }

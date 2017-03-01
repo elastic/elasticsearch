@@ -23,39 +23,55 @@ apply plugin: 'elasticsearch.standalone-test'
 
 task oldClusterTest(type: RestIntegTestTask) {
   mustRunAfter(precommit)
-  cluster {
-    distribution = 'zip'
-    bwcVersion = '6.0.0-alpha1-SNAPSHOT' // TODO: either randomize, or make this settable with sysprop
-    numBwcNodes = 2
-    numNodes = 2
-    clusterName = 'rolling-upgrade'
-  }
+}
+
+oldClusterTestCluster {
+  distribution = 'zip'
+  bwcVersion = '5.4.0-SNAPSHOT' // TODO: either randomize, or make this settable with sysprop
+  numBwcNodes = 2
+  numNodes = 2
+  clusterName = 'rolling-upgrade'
+  setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+  setting 'http.content_type.required', 'true'
+}
+
+oldClusterTestRunner {
   systemProperty 'tests.rest.suite', 'old_cluster'
 }
 
 task mixedClusterTest(type: RestIntegTestTask) {
-  dependsOn(oldClusterTest, 'oldClusterTest#node1.stop')
-  cluster {
-    distribution = 'zip'
-    clusterName = 'rolling-upgrade'
-    unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
-    dataDir = "${-> oldClusterTest.nodes[1].dataDir}"
-  }
+  dependsOn(oldClusterTestRunner, 'oldClusterTestCluster#node1.stop')
+}
+
+mixedClusterTestCluster {
+  distribution = 'zip'
+  clusterName = 'rolling-upgrade'
+  unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
+  dataDir = "${-> oldClusterTest.nodes[1].dataDir}"
+  setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+}
+
+mixedClusterTestRunner {
   systemProperty 'tests.rest.suite', 'mixed_cluster'
-  finalizedBy 'oldClusterTest#node0.stop'
+  finalizedBy 'oldClusterTestCluster#node0.stop'
 }
 
 task upgradedClusterTest(type: RestIntegTestTask) {
-  dependsOn(mixedClusterTest, 'oldClusterTest#node0.stop')
-  cluster {
-    distribution = 'zip'
-    clusterName = 'rolling-upgrade'
-    unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
-    dataDir = "${-> oldClusterTest.nodes[0].dataDir}"
-  }
+  dependsOn(mixedClusterTestRunner, 'oldClusterTestCluster#node0.stop')
+}
+
+upgradedClusterTestCluster {
+  distribution = 'zip'
+  clusterName = 'rolling-upgrade'
+  unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
+  dataDir = "${-> oldClusterTest.nodes[0].dataDir}"
+  setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+}
+
+upgradedClusterTestRunner {
   systemProperty 'tests.rest.suite', 'upgraded_cluster'
   // only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
-  finalizedBy 'mixedClusterTest#stop'
+  finalizedBy 'mixedClusterTestCluster#stop'
 }
 
 task integTest {

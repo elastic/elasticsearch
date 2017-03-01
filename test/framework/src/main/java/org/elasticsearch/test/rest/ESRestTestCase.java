@@ -70,9 +70,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Convert the entity from a {@link Response} into a map of maps.
      */
-    public static Map<String, Object> entityAsMap(Response response) throws IOException {
+    public Map<String, Object> entityAsMap(Response response) throws IOException {
         XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
-        try (XContentParser parser = xContentType.xContent().createParser(response.getEntity().getContent())) {
+        try (XContentParser parser = createParser(xContentType.xContent(), response.getEntity().getContent())) {
             return parser.map();
         }
     }
@@ -111,8 +111,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             clusterHosts = unmodifiableList(hosts);
             logger.info("initializing REST clients against {}", clusterHosts);
-            client = buildClient(restClientSettings());
-            adminClient = buildClient(restAdminSettings());
+            client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
+            adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
         }
         assert client != null;
         assert adminClient != null;
@@ -174,6 +174,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
+    /**
+     * Returns whether to preserve the repositories on completion of this test.
+     */
+    protected boolean preserveReposUponCompletion() {
+        return false;
+    }
+
     private void wipeCluster() throws IOException {
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
@@ -217,8 +224,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                     adminClient().performRequest("DELETE", "_snapshot/" + repoName + "/" + name);
                 }
             }
-            logger.debug("wiping snapshot repository [{}]", repoName);
-            adminClient().performRequest("DELETE", "_snapshot/" + repoName);
+            if (preserveReposUponCompletion() == false) {
+                logger.debug("wiping snapshot repository [{}]", repoName);
+                adminClient().performRequest("DELETE", "_snapshot/" + repoName);
+            }
         }
     }
 
@@ -272,10 +281,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         return "http";
     }
 
-    private static RestClient buildClient(Settings settings) throws IOException {
-        RestClientBuilder builder = RestClient.builder(clusterHosts.toArray(new HttpHost[clusterHosts.size()]))
-                .setMaxRetryTimeoutMillis(30000)
-                .setRequestConfigCallback(requestConfigBuilder -> requestConfigBuilder.setSocketTimeout(30000));
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        RestClientBuilder builder = RestClient.builder(hosts);
         String keystorePath = settings.get(TRUSTSTORE_PATH);
         if (keystorePath != null) {
             final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);

@@ -22,11 +22,13 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.fieldstats.FieldStats;
@@ -69,6 +71,7 @@ public class DateFieldMapper extends FieldMapper {
 
         private Boolean ignoreMalformed;
         private Locale locale;
+        private boolean dateTimeFormatterSet = false;
 
         public Builder(String name) {
             super(name, new DateFieldType(), new DateFieldType());
@@ -96,8 +99,14 @@ public class DateFieldMapper extends FieldMapper {
             return Defaults.IGNORE_MALFORMED;
         }
 
+        /** Whether an explicit format for this date field has been set already. */
+        public boolean isDateTimeFormatterSet() {
+            return dateTimeFormatterSet;
+        }
+
         public Builder dateTimeFormatter(FormatDateTimeFormatter dateTimeFormatter) {
             fieldType().setDateTimeFormatter(dateTimeFormatter);
+            dateTimeFormatterSet = true;
             return this;
         }
 
@@ -143,7 +152,7 @@ public class DateFieldMapper extends FieldMapper {
                     builder.nullValue(propNode.toString());
                     iterator.remove();
                 } else if (propName.equals("ignore_malformed")) {
-                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue("ignore_malformed", propNode, parserContext));
+                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue(name, "ignore_malformed", propNode, parserContext));
                     iterator.remove();
                 } else if (propName.equals("locale")) {
                     builder.locale(LocaleUtils.parse(propNode.toString()));
@@ -277,7 +286,12 @@ public class DateFieldMapper extends FieldMapper {
                     --u;
                 }
             }
-            return LongPoint.newRangeQuery(name(), l, u);
+            Query query = LongPoint.newRangeQuery(name(), l, u);
+            if (hasDocValues()) {
+                Query dvQuery = SortedNumericDocValuesField.newRangeQuery(name(), l, u);
+                query = new IndexOrDocValuesQuery(query, dvQuery);
+            }
+            return query;
         }
 
         public long parseToMilliseconds(Object value, boolean roundUp,
@@ -299,9 +313,13 @@ public class DateFieldMapper extends FieldMapper {
         @Override
         public FieldStats.Date stats(IndexReader reader) throws IOException {
             String field = name();
+            FieldInfo fi = org.apache.lucene.index.MultiFields.getMergedFieldInfos(reader).fieldInfo(name());
+            if (fi == null) {
+                return null;
+            }
             long size = PointValues.size(reader, field);
             if (size == 0) {
-                return null;
+                return new FieldStats.Date(reader.maxDoc(), 0, -1, -1, isSearchable(), isAggregatable());
             }
             int docCount = PointValues.getDocCount(reader, field);
             byte[] min = PointValues.getMinPackedValue(reader, field);
@@ -364,7 +382,7 @@ public class DateFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
+            return new DocValuesIndexFieldData.Builder().numericType(NumericType.DATE);
         }
 
         @Override

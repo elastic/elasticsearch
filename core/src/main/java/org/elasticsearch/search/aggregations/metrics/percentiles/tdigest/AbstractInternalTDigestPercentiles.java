@@ -37,7 +37,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     protected final TDigestState state;
     private final boolean keyed;
 
-    public AbstractInternalTDigestPercentiles(String name, double[] keys, TDigestState state, boolean keyed, DocValueFormat formatter,
+    AbstractInternalTDigestPercentiles(String name, double[] keys, TDigestState state, boolean keyed, DocValueFormat formatter,
             List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);

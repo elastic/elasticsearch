@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public final class RolloverResponse extends ActionResponse implements ToXContent {
+public final class RolloverResponse extends ActionResponse implements ToXContentObject {
 
     private static final String NEW_INDEX = "new_index";
     private static final String OLD_INDEX = "old_index";
@@ -157,6 +157,7 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.field(OLD_INDEX, oldIndex);
         builder.field(NEW_INDEX, newIndex);
         builder.field(ROLLED_OVER, rolledOver);
@@ -167,6 +168,7 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
         for (Map.Entry<String, Boolean> entry : conditionStatus) {
             builder.field(entry.getKey(), entry.getValue());
         }
+        builder.endObject();
         builder.endObject();
         return builder;
     }

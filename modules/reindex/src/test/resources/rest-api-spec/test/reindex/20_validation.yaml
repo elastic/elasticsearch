@@ -245,6 +245,34 @@
             index: dest
 
 ---
+"broken socket timeout in remote fails":
+  - do:
+      catch: /number_format_exception/
+      reindex:
+        body:
+          source:
+            remote:
+              host: http://okremote:9200
+              socket_timeout: borked
+            index: test
+          dest:
+            index: dest
+
+---
+"broken connect timeout in remote fails":
+  - do:
+      catch: /number_format_exception/
+      reindex:
+        body:
+          source:
+            remote:
+              host: http://okremote:9200
+              connect_timeout: borked
+            index: test
+          dest:
+            index: dest
+
+---
 "junk in slices fails":
   - do:
       catch: /Failed to parse int parameter \[slices\] with value \[junk\]/
@@ -265,5 +293,23 @@
         body:
           source:
             index: test
+          dest:
+            index: dest
+
+---
+"_source:false is rejected":
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /_source:false is not supported in this context/
+      reindex:
+        body:
+          source:
+            index: source
+            _source: false
           dest:
             index: dest

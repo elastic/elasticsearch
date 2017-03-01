@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -96,7 +97,7 @@ public class DeleteByQueryConcurrentTests extends ReindexTestCase {
                 try {
                     start.await();
 
-                    BulkIndexByScrollResponse response = deleteByQuery().source("test").filter(query).refresh(true).get();
+                    BulkByScrollResponse response = deleteByQuery().source("test").filter(query).refresh(true).get();
                     // Some deletions might fail due to version conflict, but
                     // what matters here is the total of successful deletions
                     deleted.addAndGet(response.getDeleted());

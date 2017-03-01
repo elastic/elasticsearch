@@ -444,7 +444,7 @@ To enable queries sent to older versions of Elasticsearch the `query` parameter
 is sent directly to the remote host without validation or modification.
 
 Reindexing from a remote server uses an on-heap buffer that defaults to a
-maximum size of 200mb. If the remote index includes very large documents you'll
+maximum size of 100mb. If the remote index includes very large documents you'll
 need to use a smaller batch size. The example below sets the batch size `10`
 which is very, very small.
 
@@ -454,9 +454,7 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "http://otherhost:9200",
-      "username": "user",
-      "password": "pass"
+      "host": "http://otherhost:9200"
     },
     "index": "source",
     "size": 10,
@@ -474,10 +472,40 @@ POST _reindex
 // CONSOLE
 // TEST[setup:host]
 // TEST[s/^/PUT source\n/]
-// TEST[s/otherhost:9200",/\${host}"/]
-// TEST[s/"username": "user",//]
-// TEST[s/"password": "pass"//]
+// TEST[s/otherhost:9200/\${host}/]
 
+It is also possible to set the socket read timeout on the remote connection
+with the `socket_timeout` field and the connection timeout with the
+`connect_timeout` field. Both default to thirty seconds. This example
+sets the socket read timeout to one minute and the connection timeout to ten
+seconds:
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "remote": {
+      "host": "http://otherhost:9200",
+      "socket_timeout": "1m",
+      "connect_timeout": "10s"
+    },
+    "index": "source",
+    "query": {
+      "match": {
+        "test": "data"
+      }
+    }
+  },
+  "dest": {
+    "index": "dest"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:host]
+// TEST[s/^/PUT source\n/]
+// TEST[s/otherhost:9200/\${host}/]
 
 [float]
 === URL Parameters
@@ -863,6 +891,7 @@ Which results in a sensible `total` like this one:
 
 Adding `slices` to `_reindex` just automates the manual process used in the
 section above, creating sub-requests which means it has some quirks:
+
 * You can see these requests in the <<docs-reindex-task-api,Tasks APIs>>. These
 sub-requests are "child" tasks of the task for the request with `slices`.
 * Fetching the status of the task for the request with `slices` only contains

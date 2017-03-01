@@ -20,8 +20,11 @@
 package org.elasticsearch.test.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -37,6 +40,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.tasks.MockTaskManager;
@@ -57,6 +61,7 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +71,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 /**
  * A mock transport service that allows to simulate different network topology failures.
@@ -80,6 +86,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class MockTransportService extends TransportService {
 
+    private final Map<DiscoveryNode, List<Transport.Connection>> openConnections = new HashMap<>();
 
     public static class TestPlugin extends Plugin {
         @Override
@@ -90,10 +97,19 @@ public final class MockTransportService extends TransportService {
 
     public static MockTransportService createNewService(Settings settings, Version version, ThreadPool threadPool,
             @Nullable ClusterSettings clusterSettings) {
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         final Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
                 new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(settings, Collections.emptyList()), version);
-        return new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, clusterSettings);
+        return createNewService(settings, transport, version, threadPool, clusterSettings);
+    }
+
+    public static MockTransportService createNewService(Settings settings, Transport transport, Version version, ThreadPool threadPool,
+                                                        @Nullable ClusterSettings clusterSettings) {
+        return new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress ->
+            new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), UUIDs.randomBase64UUID(), boundAddress.publishAddress(),
+                Node.NODE_ATTRIBUTES.get(settings).getAsMap(), DiscoveryNode.getRolesFromSettings(settings), version),
+            clusterSettings);
     }
 
     private final Transport original;
@@ -106,7 +122,21 @@ public final class MockTransportService extends TransportService {
      */
     public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor,
             @Nullable ClusterSettings clusterSettings) {
-        super(settings, new LookupTestTransport(transport), threadPool, interceptor, clusterSettings);
+        this(settings, transport, threadPool, interceptor, (boundAddress) ->
+            DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), settings.get(Node.NODE_NAME_SETTING.getKey(),
+                UUIDs.randomBase64UUID())), clusterSettings);
+    }
+
+    /**
+     * Build the service.
+     *
+     * @param clusterSettings if non null the the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
+     *        updates for {@link #TRACE_LOG_EXCLUDE_SETTING} and {@link #TRACE_LOG_INCLUDE_SETTING}.
+     */
+    public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor,
+                                Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+                                @Nullable ClusterSettings clusterSettings) {
+        super(settings, new LookupTestTransport(transport), threadPool, interceptor, localNodeFactory, clusterSettings);
         this.original = transport;
     }
 
@@ -178,14 +208,19 @@ public final class MockTransportService extends TransportService {
         addDelegate(transportAddress, new DelegateTransport(original) {
 
             @Override
-            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
-                throw new ConnectTransportException(node, "DISCONNECT: simulated");
+            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+                throws ConnectTransportException {
+                if (original.nodeConnected(node) == false) {
+                    // connecting to an already connected node is a no-op
+                    throw new ConnectTransportException(node, "DISCONNECT: simulated");
+                }
             }
 
             @Override
-            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                    TransportRequestOptions options) throws IOException, TransportException {
-                throw new ConnectTransportException(node, "DISCONNECT: simulated");
+            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                       TransportRequestOptions options) throws IOException {
+                simulateDisconnect(connection, original, "DISCONNECT: simulated");
             }
         });
     }
@@ -221,18 +256,20 @@ public final class MockTransportService extends TransportService {
         addDelegate(transportAddress, new DelegateTransport(original) {
 
             @Override
-            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
-                original.connectToNode(node, connectionProfile);
+            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+                throws ConnectTransportException {
+                original.connectToNode(node, connectionProfile, connectionValidator);
             }
 
             @Override
-            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                    TransportRequestOptions options) throws IOException, TransportException {
+            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                       TransportRequestOptions options) throws IOException {
                 if (blockedActions.contains(action)) {
                     logger.info("--> preventing {} request", action);
-                    throw new ConnectTransportException(node, "DISCONNECT: prevented " + action + " request");
+                    simulateDisconnect(connection, original, "DISCONNECT: prevented " + action + " request");
                 }
-                original.sendRequest(node, requestId, action, request, options);
+                connection.sendRequest(requestId, action, request, options);
             }
         });
     }
@@ -255,13 +292,18 @@ public final class MockTransportService extends TransportService {
         addDelegate(transportAddress, new DelegateTransport(original) {
 
             @Override
-            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
-                throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
+            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+                throws ConnectTransportException {
+                if (original.nodeConnected(node) == false) {
+                    // connecting to an already connected node is a no-op
+                    throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
+                }
             }
 
             @Override
-            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                    TransportRequestOptions options) throws IOException, TransportException {
+            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                       TransportRequestOptions options) throws IOException {
                 // don't send anything, the receiving node is unresponsive
             }
         });
@@ -297,10 +339,16 @@ public final class MockTransportService extends TransportService {
             }
 
             @Override
-            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
+            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+                throws ConnectTransportException {
+                if (original.nodeConnected(node)) {
+                    // connecting to an already connected node is a no-op
+                    return;
+                }
                 TimeValue delay = getDelay();
                 if (delay.millis() <= 0) {
-                    original.connectToNode(node, connectionProfile);
+                    original.connectToNode(node, connectionProfile, connectionValidator);
                     return;
                 }
 
@@ -309,24 +357,23 @@ public final class MockTransportService extends TransportService {
                 try {
                     if (delay.millis() < connectingTimeout.millis()) {
                         Thread.sleep(delay.millis());
-                        original.connectToNode(node, connectionProfile);
+                        original.connectToNode(node, connectionProfile, connectionValidator);
                     } else {
                         Thread.sleep(connectingTimeout.millis());
                         throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
                     }
                 } catch (InterruptedException e) {
-                    throw new ConnectTransportException(node, "UNRESPONSIVE: interrupted while sleeping", e);
+                    throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
                 }
             }
 
             @Override
-            public void sendRequest(final DiscoveryNode node, final long requestId, final String action, TransportRequest request,
-                                    final TransportRequestOptions options) throws IOException, TransportException {
+            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                       TransportRequestOptions options) throws IOException {
                 // delayed sending - even if larger then the request timeout to simulated a potential late response from target node
-
                 TimeValue delay = getDelay();
                 if (delay.millis() <= 0) {
-                    original.sendRequest(node, requestId, action, request, options);
+                    connection.sendRequest(requestId, action, request, options);
                     return;
                 }
 
@@ -348,7 +395,7 @@ public final class MockTransportService extends TransportService {
                     @Override
                     protected void doRun() throws IOException {
                         if (requestSent.compareAndSet(false, true)) {
-                            original.sendRequest(node, requestId, action, clonedRequest, options);
+                            connection.sendRequest(requestId, action, clonedRequest, options);
                         }
                     }
                 };
@@ -363,7 +410,6 @@ public final class MockTransportService extends TransportService {
                     }
                 }
             }
-
 
             @Override
             public void clearRule() {
@@ -403,6 +449,37 @@ public final class MockTransportService extends TransportService {
     }
 
     /**
+     * simulates a disconnect by disconnecting from the underlying transport and throwing a
+     * {@link ConnectTransportException}
+     */
+    private void simulateDisconnect(DiscoveryNode node, Transport transport, String reason) {
+        simulateDisconnect(node, transport, reason, null);
+    }
+
+    /**
+     * simulates a disconnect by disconnecting from the underlying transport and throwing a
+     * {@link ConnectTransportException}, due to a specific cause exception
+     */
+    private void simulateDisconnect(DiscoveryNode node, Transport transport, String reason, @Nullable Throwable e) {
+        if (transport.nodeConnected(node)) {
+            // this a connected node, disconnecting from it will be up the exception
+            transport.disconnectFromNode(node);
+        } else {
+            throw new ConnectTransportException(node, reason, e);
+        }
+    }
+
+    /**
+     * simulates a disconnect by closing the connection and throwing a
+     * {@link ConnectTransportException}
+     */
+    private void simulateDisconnect(Transport.Connection connection, Transport transport, String reason) throws IOException {
+        connection.close();
+        simulateDisconnect(connection.getNode(), transport, reason);
+    }
+
+
+    /**
      * A lookup transport that has a list of potential Transport implementations to delegate to for node operations,
      * if none is registered, then the default one is used.
      */
@@ -427,10 +504,11 @@ public final class MockTransportService extends TransportService {
             return getTransport(node).nodeConnected(node);
         }
 
-
         @Override
-        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
-            getTransport(node).connectToNode(node, connectionProfile);
+        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                  CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+            throws ConnectTransportException {
+            getTransport(node).connectToNode(node, connectionProfile, connectionValidator);
         }
 
         @Override
@@ -439,9 +517,13 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
-        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                TransportRequestOptions options) throws IOException, TransportException {
-            getTransport(node).sendRequest(node, requestId, action, request, options);
+        public Connection getConnection(DiscoveryNode node) {
+            return getTransport(node).getConnection(node);
+        }
+
+        @Override
+        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+            return getTransport(node).openConnection(node, profile);
         }
     }
 
@@ -479,19 +561,15 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
-        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
-            transport.connectToNode(node, connectionProfile);
+        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                  CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+            throws ConnectTransportException {
+            transport.connectToNode(node, connectionProfile, connectionValidator);
         }
 
         @Override
         public void disconnectFromNode(DiscoveryNode node) {
             transport.disconnectFromNode(node);
-        }
-
-        @Override
-        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                TransportRequestOptions options) throws IOException, TransportException {
-            transport.sendRequest(node, requestId, action, request, options);
         }
 
         @Override
@@ -502,6 +580,33 @@ public final class MockTransportService extends TransportService {
         @Override
         public List<String> getLocalAddresses() {
             return transport.getLocalAddresses();
+        }
+
+        @Override
+        public long newRequestId() {
+            return transport.newRequestId();
+        }
+
+        @Override
+        public Connection getConnection(DiscoveryNode node) {
+            return new FilteredConnection(transport.getConnection(node)) {
+                @Override
+                public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                    throws IOException, TransportException {
+                    DelegateTransport.this.sendRequest(connection, requestId, action, request, options);
+                }
+            };
+        }
+
+        @Override
+        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+            return new FilteredConnection(transport.openConnection(node, profile)) {
+                @Override
+                public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                    throws IOException, TransportException {
+                    DelegateTransport.this.sendRequest(connection, requestId, action, request, options);
+                }
+            };
         }
 
         @Override
@@ -530,13 +635,16 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
-        public void close() {
-            transport.close();
-        }
+        public void close() { transport.close(); }
 
         @Override
         public Map<String, BoundTransportAddress> profileBoundAddresses() {
             return transport.profileBoundAddresses();
+        }
+
+        protected void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
+                                   TransportRequestOptions options) throws IOException {
+            connection.sendRequest(requestId, action, request, options);
         }
     }
 
@@ -640,5 +748,85 @@ public final class MockTransportService extends TransportService {
                 tracer.requestSent(node, requestId, action, options);
             }
         }
+    }
+
+    private static class FilteredConnection implements Transport.Connection {
+        protected final Transport.Connection connection;
+
+        private FilteredConnection(Transport.Connection connection) {
+            this.connection = connection;
+        }
+
+        @Override
+        public DiscoveryNode getNode() {
+            return connection.getNode();
+        }
+
+        @Override
+        public Version getVersion() {
+            return connection.getVersion();
+        }
+
+        @Override
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+            throws IOException, TransportException {
+            connection.sendRequest(requestId, action, request, options);
+        }
+
+        @Override
+        public void close() throws IOException {
+            connection.close();
+        }
+    }
+
+    public Transport getOriginalTransport() {
+        Transport transport = transport();
+        while (transport instanceof DelegateTransport) {
+            transport = ((DelegateTransport) transport).transport;
+        }
+        return transport;
+    }
+
+    @Override
+    public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+        FilteredConnection filteredConnection = new FilteredConnection(super.openConnection(node, profile)) {
+            final AtomicBoolean closed = new AtomicBoolean(false);
+            @Override
+            public void close() throws IOException {
+                try {
+                    super.close();
+                } finally {
+                    if (closed.compareAndSet(false, true)) {
+                        synchronized (openConnections) {
+                            List<Transport.Connection> connections = openConnections.get(node);
+                            boolean remove = connections.remove(this);
+                            assert remove;
+                            if (connections.isEmpty()) {
+                                openConnections.remove(node);
+                            }
+                        }
+                    }
+                }
+
+            }
+        };
+        synchronized (openConnections) {
+            List<Transport.Connection> connections = openConnections.computeIfAbsent(node,
+                (n) -> new CopyOnWriteArrayList<>());
+            connections.add(filteredConnection);
+        }
+        return filteredConnection;
+    }
+
+    @Override
+    protected void doClose() {
+        super.doClose();
+        synchronized (openConnections) {
+            assert openConnections.size() == 0 : "still open connections: " + openConnections;
+        }
+    }
+
+    public DiscoveryNode getLocalDiscoNode() {
+        return this.getLocalNode();
     }
 }

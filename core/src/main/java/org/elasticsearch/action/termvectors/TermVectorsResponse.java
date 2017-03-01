@@ -36,7 +36,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 
@@ -46,7 +46,7 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Set;
 
-public class TermVectorsResponse extends ActionResponse implements ToXContent {
+public class TermVectorsResponse extends ActionResponse implements ToXContentObject {
 
     private static class FieldStrings {
         // term statistics strings
@@ -174,6 +174,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
         assert index != null;
         assert type != null;
         assert id != null;
+        builder.startObject();
         builder.field(FieldStrings._INDEX, index);
         builder.field(FieldStrings._TYPE, type);
         if (!isArtificial()) {
@@ -182,15 +183,15 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
         builder.field(FieldStrings._VERSION, docVersion);
         builder.field(FieldStrings.FOUND, isExists());
         builder.field(FieldStrings.TOOK, tookInMillis);
-        if (!isExists()) {
-            return builder;
-        }
-        builder.startObject(FieldStrings.TERM_VECTORS);
-        final CharsRefBuilder spare = new CharsRefBuilder();
-        Fields theFields = getFields();
-        Iterator<String> fieldIter = theFields.iterator();
-        while (fieldIter.hasNext()) {
-            buildField(builder, spare, theFields, fieldIter);
+        if (isExists()) {
+            builder.startObject(FieldStrings.TERM_VECTORS);
+            final CharsRefBuilder spare = new CharsRefBuilder();
+            Fields theFields = getFields();
+            Iterator<String> fieldIter = theFields.iterator();
+            while (fieldIter.hasNext()) {
+                buildField(builder, spare, theFields, fieldIter);
+            }
+            builder.endObject();
         }
         builder.endObject();
         return builder;

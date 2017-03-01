@@ -24,12 +24,15 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -93,9 +96,8 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             (BlobStoreRepository) repositoriesService.repository(repositoryName);
         final List<SnapshotId> originalSnapshots = Arrays.asList(snapshotId1, snapshotId2);
 
-        List<SnapshotId> snapshotIds = repository.getSnapshots().stream()
-                                                             .sorted((s1, s2) -> s1.getName().compareTo(s2.getName()))
-                                                             .collect(Collectors.toList());
+        List<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds().stream()
+            .sorted((s1, s2) -> s1.getName().compareTo(s2.getName())).collect(Collectors.toList());
         assertThat(snapshotIds, equalTo(originalSnapshots));
     }
 
@@ -103,28 +105,24 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         final BlobStoreRepository repository = setupRepo();
 
         // write to and read from a index file with no entries
-        assertThat(repository.getSnapshots().size(), equalTo(0));
+        assertThat(repository.getRepositoryData().getSnapshotIds().size(), equalTo(0));
         final RepositoryData emptyData = RepositoryData.EMPTY;
-        repository.writeIndexGen(emptyData);
-        final RepositoryData readData = repository.getRepositoryData();
-        assertEquals(readData, emptyData);
-        assertEquals(readData.getIndices().size(), 0);
-        assertEquals(readData.getSnapshotIds().size(), 0);
+        repository.writeIndexGen(emptyData, emptyData.getGenId());
+        RepositoryData repoData = repository.getRepositoryData();
+        assertEquals(repoData, emptyData);
+        assertEquals(repoData.getIndices().size(), 0);
+        assertEquals(repoData.getSnapshotIds().size(), 0);
+        assertEquals(0L, repoData.getGenId());
 
         // write to and read from an index file with snapshots but no indices
-        final int numSnapshots = randomIntBetween(1, 20);
-        final List<SnapshotId> snapshotIds = new ArrayList<>(numSnapshots);
-        for (int i = 0; i < numSnapshots; i++) {
-            snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID()));
-        }
-        RepositoryData repositoryData = new RepositoryData(snapshotIds, Collections.emptyMap());
-        repository.writeIndexGen(repositoryData);
-        assertEquals(repository.getRepositoryData(), repositoryData);
+        repoData = addRandomSnapshotsToRepoData(repoData, false);
+        repository.writeIndexGen(repoData, repoData.getGenId());
+        assertEquals(repoData, repository.getRepositoryData());
 
         // write to and read from a index file with random repository data
-        repositoryData = generateRandomRepoData();
-        repository.writeIndexGen(repositoryData);
-        assertThat(repository.getRepositoryData(), equalTo(repositoryData));
+        repoData = addRandomSnapshotsToRepoData(repository.getRepositoryData(), true);
+        repository.writeIndexGen(repoData, repoData.getGenId());
+        assertEquals(repoData, repository.getRepositoryData());
     }
 
     public void testIndexGenerationalFiles() throws Exception {
@@ -132,24 +130,63 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         // write to index generational file
         RepositoryData repositoryData = generateRandomRepoData();
-        repository.writeIndexGen(repositoryData);
+        repository.writeIndexGen(repositoryData, repositoryData.getGenId());
         assertThat(repository.getRepositoryData(), equalTo(repositoryData));
         assertThat(repository.latestIndexBlobId(), equalTo(0L));
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(0L));
 
         // adding more and writing to a new index generational file
-        repositoryData = generateRandomRepoData();
-        repository.writeIndexGen(repositoryData);
+        repositoryData = addRandomSnapshotsToRepoData(repository.getRepositoryData(), true);
+        repository.writeIndexGen(repositoryData, repositoryData.getGenId());
         assertEquals(repository.getRepositoryData(), repositoryData);
         assertThat(repository.latestIndexBlobId(), equalTo(1L));
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(1L));
 
         // removing a snapshot and writing to a new index generational file
-        repositoryData = repositoryData.removeSnapshot(repositoryData.getSnapshotIds().get(0));
-        repository.writeIndexGen(repositoryData);
+        repositoryData = repository.getRepositoryData().removeSnapshot(repositoryData.getSnapshotIds().get(0));
+        repository.writeIndexGen(repositoryData, repositoryData.getGenId());
         assertEquals(repository.getRepositoryData(), repositoryData);
         assertThat(repository.latestIndexBlobId(), equalTo(2L));
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(2L));
+    }
+
+    public void testRepositoryDataConcurrentModificationNotAllowed() throws IOException {
+        final BlobStoreRepository repository = setupRepo();
+
+        // write to index generational file
+        RepositoryData repositoryData = generateRandomRepoData();
+        repository.writeIndexGen(repositoryData, repositoryData.getGenId());
+
+        // write repo data again to index generational file, errors because we already wrote to the
+        // N+1 generation from which this repository data instance was created
+        expectThrows(RepositoryException.class, () -> repository.writeIndexGen(repositoryData, repositoryData.getGenId()));
+    }
+
+    public void testReadAndWriteIncompatibleSnapshots() throws Exception {
+        final BlobStoreRepository repository = setupRepo();
+
+        // write to and read from incompatible snapshots file with no entries
+        assertEquals(0, repository.getRepositoryData().getIncompatibleSnapshotIds().size());
+        RepositoryData emptyData = RepositoryData.EMPTY;
+        repository.writeIndexGen(emptyData, emptyData.getGenId());
+        repository.writeIncompatibleSnapshots(emptyData);
+        RepositoryData readData = repository.getRepositoryData();
+        assertEquals(emptyData, readData);
+        assertEquals(0, readData.getIndices().size());
+        assertEquals(0, readData.getSnapshotIds().size());
+
+        // write to and read from incompatible snapshots with some number of entries
+        final int numSnapshots = randomIntBetween(1, 20);
+        final List<SnapshotId> snapshotIds = new ArrayList<>(numSnapshots);
+        for (int i = 0; i < numSnapshots; i++) {
+            snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID()));
+        }
+        RepositoryData repositoryData = new RepositoryData(readData.getGenId(), Collections.emptyList(), Collections.emptyMap(),
+                                                              snapshotIds);
+        repository.blobContainer().deleteBlob("incompatible-snapshots");
+        repository.writeIncompatibleSnapshots(repositoryData);
+        readData = repository.getRepositoryData();
+        assertEquals(repositoryData.getIncompatibleSnapshotIds(), readData.getIncompatibleSnapshotIds());
     }
 
     private BlobStoreRepository setupRepo() {
@@ -168,6 +205,20 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         @SuppressWarnings("unchecked") final BlobStoreRepository repository =
             (BlobStoreRepository) repositoriesService.repository(repositoryName);
         return repository;
+    }
+
+    private RepositoryData addRandomSnapshotsToRepoData(RepositoryData repoData, boolean inclIndices) {
+        int numSnapshots = randomIntBetween(1, 20);
+        for (int i = 0; i < numSnapshots; i++) {
+            SnapshotId snapshotId = new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID());
+            int numIndices = inclIndices ? randomIntBetween(0, 20) : 0;
+            List<IndexId> indexIds = new ArrayList<>(numIndices);
+            for (int j = 0; j < numIndices; j++) {
+                indexIds.add(new IndexId(randomAsciiOfLength(8), UUIDs.randomBase64UUID()));
+            }
+            repoData = repoData.addSnapshot(snapshotId, indexIds);
+        }
+        return repoData;
     }
 
 }

@@ -23,7 +23,6 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -202,7 +201,7 @@ public class SearchAfterBuilder implements ToXContent, Writeable {
         builder.array(SEARCH_AFTER.getPreferredName(), sortValues);
     }
 
-    public static SearchAfterBuilder fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+    public static SearchAfterBuilder fromXContent(XContentParser parser) throws IOException {
         SearchAfterBuilder builder = new SearchAfterBuilder();
         XContentParser.Token token = parser.currentToken();
         List<Object> values = new ArrayList<> ();

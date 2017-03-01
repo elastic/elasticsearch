@@ -86,7 +86,7 @@ comprehensive example.
 
 |`split_on_whitespace` |Whether query text should be split on whitespace prior to analysis.
 Instead  the queryparser would parse around only real 'operators'. Default to `false`.
-It is not allowed to set this option to `false` if `autoGeneratePhraseQueries` is already set to `true`.
+It is not allowed to set this option to `false` if `auto_generate_phrase_queries` is already set to `true`.
 
 |`all_fields` | Perform the query on all fields detected in the mapping that can
 be queried. Will be used by default when the `_all` field is disabled and no
@@ -197,7 +197,24 @@ GET /_search
 
 Another option is to provide the wildcard fields search in the query
 string itself (properly escaping the `*` sign), for example:
-`city.\*:something`.
+`city.\*:something`:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "query_string" : {
+            "query" : "city.\\*:(this AND that OR thus)",
+            "use_dis_max" : true
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+NOTE: Since `\` (backslash) is a special character in json strings, it needs to
+be escaped, hence the two backslashes in the above `query_string`.
 
 When running the `query_string` query against multiple fields, the
 following additional parameters are allowed:

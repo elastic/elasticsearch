@@ -20,18 +20,19 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.joda.DateMathParser;
@@ -375,14 +376,16 @@ public abstract class MappedFieldType extends FieldType {
      */
     public FieldStats stats(IndexReader reader) throws IOException {
         int maxDoc = reader.maxDoc();
-        Terms terms = MultiFields.getTerms(reader, name());
-        if (terms == null) {
+        FieldInfo fi = MultiFields.getMergedFieldInfos(reader).fieldInfo(name());
+        if (fi == null) {
             return null;
         }
+        Terms terms = MultiFields.getTerms(reader, name());
+        if (terms == null) {
+            return new FieldStats.Text(maxDoc, 0, -1, -1, isSearchable(), isAggregatable());
+        }
         FieldStats stats = new FieldStats.Text(maxDoc, terms.getDocCount(),
-            terms.getSumDocFreq(), terms.getSumTotalTermFreq(),
-            isSearchable(), isAggregatable(),
-            terms.getMin(), terms.getMax());
+            terms.getSumDocFreq(), terms.getSumTotalTermFreq(), isSearchable(), isAggregatable(), terms.getMin(), terms.getMax());
         return stats;
     }
 
@@ -390,7 +393,7 @@ public abstract class MappedFieldType extends FieldType {
      * An enum used to describe the relation between the range of terms in a
      * shard when compared with a query range
      */
-    public static enum Relation {
+    public enum Relation {
         WITHIN,
         INTERSECTS,
         DISJOINT;

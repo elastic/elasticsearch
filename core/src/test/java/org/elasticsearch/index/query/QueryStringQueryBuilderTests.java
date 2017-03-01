@@ -19,10 +19,12 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
@@ -38,11 +40,16 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
@@ -113,9 +120,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         if (randomBoolean()) {
             queryStringQueryBuilder.enablePositionIncrements(randomBoolean());
-        }
-        if (randomBoolean()) {
-            queryStringQueryBuilder.lenient(randomBoolean());
         }
         if (randomBoolean()) {
             queryStringQueryBuilder.escape(randomBoolean());
@@ -376,6 +380,109 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
     }
 
+    public void testToQueryWithGraph() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        for (Operator op : Operator.values()) {
+            BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
+            MapperQueryParser queryParser = new MapperQueryParser(createShardContext());
+            QueryParserSettings settings = new QueryParserSettings("");
+            settings.defaultField(STRING_FIELD_NAME);
+            settings.fieldsAndWeights(Collections.emptyMap());
+            settings.fuzziness(Fuzziness.AUTO);
+            settings.analyzeWildcard(true);
+            settings.rewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            settings.defaultOperator(op.toQueryParserOperator());
+            settings.forceAnalyzer(new MockSynonymAnalyzer());
+            settings.forceQuoteAnalyzer(new MockSynonymAnalyzer());
+            queryParser.reset(settings);
+
+            // simple multi-term
+            Query query = queryParser.parse("guinea pig");
+            Query expectedQuery = new BooleanQuery.Builder()
+                    .add(new BooleanQuery.Builder()
+                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), Occur.MUST)
+                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), Occur.MUST).build(), defaultOp)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), defaultOp)
+                    .build();
+            assertThat(query, Matchers.equalTo(expectedQuery));
+
+            // simple with additional tokens
+            query = queryParser.parse("that guinea pig smells");
+            expectedQuery = new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "that")), defaultOp)
+                    .add(new BooleanQuery.Builder()
+                         .add(new BooleanQuery.Builder()
+                            .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), Occur.MUST))
+                            .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), Occur.MUST))
+                            .build(), Occur.SHOULD)
+                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), Occur.SHOULD).build(), defaultOp)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), defaultOp)
+                    .build();
+            assertThat(query, Matchers.equalTo(expectedQuery));
+
+            // complex
+            query = queryParser.parse("+that -(guinea pig) +smells");
+            expectedQuery = new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "that")), Occur.MUST)
+                    .add(new BooleanQuery.Builder()
+                            .add(new BooleanQuery.Builder()
+                                 .add(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), Occur.MUST)
+                                 .add(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), Occur.MUST)
+                                 .build(), defaultOp)
+                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), defaultOp)
+                            .build(), Occur.MUST_NOT)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), Occur.MUST)
+                    .build();
+
+            assertThat(query, Matchers.equalTo(expectedQuery));
+
+            // no parent should cause guinea and pig to be treated as separate tokens
+            query = queryParser.parse("+that -guinea pig +smells");
+            expectedQuery = new BooleanQuery.Builder()
+                .add(new TermQuery(new Term(STRING_FIELD_NAME, "that")), BooleanClause.Occur.MUST)
+                .add(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), BooleanClause.Occur.MUST_NOT)
+                .add(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), defaultOp)
+                .add(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), BooleanClause.Occur.MUST)
+                .build();
+
+            assertThat(query, Matchers.equalTo(expectedQuery));
+
+            // span query
+            query = queryParser.parse("\"that guinea pig smells\"");
+            expectedQuery = new BooleanQuery.Builder()
+                .add(new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
+                    .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")))
+                    .addClause(new SpanOrQuery(
+                        new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
+                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea")))
+                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig"))).build(),
+                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))))
+                    .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells")))
+                    .build(), Occur.SHOULD)
+                .setDisableCoord(true)
+                .build();
+            assertThat(query, Matchers.equalTo(expectedQuery));
+
+            // span query with slop
+            query = queryParser.parse("\"that guinea pig smells\"~2");
+            expectedQuery = new BooleanQuery.Builder()
+                .add(new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
+                    .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")))
+                    .addClause(new SpanOrQuery(
+                        new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
+                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea")))
+                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig"))).build(),
+                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))))
+                    .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells")))
+                    .setSlop(2)
+                    .build(),
+                    Occur.SHOULD)
+                .setDisableCoord(true)
+                .build();
+            assertThat(query, Matchers.equalTo(expectedQuery));
+        }
+    }
+
     public void testToQueryRegExpQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = queryStringQuery("/foo*bar/").defaultField(STRING_FIELD_NAME)
@@ -394,6 +501,51 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 () -> queryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
         assertThat(e.getMessage(), containsString("would result in more than 10000 states"));
+    }
+
+    /**
+     * Validates that {@code max_determinized_states} can be parsed and lowers the allowed number of determinized states.
+     */
+    public void testToQueryRegExpQueryMaxDeterminizedStatesParsing() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject(); {
+            builder.startObject("query_string"); {
+                builder.field("query", "/[ac]*a[ac]{1,10}/");
+                builder.field("default_field", STRING_FIELD_NAME);
+                builder.field("max_determinized_states", 10);
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+
+        QueryBuilder queryBuilder = new QueryParseContext(createParser(builder)).parseInnerQueryBuilder();
+        TooComplexToDeterminizeException e = expectThrows(TooComplexToDeterminizeException.class,
+                () -> queryBuilder.toQuery(createShardContext()));
+        assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
+        assertThat(e.getMessage(), containsString("would result in more than 10 states"));
+    }
+
+    /**
+     * Validates that {@code max_determinized_states} can be parsed and lowers the allowed number of determinized states.
+     */
+    public void testEnabledPositionIncrements() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject(); {
+            builder.startObject("query_string"); {
+                builder.field("query", "text");
+                builder.field("default_field", STRING_FIELD_NAME);
+                builder.field("enable_position_increments", false);
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+
+        QueryStringQueryBuilder queryBuilder = (QueryStringQueryBuilder) new QueryParseContext(createParser(builder))
+                .parseInnerQueryBuilder();
+        assertFalse(queryBuilder.enablePositionIncrements());
     }
 
     public void testToQueryFuzzyQueryAutoFuziness() throws Exception {
@@ -669,8 +821,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "    \"tie_breaker\" : 0.0,\n" +
                 "    \"default_operator\" : \"or\",\n" +
                 "    \"auto_generate_phrase_queries\" : false,\n" +
-                "    \"max_determined_states\" : 10000,\n" +
-                "    \"enable_position_increment\" : true,\n" +
+                "    \"max_determinized_states\" : 10000,\n" +
+                "    \"enable_position_increments\" : true,\n" +
                 "    \"fuzziness\" : \"AUTO\",\n" +
                 "    \"fuzzy_prefix_length\" : 0,\n" +
                 "    \"fuzzy_max_expansions\" : 50,\n" +

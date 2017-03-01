@@ -20,12 +20,12 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -47,7 +47,6 @@ public class RestGetSettingsAction extends BaseRestHandler {
     private final IndexScopedSettings indexScopedSettings;
     private final SettingsFilter settingsFilter;
 
-    @Inject
     public RestGetSettingsAction(Settings settings, RestController controller, IndexScopedSettings indexScopedSettings,
             final SettingsFilter settingsFilter) {
         super(settings);
@@ -76,7 +75,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
                 builder.startObject();
                 for (ObjectObjectCursor<String, Settings> cursor : getSettingsResponse.getIndexToSettings()) {
                     // no settings, jump over it to shorten the response data
-                    if (cursor.value.getAsMap().isEmpty()) {
+                    if (cursor.value.isEmpty()) {
                         continue;
                     }
                     builder.startObject(cursor.key);

@@ -25,14 +25,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * The response of a get action.
@@ -40,9 +42,9 @@ import java.util.Map;
  * @see GetRequest
  * @see org.elasticsearch.client.Client#get(GetRequest)
  */
-public class GetResponse extends ActionResponse implements Iterable<GetField>, ToXContent {
+public class GetResponse extends ActionResponse implements Iterable<GetField>, ToXContentObject {
 
-    private GetResult getResult;
+    GetResult getResult;
 
     GetResponse() {
     }
@@ -134,18 +136,10 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
         return getResult.getSource();
     }
 
-    /**
-     * @deprecated Use {@link GetResponse#getSource()} instead
-     */
-    @Deprecated
     public Map<String, GetField> getFields() {
         return getResult.getFields();
     }
 
-    /**
-     * @deprecated Use {@link GetResponse#getSource()} instead
-     */
-    @Deprecated
     public GetField getField(String name) {
         return getResult.field(name);
     }
@@ -164,6 +158,11 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
         return getResult.toXContent(builder, params);
     }
 
+    public static GetResponse fromXContent(XContentParser parser) throws IOException {
+        GetResult getResult = GetResult.fromXContent(parser);
+        return new GetResponse(getResult);
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -177,7 +176,24 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        GetResponse getResponse = (GetResponse) o;
+        return Objects.equals(getResult, getResponse.getResult);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getResult);
+    }
+
+    @Override
     public String toString() {
-        return Strings.toString(this, true);
+        return Strings.toString(this);
     }
 }

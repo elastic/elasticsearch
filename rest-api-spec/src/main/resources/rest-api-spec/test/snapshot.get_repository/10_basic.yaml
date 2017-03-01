@@ -5,17 +5,17 @@ setup:
       snapshot.create_repository:
         repository: test_repo_get_1
         body:
-          type: url
+          type: fs
           settings:
-            url: "http://snapshot.test1"
+            location: "test_repo_get_1_loc"
 
   - do:
       snapshot.create_repository:
         repository: test_repo_get_2
         body:
-          type: url
+          type: fs
           settings:
-            url: "http://snapshot.test2"
+            location: "test_repo_get_1_loc"
 
 ---
 "Get all repositories":

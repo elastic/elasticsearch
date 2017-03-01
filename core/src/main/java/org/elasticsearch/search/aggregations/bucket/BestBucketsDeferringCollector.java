@@ -31,7 +31,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,7 +49,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         final PackedLongValues docDeltas;
         final PackedLongValues buckets;
 
-        public Entry(LeafReaderContext context, PackedLongValues docDeltas, PackedLongValues buckets) {
+        Entry(LeafReaderContext context, PackedLongValues docDeltas, PackedLongValues buckets) {
             this.context = context;
             this.docDeltas = docDeltas;
             this.buckets = buckets;
@@ -58,7 +58,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
 
     final List<Entry> entries = new ArrayList<>();
     BucketCollector collector;
-    final AggregationContext aggContext;
+    final SearchContext searchContext;
     LeafReaderContext context;
     PackedLongValues.Builder docDeltas;
     PackedLongValues.Builder buckets;
@@ -67,8 +67,8 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     LongHash selectedBuckets;
 
     /** Sole constructor. */
-    public BestBucketsDeferringCollector(AggregationContext context) {
-        this.aggContext = context;
+    public BestBucketsDeferringCollector(SearchContext context) {
+        this.searchContext = context;
     }
 
     @Override
@@ -147,8 +147,8 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         boolean needsScores = collector.needsScores();
         Weight weight = null;
         if (needsScores) {
-            weight = aggContext.searchContext().searcher()
-                        .createNormalizedWeight(aggContext.searchContext().query(), true);
+            weight = searchContext.searcher()
+                        .createNormalizedWeight(searchContext.query(), true);
         }
         for (Entry entry : entries) {
             final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);

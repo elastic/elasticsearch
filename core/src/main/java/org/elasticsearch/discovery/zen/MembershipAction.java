@@ -39,7 +39,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 public class MembershipAction extends AbstractComponent {
 
@@ -63,8 +62,7 @@ public class MembershipAction extends AbstractComponent {
 
     private final MembershipListener listener;
 
-    public MembershipAction(Settings settings, TransportService transportService,
-                            Supplier<DiscoveryNode> localNodeSupplier, MembershipListener listener) {
+    public MembershipAction(Settings settings, TransportService transportService, MembershipListener listener) {
         super(settings);
         this.transportService = transportService;
         this.listener = listener;
@@ -73,7 +71,7 @@ public class MembershipAction extends AbstractComponent {
         transportService.registerRequestHandler(DISCOVERY_JOIN_ACTION_NAME, JoinRequest::new,
             ThreadPool.Names.GENERIC, new JoinRequestRequestHandler());
         transportService.registerRequestHandler(DISCOVERY_JOIN_VALIDATE_ACTION_NAME,
-            () -> new ValidateJoinRequest(localNodeSupplier), ThreadPool.Names.GENERIC,
+            () -> new ValidateJoinRequest(), ThreadPool.Names.GENERIC,
             new ValidateJoinRequestRequestHandler());
         transportService.registerRequestHandler(DISCOVERY_LEAVE_ACTION_NAME, LeaveRequest::new,
             ThreadPool.Names.GENERIC, new LeaveRequestRequestHandler());
@@ -155,22 +153,18 @@ public class MembershipAction extends AbstractComponent {
     }
 
     static class ValidateJoinRequest extends TransportRequest {
-        private final Supplier<DiscoveryNode> localNode;
         private ClusterState state;
 
-        ValidateJoinRequest(Supplier<DiscoveryNode> localNode) {
-            this.localNode = localNode;
-        }
+        ValidateJoinRequest() {}
 
         ValidateJoinRequest(ClusterState state) {
             this.state = state;
-            this.localNode = state.nodes()::getLocalNode;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            this.state = ClusterState.Builder.readFrom(in, localNode.get());
+            this.state = ClusterState.readFrom(in, null);
         }
 
         @Override

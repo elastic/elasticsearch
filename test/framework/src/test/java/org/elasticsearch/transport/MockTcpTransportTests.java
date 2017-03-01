@@ -19,24 +19,37 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
 
+import java.io.IOException;
 import java.util.Collections;
 
 public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
     @Override
-    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings) {
+    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(settings, Collections.emptyList()), version);
-        MockTransportService mockTransportService = new MockTransportService(Settings.EMPTY, transport, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, clusterSettings);
+            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(settings, Collections.emptyList()), version) {
+            @Override
+            protected Version executeHandshake(DiscoveryNode node, MockChannel mockChannel, TimeValue timeout) throws IOException,
+                InterruptedException {
+                if (doHandshake) {
+                    return super.executeHandshake(node, mockChannel, timeout);
+                } else {
+                    return version.minimumCompatibilityVersion();
+                }
+            }
+        };
+        MockTransportService mockTransportService =
+            MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, clusterSettings);
         mockTransportService.start();
         return mockTransportService;
     }

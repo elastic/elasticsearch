@@ -118,7 +118,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             Double u = randomBoolean() ? null : (randomDouble() * 2 - 1) * 10000;
             boolean includeLower = randomBoolean();
             boolean includeUpper = randomBoolean();
-            Query doubleQ = NumberFieldMapper.NumberType.DOUBLE.rangeQuery("double", l, u, includeLower, includeUpper);
+            Query doubleQ = NumberFieldMapper.NumberType.DOUBLE.rangeQuery("double", l, u, includeLower, includeUpper, false);
             Query scaledFloatQ = ft.rangeQuery(l, u, includeLower, includeUpper, null);
             assertEquals(searcher.count(doubleQ), searcher.count(scaledFloatQ));
         }
@@ -182,6 +182,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             // single-valued
             ft.setName("scaled_float1");
             IndexNumericFieldData fielddata = (IndexNumericFieldData) ft.fielddataBuilder().build(indexSettings, ft, null, null, null);
+            assertEquals(fielddata.getNumericType(), IndexNumericFieldData.NumericType.DOUBLE);
             AtomicNumericFieldData leafFieldData = fielddata.load(reader.leaves().get(0));
             SortedNumericDoubleValues values = leafFieldData.getDoubleValues();
             values.setDocument(0);

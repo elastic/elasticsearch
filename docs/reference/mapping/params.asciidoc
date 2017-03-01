@@ -8,6 +8,7 @@ parameters that are used by <<mapping-types,field mappings>>:
 The following mapping parameters are common to some or all field datatypes:
 
 * <<analyzer,`analyzer`>>
+* <<normalizer, `normalizer`>>
 * <<mapping-boost,`boost`>>
 * <<coerce,`coerce`>>
 * <<copy-to,`copy_to`>>
@@ -18,7 +19,6 @@ The following mapping parameters are common to some or all field datatypes:
 * <<mapping-date-format,`format`>>
 * <<ignore-above,`ignore_above`>>
 * <<ignore-malformed,`ignore_malformed`>>
-* <<include-in-all,`include_in_all`>>
 * <<index-options,`index_options`>>
 * <<mapping-index,`index`>>
 * <<multi-fields,`fields`>>
@@ -33,6 +33,8 @@ The following mapping parameters are common to some or all field datatypes:
 
 
 include::params/analyzer.asciidoc[]
+
+include::params/normalizer.asciidoc[]
 
 include::params/boost.asciidoc[]
 
@@ -53,8 +55,6 @@ include::params/format.asciidoc[]
 include::params/ignore-above.asciidoc[]
 
 include::params/ignore-malformed.asciidoc[]
-
-include::params/include-in-all.asciidoc[]
 
 include::params/index.asciidoc[]
 

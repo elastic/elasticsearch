@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.suggest;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
@@ -32,9 +31,11 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -217,7 +218,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
             assertSearchHit(option.getHit(), hasId("" + id));
             assertSearchHit(option.getHit(), hasScore(((float) id)));
-            assertNotNull(option.getHit().source());
+            assertNotNull(option.getHit().getSourceAsMap());
             id--;
         }
     }
@@ -252,7 +253,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
             assertSearchHit(option.getHit(), hasId("" + id));
             assertSearchHit(option.getHit(), hasScore(((float) id)));
-            assertNull(option.getHit().source());
+            assertNull(option.getHit().getSourceAsMap());
             id--;
         }
     }
@@ -289,8 +290,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
             assertSearchHit(option.getHit(), hasId("" + id));
             assertSearchHit(option.getHit(), hasScore(((float) id)));
-            assertNotNull(option.getHit().source());
-            Set<String> sourceFields = option.getHit().sourceAsMap().keySet();
+            assertNotNull(option.getHit().getSourceAsMap());
+            Set<String> sourceFields = option.getHit().getSourceAsMap().keySet();
             assertThat(sourceFields, contains("a"));
             assertThat(sourceFields, not(contains("b")));
             id--;
@@ -750,7 +751,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         // regexes
         IndicesStatsResponse regexFieldStats = client().admin().indices().prepareStats(INDEX).setIndices(INDEX).setCompletion(true).setCompletionFields("*").get();
-        ObjectLongHashMap<String> fields = regexFieldStats.getIndex(INDEX).getPrimaries().completion.getFields();
+        FieldMemoryStats fields = regexFieldStats.getIndex(INDEX).getPrimaries().completion.getFields();
         long regexSizeInBytes = fields.get(FIELD) + fields.get(otherField);
         assertThat(regexSizeInBytes, is(totalSizeInBytes));
     }
@@ -972,7 +973,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         refresh();
 
         assertSuggestions("b");
-        assertThat(2L, equalTo(client().prepareSearch(INDEX).setSize(0).get().getHits().totalHits()));
+        assertThat(2L, equalTo(client().prepareSearch(INDEX).setSize(0).get().getHits().getTotalHits()));
         for (IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get(INDEX)) {
             ShardSegments[] shards = seg.getShards();
             for (ShardSegments shardSegments : shards) {
@@ -1064,7 +1065,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject()
                 .string();
 
-        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping).get());
+        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping, XContentType.JSON).get());
         ensureGreen();
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "strings make me happy", FIELD + "_1", "nulls make me sad")

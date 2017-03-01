@@ -58,15 +58,15 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
         builder.endObject();
     }
 
-    private static ObjectParser<MatchAllQueryBuilder, QueryParseContext> PARSER = new ObjectParser<>(NAME, MatchAllQueryBuilder::new);
+    private static final ObjectParser<MatchAllQueryBuilder, QueryParseContext> PARSER = new ObjectParser<>(NAME, MatchAllQueryBuilder::new);
 
     static {
         declareStandardFields(PARSER);
     }
 
-    public static Optional<MatchAllQueryBuilder> fromXContent(QueryParseContext context) {
+    public static MatchAllQueryBuilder fromXContent(QueryParseContext context) {
         try {
-            return Optional.of(PARSER.apply(context.parser(), context));
+            return PARSER.apply(context.parser(), context);
         } catch (IllegalArgumentException e) {
             throw new ParsingException(context.parser().getTokenLocation(), e.getMessage(), e);
         }

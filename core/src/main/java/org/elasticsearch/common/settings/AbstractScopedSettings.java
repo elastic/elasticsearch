@@ -57,7 +57,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private final Setting.Property scope;
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
-    private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+(?:[*][.])+[-\\w]+$");
+    private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
 
     protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Property scope) {
         super(settings);
@@ -113,7 +113,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         return GROUP_KEY_PATTERN.matcher(key).matches();
     }
 
-    private static boolean isValidAffixKey(String key) {
+    // pkg private for tests
+    static boolean isValidAffixKey(String key) {
         return AFFIX_KEY_PATTERN.matcher(key).matches();
     }
 
@@ -195,6 +196,19 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         addSettingsUpdater(setting.newUpdater(consumer, logger, validator));
     }
 
+    /**
+     * Adds a settings consumer for affix settings. Affix settings have a namespace associated to it that needs to be available to the
+     * consumer in order to be processed correctly.
+     */
+    public synchronized <T> void addAffixUpdateConsumer(Setting.AffixSetting<T> setting,  BiConsumer<String, T> consumer,
+                                                        BiConsumer<String, T> validator) {
+        final Setting<?> registeredSetting = this.complexMatchers.get(setting.getKey());
+        if (setting != registeredSetting) {
+            throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
+        }
+        addSettingsUpdater(setting.newAffixUpdater(consumer, logger, validator));
+    }
+
     synchronized void addSettingsUpdater(SettingUpdater<?> updater) {
         this.settingUpdaters.add(updater);
     }
@@ -239,11 +253,9 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      */
     public final void validate(Settings settings) {
         List<RuntimeException> exceptions = new ArrayList<>();
-        // we want them sorted for deterministic error messages
-        SortedMap<String, String> sortedSettings = new TreeMap<>(settings.getAsMap());
-        for (Map.Entry<String, String> entry : sortedSettings.entrySet()) {
+        for (String key : settings.keySet()) { // settings iterate in deterministic fashion
             try {
-                validate(entry.getKey(), settings);
+                validate(key, settings);
             } catch (RuntimeException ex) {
                 exceptions.add(ex);
             }
@@ -267,7 +279,12 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 }
             }
             CollectionUtil.timSort(scoredKeys, (a,b) -> b.v1().compareTo(a.v1()));
-            String msg = "unknown setting [" + key + "]";
+            String msgPrefix = "unknown setting";
+            SecureSettings secureSettings = settings.getSecureSettings();
+            if (secureSettings != null && settings.getSecureSettings().getSettingNames().contains(key)) {
+                msgPrefix = "unknown secure setting";
+            }
+            String msg = msgPrefix + " [" + key + "]";
             List<String> keys = scoredKeys.stream().map((a) -> a.v2()).collect(Collectors.toList());
             if (keys.isEmpty() == false) {
                 msg += " did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]": "any of " + keys.toString()) + "?";

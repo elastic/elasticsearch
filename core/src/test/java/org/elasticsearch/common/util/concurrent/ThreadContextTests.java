@@ -19,6 +19,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -27,6 +28,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -86,7 +88,7 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
-        ThreadContext.StoredContext storedContext = threadContext.newStoredContext();
+        ThreadContext.StoredContext storedContext = threadContext.newStoredContext(false);
         threadContext.putHeader("foo.bar", "baz");
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             assertNull(threadContext.getHeader("foo"));
@@ -109,6 +111,63 @@ public class ThreadContextTests extends ESTestCase {
         assertNull(threadContext.getHeader("foo.bar"));
     }
 
+    public void testRestorableContext() {
+        Settings build = Settings.builder().put("request.headers.default", "1").build();
+        ThreadContext threadContext = new ThreadContext(build);
+        threadContext.putHeader("foo", "bar");
+        threadContext.putTransient("ctx.foo", 1);
+        threadContext.addResponseHeader("resp.header", "baaaam");
+        Supplier<ThreadContext.StoredContext> contextSupplier = threadContext.newRestorableContext(true);
+
+        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+            assertNull(threadContext.getHeader("foo"));
+            assertEquals("1", threadContext.getHeader("default"));
+            threadContext.addResponseHeader("resp.header", "boom");
+            try (ThreadContext.StoredContext tmp = contextSupplier.get()) {
+                assertEquals("bar", threadContext.getHeader("foo"));
+                assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
+                assertEquals("1", threadContext.getHeader("default"));
+                assertEquals(2, threadContext.getResponseHeaders().get("resp.header").size());
+                assertEquals("boom", threadContext.getResponseHeaders().get("resp.header").get(0));
+                assertEquals("baaaam", threadContext.getResponseHeaders().get("resp.header").get(1));
+            }
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("ctx.foo"));
+            assertEquals(1, threadContext.getResponseHeaders().get("resp.header").size());
+            assertEquals("boom", threadContext.getResponseHeaders().get("resp.header").get(0));
+        }
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
+        assertEquals("1", threadContext.getHeader("default"));
+        assertEquals(1, threadContext.getResponseHeaders().get("resp.header").size());
+        assertEquals("baaaam", threadContext.getResponseHeaders().get("resp.header").get(0));
+
+        contextSupplier = threadContext.newRestorableContext(false);
+
+        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+            assertNull(threadContext.getHeader("foo"));
+            assertEquals("1", threadContext.getHeader("default"));
+            threadContext.addResponseHeader("resp.header", "boom");
+            try (ThreadContext.StoredContext tmp = contextSupplier.get()) {
+                assertEquals("bar", threadContext.getHeader("foo"));
+                assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
+                assertEquals("1", threadContext.getHeader("default"));
+                assertEquals(1, threadContext.getResponseHeaders().get("resp.header").size());
+                assertEquals("baaaam", threadContext.getResponseHeaders().get("resp.header").get(0));
+            }
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("ctx.foo"));
+            assertEquals(1, threadContext.getResponseHeaders().get("resp.header").size());
+            assertEquals("boom", threadContext.getResponseHeaders().get("resp.header").get(0));
+        }
+
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
+        assertEquals("1", threadContext.getHeader("default"));
+        assertEquals(1, threadContext.getResponseHeaders().get("resp.header").size());
+        assertEquals("baaaam", threadContext.getResponseHeaders().get("resp.header").get(0));
+    }
+
     public void testResponseHeaders() {
         final boolean expectThird = randomBoolean();
 
@@ -120,6 +179,14 @@ public class ThreadContextTests extends ESTestCase {
             threadContext.addResponseHeader("foo", "bar");
         }
 
+        final String value = DeprecationLogger.formatWarning("qux");
+        threadContext.addResponseHeader("baz", value, DeprecationLogger::extractWarningValueFromWarningHeader);
+        // pretend that another thread created the same response at a different time
+        if (randomBoolean()) {
+            final String duplicateValue = DeprecationLogger.formatWarning("qux");
+            threadContext.addResponseHeader("baz", duplicateValue, DeprecationLogger::extractWarningValueFromWarningHeader);
+        }
+
         threadContext.addResponseHeader("Warning", "One is the loneliest number");
         threadContext.addResponseHeader("Warning", "Two can be as bad as one");
         if (expectThird) {
@@ -128,11 +195,14 @@ public class ThreadContextTests extends ESTestCase {
 
         final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         final List<String> foo = responseHeaders.get("foo");
+        final List<String> baz = responseHeaders.get("baz");
         final List<String> warnings = responseHeaders.get("Warning");
         final int expectedWarnings = expectThird ? 3 : 2;
 
         assertThat(foo, hasSize(1));
+        assertThat(baz, hasSize(1));
         assertEquals("bar", foo.get(0));
+        assertEquals(value, baz.get(0));
         assertThat(warnings, hasSize(expectedWarnings));
         assertThat(warnings, hasItem(equalTo("One is the loneliest number")));
         assertThat(warnings, hasItem(equalTo("Two can be as bad as one")));

@@ -68,7 +68,6 @@ public final class GrokProcessor extends AbstractProcessor {
         }
 
         matches.entrySet().stream()
-            .filter((e) -> Objects.nonNull(e.getValue()))
             .forEach((e) -> ingestDocument.setFieldValue(e.getKey(), e.getValue()));
 
         if (traceMatch) {
@@ -108,24 +107,20 @@ public final class GrokProcessor extends AbstractProcessor {
     static String combinePatterns(List<String> patterns, boolean traceMatch) {
         String combinedPattern;
         if (patterns.size() > 1) {
-            if (traceMatch) {
-                combinedPattern = "";
-                for (int i = 0; i < patterns.size(); i++) {
-                    String valueWrap = "(?<" + PATTERN_MATCH_KEY + "." + i + ">" + patterns.get(i) + ")";
-                    if (combinedPattern.equals("")) {
-                        combinedPattern = valueWrap;
-                    } else {
-                        combinedPattern = combinedPattern + "|" + valueWrap;
-                    }
+            combinedPattern = "";
+            for (int i = 0; i < patterns.size(); i++) {
+                String pattern = patterns.get(i);
+                String valueWrap;
+                if (traceMatch) {
+                    valueWrap = "(?<" + PATTERN_MATCH_KEY + "." + i + ">" + pattern + ")";
+                } else {
+                    valueWrap = "(?:" + patterns.get(i) + ")";
                 }
-            } else {
-                combinedPattern = patterns.stream().reduce("", (prefix, value) -> {
-                    if (prefix.equals("")) {
-                        return "(?:" + value + ")";
-                    } else {
-                        return prefix + "|" + "(?:" + value + ")";
-                    }
-                });
+                if (combinedPattern.equals("")) {
+                    combinedPattern = valueWrap;
+                } else {
+                    combinedPattern = combinedPattern + "|" + valueWrap;
+                }
             }
         }  else {
             combinedPattern = patterns.get(0);

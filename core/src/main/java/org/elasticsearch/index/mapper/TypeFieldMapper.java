@@ -26,13 +26,13 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermContext;
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
@@ -76,12 +76,13 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             throw new MapperParsingException(NAME + " is not configurable");
         }
 
         @Override
-        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             return new TypeFieldMapper(indexSettings, fieldType);
         }
     }
@@ -89,7 +90,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     static final class TypeFieldType extends StringFieldType {
         private boolean fielddata;
 
-        public TypeFieldType() {
+        TypeFieldType() {
             this.fielddata = false;
         }
 
@@ -171,7 +172,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
      * Specialization for a disjunction over many _type
      */
     public static class TypesQuery extends Query {
-        // Same threshold as TermsQuery
+        // Same threshold as TermInSetQuery
         private static final int BOOLEAN_REWRITE_TERM_COUNT_THRESHOLD = 16;
 
         private final BytesRef[] types;
@@ -219,7 +220,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
                 }
                 return new ConstantScoreQuery(bq.build());
             }
-            return new TermsQuery(CONTENT_TYPE, types);
+            return new TermInSetQuery(CONTENT_TYPE, types);
         }
 
         @Override

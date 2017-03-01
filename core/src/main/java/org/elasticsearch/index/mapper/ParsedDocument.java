@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.util.List;
@@ -35,29 +36,30 @@ public class ParsedDocument {
 
     private final String id, type;
     private final BytesRef uid;
-    private final Field seqNo;
+    private final SeqNoFieldMapper.SequenceID seqID;
 
     private final String routing;
 
     private final List<Document> documents;
 
     private BytesReference source;
+    private XContentType xContentType;
 
     private Mapping dynamicMappingsUpdate;
 
     private String parent;
 
-    public ParsedDocument(
-        Field version,
-        Field seqNo,
-        String id,
-        String type,
-        String routing,
-        List<Document> documents,
-        BytesReference source,
-        Mapping dynamicMappingsUpdate) {
+    public ParsedDocument(Field version,
+                          SeqNoFieldMapper.SequenceID seqID,
+                          String id,
+                          String type,
+                          String routing,
+                          List<Document> documents,
+                          BytesReference source,
+                          XContentType xContentType,
+                          Mapping dynamicMappingsUpdate) {
         this.version = version;
-        this.seqNo = seqNo;
+        this.seqID = seqID;
         this.id = id;
         this.type = type;
         this.uid = Uid.createUidAsBytes(type, id);
@@ -65,6 +67,7 @@ public class ParsedDocument {
         this.documents = documents;
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
+        this.xContentType = xContentType;
     }
 
     public BytesRef uid() {
@@ -83,8 +86,10 @@ public class ParsedDocument {
         return version;
     }
 
-    public Field seqNo() {
-        return seqNo;
+    public void updateSeqID(long sequenceNumber, long primaryTerm) {
+        this.seqID.seqNo.setLongValue(sequenceNumber);
+        this.seqID.seqNoDocValue.setLongValue(sequenceNumber);
+        this.seqID.primaryTerm.setLongValue(primaryTerm);
     }
 
     public String routing() {
@@ -103,8 +108,13 @@ public class ParsedDocument {
         return this.source;
     }
 
-    public void setSource(BytesReference source) {
+    public XContentType getXContentType() {
+        return this.xContentType;
+    }
+
+    public void setSource(BytesReference source, XContentType xContentType) {
         this.source = source;
+        this.xContentType = xContentType;
     }
 
     public ParsedDocument parent(String parent) {

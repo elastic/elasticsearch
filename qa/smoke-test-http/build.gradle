@@ -17,7 +17,9 @@
  * under the License.
  */
 
+apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.test-with-dependencies'
 
 dependencies {
     testCompile project(path: ':modules:transport-netty4', configuration: 'runtime') // for http

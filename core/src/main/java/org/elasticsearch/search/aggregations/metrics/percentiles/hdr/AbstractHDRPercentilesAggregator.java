@@ -32,8 +32,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,7 +52,7 @@ public abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAgg
     protected final int numberOfSignificantValueDigits;
     protected final boolean keyed;
 
-    public AbstractHDRPercentilesAggregator(String name, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent,
+    public AbstractHDRPercentilesAggregator(String name, ValuesSource.Numeric valuesSource, SearchContext context, Aggregator parent,
             double[] keys, int numberOfSignificantValueDigits, boolean keyed, DocValueFormat formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);

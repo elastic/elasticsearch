@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
@@ -28,7 +26,6 @@ import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
@@ -51,9 +48,6 @@ public class AggregationPhase implements SearchPhase {
     @Override
     public void preProcess(SearchContext context) {
         if (context.aggregations() != null) {
-            AggregationContext aggregationContext = new AggregationContext(context);
-            context.aggregations().aggregationContext(aggregationContext);
-
             List<Aggregator> collectors = new ArrayList<>();
             Aggregator[] aggregators;
             try {
@@ -88,7 +82,7 @@ public class AggregationPhase implements SearchPhase {
             return;
         }
 
-        if (context.queryResult().aggregations() != null) {
+        if (context.queryResult().hasAggs()) {
             // no need to compute the aggs twice, they should be computed on a per context basis
             return;
         }
@@ -104,16 +98,8 @@ public class AggregationPhase implements SearchPhase {
         // optimize the global collector based execution
         if (!globals.isEmpty()) {
             BucketCollector globalsCollector = BucketCollector.wrap(globals);
-            Query query = Queries.newMatchAllQuery();
-            Query searchFilter = context.searchFilter(context.getQueryShardContext().getTypes());
+            Query query = context.buildFilteredQuery(Queries.newMatchAllQuery());
 
-            if (searchFilter != null) {
-                BooleanQuery filtered = new BooleanQuery.Builder()
-                    .add(query, Occur.MUST)
-                    .add(searchFilter, Occur.FILTER)
-                    .build();
-                query = filtered;
-            }
             try {
                 final Collector collector;
                 if (context.getProfilers() == null) {

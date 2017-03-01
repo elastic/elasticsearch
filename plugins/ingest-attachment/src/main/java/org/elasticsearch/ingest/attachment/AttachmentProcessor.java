@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readIntProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
@@ -52,23 +53,36 @@ public final class AttachmentProcessor extends AbstractProcessor {
     private final String targetField;
     private final Set<Property> properties;
     private final int indexedChars;
+    private final boolean ignoreMissing;
 
     AttachmentProcessor(String tag, String field, String targetField, Set<Property> properties,
-                        int indexedChars) throws IOException {
+                        int indexedChars, boolean ignoreMissing) throws IOException {
         super(tag);
         this.field = field;
         this.targetField = targetField;
         this.properties = properties;
         this.indexedChars = indexedChars;
+        this.ignoreMissing = ignoreMissing;
+    }
+
+    boolean isIgnoreMissing() {
+        return ignoreMissing;
     }
 
     @Override
     public void execute(IngestDocument ingestDocument) {
         Map<String, Object> additionalFields = new HashMap<>();
 
+        byte[] input = ingestDocument.getFieldValueAsBytes(field, ignoreMissing);
+
+        if (input == null && ignoreMissing) {
+            return;
+        } else if (input == null) {
+            throw new IllegalArgumentException("field [" + field + "] is null, cannot parse.");
+        }
+
         try {
             Metadata metadata = new Metadata();
-            byte[] input = ingestDocument.getFieldValueAsBytes(field);
             String parsedContent = TikaImpl.parse(input, metadata, indexedChars);
 
             if (properties.contains(Property.CONTENT) && Strings.hasLength(parsedContent)) {
@@ -166,6 +180,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "attachment");
             List<String> properyNames = readOptionalList(TYPE, processorTag, config, "properties");
             int indexedChars = readIntProperty(TYPE, processorTag, config, "indexed_chars", NUMBER_OF_CHARS_INDEXED);
+            boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
 
             final Set<Property> properties;
             if (properyNames != null) {
@@ -182,7 +197,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
                 properties = DEFAULT_PROPERTIES;
             }
 
-            return new AttachmentProcessor(processorTag, field, targetField, properties, indexedChars);
+            return new AttachmentProcessor(processorTag, field, targetField, properties, indexedChars, ignoreMissing);
         }
     }
 

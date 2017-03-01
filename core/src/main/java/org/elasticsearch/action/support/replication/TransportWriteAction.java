@@ -20,26 +20,38 @@
 package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteResponse;
+import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.apache.logging.log4j.core.pattern.ConverterKeys;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -60,6 +72,11 @@ public abstract class TransportWriteAction<
                 indexNameExpressionResolver, request, replicaRequest, executor);
     }
 
+    @Override
+    protected ReplicationOperation.Replicas newReplicasProxy() {
+        return new WriteActionReplicasProxy();
+    }
+
     /**
      * Called on the primary with a reference to the primary {@linkplain IndexShard} to modify.
      *
@@ -67,7 +84,8 @@ public abstract class TransportWriteAction<
      * async refresh is performed on the <code>primary</code> shard according to the <code>Request</code> refresh policy
      */
     @Override
-    protected abstract WritePrimaryResult shardOperationOnPrimary(Request request, IndexShard primary) throws Exception;
+    protected abstract WritePrimaryResult<ReplicaRequest, Response> shardOperationOnPrimary(
+            Request request, IndexShard primary) throws Exception;
 
     /**
      * Called once per replica with a reference to the replica {@linkplain IndexShard} to modify.
@@ -76,19 +94,24 @@ public abstract class TransportWriteAction<
      * async refresh is performed on the <code>replica</code> shard according to the <code>ReplicaRequest</code> refresh policy
      */
     @Override
-    protected abstract WriteReplicaResult shardOperationOnReplica(ReplicaRequest request, IndexShard replica) throws Exception;
+    protected abstract WriteReplicaResult<ReplicaRequest> shardOperationOnReplica(
+            ReplicaRequest request, IndexShard replica) throws Exception;
 
     /**
      * Result of taking the action on the primary.
      */
-    protected class WritePrimaryResult extends PrimaryResult implements RespondingWriteResult {
+    protected static class WritePrimaryResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
+            Response extends ReplicationResponse & WriteResponse> extends PrimaryResult<ReplicaRequest, Response>
+            implements RespondingWriteResult {
         boolean finishedAsyncActions;
+        public final Location location;
         ActionListener<Response> listener = null;
 
         public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse,
                                   @Nullable Location location, @Nullable Exception operationFailure,
-                                  IndexShard primary) {
+                                  IndexShard primary, Logger logger) {
             super(request, finalResponse, operationFailure);
+            this.location = location;
             assert location == null || operationFailure == null
                     : "expected either failure to be null or translog location to be null, " +
                     "but found: [" + location + "] translog location and [" + operationFailure + "] failure";
@@ -138,13 +161,16 @@ public abstract class TransportWriteAction<
     /**
      * Result of taking the action on the replica.
      */
-    protected class WriteReplicaResult extends ReplicaResult implements RespondingWriteResult {
+    protected static class WriteReplicaResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>>
+            extends ReplicaResult implements RespondingWriteResult {
+        public final Location location;
         boolean finishedAsyncActions;
         private ActionListener<TransportResponse.Empty> listener;
 
         public WriteReplicaResult(ReplicaRequest request, @Nullable Location location,
-                                  @Nullable Exception operationFailure, IndexShard replica) {
+                                  @Nullable Exception operationFailure, IndexShard replica, Logger logger) {
             super(operationFailure);
+            this.location = location;
             if (operationFailure != null) {
                 this.finishedAsyncActions = true;
             } else {
@@ -182,6 +208,16 @@ public abstract class TransportWriteAction<
             finishedAsyncActions = true;
             respondIfPossible(null);
         }
+    }
+
+    @Override
+    protected ClusterBlockLevel globalBlockLevel() {
+        return ClusterBlockLevel.WRITE;
+    }
+
+    @Override
+    protected ClusterBlockLevel indexBlockLevel() {
+        return ClusterBlockLevel.WRITE;
     }
 
     /**
@@ -287,6 +323,57 @@ public abstract class TransportWriteAction<
                     maybeFinish();
                 });
             }
+        }
+    }
+
+    /**
+     * A proxy for <b>write</b> operations that need to be performed on the
+     * replicas, where a failure to execute the operation should fail
+     * the replica shard and/or mark the replica as stale.
+     *
+     * This extends {@code TransportReplicationAction.ReplicasProxy} to do the
+     * failing and stale-ing.
+     */
+    class WriteActionReplicasProxy extends ReplicasProxy {
+
+        @Override
+        public void failShardIfNeeded(ShardRouting replica, long primaryTerm, String message, Exception exception,
+                                      Runnable onSuccess, Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+
+            logger.warn((org.apache.logging.log4j.util.Supplier<?>)
+                    () -> new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
+            shardStateAction.remoteShardFailed(replica.shardId(), replica.allocationId().getId(), primaryTerm, message, exception,
+                    createListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
+        }
+
+        @Override
+        public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, long primaryTerm, Runnable onSuccess,
+                                                 Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+            shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, "mark copy as stale", null,
+                    createListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
+        }
+
+        public ShardStateAction.Listener createListener(final Runnable onSuccess, final Consumer<Exception> onPrimaryDemoted,
+                                                        final Consumer<Exception> onIgnoredFailure) {
+            return new ShardStateAction.Listener() {
+                @Override
+                public void onSuccess() {
+                    onSuccess.run();
+                }
+
+                @Override
+                public void onFailure(Exception shardFailedError) {
+                    if (shardFailedError instanceof ShardStateAction.NoLongerPrimaryShardException) {
+                        onPrimaryDemoted.accept(shardFailedError);
+                    } else {
+                        // these can occur if the node is shutting down and are okay
+                        // any other exception here is not expected and merits investigation
+                        assert shardFailedError instanceof TransportException ||
+                                shardFailedError instanceof NodeClosedException : shardFailedError;
+                        onIgnoredFailure.accept(shardFailedError);
+                    }
+                }
+            };
         }
     }
 }

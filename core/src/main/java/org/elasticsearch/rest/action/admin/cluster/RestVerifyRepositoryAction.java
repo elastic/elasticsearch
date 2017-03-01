@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -34,8 +33,6 @@ import static org.elasticsearch.client.Requests.verifyRepositoryRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestVerifyRepositoryAction extends BaseRestHandler {
-
-    @Inject
     public RestVerifyRepositoryAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_snapshot/{repository}/_verify", this);

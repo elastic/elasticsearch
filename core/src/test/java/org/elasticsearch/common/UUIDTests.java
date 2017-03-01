@@ -58,7 +58,7 @@ public class UUIDTests extends ESTestCase {
         public Set<String> uuidSet = null;
         UUIDGenerator uuidSource;
 
-        public UUIDGenRunner(int count, UUIDGenerator uuidSource) {
+        UUIDGenRunner(int count, UUIDGenerator uuidSource) {
             this.count = count;
             this.uuidSource = uuidSource;
         }

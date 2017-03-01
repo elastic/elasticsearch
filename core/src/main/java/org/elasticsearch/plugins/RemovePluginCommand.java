@@ -19,32 +19,28 @@
 
 package org.elasticsearch.plugins;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.SettingCommand;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.cli.EnvironmentAwareCommand;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.env.Environment;
 
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 
 /**
  * A command for the plugin cli to remove a plugin from elasticsearch.
  */
-final class RemovePluginCommand extends SettingCommand {
+class RemovePluginCommand extends EnvironmentAwareCommand {
 
     private final OptionSpec<String> arguments;
 
@@ -54,14 +50,16 @@ final class RemovePluginCommand extends SettingCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         String arg = arguments.value(options);
-        execute(terminal, arg, settings);
+        execute(terminal, arg, env);
     }
 
     // pkg private for testing
-    void execute(Terminal terminal, String pluginName, Map<String, String> settings) throws Exception {
-        final Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+    void execute(Terminal terminal, String pluginName, Environment env) throws Exception {
+        if (pluginName == null) {
+            throw new UserException(ExitCodes.USAGE, "plugin name is required");
+        }
 
         terminal.println("-> Removing " + Strings.coalesceToEmpty(pluginName) + "...");
 

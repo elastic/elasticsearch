@@ -26,7 +26,6 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -48,7 +47,6 @@ public class RestClusterStateAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
 
-    @Inject
     public RestClusterStateAction(Settings settings, RestController controller, SettingsFilter settingsFilter) {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/state", this);

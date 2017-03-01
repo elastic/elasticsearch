@@ -141,8 +141,8 @@ public class DeprecationLogger {
                     "\"%s\" \"%s\"";
 
     /*
-     * RFC 7234, section 5.5 specifies that the warn-date is a quoted HTTP-date. HTTP-date is defined in RFC 7234 Appendix B as being from
-     * RFC 7231, section 7.1.1.1. RFC 7231 specifies an HTTP-date as an IMF-fixdate (or an obs-date referring to obsolete formats). The
+     * RFC 7234 section 5.5 specifies that the warn-date is a quoted HTTP-date. HTTP-date is defined in RFC 7234 Appendix B as being from
+     * RFC 7231 section 7.1.1.1. RFC 7231 specifies an HTTP-date as an IMF-fixdate (or an obs-date referring to obsolete formats). The
      * grammar for IMF-fixdate is specified as 'day-name "," SP date1 SP time-of-day SP GMT'. Here, day-name is
      * (Mon|Tue|Wed|Thu|Fri|Sat|Sun). Then, date1 is 'day SP month SP year' where day is 2DIGIT, month is
      * (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec), and year is 4DIGIT. Lastly, time-of-day is 'hour ":" minute ":" second' where

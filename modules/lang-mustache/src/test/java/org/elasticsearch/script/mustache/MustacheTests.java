@@ -20,8 +20,8 @@ package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheException;
+
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.CompiledScript;
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class MustacheTests extends ESTestCase {
 
-    private ScriptEngineService engine = new MustacheScriptEngineService(Settings.EMPTY);
+    private ScriptEngineService engine = new MustacheScriptEngineService();
 
     public void testBasics() {
         String template = "GET _search {\"query\": " + "{\"boosting\": {"

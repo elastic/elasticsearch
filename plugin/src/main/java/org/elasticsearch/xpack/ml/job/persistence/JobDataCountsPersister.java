@@ -48,7 +48,7 @@ public class JobDataCountsPersister extends AbstractComponent {
     public void persistDataCounts(String jobId, DataCounts counts, ActionListener<Boolean> listener) {
         try {
             XContentBuilder content = serialiseCounts(counts);
-            client.prepareIndex(AnomalyDetectorsIndex.jobResultsIndexName(jobId), DataCounts.TYPE.getPreferredName(),
+            client.prepareIndex(AnomalyDetectorsIndex.jobResultsAliasedName(jobId), DataCounts.TYPE.getPreferredName(),
                     DataCounts.documentId(jobId))
             .setSource(content).execute(new ActionListener<IndexResponse>() {
                 @Override

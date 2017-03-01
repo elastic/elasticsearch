@@ -87,7 +87,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
         request.setSlices(5);
 
-        searchRequest.indices(AnomalyDetectorsIndex.jobResultsIndexName(job.getId()));
+        searchRequest.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
         searchRequest.types(type);
         QueryBuilder query = createQuery(job.getId(), cutoffEpochMs).mustNot(excludeFilter);
         searchRequest.source(new SearchSourceBuilder().query(query));

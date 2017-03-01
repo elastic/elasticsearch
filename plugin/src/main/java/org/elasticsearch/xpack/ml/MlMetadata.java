@@ -245,7 +245,7 @@ public class MlMetadata implements MetaData.Custom {
             JobState jobState = MlMetadata.getJobState(jobId, tasks);
             if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
                 throw ExceptionsHelper.conflictStatusException("Unexpected job state [" + jobState + "], expected [" +
-                        JobState.CLOSED + "]");
+                        JobState.CLOSED + " or " + JobState.FAILED + "]");
             }
             Job job = jobs.remove(jobId);
             if (job == null) {

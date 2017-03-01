@@ -7,13 +7,16 @@ package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -38,63 +41,60 @@ public class JobStorageDeletionTask extends Task {
                        CheckedConsumer<Boolean, Exception> finishedHandler,
                        Consumer<Exception> failureHandler) {
 
-        String indexName = AnomalyDetectorsIndex.getCurrentResultsIndex(state, jobId);
-        String indexPattern = indexName + "-*";
+        final String indexName = AnomalyDetectorsIndex.getPhysicalIndexFromState(state, jobId);
+        final String indexPattern = indexName + "-*";
+        final String aliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
 
-        // Step 2. Regardless of if the DBQ succeeds, we delete the physical index
+        CheckedConsumer<IndicesAliasesResponse, Exception> deleteAliasHandler = indicesAliasesResponse -> {
+            if (!indicesAliasesResponse.isAcknowledged()) {
+                logger.warn("Delete Alias request not acknowledged for alias [" + aliasName + "].");
+            } else {
+                logger.info("Done deleting alias [" + aliasName + "]");
+            }
+
+            finishedHandler.accept(true);
+        };
+
+        // Step 2. DBQ done, delete the alias
         // -------
-        // TODO this will be removed once shared indices are used
+        // TODO norelease more robust handling of failures?
         CheckedConsumer<BulkByScrollResponse, Exception> dbqHandler = bulkByScrollResponse -> {
             if (bulkByScrollResponse.isTimedOut()) {
-                logger.warn("DeleteByQuery for index [" + indexPattern + "] timed out. Continuing to delete index.");
+                logger.warn("DeleteByQuery for indices [" + indexName + ", " + indexPattern + "] timed out.");
             }
             if (!bulkByScrollResponse.getBulkFailures().isEmpty()) {
                 logger.warn("[" + bulkByScrollResponse.getBulkFailures().size()
-                        + "] failures encountered while running DeleteByQuery on index [" + indexPattern + "]. "
-                        + "Continuing to delete index");
+                        + "] failures encountered while running DeleteByQuery on indices [" + indexName + ", "
+                        + indexPattern + "]. ");
             }
-
-            DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName);
-            client.admin().indices().delete(deleteIndexRequest, ActionListener.wrap(deleteIndexResponse -> {
-                logger.info("Deleting index [" + indexName + "] successful");
-
-                if (deleteIndexResponse.isAcknowledged()) {
-                    logger.info("Index deletion acknowledged");
-                } else {
-                    logger.warn("Index deletion not acknowledged");
-                }
-                finishedHandler.accept(deleteIndexResponse.isAcknowledged());
-            }, missingIndexHandler(indexName, finishedHandler, failureHandler)));
+            IndicesAliasesRequest request = new IndicesAliasesRequest()
+                    .addAliasAction(IndicesAliasesRequest.AliasActions.remove().alias(aliasName).index(indexName));
+            client.admin().indices().aliases(request, ActionListener.wrap(deleteAliasHandler,
+                    e -> {
+                        if (e instanceof IndexNotFoundException) {
+                            logger.warn("Alias [" + aliasName + "] not found. Continuing to delete job.");
+                            try {
+                                finishedHandler.accept(false);
+                            } catch (Exception e1) {
+                                failureHandler.accept(e1);
+                            }
+                        } else {
+                            // all other exceptions should die
+                            failureHandler.accept(e);
+                        }
+                    }));
         };
 
         // Step 1. DeleteByQuery on the index, matching all docs with the right job_id
         // -------
-        SearchRequest searchRequest = new SearchRequest(indexPattern);
-        searchRequest.indicesOptions(JobProvider.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
+        logger.info("Running DBQ on [" + indexName + "," + indexPattern + "] for job [" + jobId + "]");
+        SearchRequest searchRequest = new SearchRequest(indexName, indexPattern);
         DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
-        searchRequest.source(new SearchSourceBuilder().query(new TermQueryBuilder(Job.ID.getPreferredName(), jobId)));
+        ConstantScoreQueryBuilder query = new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
+        searchRequest.source(new SearchSourceBuilder().query(query));
+        searchRequest.indicesOptions(JobProvider.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
         request.setSlices(5);
 
-        client.execute(MlDeleteByQueryAction.INSTANCE, request,
-                ActionListener.wrap(dbqHandler, missingIndexHandler(indexName, finishedHandler, failureHandler)));
-    }
-
-    // If the index doesn't exist, we need to catch the exception and carry onwards so that the cluster
-    // state is properly updated
-    private Consumer<Exception> missingIndexHandler(String indexName, CheckedConsumer<Boolean, Exception> finishedHandler,
-                                                    Consumer<Exception> failureHandler) {
-        return e -> {
-            if (e instanceof IndexNotFoundException) {
-                logger.warn("Physical index [" + indexName + "] not found. Continuing to delete job.");
-                try {
-                    finishedHandler.accept(false);
-                } catch (Exception e1) {
-                    failureHandler.accept(e1);
-                }
-            } else {
-                // all other exceptions should die
-                failureHandler.accept(e);
-            }
-        };
+        client.execute(MlDeleteByQueryAction.INSTANCE, request, ActionListener.wrap(dbqHandler, failureHandler));
     }
 }

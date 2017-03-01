@@ -426,7 +426,6 @@ public class ElasticsearchMappings {
         return jsonBuilder()
                 .startObject()
                     .startObject(DataCounts.TYPE.getPreferredName())
-                        .field(ENABLED, false)
                         .startObject(PROPERTIES)
                             .startObject(Job.ID.getPreferredName())
                                 .field(TYPE, KEYWORD)

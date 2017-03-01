@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -30,6 +31,7 @@ public class MlRestTestStateCleaner {
     public void clearMlMetadata() throws IOException {
         deleteAllDatafeeds();
         deleteAllJobs();
+        deleteDotML();
     }
 
     @SuppressWarnings("unchecked")
@@ -81,5 +83,9 @@ public class MlRestTestStateCleaner {
             }
             client.performRequest("DELETE", "/_xpack/ml/anomaly_detectors/" + jobId);
         }
+    }
+
+    private void deleteDotML() throws IOException {
+        client.performRequest("DELETE",  ".ml-*?ignore_unavailable=true");
     }
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction;
@@ -26,8 +27,6 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.MlMetadata;
-import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobStorageDeletionTask;
@@ -253,7 +252,6 @@ public class JobManager extends AbstractComponent {
                           ActionListener<DeleteJobAction.Response> actionListener) {
 
         String jobId = request.getJobId();
-        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
         logger.debug("Deleting job '" + jobId + "'");
 
         // Step 3. When the job has been removed from the cluster state, return a response

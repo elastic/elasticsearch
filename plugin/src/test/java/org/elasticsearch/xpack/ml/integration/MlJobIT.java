@@ -220,16 +220,15 @@ public class MlJobIT extends ESRestTestCase {
 
         String jobConfig = String.format(Locale.ROOT, jobTemplate, "index-1");
 
-        Response response = client().performRequest("put", MachineLearning.BASE_PATH
-                        + "anomaly_detectors/repeated-id" , Collections.emptyMap(),
+        Response response = client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/repeated-id" ,
+                Collections.emptyMap(),
                 new StringEntity(jobConfig, ContentType.APPLICATION_JSON));
         assertEquals(200, response.getStatusLine().getStatusCode());
 
         final String jobConfig2 = String.format(Locale.ROOT, jobTemplate, "index-2");
         ResponseException e = expectThrows(ResponseException.class,
-                () ->client().performRequest("put", MachineLearning.BASE_PATH
-                                + "anomaly_detectors/repeated-id" , Collections.emptyMap(),
-                        new StringEntity(jobConfig2, ContentType.APPLICATION_JSON)));
+                () ->client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/repeated-id" ,
+                        Collections.emptyMap(), new StringEntity(jobConfig2, ContentType.APPLICATION_JSON)));
 
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(e.getMessage(), containsString("The job cannot be created with the Id 'repeated-id'. The Id is already used."));
@@ -259,27 +258,43 @@ public class MlJobIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
         String responseAsString = responseEntityToString(response);
 
-        assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.jobResultsIndexName(indexName)
-                + "\":{\"aliases\":{\"" + AnomalyDetectorsIndex.jobResultsIndexName(jobId1) + "\":{},\"" +
-                AnomalyDetectorsIndex.jobResultsIndexName(jobId2)));
+        assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName)
+                + "\":{\"aliases\":{\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "\":{},\"" +
+                AnomalyDetectorsIndex.jobResultsAliasedName(jobId2)));
 
         response = client().performRequest("get", "_cat/indices");
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, containsString(indexName));
-        assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsIndexName(jobId1))));
-        assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsIndexName(jobId2))));
+        assertThat(responseAsString, containsString(AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + "custom-" + indexName));
+        assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId1))));
+        assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId2))));
 
-        addBucketResult(indexName, "1234", 1);
-        addBucketResult(indexName, "1236", 1);
-        response = client().performRequest("get", MachineLearning.BASE_PATH
-                + "anomaly_detectors/" + jobId1 + "/results/buckets");
+        String bucketResult = String.format(Locale.ROOT,
+                "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\", \"bucket_span\": \"%s\"}",
+                jobId1, "1234", 1);
+        String id = String.format(Locale.ROOT,
+                "%s_%s_%s", jobId1, "1234", 1);
+        response = client().performRequest("put", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/result/" + id,
+                Collections.emptyMap(), new StringEntity(bucketResult, ContentType.APPLICATION_JSON));
+        assertEquals(201, response.getStatusLine().getStatusCode());
+
+        bucketResult = String.format(Locale.ROOT,
+                "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"result_type\":\"bucket\", \"bucket_span\": \"%s\"}",
+                jobId1, "1236", 1);
+        id = String.format(Locale.ROOT,
+                "%s_%s_%s", jobId1, "1236", 1);
+        response = client().performRequest("put", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/result/" + id,
+                Collections.emptyMap(), new StringEntity(bucketResult, ContentType.APPLICATION_JSON));
+        assertEquals(201, response.getStatusLine().getStatusCode());
+
+        client().performRequest("post", "_refresh");
+
+        response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId1 + "/results/buckets");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":2"));
 
-        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsIndexName(indexName)
-                + "/result/_search");
+        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/result/_search");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"total\":2"));
@@ -287,20 +302,66 @@ public class MlJobIT extends ESRestTestCase {
         response = client().performRequest("delete", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId1);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 
-        // check index and alias were deleted
+        // check that indices still exist, but are empty and aliases are gone
         response = client().performRequest("get", "_aliases");
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsIndexName(jobId1))));
-        assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsIndexName(jobId2))));
+        assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId1))));
+        assertThat(responseAsString, containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId2))); //job2 still exists
 
         response = client().performRequest("get", "_cat/indices");
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, not(containsString(indexName)));
+        assertThat(responseAsString, containsString(AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + "custom-" + indexName));
+
+        client().performRequest("post", "_refresh");
+
+        response = client().performRequest("get", AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + "custom-" + indexName + "/_count");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString("\"count\":0"));
     }
 
     public void testCreateJobInSharedIndexUpdatesMapping() throws Exception {
+        String jobTemplate = "{\n" +
+                "  \"analysis_config\" : {\n" +
+                "        \"detectors\" :[{\"function\":\"metric\",\"field_name\":\"metric\", \"by_field_name\":\"%s\"}]\n" +
+                "    }\n" +
+                "}";
+
+        String jobId1 = "job-1";
+        String byFieldName1 = "responsetime";
+        String jobId2 = "job-2";
+        String byFieldName2 = "cpu-usage";
+        String jobConfig = String.format(Locale.ROOT, jobTemplate, byFieldName1);
+
+        Response response = client().performRequest("put", MachineLearning.BASE_PATH
+                + "anomaly_detectors/" + jobId1, Collections.emptyMap(), new StringEntity(jobConfig, ContentType.APPLICATION_JSON));
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        // Check the index mapping contains the first by_field_name
+        response = client().performRequest("get", AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX
+                + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT + "/_mapping?pretty");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        String responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString(byFieldName1));
+        assertThat(responseAsString, not(containsString(byFieldName2)));
+
+        jobConfig = String.format(Locale.ROOT, jobTemplate, byFieldName2);
+        response = client().performRequest("put", MachineLearning.BASE_PATH
+                + "anomaly_detectors/" + jobId2, Collections.emptyMap(), new StringEntity(jobConfig, ContentType.APPLICATION_JSON));
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        // Check the index mapping now contains both fields
+        response = client().performRequest("get", AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX
+                + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT + "/_mapping?pretty");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString(byFieldName1));
+        assertThat(responseAsString, containsString(byFieldName2));
+    }
+
+    public void testCreateJobInCustomSharedIndexUpdatesMapping() throws Exception {
         String jobTemplate = "{\n" +
                 "  \"analysis_config\" : {\n" +
                 "        \"detectors\" :[{\"function\":\"metric\",\"field_name\":\"metric\", \"by_field_name\":\"%s\"}]\n" +
@@ -318,7 +379,7 @@ public class MlJobIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
 
         // Check the index mapping contains the first by_field_name
-        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsIndexName("shared-index") + "/_mapping?pretty");
+        response = client().performRequest("get", AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + "custom-shared-index" + "/_mapping?pretty");
         assertEquals(200, response.getStatusLine().getStatusCode());
         String responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString(byFieldName1));
@@ -330,7 +391,7 @@ public class MlJobIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
 
         // Check the index mapping now contains both fields
-        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsIndexName("shared-index") + "/_mapping?pretty");
+        response = client().performRequest("get", AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + "custom-shared-index" + "/_mapping?pretty");
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString(byFieldName1));
@@ -339,7 +400,7 @@ public class MlJobIT extends ESRestTestCase {
 
     public void testDeleteJob() throws Exception {
         String jobId = "foo";
-        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
+        String indexName = AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT;
         createFarequoteJob(jobId);
 
         Response response = client().performRequest("get", "_cat/indices");
@@ -350,11 +411,23 @@ public class MlJobIT extends ESRestTestCase {
         response = client().performRequest("delete", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 
-        // check index was deleted
+        // check that the index still exists (it's shared by default)
         response = client().performRequest("get", "_cat/indices");
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, not(containsString(indexName)));
+        assertThat(responseAsString, containsString(indexName));
+
+        assertBusy(() -> {
+            try {
+                Response r = client().performRequest("get", indexName + "/_count");
+                assertEquals(200, r.getStatusLine().getStatusCode());
+                String responseString = responseEntityToString(r);
+                assertThat(responseString, containsString("\"count\":0"));
+            } catch (Exception e) {
+                fail(e.getMessage());
+            }
+
+        });
 
         // check that the job itself is gone
         expectThrows(ResponseException.class, () ->
@@ -363,7 +436,8 @@ public class MlJobIT extends ESRestTestCase {
 
     public void testDeleteJobAfterMissingIndex() throws Exception {
         String jobId = "foo";
-        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
+        String aliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        String indexName = AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT;
         createFarequoteJob(jobId);
 
         Response response = client().performRequest("get", "_cat/indices");
@@ -383,6 +457,7 @@ public class MlJobIT extends ESRestTestCase {
         response = client().performRequest("get", "_cat/indices");
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, not(containsString(aliasName)));
         assertThat(responseAsString, not(containsString(indexName)));
 
         expectThrows(ResponseException.class, () ->
@@ -391,7 +466,7 @@ public class MlJobIT extends ESRestTestCase {
 
     public void testMultiIndexDelete() throws Exception {
         String jobId = "foo";
-        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
+        String indexName = AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT;
         createFarequoteJob(jobId);
 
         Response response = client().performRequest("put", indexName + "-001");
@@ -412,28 +487,32 @@ public class MlJobIT extends ESRestTestCase {
                 String.format(Locale.ROOT,
                         "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"bucket_span\":%d, \"sequence_num\": %d, \"result_type\":\"record\"}",
                         jobId, 123, 1, 1);
-        client().performRequest("put", AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "/result/" + 123,
+        client().performRequest("put", indexName + "/result/" + 123,
                 Collections.singletonMap("refresh", "true"), new StringEntity(recordResult, ContentType.APPLICATION_JSON));
-        client().performRequest("put", AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "-001/result/" + 123,
+        client().performRequest("put", indexName + "-001/result/" + 123,
                 Collections.singletonMap("refresh", "true"), new StringEntity(recordResult, ContentType.APPLICATION_JSON));
-        client().performRequest("put", AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "-002/result/" + 123,
+        client().performRequest("put", indexName + "-002/result/" + 123,
+                Collections.singletonMap("refresh", "true"), new StringEntity(recordResult, ContentType.APPLICATION_JSON));
+
+        // Also index a few through the alias for the first job
+        client().performRequest("put", indexName + "/result/" + 456,
                 Collections.singletonMap("refresh", "true"), new StringEntity(recordResult, ContentType.APPLICATION_JSON));
 
 
         client().performRequest("post", "_refresh");
 
         // check for the documents
-        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "/_count");
+        response = client().performRequest("get", indexName+ "/_count");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString("\"count\":2"));
+
+        response = client().performRequest("get", indexName + "-001/_count");
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":1"));
 
-        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "-001/_count");
-        assertEquals(200, response.getStatusLine().getStatusCode());
-        responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, containsString("\"count\":1"));
-
-        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "-002/_count");
+        response = client().performRequest("get", indexName + "-002/_count");
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":1"));
@@ -444,22 +523,29 @@ public class MlJobIT extends ESRestTestCase {
 
         client().performRequest("post", "_refresh");
 
-        // check index was deleted
+        // check that the indices still exist but are empty
         response = client().performRequest("get", "_cat/indices");
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, not(containsString("\t" + indexName + "\t")));
+        assertThat(responseAsString, containsString(indexName));
+        assertThat(responseAsString, containsString(indexName + "-001"));
+        assertThat(responseAsString, containsString(indexName + "-002"));
 
-        // The other two indices won't be deleted, but the DBQ should have cleared them out
-        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "-001/_count");
+        response = client().performRequest("get", indexName + "/_count");
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":0"));
 
-        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "-002/_count");
+        response = client().performRequest("get", indexName + "-001/_count");
         assertEquals(200, response.getStatusLine().getStatusCode());
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":0"));
+
+        response = client().performRequest("get", indexName + "-002/_count");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString("\"count\":0"));
+
 
         expectThrows(ResponseException.class, () ->
                 client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
@@ -467,7 +553,8 @@ public class MlJobIT extends ESRestTestCase {
 
     private Response addBucketResult(String jobId, String timestamp, long bucketSpan) throws Exception {
         try {
-            client().performRequest("put", AnomalyDetectorsIndex.jobResultsIndexName(jobId),
+            client().performRequest("put",
+                    AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT,
                     Collections.emptyMap(), new StringEntity(RESULT_MAPPING, ContentType.APPLICATION_JSON));
         } catch (ResponseException e) {
             // it is ok: the index already exists
@@ -480,14 +567,15 @@ public class MlJobIT extends ESRestTestCase {
                 jobId, timestamp, bucketSpan);
         String id = String.format(Locale.ROOT,
                 "%s_%s_%s", jobId, timestamp, bucketSpan);
-        return client().performRequest("put", AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "/result/" + id,
+        return client().performRequest("put", AnomalyDetectorsIndex.jobResultsAliasedName(jobId) + "/result/" + id,
                 Collections.singletonMap("refresh", "true"), new StringEntity(bucketResult, ContentType.APPLICATION_JSON));
     }
 
     private Response addRecordResult(String jobId, String timestamp, long bucketSpan, int sequenceNum) throws Exception {
         try {
-            client().performRequest("put", AnomalyDetectorsIndex.jobResultsIndexName(jobId), Collections.emptyMap(),
-                    new StringEntity(RESULT_MAPPING, ContentType.APPLICATION_JSON));
+            client().performRequest("put",
+                    AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT,
+                    Collections.emptyMap(), new StringEntity(RESULT_MAPPING, ContentType.APPLICATION_JSON));
         } catch (ResponseException e) {
             // it is ok: the index already exists
             assertThat(e.getMessage(), containsString("resource_already_exists_exception"));
@@ -498,7 +586,7 @@ public class MlJobIT extends ESRestTestCase {
                 String.format(Locale.ROOT,
                         "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"bucket_span\":%d, \"sequence_num\": %d, \"result_type\":\"record\"}",
                         jobId, timestamp, bucketSpan, sequenceNum);
-        return client().performRequest("put", AnomalyDetectorsIndex.jobResultsIndexName(jobId) + "/result/" + timestamp,
+        return client().performRequest("put", AnomalyDetectorsIndex.jobResultsAliasedName(jobId) + "/result/" + timestamp,
                 Collections.singletonMap("refresh", "true"), new StringEntity(recordResult, ContentType.APPLICATION_JSON));
     }
 

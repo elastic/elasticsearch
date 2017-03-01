@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 import java.util.Arrays;
@@ -323,21 +324,21 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     public void testBuilder_setsDefaultIndexName() {
         Job.Builder builder = buildJobBuilder("foo");
         Job job = builder.build();
-        assertEquals("foo", job.getResultsIndexName());
+        assertEquals(AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT, job.getResultsIndexName());
     }
 
     public void testBuilder_setsIndexName() {
         Job.Builder builder = buildJobBuilder("foo");
         builder.setResultsIndexName("carol");
         Job job = builder.build();
-        assertEquals("carol", job.getResultsIndexName());
+        assertEquals(AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + "custom-carol", job.getResultsIndexName());
     }
 
     public void testBuilder_withInvalidIndexNameThrows () {
         Job.Builder builder = buildJobBuilder("foo");
         builder.setResultsIndexName("_bad^name");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.build());
-        assertEquals(Messages.getMessage(Messages.INVALID_ID, Job.RESULTS_INDEX_NAME.getPreferredName()), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.INVALID_ID, Job.RESULTS_INDEX_NAME.getPreferredName(), "_bad^name"), e.getMessage());
     }
 
     public static Job.Builder buildJobBuilder(String id, Date date) {

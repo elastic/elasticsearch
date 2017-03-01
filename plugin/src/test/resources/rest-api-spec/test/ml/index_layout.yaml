@@ -1,0 +1,345 @@
+setup:
+  - skip:
+        features: ["headers"]
+
+---
+"Test CRUD on two jobs in shared index":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: farequote
+        body:  >
+          {
+            "job_id":"farequote",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"JSON",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - match: { job_id: "farequote" }
+
+
+  - do:
+      xpack.ml.put_job:
+        job_id: farequote2
+        body:  >
+          {
+            "job_id":"farequote2",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"JSON",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - match: { job_id: "farequote2" }
+
+  - do:
+      xpack.ml.open_job:
+        job_id: farequote
+
+  - do:
+      xpack.ml.open_job:
+        job_id: farequote2
+
+  - do:
+      #set the header so we won't randomize it
+      headers:
+        Content-Type: application/json
+      xpack.ml.post_data:
+        job_id: farequote
+        body: >
+          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
+
+  - do:
+      #set the header so we won't randomize it
+      headers:
+        Content-Type: application/json
+      xpack.ml.post_data:
+        job_id: farequote2
+        body: >
+          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+
+
+  - do:
+      xpack.ml.flush_job:
+        job_id: farequote
+  - match: { flushed: true }
+
+  - do:
+      xpack.ml.flush_job:
+        job_id: farequote2
+  - match: { flushed: true }
+
+
+  - do:
+      xpack.ml.close_job:
+        job_id: farequote
+  - match: { closed: true }
+
+  - do:
+      xpack.ml.close_job:
+        job_id: farequote2
+  - match: { closed: true }
+
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.exists:
+        index: ".ml-anomalies-farequote"
+  - is_true: ''
+
+  - do:
+      indices.exists:
+        index: ".ml-anomalies-farequote"
+  - is_true: ''
+
+  - do:
+      count:
+        index: .ml-anomalies-shared
+  - match: {count: 8}
+
+  - do:
+      count:
+        index: .ml-anomalies-farequote
+        body:
+          query:
+            constant_score:
+              filter:
+                term:
+                  job_id: farequote
+
+  - match: {count: 4}
+
+  - do:
+      count:
+        index: .ml-anomalies-shared
+        body:
+          query:
+            constant_score:
+              filter:
+                term:
+                  job_id: farequote
+
+  - match: {count: 4}
+
+  - do:
+      count:
+        index: .ml-anomalies-farequote2
+        body:
+          query:
+            constant_score:
+              filter:
+                term:
+                  job_id: farequote2
+
+  - match: {count: 4}
+
+  - do:
+      count:
+        index: .ml-anomalies-shared
+        body:
+          query:
+            constant_score:
+              filter:
+                term:
+                  job_id: farequote2
+  - match: {count: 4}
+
+  - do:
+      xpack.ml.delete_job:
+        job_id: "farequote"
+  - match: { acknowledged: true }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.exists:
+        index: ".ml-anomalies-shared"
+  - is_true: ''
+
+  - do:
+      count:
+        index: .ml-anomalies-shared
+        body:
+          query:
+            constant_score:
+              filter:
+                term:
+                  job_id: farequote
+  - match: {count: 0}
+
+  - do:
+      count:
+        index: .ml-anomalies-shared
+  - match: {count: 4}
+
+
+  - do:
+      count:
+        index: .ml-anomalies-farequote2
+        body:
+          query:
+            constant_score:
+              filter:
+                term:
+                  job_id: farequote2
+
+  - match: {count: 4}
+
+  - do:
+      count:
+        index: .ml-anomalies-shared
+        body:
+          query:
+            constant_score:
+              filter:
+                term:
+                  job_id: farequote2
+
+  - match: {count: 4}
+
+  - do:
+      xpack.ml.delete_job:
+        job_id: "farequote2"
+  - match: { acknowledged: true }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.exists:
+        index: ".ml-anomalies-shared"
+  - is_true: ''
+
+  - do:
+      indices.exists:
+        index: ".ml-anomalies-farequote"
+  - is_false: ''
+
+  - do:
+      indices.exists:
+        index: ".ml-anomalies-farequote2"
+  - is_false: ''
+
+  - do:
+      count:
+        index: .ml-anomalies-shared
+  - match: {count: 0}
+
+
+---
+"Test unrelated index":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: farequote
+        body:  >
+          {
+            "job_id":"farequote",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"JSON",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - match: { job_id: "farequote" }
+
+  - do:
+      xpack.ml.open_job:
+        job_id: farequote
+
+  - do:
+      #set the header so we won't randomize it
+      headers:
+        Content-Type: application/json
+      xpack.ml.post_data:
+        job_id: farequote
+        body: >
+          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
+
+  - do:
+      indices.create:
+        index: foo
+
+  - do:
+      indices.create:
+        index: .ml-anomalies-foo
+
+  - do:
+      index:
+        index: foo
+        type: foo
+        body:
+          key: value
+
+  - do:
+      index:
+        index: .ml-anomalies-foo
+        type: foo
+        body:
+          key: value
+
+  - do:
+      index:
+        index: .ml-anomalies-foo
+        type: foo
+        body:
+          key: value
+          job_id: foo
+
+  - do:
+      xpack.ml.flush_job:
+        job_id: farequote
+  - match: { flushed: true }
+
+  - do:
+      xpack.ml.close_job:
+        job_id: farequote
+  - match: { closed: true }
+
+  - do:
+      xpack.ml.delete_job:
+        job_id: "farequote"
+  - match: { acknowledged: true }
+
+  - do:
+        indices.refresh: {}
+
+  - do:
+      count:
+        index: .ml-anomalies-shared
+  - match: {count: 0}
+
+  - do:
+      count:
+        index: foo
+  - match: {count: 1}
+
+  - do:
+      count:
+        index: .ml-anomalies-foo
+  - match: {count: 2}
+
+
+

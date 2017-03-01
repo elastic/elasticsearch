@@ -13,7 +13,7 @@ public abstract class BatchedResultsIterator<T>
         extends BatchedDocumentsIterator<BatchedResultsIterator.ResultWithIndex<T>> {
 
     public BatchedResultsIterator(Client client, String jobId, String resultType) {
-        super(client, AnomalyDetectorsIndex.jobResultsIndexName(jobId),
+        super(client, AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
                 new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), resultType));
     }
 

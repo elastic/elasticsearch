@@ -40,7 +40,7 @@ public class JobDataDeleterTests extends ESTestCase {
         BulkResponse bulkResponse = Mockito.mock(BulkResponse.class);
 
         Client client = new MockClientBuilder("myCluster")
-                                .prepareSearchExecuteListener(AnomalyDetectorsIndex.jobResultsIndexName("foo"), response)
+                                .prepareSearchExecuteListener(AnomalyDetectorsIndex.jobResultsAliasedName("foo"), response)
                                 .prepareSearchScrollExecuteListener(response)
                                 .prepareBulk(bulkResponse).build();
 
@@ -92,7 +92,7 @@ public class JobDataDeleterTests extends ESTestCase {
         verify(client, times(5))
                 .prepareDelete(eq(AnomalyDetectorsIndex.jobStateIndexName()), eq(ModelState.TYPE.getPreferredName()), anyString());
         verify(client, times(1))
-                .prepareDelete(eq(AnomalyDetectorsIndex.jobResultsIndexName(jobId)), eq(ModelSnapshot.TYPE.getPreferredName()),
+                .prepareDelete(eq(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)), eq(ModelSnapshot.TYPE.getPreferredName()),
                         eq("foo-snap-1"));
     }
 

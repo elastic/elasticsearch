@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.utils.MlStrings;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
@@ -195,6 +196,15 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
      * @return The job's index name
      */
     public String getResultsIndexName() {
+        return AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + resultsIndexName;
+    }
+
+    /**
+     * Private version of getResultsIndexName so that a job can be built from another
+     * job and pass index name validation
+     * @return The job's index name, minus prefix
+     */
+    private String getResultsIndexNameNoPrefix() {
         return resultsIndexName;
     }
 
@@ -525,10 +535,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             this.backgroundPersistInterval = job.getBackgroundPersistInterval();
             this.modelSnapshotRetentionDays = job.getModelSnapshotRetentionDays();
             this.resultsRetentionDays = job.getResultsRetentionDays();
-            this.modelSnapshotRetentionDays = job.getModelSnapshotRetentionDays();
             this.customSettings = job.getCustomSettings();
             this.modelSnapshotId = job.getModelSnapshotId();
-            this.resultsIndexName = job.getResultsIndexName();
+            this.resultsIndexName = job.getResultsIndexNameNoPrefix();
             this.deleted = job.isDeleted();
         }
 
@@ -667,15 +676,23 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             }
 
             if (Strings.isNullOrEmpty(resultsIndexName)) {
-                resultsIndexName = id;
+                resultsIndexName = AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT;
             } else if (!MlStrings.isValidId(resultsIndexName)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, RESULTS_INDEX_NAME.getPreferredName()));
+                throw new IllegalArgumentException(
+                        Messages.getMessage(Messages.INVALID_ID, RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName));
+            } else if (!resultsIndexName.equals(AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT)) {
+                // User-defined names are prepended with "custom"
+                // Conditional guards against multiple prepending due to updates instead of first creation
+                resultsIndexName = resultsIndexName.startsWith("custom-")
+                        ? resultsIndexName
+                        : "custom-" + resultsIndexName;
             }
 
             return new Job(
                     id, description, createTime, finishedTime, lastDataTime, analysisConfig, analysisLimits,
                     dataDescription, modelDebugConfig, renormalizationWindowDays, backgroundPersistInterval,
-                    modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId, resultsIndexName, deleted);
+                    modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
+                    resultsIndexName, deleted);
         }
     }
 }

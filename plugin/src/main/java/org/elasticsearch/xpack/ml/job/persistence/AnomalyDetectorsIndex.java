@@ -18,8 +18,9 @@ public final class AnomalyDetectorsIndex {
      */
     public static final String ML_META_INDEX = ".ml-meta";
 
-    private static final String RESULTS_INDEX_PREFIX = ".ml-anomalies-";
+    public static final String RESULTS_INDEX_PREFIX = ".ml-anomalies-";
     private static final String STATE_INDEX_NAME = ".ml-state";
+    public static final String RESULTS_INDEX_DEFAULT = "shared";
 
     private AnomalyDetectorsIndex() {
     }
@@ -33,18 +34,18 @@ public final class AnomalyDetectorsIndex {
      * @param jobId Job Id
      * @return The index name
      */
-    public static String jobResultsIndexName(String jobId) {
+    public static String jobResultsAliasedName(String jobId) {
         return RESULTS_INDEX_PREFIX + jobId;
     }
 
     /**
-     * The default index pattern for rollover index results
+     * Retrieves the currently defined physical index from the job state
      * @param jobId Job Id
      * @return The index name
      */
-    public static String getCurrentResultsIndex(ClusterState state, String jobId) {
+    public static String getPhysicalIndexFromState(ClusterState state, String jobId) {
         MlMetadata meta = state.getMetaData().custom(MlMetadata.TYPE);
-        return RESULTS_INDEX_PREFIX + meta.getJobs().get(jobId).getResultsIndexName();
+        return meta.getJobs().get(jobId).getResultsIndexName();
     }
 
     /**

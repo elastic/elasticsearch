@@ -73,7 +73,7 @@ public class JobResultsPersister extends AbstractComponent {
 
         private Builder(String jobId) {
             this.jobId = Objects.requireNonNull(jobId);
-            indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
+            indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
             bulkRequest = new BulkRequest();
         }
 
@@ -212,7 +212,7 @@ public class JobResultsPersister extends AbstractComponent {
     public void persistCategoryDefinition(CategoryDefinition category) {
         Persistable persistable = new Persistable(category.getJobId(), category, CategoryDefinition.TYPE.getPreferredName(),
                 CategoryDefinition.documentId(category.getJobId(), Long.toString(category.getCategoryId())));
-        persistable.persist(AnomalyDetectorsIndex.jobResultsIndexName(category.getJobId()));
+        persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(category.getJobId()));
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process
     }
@@ -239,11 +239,11 @@ public class JobResultsPersister extends AbstractComponent {
     public void persistModelSnapshot(ModelSnapshot modelSnapshot) {
         Persistable persistable = new Persistable(modelSnapshot.getJobId(), modelSnapshot, ModelSnapshot.TYPE.getPreferredName(),
                 ModelSnapshot.documentId(modelSnapshot));
-        persistable.persist(AnomalyDetectorsIndex.jobResultsIndexName(modelSnapshot.getJobId()));
+        persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()));
     }
 
     public void updateModelSnapshot(ModelSnapshot modelSnapshot, Consumer<Boolean> handler, Consumer<Exception> errorHandler) {
-        String index = AnomalyDetectorsIndex.jobResultsIndexName(modelSnapshot.getJobId());
+        String index = AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId());
         IndexRequest indexRequest = new IndexRequest(index, ModelSnapshot.TYPE.getPreferredName(), ModelSnapshot.documentId(modelSnapshot));
         try {
             indexRequest.source(toXContentBuilder(modelSnapshot));
@@ -261,9 +261,9 @@ public class JobResultsPersister extends AbstractComponent {
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
         Persistable persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, Result.TYPE.getPreferredName(),
                 ModelSizeStats.documentId(jobId));
-        persistable.persist(AnomalyDetectorsIndex.jobResultsIndexName(jobId));
+        persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
         persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, Result.TYPE.getPreferredName(), null);
-        persistable.persist(AnomalyDetectorsIndex.jobResultsIndexName(jobId));
+        persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
         // Don't commit as we expect masses of these updates and they're only
         // for information at the API level
     }
@@ -273,7 +273,7 @@ public class JobResultsPersister extends AbstractComponent {
      */
     public void persistModelDebugOutput(ModelDebugOutput modelDebugOutput) {
         Persistable persistable = new Persistable(modelDebugOutput.getJobId(), modelDebugOutput, Result.TYPE.getPreferredName(), null);
-        persistable.persist(AnomalyDetectorsIndex.jobResultsIndexName(modelDebugOutput.getJobId()));
+        persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(modelDebugOutput.getJobId()));
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process
     }
@@ -295,7 +295,7 @@ public class JobResultsPersister extends AbstractComponent {
      * @return True if successful
      */
     public boolean commitResultWrites(String jobId) {
-        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         // Refresh should wait for Lucene to make the data searchable
         logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
         client.admin().indices().refresh(new RefreshRequest(indexName)).actionGet();

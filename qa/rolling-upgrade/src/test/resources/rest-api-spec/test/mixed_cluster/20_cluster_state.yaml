@@ -1,5 +1,5 @@
 ---
-"cluster state size test":
+"get cluster state size":
   - do:
       cluster.state: {}
 

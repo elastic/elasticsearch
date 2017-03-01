@@ -34,7 +34,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 
 /**
- * This class is used to generate the Java Delete API documentation
+ * This class is used to generate the Java Delete API documentation.
  * You need to wrap your code between two tags like:
  * // tag::delete-request[]
  * // end::delete-request[]
@@ -101,7 +101,7 @@ public class DeleteDocumentationIT extends ESRestHighLevelClientTestCase {
         try {
             client.delete(request);
         } catch (ElasticsearchException exception) {
-            if (exception.status().equals(RestStatus.CONFLICT) {
+            if (exception.status().equals(RestStatus.CONFLICT)) {
                 // <1>
             }
         }

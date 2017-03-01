@@ -31,6 +31,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.BulkShardResponse;
+import org.elasticsearch.action.bulk.TransportShardBulkActionTests;
 import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -549,7 +550,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
      */
     protected IndexResponse indexOnPrimary(IndexRequest request, IndexShard primary) throws Exception {
         final Engine.IndexResult indexResult = executeIndexRequestOnPrimary(request, primary,
-                null);
+                new TransportShardBulkActionTests.NoopMappingUpdatePerformer());
         request.primaryTerm(primary.getPrimaryTerm());
         TransportWriteActionTestHelper.performPostWriteActions(primary, request, indexResult.getTranslogLocation(), logger);
         return new IndexResponse(
@@ -591,5 +592,4 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             replica.getTranslog().sync();
         }
     }
-
 }

@@ -42,6 +42,10 @@ dependencies {
     compile "io.netty:netty-transport:4.1.8.Final"
 }
 
+dependencyLicenses {
+  mapping from: /netty-.*/, to: 'netty'
+}
+
 thirdPartyAudit.excludes = [
         // classes are missing
 

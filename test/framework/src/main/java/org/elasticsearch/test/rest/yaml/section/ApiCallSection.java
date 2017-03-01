@@ -61,10 +61,6 @@ public class ApiCallSection {
         this.headers.putAll(otherHeaders);
     }
 
-    public void addHeader(String key, String value) {
-        this.headers.put(key, value);
-    }
-
     public Map<String, String> getHeaders() {
         return unmodifiableMap(headers);
     }

@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -377,11 +376,11 @@ public class Setting<T> extends ToXContentToBytes {
         if (exists(primary)) {
             return get(primary);
         }
-        if (fallbackSetting == null) {
-            return get(secondary);
-        }
         if (exists(secondary)) {
             return get(secondary);
+        }
+        if (fallbackSetting == null) {
+            return get(primary);
         }
         if (fallbackSetting.exists(primary)) {
             return fallbackSetting.get(primary);

@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -33,15 +34,20 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.main.MainRequest;
+import org.elasticsearch.action.main.MainResponse;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.rest.RestStatus;
@@ -59,6 +65,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Matchers.anyMapOf;
 import static org.mockito.Matchers.anyObject;
@@ -79,7 +86,7 @@ public class RestHighLevelClientTests extends ESTestCase {
     private RestHighLevelClient restHighLevelClient;
 
     @Before
-    public void initClient() throws IOException {
+    public void initClient() {
         restClient = mock(RestClient.class);
         restHighLevelClient = new RestHighLevelClient(restClient);
     }
@@ -112,6 +119,21 @@ public class RestHighLevelClientTests extends ESTestCase {
                 anyObject(), anyVararg())).thenThrow(new SocketTimeoutException());
         expectThrows(SocketTimeoutException.class, () -> restHighLevelClient.ping(headers));
         verify(restClient).performRequest(eq("HEAD"), eq("/"), eq(Collections.emptyMap()),
+                Matchers.isNull(HttpEntity.class), argThat(new HeadersVarargMatcher(headers)));
+    }
+
+    public void testInfo() throws IOException {
+        Header[] headers = RestClientTestUtil.randomHeaders(random(), "Header");
+        Response response = mock(Response.class);
+        MainResponse testInfo = new MainResponse("nodeName", Version.CURRENT, new ClusterName("clusterName"), "clusterUuid",
+                Build.CURRENT, true);
+        when(response.getEntity()).thenReturn(
+                new StringEntity(toXContent(testInfo, XContentType.JSON, false).utf8ToString(), ContentType.APPLICATION_JSON));
+        when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
+                anyObject(), anyVararg())).thenReturn(response);
+        MainResponse receivedInfo = restHighLevelClient.info(headers);
+        assertEquals(testInfo, receivedInfo);
+        verify(restClient).performRequest(eq("GET"), eq("/"), eq(Collections.emptyMap()),
                 Matchers.isNull(HttpEntity.class), argThat(new HeadersVarargMatcher(headers)));
     }
 
@@ -388,7 +410,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertEquals("Elasticsearch exception [type=exception, reason=test error message]", elasticsearchException.getMessage());
     }
 
-    public void testWrapResponseListenerOnSuccess() throws IOException {
+    public void testWrapResponseListenerOnSuccess() {
         {
             TrackingActionListener trackingActionListener = new TrackingActionListener();
             ResponseListener responseListener = restHighLevelClient.wrapResponseListener(
@@ -414,7 +436,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         }
     }
 
-    public void testWrapResponseListenerOnException() throws IOException {
+    public void testWrapResponseListenerOnException() {
         TrackingActionListener trackingActionListener = new TrackingActionListener();
         ResponseListener responseListener = restHighLevelClient.wrapResponseListener(
                 response -> response.getStatusLine().getStatusCode(), trackingActionListener, Collections.emptySet());
@@ -543,7 +565,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertEquals("Elasticsearch exception [type=exception, reason=test error message]", elasticsearchException.getMessage());
     }
 
-    public void testNamedXContents() throws IOException {
+    public void testNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getNamedXContents();
         assertEquals(0, namedXContents.size());
     }

@@ -1,0 +1,67 @@
+[[java-rest-high-document-delete]]
+=== Delete API
+
+[[java-rest-high-document-delete-request]]
+==== Delete Request
+
+The most simple Delete Request needs is:
+
+["source","java",subs="attributes,callouts"]
+--------------------------------------------------
+sys2::[perl -ne 'exit if /end::delete-request/; print if $tag; $tag = $tag || /tag::delete-request/' {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/DeleteDocumentationIT.java]
+--------------------------------------------------
+<1> Index name
+<2> Type
+<3> Document id
+
+You can also provide the following properties:
+
+["source","java",subs="attributes,callouts"]
+--------------------------------------------------
+sys2::[perl -ne 'exit if /end::delete-request-props/; print if $tag; $tag = $tag || /tag::delete-request-props/' {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/DeleteDocumentationIT.java]
+--------------------------------------------------
+<1> Timeout
+<2> Timeout as String
+<3> Refresh policy
+<4> Refresh policy as String
+<5> Version
+<6> Version type
+
+[[java-rest-high-document-delete-sync]]
+==== Execution
+
+["source","java",subs="attributes,callouts"]
+--------------------------------------------------
+sys2::[perl -ne 'exit if /end::delete-execute/; print if $tag; $tag = $tag || /tag::delete-execute/' {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/DeleteDocumentationIT.java]
+--------------------------------------------------
+
+[[java-rest-high-document-delete-async]]
+==== Asynchronous Execution
+
+["source","java",subs="attributes,callouts"]
+--------------------------------------------------
+sys2::[perl -ne 'exit if /end::delete-execute-async/; print if $tag; $tag = $tag || /tag::delete-execute-async/' {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/DeleteDocumentationIT.java]
+--------------------------------------------------
+<1> Implement if needed when execution did not throw an exception
+<2> Implement if needed in case of failure
+
+[[java-rest-high-document-delete-response]]
+==== Delete Response
+
+In the Delete Response object, you can check for example the result of the operation:
+
+["source","java",subs="attributes,callouts"]
+--------------------------------------------------
+sys2::[perl -ne 'exit if /end::delete-notfound/; print if $tag; $tag = $tag || /tag::delete-notfound/' {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/DeleteDocumentationIT.java]
+--------------------------------------------------
+<1> Do something if we did not find the document which should have been deleted
+
+Note that if you have a version conflict because you defined the version within the
+<<java-rest-high-document-delete-request>>, it will raise an `ElasticsearchException` like:
+
+["source","java",subs="attributes,callouts"]
+--------------------------------------------------
+sys2::[perl -ne 'exit if /end::delete-conflict/; print if $tag; $tag = $tag || /tag::delete-conflict/' {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/DeleteDocumentationIT.java]
+--------------------------------------------------
+<1> We got a version conflict
+

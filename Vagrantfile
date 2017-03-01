@@ -193,7 +193,15 @@ def provision(config,
   raise ArgumentError.new('update_command is required') if update_command == 'required'
   raise ArgumentError.new('update_tracking_file is required') if update_tracking_file == 'required'
   raise ArgumentError.new('install_command is required') if install_command == 'required'
-  config.vm.provision "bats dependencies", type: "shell", inline: <<-SHELL
+  config.vm.provider "virtualbox" do |v|
+    # Give the box more memory and cpu because our tests are beasts!
+    v.memory = Integer(ENV['VAGRANT_MEMORY'] || 8192)
+    v.cpus = Integer(ENV['VAGRANT_CPUS'] || 4)
+  end
+  config.vm.synced_folder "#{Dir.home}/.gradle/caches", "/home/vagrant/.gradle/caches",
+    create: true,
+    owner: "vagrant"
+  config.vm.provision "dependencies", type: "shell", inline: <<-SHELL
     set -e
     set -o pipefail
 
@@ -256,6 +264,19 @@ def provision(config,
       /tmp/bats/install.sh /usr
       rm -rf /tmp/bats
     }
+
+    installed gradle || {
+      echo "==> Installing gradle"
+      curl -o /tmp/gradle.zip -L https://services.gradle.org/distributions/gradle-3.3-bin.zip
+      unzip /tmp/gradle.zip -d /opt
+      rm -rf /tmp/gradle.zip 
+      ln -s /opt/gradle-3.3/bin/gradle /usr/bin/gradle
+      # make nfs mounted gradle home dir writeable
+      # TODO: also chgrp to vagrant once sles and opensuse have vagrant group...
+      chown vagrant /home/vagrant/.gradle
+    }
+
+
     cat \<\<VARS > /etc/profile.d/elasticsearch_vars.sh
 export ZIP=/elasticsearch/distribution/zip/build/distributions
 export TAR=/elasticsearch/distribution/tar/build/distributions
@@ -265,6 +286,7 @@ export BATS=/project/build/bats
 export BATS_UTILS=/project/build/bats/utils
 export BATS_TESTS=/project/build/bats/tests
 export BATS_ARCHIVES=/project/build/bats/archives
+export GRADLE_HOME=/opt/gradle-3.3
 VARS
     cat \<\<SUDOERS_VARS > /etc/sudoers.d/elasticsearch_vars
 Defaults   env_keep += "ZIP"

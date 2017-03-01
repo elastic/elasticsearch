@@ -39,8 +39,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class ObjectPathTests extends ESTestCase {
 
     private static XContentBuilder randomXContentBuilder() throws IOException {
-        //only string based formats are supported, no cbor nor smile
-        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.YAML);
+        XContentType xContentType = randomFrom(XContentType.values());
         return XContentBuilder.builder(XContentFactory.xContent(xContentType));
     }
 
@@ -51,7 +50,7 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.field("field2.field3", "value2");
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.string());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.bytes());
         Object object = objectPath.evaluate("field1.field2\\.field3");
         assertThat(object, instanceOf(String.class));
         assertThat(object, equalTo("value2"));
@@ -64,7 +63,7 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.field("field2", "value2");
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.string());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.bytes());
         Object object = objectPath.evaluate("field1..field2");
         assertThat(object, instanceOf(String.class));
         assertThat(object, equalTo("value2"));
@@ -83,7 +82,7 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.field("field2", 333);
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.string());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.bytes());
         Object object = objectPath.evaluate("field1.field2");
         assertThat(object, instanceOf(Integer.class));
         assertThat(object, equalTo(333));
@@ -96,7 +95,7 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.field("field2", 3.55);
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.string());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.bytes());
         Object object = objectPath.evaluate("field1.field2");
         assertThat(object, instanceOf(Double.class));
         assertThat(object, equalTo(3.55));
@@ -109,7 +108,7 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.array("array1", "value1", "value2");
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.string());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.bytes());
         Object object = objectPath.evaluate("field1.array1");
         assertThat(object, instanceOf(List.class));
         List list = (List) object;
@@ -138,7 +137,7 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.endArray();
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.string());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.bytes());
         Object object = objectPath.evaluate("field1.array1.1.element");
         assertThat(object, instanceOf(String.class));
         assertThat(object, equalTo("value2"));
@@ -165,7 +164,7 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.endObject();
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.string());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.bytes());
         Object object = objectPath.evaluate("metadata.templates");
         assertThat(object, instanceOf(Map.class));
         Map<String, Object> map = (Map<String, Object>)object;
@@ -183,7 +182,7 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.endObject();
         xContentBuilder.endObject();
         xContentBuilder.endObject();
-        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.string());
+        ObjectPath objectPath = ObjectPath.createFromXContent(xContentBuilder.contentType().xContent(), xContentBuilder.bytes());
         try {
             objectPath.evaluate("field1.$placeholder.element1");
             fail("evaluate should have failed due to unresolved placeholder");
@@ -246,7 +245,8 @@ public class ObjectPathTests extends ESTestCase {
         xContentBuilder.field("index", "test2");
         xContentBuilder.endObject();
         xContentBuilder.endArray();
-        ObjectPath objectPath = ObjectPath.createFromXContent(XContentFactory.xContent(XContentType.YAML), xContentBuilder.string());
+        ObjectPath objectPath = ObjectPath.createFromXContent(
+                XContentFactory.xContent(xContentBuilder.contentType()), xContentBuilder.bytes());
         Object object = objectPath.evaluate("");
         assertThat(object, notNullValue());
         assertThat(object, instanceOf(List.class));

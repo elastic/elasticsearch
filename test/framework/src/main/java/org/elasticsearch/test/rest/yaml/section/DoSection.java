@@ -16,18 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
@@ -39,10 +40,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.collect.Tuple.tuple;
+import static org.elasticsearch.common.logging.DeprecationLogger.WARNING_HEADER_PATTERN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -78,7 +83,7 @@ public class DoSection implements ExecutableSection {
 
         DoSection doSection = new DoSection(parser.getTokenLocation());
         ApiCallSection apiCallSection = null;
-        Map<String, String> headers = new HashMap<>();
+        Map<String, String> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         List<String> expectedWarnings = new ArrayList<>();
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -118,9 +123,7 @@ public class DoSection implements ExecutableSection {
                         } else if (token.isValue()) {
                             if ("body".equals(paramName)) {
                                 String body = parser.text();
-                                XContentType bodyContentType = XContentFactory.xContentType(body);
-                                XContentParser bodyParser = XContentFactory.xContent(bodyContentType).createParser(
-                                        NamedXContentRegistry.EMPTY, body);
+                                XContentParser bodyParser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, body);
                                 //multiple bodies are supported e.g. in case of bulk provided as a whole string
                                 while(bodyParser.nextToken() != null) {
                                     apiCallSection.addBody(bodyParser.mapOrdered());
@@ -141,9 +144,7 @@ public class DoSection implements ExecutableSection {
             if (apiCallSection == null) {
                 throw new IllegalArgumentException("client call section is mandatory within a do section");
             }
-            if (headers.isEmpty() == false) {
-                apiCallSection.addHeaders(headers);
-            }
+            apiCallSection.addHeaders(headers);
             doSection.setApiCallSection(apiCallSection);
             doSection.setExpectedWarningHeaders(unmodifiableList(expectedWarnings));
         } finally {
@@ -251,33 +252,48 @@ public class DoSection implements ExecutableSection {
     /**
      * Check that the response contains only the warning headers that we expect.
      */
-    void checkWarningHeaders(List<String> warningHeaders) {
-        StringBuilder failureMessage = null;
+    void checkWarningHeaders(final List<String> warningHeaders) {
+        final List<String> unexpected = new ArrayList<>();
+        final List<String> unmatched = new ArrayList<>();
+        final List<String> missing = new ArrayList<>();
         // LinkedHashSet so that missing expected warnings come back in a predictable order which is nice for testing
-        Set<String> expected = new LinkedHashSet<>(expectedWarningHeaders);
-        for (String header : warningHeaders) {
-            if (expected.remove(header)) {
-                // Was expected, all good.
-                continue;
-            }
-            if (failureMessage == null) {
-                failureMessage = new StringBuilder("got unexpected warning headers [");
-            }
-            failureMessage.append('\n').append(header);
-        }
-        if (false == expected.isEmpty()) {
-            if (failureMessage == null) {
-                failureMessage = new StringBuilder();
+        final Set<String> expected =
+                new LinkedHashSet<>(expectedWarningHeaders.stream().map(DeprecationLogger::escape).collect(Collectors.toList()));
+        for (final String header : warningHeaders) {
+            final Matcher matcher = WARNING_HEADER_PATTERN.matcher(header);
+            final boolean matches = matcher.matches();
+            if (matches) {
+                final String message = matcher.group(1);
+                if (expected.remove(message) == false) {
+                    unexpected.add(header);
+                }
             } else {
-                failureMessage.append("\n] ");
-            }
-            failureMessage.append("didn't get expected warning headers [");
-            for (String header : expected) {
-                failureMessage.append('\n').append(header);
+                unmatched.add(header);
             }
         }
-        if (failureMessage != null) {
-            fail(failureMessage + "\n]");
+        if (expected.isEmpty() == false) {
+            for (final String header : expected) {
+                missing.add(header);
+            }
+        }
+
+        if (unexpected.isEmpty() == false || unmatched.isEmpty() == false || missing.isEmpty() == false) {
+            final StringBuilder failureMessage = new StringBuilder();
+            appendBadHeaders(failureMessage, unexpected, "got unexpected warning header" + (unexpected.size() > 1 ? "s" : ""));
+            appendBadHeaders(failureMessage, unmatched, "got unmatched warning header" + (unmatched.size() > 1 ? "s" : ""));
+            appendBadHeaders(failureMessage, missing, "did not get expected warning header" + (missing.size() > 1 ? "s" : ""));
+            fail(failureMessage.toString());
+        }
+
+    }
+
+    private void appendBadHeaders(final StringBuilder sb, final List<String> headers, final String message) {
+        if (headers.isEmpty() == false) {
+            sb.append(message).append(" [\n");
+            for (final String header : headers) {
+                sb.append("\t").append(header).append("\n");
+            }
+            sb.append("]\n");
         }
     }
 

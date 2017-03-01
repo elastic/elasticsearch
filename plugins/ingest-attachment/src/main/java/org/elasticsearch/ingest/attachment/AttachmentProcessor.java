@@ -21,6 +21,8 @@ package org.elasticsearch.ingest.attachment;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
@@ -98,17 +100,15 @@ public final class AttachmentProcessor extends AbstractProcessor {
     private final String field;
     private final String targetField;
     private final Set<String> reservedProperties;
-    private final Set<String> properties;
     private final int indexedChars;
     private final boolean ignoreMissing;
     private final CharacterRunAutomaton runAutomaton;
 
-    AttachmentProcessor(String tag, String field, String targetField, Set<String> reservedProperties, Set<String> properties,
-                        int indexedChars, boolean ignoreMissing, CharacterRunAutomaton automaton) throws IOException {
+    AttachmentProcessor(String tag, String field, String targetField, Set<String> reservedProperties, int indexedChars,
+                        boolean ignoreMissing, CharacterRunAutomaton automaton) throws IOException {
         super(tag);
         this.field = field;
         this.targetField = targetField;
-        this.properties = properties;
         this.reservedProperties = reservedProperties;
         this.indexedChars = indexedChars;
         this.ignoreMissing = ignoreMissing;
@@ -223,12 +223,12 @@ public final class AttachmentProcessor extends AbstractProcessor {
         return targetField;
     }
 
-    Set<String> getProperties() {
-        return properties;
-    }
-
     Set<String> getReservedProperties() {
         return reservedProperties;
+    }
+
+    CharacterRunAutomaton getRunAutomaton() {
+        return runAutomaton;
     }
 
     int getIndexedChars() {
@@ -274,16 +274,19 @@ public final class AttachmentProcessor extends AbstractProcessor {
                 logger.trace("no properties provided, falling back to default reserved properties: [{}]", reservedProperties);
             }
 
-            // We build the regex automaton we will use to extract raw metadata
-            CharacterRunAutomaton automaton;
-            if (properties.isEmpty()) {
-                automaton = null;
-            } else {
-                automaton = new CharacterRunAutomaton(simpleMatchToAutomaton(properties.toArray(new String[]{})));
-            }
-
-            return new AttachmentProcessor(processorTag, field, targetField, reservedProperties, properties, indexedChars, ignoreMissing,
-                automaton);
+            return new AttachmentProcessor(processorTag, field, targetField, reservedProperties, indexedChars, ignoreMissing,
+                buildCharacterRunAutomaton(properties));
         }
+    }
+
+    public static CharacterRunAutomaton buildCharacterRunAutomaton(Set<String> regex) {
+        // We build the regex automaton we will use to extract raw metadata
+        if (regex.isEmpty()) {
+            return null;
+        }
+        return new CharacterRunAutomaton(
+            MinimizationOperations.minimize(
+                simpleMatchToAutomaton(regex.toArray(new String[]{})), Operations.DEFAULT_MAX_DETERMINIZED_STATES));
+
     }
 }

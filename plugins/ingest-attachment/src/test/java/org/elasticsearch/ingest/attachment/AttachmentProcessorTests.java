@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest.attachment;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.ingest.IngestDocument;
@@ -38,9 +37,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import static org.elasticsearch.common.regex.Regex.simpleMatchToAutomaton;
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.elasticsearch.ingest.attachment.AttachmentProcessor.AUTHOR;
 import static org.elasticsearch.ingest.attachment.AttachmentProcessor.CONTENT;
@@ -52,7 +49,7 @@ import static org.elasticsearch.ingest.attachment.AttachmentProcessor.LANGUAGE;
 import static org.elasticsearch.ingest.attachment.AttachmentProcessor.RESERVED_PROPERTIES;
 import static org.elasticsearch.ingest.attachment.AttachmentProcessor.RESERVED_PROPERTIES_KEYS;
 import static org.elasticsearch.ingest.attachment.AttachmentProcessor.TITLE;
-import static org.elasticsearch.ingest.attachment.AttachmentProcessor.asReservedProperty;
+import static org.elasticsearch.ingest.attachment.AttachmentProcessor.buildCharacterRunAutomaton;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -72,8 +69,8 @@ public class AttachmentProcessorTests extends ESTestCase {
     @Before
     public void createStandardProcessor() throws IOException {
         // We test the default behavior which is extracting all metadata but the raw_metadata
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", RESERVED_PROPERTIES_KEYS, Collections.emptySet(), 10000, false, null);
+        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+            RESERVED_PROPERTIES_KEYS, 10000, false, null);
     }
 
     public void testEnglishTextDocument() throws Exception {
@@ -102,8 +99,8 @@ public class AttachmentProcessorTests extends ESTestCase {
             .map(AttachmentProcessor::asReservedProperty)
             .collect(Collectors.toSet());
 
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", reservedPropertyKeys, Collections.emptySet(),10000, false, null);
+        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+            reservedPropertyKeys, 10000, false, null);
 
         Map<String, Object> attachmentData = parseDocument("htmlWithEmptyDateMeta.html", processor);
         assertThat(attachmentData.keySet(), hasSize(expectedFields));
@@ -256,7 +253,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
             Collections.singletonMap("source_field", null));
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget", Collections.emptySet(),
+        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget",
             Collections.emptySet(), 10, true, null);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
@@ -265,7 +262,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testNonExistentWithIgnoreMissing() throws Exception {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget", Collections.emptySet(),
+        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget",
             Collections.emptySet(), 10, true, null);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
@@ -275,7 +272,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
             Collections.singletonMap("source_field", null));
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget", Collections.emptySet(),
+        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget",
             Collections.emptySet(), 10, false, null);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] is null, cannot parse."));
@@ -284,16 +281,15 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testNonExistentWithoutIgnoreMissing() throws Exception {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
-        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget", Collections.emptySet(),
+        Processor processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "randomTarget",
             Collections.emptySet(), 10, false, null);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] not present as part of path [source_field]"));
     }
 
     public void testRawMetadataFromWordDocument() throws Exception {
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", Collections.emptySet(), Collections.singleton("*"), 10000, false,
-            new CharacterRunAutomaton(simpleMatchToAutomaton("*")));
+        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+            Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("*")));
 
         Map<String, Object> attachmentData = parseDocument("issue-104.docx", processor);
 
@@ -348,9 +344,8 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testRawMetadataFromPdf() throws Exception {
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", Collections.emptySet(), Collections.singleton("*"), 10000, false,
-            new CharacterRunAutomaton(simpleMatchToAutomaton("*")));
+        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+            Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("*")));
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
         // "created" is different depending on the JVM Locale. We skip testing its content
@@ -379,9 +374,8 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testWildcardFilteredRawMetadataFromPdf() throws Exception {
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", Collections.emptySet(), Collections.singleton("pdf:*"), 10000, false,
-            new CharacterRunAutomaton(simpleMatchToAutomaton("pdf:*")));
+        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+            Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("pdf:*")));
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
         // We check that we have all expected field starting with "pdf:"
@@ -396,9 +390,8 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testFilteredRawMetadataFromPdf() throws Exception {
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", Collections.emptySet(), Collections.singleton("pdf:PDFVersion"), 10000, false,
-            new CharacterRunAutomaton(simpleMatchToAutomaton("pdf:PDFVersion")));
+        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+            Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("pdf:PDFVersion")));
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
         // We check that we have only the expected field
@@ -409,9 +402,8 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testRawMetadataWith2FiltersFromPdf() throws Exception {
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", Collections.emptySet(), Sets.newHashSet("pdf:PDFVersion", "pdf:encrypted"), 10000, false,
-            new CharacterRunAutomaton(simpleMatchToAutomaton("pdf:PDFVersion", "pdf:encrypted")));
+        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+            Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("pdf:PDFVersion", "pdf:encrypted")));
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
         // We check that we have only expected fields
@@ -423,9 +415,8 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testWildcardAndFiltersRawMetadataFromPdf() throws Exception {
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", Collections.emptySet(), Sets.newHashSet("pdf:PDFVersion", "pdf:*"), 10000, false,
-            new CharacterRunAutomaton(simpleMatchToAutomaton("pdf:PDFVersion", "pdf:*")));
+        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+            Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("pdf:PDFVersion", "pdf:*")));
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
         // We check that we have all expected field starting with "pdf:"
@@ -442,9 +433,8 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testFilteredRawMetadataPlusSomeReservedFieldsFromPdf() throws Exception {
         Set<String> selectedProperties = randomReservedProperties();
 
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", selectedProperties, Collections.singleton("pdf:*"), 10000, false,
-            new CharacterRunAutomaton(simpleMatchToAutomaton("pdf:*")));
+        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+            selectedProperties, 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("pdf:*")));
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
         // We check that we have all expected field starting with "pdf:"
@@ -477,9 +467,8 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testRawMetadataFromRtf() throws Exception {
-        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", Collections.emptySet(), Collections.singleton("*"), 10000, false,
-            new CharacterRunAutomaton(simpleMatchToAutomaton("*")));
+        processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field", "target_field",
+            Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("*")));
         Map<String, Object> attachmentData =
             parseBase64Document("e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=", processor);
 

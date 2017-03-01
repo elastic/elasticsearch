@@ -37,10 +37,10 @@ import static org.elasticsearch.ingest.attachment.AttachmentProcessor.CONTENT_TY
 import static org.elasticsearch.ingest.attachment.AttachmentProcessor.RESERVED_PROPERTIES;
 import static org.elasticsearch.ingest.attachment.AttachmentProcessor.RESERVED_PROPERTIES_KEYS;
 import static org.elasticsearch.ingest.attachment.AttachmentProcessor.asReservedProperty;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.Is.is;
 
@@ -58,7 +58,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("attachment"));
-        assertThat(processor.getProperties(), emptyIterable());
+        assertThat(processor.getRunAutomaton(), nullValue());
         assertThat(processor.getReservedProperties(), sameInstance(RESERVED_PROPERTIES_KEYS));
         assertFalse(processor.isIgnoreMissing());
     }
@@ -99,7 +99,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         config.put("properties", properties);
         AttachmentProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getProperties(), containsInAnyOrder(properties.toArray()));
+        assertThat(processor.getRunAutomaton(), notNullValue());
         assertThat(processor.getReservedProperties(), containsInAnyOrder(properties.toArray()));
         assertFalse(processor.isIgnoreMissing());
     }
@@ -122,7 +122,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         config.put("properties", properties);
         AttachmentProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getProperties(), containsInAnyOrder(properties.toArray()));
+        assertThat(processor.getRunAutomaton(), notNullValue());
         assertThat(processor.getReservedProperties(), equalTo(reservedProperties));
         assertWarnings(expectedWarnings.toArray(new String[]{}));
         assertFalse(processor.isIgnoreMissing());
@@ -151,7 +151,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("attachment"));
-        assertThat(processor.getProperties(), emptyIterable());
+        assertThat(processor.getRunAutomaton(), nullValue());
         assertThat(processor.getReservedProperties(), sameInstance(RESERVED_PROPERTIES_KEYS));
         assertTrue(processor.isIgnoreMissing());
     }
@@ -164,7 +164,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         config.put("properties", fieldNames);
         AttachmentProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getProperties(), contains("*"));
+        assertThat(processor.getRunAutomaton(), notNullValue());
         assertThat(processor.getReservedProperties(), equalTo(RESERVED_PROPERTIES_KEYS));
     }
 
@@ -177,7 +177,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         config.put("properties", fieldNames);
         AttachmentProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getProperties(), contains("_*_"));
+        assertThat(processor.getRunAutomaton(), notNullValue());
         assertThat(processor.getReservedProperties(), equalTo(RESERVED_PROPERTIES_KEYS));
     }
 
@@ -193,7 +193,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         config.put("properties", fieldNames);
         AttachmentProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getProperties(), contains("_content*"));
+        assertThat(processor.getRunAutomaton(), notNullValue());
         assertThat(processor.getReservedProperties(), equalTo(properties));
     }
 }

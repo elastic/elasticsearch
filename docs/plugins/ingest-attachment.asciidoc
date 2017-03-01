@@ -257,7 +257,19 @@ If you want to get back more raw metadata or all of them, you can provide the me
 `properties` field. Note that you can use wildcards. If you want to extract all metadata, you can simply set
 `"properties": [ "*" ]`.
 
-For example:
+The standard properties key names are available as:
+
+* `_content_`
+* `_content_type_`
+* `_title_`
+* `_author_`
+* `_keywords_`
+* `_date_`
+* `_content_length_`
+* `_language_`
+
+For example if you want to extract the content of a document and also metadata which names contain
+`Parsed` or start with `Content`, you can define the following `properties`:
 
 [source,js]
 --------------------------------------------------

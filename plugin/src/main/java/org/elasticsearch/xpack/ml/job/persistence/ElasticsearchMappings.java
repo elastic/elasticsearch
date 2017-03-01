@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.notifications.AuditActivity;
 import org.elasticsearch.xpack.ml.notifications.AuditMessage;
 
 import java.io.IOException;
@@ -663,19 +662,6 @@ public class ElasticsearchMappings {
                             .endObject()
                             .startObject(AuditMessage.NODE_NAME.getPreferredName())
                                 .field(TYPE, KEYWORD)
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject();
-    }
-
-    public static XContentBuilder auditActivityMapping() throws IOException {
-        return jsonBuilder()
-                .startObject()
-                    .startObject(AuditActivity.TYPE.getPreferredName())
-                        .startObject(PROPERTIES)
-                            .startObject(AuditActivity.TIMESTAMP.getPreferredName())
-                                .field(TYPE, DATE)
                             .endObject()
                         .endObject()
                     .endObject()

@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.notifications.AuditActivity;
 import org.elasticsearch.xpack.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
@@ -222,7 +221,6 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
             templateRequest.patterns(Collections.singletonList(Auditor.NOTIFICATIONS_INDEX));
             templateRequest.settings(mlNotificationIndexSettings());
             templateRequest.mapping(AuditMessage.TYPE.getPreferredName(), ElasticsearchMappings.auditMessageMapping());
-            templateRequest.mapping(AuditActivity.TYPE.getPreferredName(), ElasticsearchMappings.auditActivityMapping());
             templateRequest.version(Version.CURRENT.id);
             client.admin().indices().putTemplate(templateRequest,
                     ActionListener.wrap(r -> listener.accept(true, null), e -> listener.accept(false, e)));

@@ -436,7 +436,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         // they might be unavoidably in maven central and are packaged up the same way)
         if (MODULES.contains(info.getName())) {
             throw new UserException(
-                    ExitCodes.USAGE, "plugin '" + info.getName() + "' cannot be installed like this, it is a system module");
+                    ExitCodes.USAGE, "plugin '" + info.getName() + "' cannot be installed like this, it is a system module. use --verbose to get detailed information");
         }
 
         // check for jar hell before any copying

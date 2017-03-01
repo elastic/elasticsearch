@@ -144,6 +144,11 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             fields = context.simpleMatchToIndexNames(fieldPattern);
         }
 
+        if (fields.size() == 1) {
+            Query filter = fieldNamesFieldType.termQuery(fields.iterator().next(), context);
+            return new ConstantScoreQuery(filter);
+        }
+
         BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();
         for (String field : fields) {
             Query filter = fieldNamesFieldType.termQuery(field, context);

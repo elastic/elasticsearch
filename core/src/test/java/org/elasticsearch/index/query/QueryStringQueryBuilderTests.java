@@ -27,6 +27,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -806,8 +807,34 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     .build();
             assertThat(query, equalTo(expectedQuery));
         }
+    }
 
+    public void testExistsFieldQuery() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext context = createShardContext();
+        QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
+        Query query = queryBuilder.toQuery(context);
+        Query expected = new ConstantScoreQuery(new TermQuery(new Term("_field_names", "foo")));
+        assertThat(query, equalTo(expected));
 
+        queryBuilder = new QueryStringQueryBuilder("_all:*");
+        query = queryBuilder.toQuery(context);
+        expected = new ConstantScoreQuery(new TermQuery(new Term("_field_names", "_all")));
+        assertThat(query, equalTo(expected));
+
+        queryBuilder = new QueryStringQueryBuilder("*:*");
+        query = queryBuilder.toQuery(context);
+        expected = new MatchAllDocsQuery();
+        assertThat(query, equalTo(expected));
+
+        queryBuilder = new QueryStringQueryBuilder("*");
+        query = queryBuilder.toQuery(context);
+        List<Query> fieldQueries = new ArrayList<> ();
+        for (String type : QueryStringQueryBuilder.allQueryableDefaultFields(context).keySet()) {
+            fieldQueries.add(new ConstantScoreQuery(new TermQuery(new Term("_field_names", type))));
+        }
+        expected = new DisjunctionMaxQuery(fieldQueries, 0f);
+        assertThat(query, equalTo(expected));
     }
 
     public void testFromJson() throws IOException {

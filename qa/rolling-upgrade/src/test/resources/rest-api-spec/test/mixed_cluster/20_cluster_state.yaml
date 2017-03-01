@@ -1,0 +1,7 @@
+---
+"cluster state size test":
+  - do:
+      cluster.state: {}
+
+  - is_true: master_node
+  - gte: { size_in_bytes: 50 } # cluster state should be at least 50 bytes!

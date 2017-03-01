@@ -19,33 +19,61 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 
+import static org.elasticsearch.discovery.zen.PublishClusterStateAction.serializeFullClusterState;
+
+/**
+ * The response for getting the cluster state.
+ */
 public class ClusterStateResponse extends ActionResponse {
 
     private ClusterName clusterName;
     private ClusterState clusterState;
+    // the total compressed size of the full cluster state, not just
+    // the parts included in this response
+    private ByteSizeValue totalCompressedSize;
 
     public ClusterStateResponse() {
     }
 
-    public ClusterStateResponse(ClusterName clusterName, ClusterState clusterState) {
+    public ClusterStateResponse(ClusterName clusterName, ClusterState clusterState, long sizeInBytes) {
         this.clusterName = clusterName;
         this.clusterState = clusterState;
+        this.totalCompressedSize = new ByteSizeValue(sizeInBytes);
     }
 
+    /**
+     * The requested cluster state.  Only the parts of the cluster state that were
+     * requested are included in the returned {@link ClusterState} instance.
+     */
     public ClusterState getState() {
         return this.clusterState;
     }
 
+    /**
+     * The name of the cluster.
+     */
     public ClusterName getClusterName() {
         return this.clusterName;
+    }
+
+    /**
+     * The total compressed size of the full cluster state, not just the parts
+     * returned by {@link #getState()}.  The total compressed size is the size
+     * of the cluster state as it would be transmitted over the network during
+     * intra-node communication.
+     */
+    public ByteSizeValue getTotalCompressedSize() {
+        return totalCompressedSize;
     }
 
     @Override
@@ -53,6 +81,11 @@ public class ClusterStateResponse extends ActionResponse {
         super.readFrom(in);
         clusterName = new ClusterName(in);
         clusterState = ClusterState.readFrom(in, null);
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            totalCompressedSize = new ByteSizeValue(in);
+        } else {
+            totalCompressedSize = new ByteSizeValue(serializeFullClusterState(clusterState, in.getVersion()).length());
+        }
     }
 
     @Override
@@ -60,5 +93,8 @@ public class ClusterStateResponse extends ActionResponse {
         super.writeTo(out);
         clusterName.writeTo(out);
         clusterState.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            totalCompressedSize.writeTo(out);
+        }
     }
 }

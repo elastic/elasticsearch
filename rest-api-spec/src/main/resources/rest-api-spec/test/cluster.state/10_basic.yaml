@@ -1,6 +1,18 @@
 ---
-"cluster state test":
+"get cluster state":
   - do:
       cluster.state: {}
   
   - is_true: master_node
+  - gte: { compressed_size_in_bytes: 50 } # cluster state should be at least 50 bytes!
+  - is_false: compressed_size
+
+---
+"get cluster state with human flag should display size in human readable format":
+  - do:
+      cluster.state:
+        human: true
+
+  - is_true: master_node
+  - gte: { compressed_size_in_bytes: 50 }
+  - is_true: compressed_size

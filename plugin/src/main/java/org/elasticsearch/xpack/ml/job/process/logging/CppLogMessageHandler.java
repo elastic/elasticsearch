@@ -215,9 +215,10 @@ public class CppLogMessageHandler implements Closeable {
             }
             // TODO: Is there a way to preserve the original timestamp when re-logging?
             if (jobId != null) {
-                LOGGER.log(level, "[{}] {}/{} {}@{} {}", jobId, msg.getLogger(), latestPid, msg.getFile(), msg.getLine(), latestMessage);
+                LOGGER.log(level, "[{}] [{}/{}] [{}@{}] {}", jobId, msg.getLogger(), latestPid, msg.getFile(), msg.getLine(),
+                        latestMessage);
             } else {
-                LOGGER.log(level, "{}/{} {}@{} {}", msg.getLogger(), latestPid, msg.getFile(), msg.getLine(), latestMessage);
+                LOGGER.log(level, "[{}/{}] [{}@{}] {}", msg.getLogger(), latestPid, msg.getFile(), msg.getLine(), latestMessage);
             }
             // TODO: Could send the message for indexing instead of or as well as logging it
         } catch (IOException e) {

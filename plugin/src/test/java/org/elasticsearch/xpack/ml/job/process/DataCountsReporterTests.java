@@ -262,8 +262,8 @@ public class DataCountsReporterTests extends ESTestCase {
             assertEquals(dataCountsReporter.incrementalStats().getLastDataTimeStamp(),
                     dataCountsReporter.runningTotalStats().getLastDataTimeStamp());
 
-            Mockito.verify(jobDataCountsPersister, Mockito.times(1)).persistDataCounts(eq("SR"), eq(dc), any());
             dc.setLastDataTimeStamp(dataCountsReporter.incrementalStats().getLastDataTimeStamp());
+            Mockito.verify(jobDataCountsPersister, Mockito.times(1)).persistDataCounts(eq("SR"), eq(dc), any());
             assertEquals(dc, dataCountsReporter.incrementalStats());
         }
     }

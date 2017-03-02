@@ -6,19 +6,19 @@
       features: warnings
 
   - do:
-    cluster.health:
-      wait_for_status: yellow
+      cluster.health:
+        wait_for_status: yellow
 
   - do:
-    put_script:
-      lang: transform-script
-      body: >
-        {
-          "script":{
-            "lang": "painless",
-            "code":"return [ 'email': 'foo@bar.org' ]"
+      put_script:
+        lang: transform-script
+        body: >
+          {
+            "script":{
+              "lang": "painless",
+              "code":"return [ 'email': 'foo@bar.org' ]"
+            }
           }
-        }
 
   - do:
       xpack.watcher.put_watch:
@@ -57,16 +57,16 @@
   - match: { "watch_record.result.transform.payload.email": "foo@bar.org" }
 
   - do:
-    put_script:
-      lang: transform-script
-      body: >
-        {
-          "script":
+      put_script:
+        lang: transform-script
+        body: >
           {
-            "lang": "painless",
-            "code":"return [ 'email': 'foo@example.org' ]"
+            "script":
+            {
+              "lang": "painless",
+              "code":"return [ 'email': 'foo@example.org' ]"
+            }
           }
-        }
 
   - do:
       xpack.watcher.execute_watch:
@@ -81,20 +81,20 @@
       features: warnings
 
   - do:
-    cluster.health:
-      wait_for_status: yellow
+      cluster.health:
+        wait_for_status: yellow
 
   - do:
-    put_script:
-      lang: condition-script
-      body: >
-        {
-          "script":
+      put_script:
+        lang: condition-script
+        body: >
           {
-            "lang": "painless",
-            "code": "return false"
+            "script":
+            {
+              "lang": "painless",
+              "code": "return false"
+            }
           }
-        }
 
   - do:
       xpack.watcher.put_watch:
@@ -133,15 +133,15 @@
   - match: { "watch_record.result.condition.met": false }
 
   - do:
-    put_script:
-      lang: condition-script
-      body: >
-        {
-          "script": {
-            "lang": "painless",
-            "code": "return true"
+      put_script:
+        lang: condition-script
+        body: >
+          {
+            "script": {
+              "lang": "painless",
+              "code": "return true"
+            }
           }
-        }
 
   - do:
       xpack.watcher.execute_watch:

@@ -77,10 +77,10 @@ setup:
   - match: { jobs.0.state: "closed" }
 
   - do:
-    get:
-      index: .ml-anomalies-farequote
-      type: data_counts
-      id: farequote-data-counts
+      get:
+        index: .ml-anomalies-farequote
+        type: data_counts
+        id: farequote-data-counts
 
   - match: { _source.processed_record_count: 2 }
   - match: { _source.processed_field_count: 4}

@@ -73,21 +73,15 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
         // No extra assertions needed
     }
 
-    public void testToDeleteByTypes() {
+    public void testTypesSetter() {
         int numTypes = between(1, 50);
-        int numIndices = between(1, 100);
-        String[] indices = new String[numIndices];
         String[] types = new String[numTypes];
-
-        for (int i = 0; i < numIndices; i++) {
-            indices[i] = randomSimpleString(random(), 1, 30);
+        for (int i = 0; i < numTypes; i++) {
             types[i] = randomSimpleString(random(), 1, 30);
         }
-
-        SearchRequest searchRequest = new SearchRequest(indices);
+        SearchRequest searchRequest = new SearchRequest();
         searchRequest.types(types);
         DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
         assertArrayEquals(request.types(), types);
-        assertArrayEquals(request.indices(), indices);
     }
 }

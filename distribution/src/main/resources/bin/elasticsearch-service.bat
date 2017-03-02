@@ -24,8 +24,8 @@ IF %JAVA:~-13% == "\bin\java.exe" (
 :cont
 if not "%CONF_FILE%" == "" goto conffileset
 
-set SCRIPT_DIR=%~dp0
-for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
+set SCRIPT_DIR=%~dps0
+for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpsfI
 
 %JAVA% -Xmx50M -version > nul 2>&1
 

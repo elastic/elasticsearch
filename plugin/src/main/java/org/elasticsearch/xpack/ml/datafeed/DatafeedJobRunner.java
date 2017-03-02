@@ -271,18 +271,21 @@ public class DatafeedJobRunner extends AbstractComponent {
             if (datafeedJob.stop()) {
                 boolean acquired = false;
                 try {
+                    logger.info("[{}] try lock [{}] to stop datafeed [{}] for job [{}]...", source, timeout, datafeed.getId(),
+                            datafeed.getJobId());
                     acquired = datafeedJobLock.tryLock(timeout.millis(), TimeUnit.MILLISECONDS);
-                    logger.info("[{}] stopping datafeed [{}] for job [{}]...", source, datafeed.getId(), datafeed.getJobId());
+                } catch (InterruptedException e1) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    logger.info("[{}] stopping datafeed [{}] for job [{}], acquired [{}]...", source, datafeed.getId(),
+                            datafeed.getJobId(), acquired);
                     FutureUtils.cancel(future);
                     auditor.info(datafeed.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
+                    handler.accept(e);
                     logger.info("[{}] datafeed [{}] for job [{}] has been stopped", source, datafeed.getId(), datafeed.getJobId());
                     if (autoCloseJob) {
                         closeJob();
                     }
-                } catch (InterruptedException e1) {
-                    Thread.currentThread().interrupt();
-                } finally {
-                    handler.accept(e);
                     if (acquired) {
                         datafeedJobLock.unlock();
                     }

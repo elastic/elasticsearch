@@ -252,7 +252,7 @@ public class StopDatafeedAction
 
         @Override
         protected void taskOperation(Request request, StartDatafeedAction.DatafeedTask task, ActionListener<Response> listener) {
-            task.stop(request.getTimeout());
+            task.stop("stop_datafeed_api", request.getTimeout());
             listener.onResponse(new Response(true));
         }
 

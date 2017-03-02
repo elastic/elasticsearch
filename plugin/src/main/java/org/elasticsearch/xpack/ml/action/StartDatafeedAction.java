@@ -262,18 +262,18 @@ public class StartDatafeedAction
 
         @Override
         protected void onCancelled() {
-            stop();
+            stop(getReasonCancelled());
         }
 
-        public void stop() {
-            stop(TimeValue.timeValueSeconds(20));
+        public void stop(String reason) {
+            stop(reason, TimeValue.timeValueSeconds(20));
         }
 
-        public void stop(TimeValue timeout) {
+        public void stop(String reason, TimeValue timeout) {
             if (holder == null) {
                 throw new IllegalStateException("task cancel ran before datafeed runner assigned the holder");
             }
-            holder.stop("cancel", timeout, null);
+            holder.stop(reason, timeout, null);
         }
     }
 

@@ -273,7 +273,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
         if (cancelled) {
-            task.stop();
+            task.stop("test");
             verify(handler).accept(null);
         } else {
             verify(client).execute(same(PostDataAction.INSTANCE), eq(createExpectedPostDataRequest("job_id")));

@@ -153,7 +153,7 @@ public class DatafeedJobsIT extends BaseMlIntegTestCase {
             GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedConfig.getId());
             GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
             assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testRealtime() throws Exception {

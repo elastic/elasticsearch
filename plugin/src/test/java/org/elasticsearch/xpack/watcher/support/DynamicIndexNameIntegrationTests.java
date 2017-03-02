@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -28,8 +29,12 @@ import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.search
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
+import static org.joda.time.DateTimeZone.UTC;
 
 public class DynamicIndexNameIntegrationTests extends AbstractWatcherIntegrationTestCase {
+
+    private final DateTimeFormatter formatter = DateTimeFormat.forPattern("YYYY.MM.dd");
+
     @Override
     protected boolean timeWarped() {
         return true;
@@ -40,8 +45,8 @@ public class DynamicIndexNameIntegrationTests extends AbstractWatcherIntegration
         return false; // reduce noise
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/x-plugins/issues/4090")
     public void testDynamicIndexAction() throws Exception {
+        final String indexName = "idx-" + formatter.print(new DateTime(timeWarp().clock().millis(), UTC));
         WatcherClient watcherClient = watcherClient();
         PutWatchResponse putWatchResponse = watcherClient.preparePutWatch("_id")
                 .setSource(watchBuilder()
@@ -58,7 +63,6 @@ public class DynamicIndexNameIntegrationTests extends AbstractWatcherIntegration
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
 
-        final String indexName = "idx-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(timeWarp().clock().millis()));
         logger.info("checking index [{}]", indexName);
         assertBusy(() -> {
             flush();
@@ -69,7 +73,7 @@ public class DynamicIndexNameIntegrationTests extends AbstractWatcherIntegration
     }
 
     public void testDynamicIndexSearchInput() throws Exception {
-        final String indexName = "idx-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(timeWarp().clock().millis()));
+        final String indexName = "idx-" + formatter.print(new DateTime(timeWarp().clock().millis(), UTC));
         createIndex(indexName);
         index(indexName, "type", "1", "key", "value");
         flush();
@@ -95,7 +99,7 @@ public class DynamicIndexNameIntegrationTests extends AbstractWatcherIntegration
     }
 
     public void testDynamicIndexSearchTransform() throws Exception {
-        String indexName = "idx-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(timeWarp().clock().millis()));
+        final String indexName = "idx-" + formatter.print(new DateTime(timeWarp().clock().millis(), UTC));
         createIndex(indexName);
         index(indexName, "type", "1", "key", "value");
         flush();

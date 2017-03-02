@@ -24,7 +24,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.VersionUtils;
 
-import java.util.Arrays;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -35,20 +34,20 @@ import static org.hamcrest.Matchers.nullValue;
 public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
 
     public void testSkip() {
-        SkipSection section = new SkipSection("2.0.0 - 2.1.0", randomBoolean() ? Collections.emptyList() :
-        Arrays.asList("warnings"), "foobar");
+        SkipSection section = new SkipSection("2.0.0 - 2.1.0",
+                randomBoolean() ? Collections.emptyList() : Collections.singletonList("warnings"), "foobar");
         assertFalse(section.skip(Version.CURRENT));
         assertTrue(section.skip(Version.V_2_0_0));
-        section = new SkipSection(randomBoolean() ? null : "2.0.0 - 2.1.0", Arrays.asList("boom"), "foobar");
+        section = new SkipSection(randomBoolean() ? null : "2.0.0 - 2.1.0", Collections.singletonList("boom"), "foobar");
         assertTrue(section.skip(Version.CURRENT));
     }
 
     public void testMessage() {
-        SkipSection section = new SkipSection("2.0.0 - 2.1.0", Arrays.asList("warnings"), "foobar");
+        SkipSection section = new SkipSection("2.0.0 - 2.1.0", Collections.singletonList("warnings"), "foobar");
         assertEquals("[FOOBAR] skipped, reason: [foobar] unsupported features [warnings]", section.getSkipMessage("FOOBAR"));
-        section = new SkipSection(null, Arrays.asList("warnings"), "foobar");
+        section = new SkipSection(null, Collections.singletonList("warnings"), "foobar");
         assertEquals("[FOOBAR] skipped, reason: [foobar] unsupported features [warnings]", section.getSkipMessage("FOOBAR"));
-        section = new SkipSection(null, Arrays.asList("warnings"), null);
+        section = new SkipSection(null, Collections.singletonList("warnings"), null);
         assertEquals("[FOOBAR] skipped, unsupported features [warnings]", section.getSkipMessage("FOOBAR"));
     }
 
@@ -118,7 +117,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         SkipSection skipSection = SkipSection.parse(parser);
         assertEquals(VersionUtils.getFirstVersion(), skipSection.getLowerVersion());
         assertEquals(Version.fromString("0.90.2"), skipSection.getUpperVersion());
-        assertEquals(Arrays.asList("regex"), skipSection.getFeatures());
+        assertEquals(Collections.singletonList("regex"), skipSection.getFeatures());
         assertEquals("Delete ignores the parent param", skipSection.getReason());
     }
 

@@ -86,6 +86,11 @@ public class DoSection implements ExecutableSection {
         Map<String, String> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         List<String> expectedWarnings = new ArrayList<>();
 
+        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new IllegalArgumentException("expected [" + XContentParser.Token.START_OBJECT + "], " +
+                    "found [" + parser.currentToken() + "], the do section is not properly indented");
+        }
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();

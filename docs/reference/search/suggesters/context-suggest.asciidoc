@@ -29,7 +29,6 @@ PUT place
                         { <1>
                             "name": "place_type",
                             "type": "category",
-                            "path": "cat"
                         },
                         { <2>
                             "name": "location",

@@ -349,6 +349,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
                 .put(MachineLearning.ML_ENABLED.getKey(), false));
         ensureStableCluster(2, mlNode);
         ensureStableCluster(2, nonMlNode);
+        ensureYellow(); // at least the primary shards of the indices a job uses should be started
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         assertBusy(() -> assertJobTask("job_id", JobState.OPENED, true));
     }

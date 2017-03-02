@@ -122,6 +122,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             throwUnknownField(currentFieldName, parser.getTokenLocation());
         }
 
+        RestStatus status = null;
         ElasticsearchException exception = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -132,7 +133,11 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
                 if (token == XContentParser.Token.START_OBJECT) {
                     exception = ElasticsearchException.fromXContent(parser);
                 }
-            } else if (STATUS.equals(currentFieldName) == false) {
+            } else if (STATUS.equals(currentFieldName)) {
+                if (token == XContentParser.Token.VALUE_NUMBER) {
+                    status = RestStatus.fromCode(parser.intValue());
+                }
+            } else {
                 itemParser.accept(parser);
             }
         }
@@ -143,7 +148,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
 
         BulkItemResponse bulkItemResponse;
         if (exception != null) {
-            Failure failure = new Failure(builder.getShardId().getIndexName(), builder.getType(), builder.getId(), exception);
+            Failure failure = new Failure(builder.getShardId().getIndexName(), builder.getType(), builder.getId(), exception, status);
             bulkItemResponse = new BulkItemResponse(id, opType, failure);
         } else {
             bulkItemResponse = new BulkItemResponse(id, opType, builder.build());
@@ -167,12 +172,16 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         private final Exception cause;
         private final RestStatus status;
 
-        public Failure(String index, String type, String id, Exception cause) {
+        Failure(String index, String type, String id, Exception cause, RestStatus status) {
             this.index = index;
             this.type = type;
             this.id = id;
             this.cause = cause;
-            this.status = ExceptionsHelper.status(cause);
+            this.status = status;
+        }
+
+        public Failure(String index, String type, String id, Exception cause) {
+            this(index, type, id, cause, ExceptionsHelper.status(cause));
         }
 
         /**

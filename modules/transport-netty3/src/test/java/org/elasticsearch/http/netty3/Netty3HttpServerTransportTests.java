@@ -24,11 +24,15 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.http.BindHttpException;
+import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty3.cors.Netty3CorsConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -125,4 +129,33 @@ public class Netty3HttpServerTransportTests extends ESTestCase {
         }
     }
 
+    public void testDispatchDoesNotModifyThreadContext() throws InterruptedException {
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                threadContext.putHeader("foo", "bar");
+                threadContext.putTransient("bar", "baz");
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestRequest request,
+                                           final RestChannel channel,
+                                           final ThreadContext threadContext,
+                                           final Throwable cause) {
+                threadContext.putHeader("foo_bad", "bar");
+                threadContext.putTransient("bar_bad", "baz");
+            }
+
+        };
+
+        try (Netty3HttpServerTransport transport =
+                 new Netty3HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
+            transport.start();
+
+            transport.dispatchRequest(null, null);
+            assertNull(threadPool.getThreadContext().getHeader("foo"));
+            assertNull(threadPool.getThreadContext().getTransient("bar"));
+        }
+    }
 }

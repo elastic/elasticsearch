@@ -49,4 +49,9 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
     public static Iterable<Object[]> parameters() throws IOException {
         return createParameters();
     }
+
+    @Override
+    protected boolean randomizeContentType() {
+        return false;
+    }
 }

@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -49,6 +50,13 @@ public class Netty3TransportMultiPortTests extends ESTestCase {
         } else {
             host = "127.0.0.1";
         }
+    }
+
+    @Override
+    @After
+    public void tearDown() throws Exception {
+        assertWarnings("transport type [netty3] is deprecated");
+        super.tearDown();
     }
 
     public void testThatNettyCanBindToMultiplePorts() throws Exception {

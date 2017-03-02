@@ -67,6 +67,7 @@ public class Netty3HttpServerTransportTests extends ESTestCase {
 
     @After
     public void shutdown() throws Exception {
+        assertWarnings("http type [netty3] is deprecated");
         if (threadPool != null) {
             threadPool.shutdownNow();
         }

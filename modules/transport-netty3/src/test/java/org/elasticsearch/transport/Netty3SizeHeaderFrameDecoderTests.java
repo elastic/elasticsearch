@@ -60,8 +60,10 @@ public class Netty3SizeHeaderFrameDecoderTests extends ESTestCase {
     private int port;
     private InetAddress host;
 
+    @Override
     @Before
-    public void startThreadPool() {
+    public void setUp() throws Exception {
+        super.setUp();
         threadPool = new ThreadPool(settings);
         NetworkService networkService = new NetworkService(settings, Collections.emptyList());
         BigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
@@ -80,11 +82,14 @@ public class Netty3SizeHeaderFrameDecoderTests extends ESTestCase {
 
     }
 
+    @Override
     @After
-    public void terminateThreadPool() throws InterruptedException {
+    public void tearDown() throws Exception {
+        assertWarnings("transport type [netty3] is deprecated");
         nettyTransport.stop();
         terminate(threadPool);
         threadPool = null;
+        super.tearDown();
     }
 
     public void testThatTextMessageIsReturnedOnHTTPLikeRequest() throws Exception {

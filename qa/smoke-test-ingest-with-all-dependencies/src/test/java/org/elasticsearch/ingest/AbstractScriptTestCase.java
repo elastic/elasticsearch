@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptMetrics;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
@@ -47,7 +48,7 @@ public abstract class AbstractScriptTestCase extends ESTestCase {
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
 
         ScriptService scriptService = new ScriptService(settings, new Environment(settings), null,
-                scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+                scriptEngineRegistry, scriptContextRegistry, scriptSettings, new ScriptMetrics());
         templateService = new InternalTemplateService(scriptService);
     }
 

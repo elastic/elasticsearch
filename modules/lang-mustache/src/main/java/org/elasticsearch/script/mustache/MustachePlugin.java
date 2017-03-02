@@ -33,7 +33,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.TemplateService.Backend;
 
 import java.util.Arrays;
 import java.util.List;
@@ -42,9 +42,8 @@ import java.util.function.Supplier;
 import static java.util.Collections.singletonList;
 
 public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin, SearchPlugin {
-
     @Override
-    public ScriptEngineService getScriptEngineService(Settings settings) {
+    public Backend getTemplateBackend() {
         return new MustacheScriptEngineService();
     }
 

@@ -54,7 +54,8 @@ public class ScriptContextTests extends ESTestCase {
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        ScriptService scriptService = new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+        ScriptService scriptService = new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry,
+                scriptContextRegistry, scriptSettings, new ScriptMetrics());
 
         ClusterState empty = ClusterState.builder(new ClusterName("_name")).build();
         ScriptMetaData smd = empty.metaData().custom(ScriptMetaData.TYPE);

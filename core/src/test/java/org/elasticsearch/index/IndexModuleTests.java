@@ -68,10 +68,10 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptMetrics;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.TestSearchContext;
@@ -129,8 +129,7 @@ public class IndexModuleTests extends ESTestCase {
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         scriptService = new ScriptService(settings, environment, new ResourceWatcherService(settings, threadPool), scriptEngineRegistry,
-                scriptContextRegistry, scriptSettings);
-        clusterService = ClusterServiceUtils.createClusterService(threadPool);
+                scriptContextRegistry, scriptSettings, new ScriptMetrics());
         nodeEnvironment = new NodeEnvironment(settings, environment);
         mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
     }
@@ -138,13 +137,13 @@ public class IndexModuleTests extends ESTestCase {
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
-        IOUtils.close(nodeEnvironment, indicesQueryCache, clusterService);
+        IOUtils.close(nodeEnvironment, indicesQueryCache);
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
     private IndexService newIndexService(IndexModule module) throws IOException {
         return module.newIndexService(nodeEnvironment, xContentRegistry(), deleter, circuitBreakerService, bigArrays, threadPool,
-                scriptService, clusterService, null, indicesQueryCache, mapperRegistry, shardId -> {},
+                scriptService, null, null, indicesQueryCache, mapperRegistry, shardId -> {},
                 new IndicesFieldDataCache(settings, listener));
     }
 

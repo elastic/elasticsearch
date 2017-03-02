@@ -18,15 +18,19 @@
  */
 package org.elasticsearch.script;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -51,7 +55,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-//TODO: this needs to be a base test class, and all scripting engines extend it
 public class ScriptServiceTests extends ESTestCase {
 
     private ResourceWatcherService resourceWatcherService;
@@ -67,7 +70,6 @@ public class ScriptServiceTests extends ESTestCase {
     private Settings baseSettings;
 
     private static final Map<ScriptType, Boolean> DEFAULT_SCRIPT_ENABLED = new HashMap<>();
-
     static {
         DEFAULT_SCRIPT_ENABLED.put(ScriptType.FILE, true);
         DEFAULT_SCRIPT_ENABLED.put(ScriptType.STORED, false);
@@ -117,38 +119,8 @@ public class ScriptServiceTests extends ESTestCase {
     private void buildScriptService(Settings additionalSettings) throws IOException {
         Settings finalSettings = Settings.builder().put(baseSettings).put(additionalSettings).build();
         Environment environment = new Environment(finalSettings);
-        // TODO:
-        scriptService = new ScriptService(finalSettings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
-            @Override
-            StoredScriptSource getScriptFromClusterState(String id, String lang) {
-                //mock the script that gets retrieved from an index
-                return new StoredScriptSource(lang, "100", Collections.emptyMap());
-            }
-        };
-    }
-
-    public void testCompilationCircuitBreaking() throws Exception {
-        buildScriptService(Settings.EMPTY);
-        scriptService.setMaxCompilationsPerMinute(1);
-        scriptService.checkCompilationLimit(); // should pass
-        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        scriptService.setMaxCompilationsPerMinute(2);
-        scriptService.checkCompilationLimit(); // should pass
-        scriptService.checkCompilationLimit(); // should pass
-        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        int count = randomIntBetween(5, 50);
-        scriptService.setMaxCompilationsPerMinute(count);
-        for (int i = 0; i < count; i++) {
-            scriptService.checkCompilationLimit(); // should pass
-        }
-        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        scriptService.setMaxCompilationsPerMinute(0);
-        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
-        scriptService.setMaxCompilationsPerMinute(Integer.MAX_VALUE);
-        int largeLimit = randomIntBetween(1000, 10000);
-        for (int i = 0; i < largeLimit; i++) {
-            scriptService.checkCompilationLimit();
-        }
+        scriptService = new ScriptService(finalSettings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry,
+                scriptSettings, new ScriptMetrics());
     }
 
     public void testNotSupportedDisableDynamicSetting() throws IOException {
@@ -180,7 +152,7 @@ public class ScriptServiceTests extends ESTestCase {
             scriptService.compile(new Script(ScriptType.FILE, "test", "test_script", Collections.emptyMap()), ScriptContext.Standard.SEARCH);
             fail("the script test_script should no longer exist");
         } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), containsString("unable to find file script [test_script] using lang [test]"));
+            assertThat(ex.getMessage(), containsString("unable to find file script [lang=test, id=test_script]"));
         }
     }
 
@@ -219,7 +191,12 @@ public class ScriptServiceTests extends ESTestCase {
             builder.put("script.file", "true");
         }
         buildScriptService(builder.build());
+
+        // Setup file and cluster state scripts
         createFileScripts("mustache", "dtest");
+        ClusterState state = stateWithScripts(new Tuple<>("script",
+                StoredScriptSource.parse("dtest", new BytesArray("{\"script\":\"abc\"}"), XContentType.JSON)));
+        scriptService.clusterChanged(new ClusterChangedEvent("test", state, stateWithScripts()));
 
         for (ScriptContext scriptContext : scriptContexts) {
             // only file scripts are accepted by default
@@ -291,6 +268,9 @@ public class ScriptServiceTests extends ESTestCase {
 
         buildScriptService(builder.build());
         createFileScripts("expression", "mustache", "dtest");
+        ClusterState state = stateWithScripts(new Tuple<>("script", StoredScriptSource.parse(dangerousScriptEngineService.getType(),
+                new BytesArray("{\"script\":\"abc\"}"), XContentType.JSON)));
+        scriptService.clusterChanged(new ClusterChangedEvent("test", state, stateWithScripts()));
 
         for (ScriptType scriptType : ScriptType.values()) {
             //make sure file scripts have a different name than inline ones.
@@ -321,6 +301,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testCompileNonRegisteredContext() throws IOException {
         buildScriptService(Settings.EMPTY);
+
         String pluginName;
         String unknownContext;
         do {
@@ -330,8 +311,13 @@ public class ScriptServiceTests extends ESTestCase {
 
         String type = scriptEngineService.getType();
         try {
-            scriptService.compile(new Script(randomFrom(ScriptType.values()), type, "test", Collections.emptyMap()),
-                new ScriptContext.Plugin(pluginName, unknownContext));
+            Script script = new Script(randomFrom(ScriptType.values()), type, "test", Collections.emptyMap());
+            if (script.getType() == ScriptType.STORED) {
+                ClusterState state = stateWithScripts(new Tuple<>(script.getIdOrCode(),
+                        StoredScriptSource.parse(script.getLang(), new BytesArray("{\"script\":\"abc\"}"), XContentType.JSON)));
+                scriptService.clusterChanged(new ClusterChangedEvent("test", state, stateWithScripts()));
+            }
+            scriptService.compile(script, new ScriptContext.Plugin(pluginName, unknownContext));
             fail("script compilation should have been rejected");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("script context [" + pluginName + "_" + unknownContext + "] not supported"));
@@ -385,6 +371,10 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testIndexedScriptCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
+        ClusterState cs = stateWithScripts(
+                new Tuple<>("script", StoredScriptSource.parse("test", new BytesArray("{\"script\":\"abc\"}"), XContentType.JSON)));
+        scriptService.clusterChanged(new ClusterChangedEvent("test", cs, stateWithScripts()));
+
         scriptService.compile(new Script(ScriptType.STORED, "test", "script", Collections.emptyMap()), randomFrom(scriptContexts));
         assertEquals(1L, scriptService.stats().getCompilations());
     }
@@ -436,18 +426,26 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testGetStoredScript() throws Exception {
         buildScriptService(Settings.EMPTY);
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder()
-                .putCustom(ScriptMetaData.TYPE,
-                    new ScriptMetaData.Builder(null).storeScript("_id",
-                        StoredScriptSource.parse("_lang", new BytesArray("{\"script\":\"abc\"}"), XContentType.JSON)).build()))
-            .build();
+        ClusterState cs = stateWithScripts(
+                new Tuple<>("_id", StoredScriptSource.parse("_lang", new BytesArray("{\"script\":\"abc\"}"), XContentType.JSON)));
 
         assertEquals("abc", scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id", "_lang")).getCode());
         assertNull(scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id2", "_lang")));
 
         cs = ClusterState.builder(new ClusterName("_name")).build();
         assertNull(scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id", "_lang")));
+    }
+
+    @SafeVarargs
+    private final ClusterState stateWithScripts(Tuple<String, StoredScriptSource>... scripts) {
+        ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
+        for (Tuple<String, StoredScriptSource> script : scripts) {
+            builder.storeScript(script.v1(), script.v2());
+        }
+        return ClusterState.builder(new ClusterName(getTestName()))
+                .metaData(MetaData.builder()
+                    .putCustom(ScriptMetaData.TYPE, builder.build()))
+                .build();
     }
 
     private void createFileScripts(String... langs) throws IOException {

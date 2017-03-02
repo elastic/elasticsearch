@@ -56,6 +56,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.TemplateService;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -100,9 +101,9 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache,
             IndexFieldDataService indexFieldDataService, MapperService mapperService, SimilarityService similarityService,
-            ScriptService scriptService, NamedXContentRegistry xContentRegistry,
+            ScriptService scriptService, TemplateService templateService, NamedXContentRegistry xContentRegistry,
             Client client, IndexReader reader, LongSupplier nowInMillis) {
-        super(indexSettings, mapperService, scriptService, xContentRegistry, client, reader, nowInMillis);
+        super(indexSettings, mapperService, scriptService, templateService, xContentRegistry, client, reader, nowInMillis);
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.similarityService = similarityService;
@@ -116,7 +117,7 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public QueryShardContext(QueryShardContext source) {
         this(source.shardId, source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService,
-                source.similarityService, source.scriptService, source.getXContentRegistry(), source.client,
+                source.similarityService, source.scriptService, source.getTemplateService(), source.getXContentRegistry(), source.client,
                 source.reader, source.nowInMillis);
         this.types = source.getTypes();
     }

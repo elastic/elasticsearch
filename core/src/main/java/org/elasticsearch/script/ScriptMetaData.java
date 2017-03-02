@@ -425,7 +425,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
      * Otherwise, returns a stored script from the deprecated namespace.  Either
      * way an id is required.
      */
-    StoredScriptSource getStoredScript(String id, String lang) {
+    public StoredScriptSource getStoredScript(String id, String lang) {
         if (lang == null) {
             return scripts.get(id);
         } else {

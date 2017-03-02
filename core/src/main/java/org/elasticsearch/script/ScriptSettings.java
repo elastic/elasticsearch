@@ -52,7 +52,8 @@ public class ScriptSettings {
         Map<ScriptContext, Setting<Boolean>> scriptContextSettingMap = contextSettings(scriptContextRegistry);
         this.scriptContextSettingMap = Collections.unmodifiableMap(scriptContextSettingMap);
 
-        List<Setting<Boolean>> scriptLanguageSettings = languageSettings(SCRIPT_TYPE_SETTING_MAP, scriptContextSettingMap, scriptEngineRegistry, scriptContextRegistry);
+        List<Setting<Boolean>> scriptLanguageSettings = languageSettings(SCRIPT_TYPE_SETTING_MAP, scriptContextSettingMap,
+                scriptEngineRegistry, scriptContextRegistry);
         this.scriptLanguageSettings = Collections.unmodifiableList(scriptLanguageSettings);
     }
 

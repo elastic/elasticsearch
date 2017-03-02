@@ -99,7 +99,7 @@ public class ExtendedBoundsTests extends ESTestCase {
         SearchContext context = mock(SearchContext.class);
         QueryShardContext qsc = new QueryShardContext(0,
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings), null, null, null, null,
-                null, xContentRegistry(), null, null, () -> now);
+                null, null, xContentRegistry(), null, null, () -> now);
         when(context.getQueryShardContext()).thenReturn(qsc);
         FormatDateTimeFormatter formatter = Joda.forPattern("dateOptionalTime");
         DocValueFormat format = new DocValueFormat.DateTime(formatter, DateTimeZone.UTC);

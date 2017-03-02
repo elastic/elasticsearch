@@ -37,6 +37,7 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptMetrics;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.ScriptType;
@@ -285,8 +286,8 @@ public class UpdateRequestTests extends ESTestCase {
             scripts)));
 
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        ScriptService scriptService = new ScriptService(baseSettings, environment,
-            new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+        ScriptService scriptService = new ScriptService(baseSettings, environment, new ResourceWatcherService(baseSettings, null),
+                scriptEngineRegistry, scriptContextRegistry, scriptSettings, new ScriptMetrics());
         Settings settings = settings(Version.CURRENT).build();
 
         UpdateHelper updateHelper = new UpdateHelper(settings, scriptService);

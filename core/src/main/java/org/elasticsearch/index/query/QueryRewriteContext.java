@@ -29,6 +29,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateService;
 
 import java.util.function.LongSupplier;
 
@@ -38,6 +39,7 @@ import java.util.function.LongSupplier;
 public class QueryRewriteContext {
     protected final MapperService mapperService;
     protected final ScriptService scriptService;
+    private final TemplateService templateService;
     protected final IndexSettings indexSettings;
     private final NamedXContentRegistry xContentRegistry;
     protected final Client client;
@@ -45,10 +47,11 @@ public class QueryRewriteContext {
     protected final LongSupplier nowInMillis;
 
     public QueryRewriteContext(IndexSettings indexSettings, MapperService mapperService, ScriptService scriptService,
-            NamedXContentRegistry xContentRegistry, Client client, IndexReader reader,
+            TemplateService templateService, NamedXContentRegistry xContentRegistry, Client client, IndexReader reader,
             LongSupplier nowInMillis) {
         this.mapperService = mapperService;
         this.scriptService = scriptService;
+        this.templateService = templateService;
         this.indexSettings = indexSettings;
         this.xContentRegistry = xContentRegistry;
         this.client = client;
@@ -104,7 +107,12 @@ public class QueryRewriteContext {
     }
 
     public BytesReference getTemplateBytes(Script template) {
-        ExecutableScript executable = scriptService.executable(template, ScriptContext.Standard.SEARCH);
+        ExecutableScript executable = templateService.executable(template.getIdOrCode(), template.getType(), ScriptContext.Standard.SEARCH,
+                template.getParams());
         return (BytesReference) executable.run();
+    }
+
+    public TemplateService getTemplateService() {
+        return templateService;
     }
 }

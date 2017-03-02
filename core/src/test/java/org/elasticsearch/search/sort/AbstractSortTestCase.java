@@ -55,6 +55,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptMetrics;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptServiceTests.TestEngineService;
 import org.elasticsearch.script.ScriptSettings;
@@ -70,7 +71,6 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
@@ -94,8 +94,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new TestEngineService()));
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        scriptService = new ScriptService(baseSettings, environment,
-                new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
+        scriptService = new ScriptService(baseSettings, environment, new ResourceWatcherService(baseSettings, null), scriptEngineRegistry,
+                scriptContextRegistry, scriptSettings, new ScriptMetrics()) {
             @Override
             public CompiledScript compile(Script script, ScriptContext scriptContext) {
                 return new CompiledScript(ScriptType.INLINE, "mockName", "test", script);
@@ -208,7 +208,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             }
         });
         long nowInMillis = randomNonNegativeLong();
-        return new QueryShardContext(0, idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
+        return new QueryShardContext(0, idxSettings, bitsetFilterCache, ifds, null, null, scriptService, null,
                 xContentRegistry(), null, null, () -> nowInMillis) {
             @Override
             public MappedFieldType fieldMapper(String name) {
@@ -251,7 +251,6 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         }
     }
 
-    @SuppressWarnings("unchecked")
     private T copy(T original) throws IOException {
         /* The cast below is required to make Java 9 happy. Java 8 infers the T in copyWriterable to be the same as AbstractSortTestCase's
          * T but Java 9 infers it to be SortBuilder. */

@@ -36,7 +36,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -46,21 +46,18 @@ import java.util.Collections;
 import static org.elasticsearch.script.ScriptContext.Standard.SEARCH;
 
 public class TransportSearchTemplateAction extends HandledTransportAction<SearchTemplateRequest, SearchTemplateResponse> {
-
-    private static final String TEMPLATE_LANG = MustacheScriptEngineService.NAME;
-
-    private final ScriptService scriptService;
+    private final TemplateService templateService;
     private final TransportSearchAction searchAction;
     private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportSearchTemplateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                          ActionFilters actionFilters, IndexNameExpressionResolver resolver,
-                                         ScriptService scriptService,
+                                         TemplateService templateService,
                                          TransportSearchAction searchAction,
                                          NamedXContentRegistry xContentRegistry) {
         super(settings, SearchTemplateAction.NAME, threadPool, transportService, actionFilters, resolver, SearchTemplateRequest::new);
-        this.scriptService = scriptService;
+        this.templateService = templateService;
         this.searchAction = searchAction;
         this.xContentRegistry = xContentRegistry;
     }
@@ -69,9 +66,8 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     protected void doExecute(SearchTemplateRequest request, ActionListener<SearchTemplateResponse> listener) {
         final SearchTemplateResponse response = new SearchTemplateResponse();
         try {
-            Script script = new Script(request.getScriptType(), TEMPLATE_LANG, request.getScript(),
-                request.getScriptParams() == null ? Collections.emptyMap() : request.getScriptParams());
-            ExecutableScript executable = scriptService.executable(script, SEARCH);
+            ExecutableScript executable = templateService.executable(request.getScript(), request.getScriptType(), SEARCH,
+                    request.getScriptParams() == null ? Collections.emptyMap() : request.getScriptParams());
 
             BytesReference source = (BytesReference) executable.run();
             response.setSource(source);

@@ -15,6 +15,7 @@ project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
 
 integTestCluster {
   plugin ':x-pack-elasticsearch:plugin'
+  setting 'xpack.ml.enabled', 'false'
   setting 'xpack.security.audit.enabled', 'true'
   setting 'xpack.security.audit.outputs', 'index'
   setting 'logger.level', 'DEBUG'

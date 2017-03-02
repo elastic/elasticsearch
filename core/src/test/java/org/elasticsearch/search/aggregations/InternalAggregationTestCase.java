@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -62,16 +63,19 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
         if (randomBoolean() && toReduce.size() > 1) {
-            // we leave at least the first element in the list
-            List<InternalAggregation> internalAggregations = randomSubsetOf(randomIntBetween(1, toReduceSize - 1),
-                    toReduce.subList(1, toReduceSize));
-            InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(bigArrays, mockScriptService, false);
+            Collections.shuffle(toReduce, random());
+            // we leave at least one element in the list
+            int r = Math.max(1, randomIntBetween(0, toReduceSize - 2));
+            List<InternalAggregation> internalAggregations = toReduce.subList(0, r);
+            InternalAggregation.ReduceContext context =
+                new InternalAggregation.ReduceContext(bigArrays, mockScriptService, false);
             @SuppressWarnings("unchecked")
             T reduced = (T) inputs.get(0).reduce(internalAggregations, context);
-            toReduce.removeAll(internalAggregations);
+            toReduce = toReduce.subList(r, toReduceSize);
             toReduce.add(reduced);
         }
-        InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(bigArrays, mockScriptService, true);
+        InternalAggregation.ReduceContext context =
+            new InternalAggregation.ReduceContext(bigArrays, mockScriptService, true);
         @SuppressWarnings("unchecked")
         T reduced = (T) inputs.get(0).reduce(toReduce, context);
         assertReduced(reduced, inputs);

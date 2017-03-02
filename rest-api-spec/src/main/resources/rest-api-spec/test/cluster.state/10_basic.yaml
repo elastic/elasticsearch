@@ -4,11 +4,13 @@
       cluster.state: {}
   
   - is_true: master_node
-  - gte: { compressed_size_in_bytes: 50 } # cluster state should be at least 50 bytes!
-  - is_false: compressed_size
 
 ---
-"get cluster state with human flag should display size in human readable format":
+"get cluster state returns cluster state size with human readable format":
+  - skip:
+      version:  " - 5.99.99"
+      reason:   "cluster state size is only available in v6.0.0 and higher"
+
   - do:
       cluster.state:
         human: true

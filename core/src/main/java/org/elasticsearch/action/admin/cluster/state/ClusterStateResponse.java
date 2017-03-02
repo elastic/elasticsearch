@@ -29,8 +29,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 
-import static org.elasticsearch.discovery.zen.PublishClusterStateAction.serializeFullClusterState;
-
 /**
  * The response for getting the cluster state.
  */
@@ -84,7 +82,11 @@ public class ClusterStateResponse extends ActionResponse {
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
             totalCompressedSize = new ByteSizeValue(in);
         } else {
-            totalCompressedSize = new ByteSizeValue(serializeFullClusterState(clusterState, in.getVersion()).length());
+            // in a mixed cluster, if a pre 6.0 node processes the get cluster state
+            // request, then a compressed size won't be returned, so just return 0;
+            // its a temporary situation until all nodes in the cluster have been upgraded,
+            // at which point the correct cluster state size will always be reported
+            totalCompressedSize = new ByteSizeValue(0L);
         }
     }
 

@@ -37,7 +37,9 @@ public class LicensesManagerServiceTests extends XPackSingleNodeTestCase {
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
             .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
             .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
-            .put(XPackSettings.GRAPH_ENABLED.getKey(), false).build();
+            .put(XPackSettings.GRAPH_ENABLED.getKey(), false)
+            .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
+            .build();
     }
 
     @Override

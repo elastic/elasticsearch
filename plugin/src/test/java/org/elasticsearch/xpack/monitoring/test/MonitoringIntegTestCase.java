@@ -113,6 +113,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), watcherEnabled)
                 // Disable native ML autodetect_process as the c++ controller won't be available
                 .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
+                .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
                 // we do this by default in core, but for monitoring this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false);
 
@@ -467,6 +468,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                 writeFile(xpackConf, "system_key", systemKey);
 
                 builder.put("xpack.security.enabled", true)
+                        .put("xpack.ml.autodetect_process", false)
                         .put("xpack.security.authc.realms.esusers.type", FileRealm.TYPE)
                         .put("xpack.security.authc.realms.esusers.order", 0)
                         .put("xpack.security.authc.sign_user_header", false)

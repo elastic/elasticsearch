@@ -42,7 +42,7 @@ public class XPackSettings {
     public static final Setting<Boolean> GRAPH_ENABLED = enabledSetting(XPackPlugin.GRAPH, true);
 
     /** Setting for enabling or disabling machine learning. Defaults to false. */
-    public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = enabledSetting(XPackPlugin.MACHINE_LEARNING, false);
+    public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = enabledSetting(XPackPlugin.MACHINE_LEARNING, true);
 
     /** Setting for enabling or disabling auditing. Defaults to false. */
     public static final Setting<Boolean> AUDIT_ENABLED = enabledSetting(XPackPlugin.SECURITY + ".audit", false);

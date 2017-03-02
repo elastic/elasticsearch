@@ -23,6 +23,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
@@ -42,6 +43,8 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
                 .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
 
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
+                // Disable native ML autodetect_process as the c++ controller won't be available
+                .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
                 .build();
     }
 

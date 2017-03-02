@@ -39,23 +39,22 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     public void testEnabled() throws Exception {
-        boolean enabled = randomBoolean();
+        boolean useDefault = randomBoolean();
+        boolean enabled = true;
         Settings.Builder settings = Settings.builder();
-        if (enabled) {
+        if (useDefault == false) {
+            enabled = randomBoolean();
             settings.put("xpack.ml.enabled", enabled);
-        } else {
-            if (randomBoolean()) {
-                settings.put("xpack.ml.enabled", enabled);
-            }
         }
+        boolean expected = enabled || useDefault;
         MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(settings.build(), licenseState);
-        assertThat(featureSet.enabled(), is(enabled));
-        assertThat(featureSet.usage().enabled(), is(enabled));
+        assertThat(featureSet.enabled(), is(expected));
+        assertThat(featureSet.usage().enabled(), is(expected));
 
         BytesStreamOutput out = new BytesStreamOutput();
         featureSet.usage().writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new MachineLearningFeatureSet.Usage(out.bytes().streamInput());
-        assertThat(serializedUsage.enabled(), is(enabled));
+        assertThat(serializedUsage.enabled(), is(expected));
     }
 
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
@@ -121,6 +122,8 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                 //TODO: for now isolate security tests from watcher & monitoring (randomize this later)
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
+                .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
+                .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
                 .put(XPackSettings.AUDIT_ENABLED.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), randomBoolean())

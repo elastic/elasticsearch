@@ -16,6 +16,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.After;
@@ -94,6 +95,8 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()
                         .put(super.nodeSettings(nodeOrdinal))
+                        // Disable native ML autodetect_process as the c++ controller won't be available
+                        .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
                         .put("xpack.security.audit.enabled", true)
                         .put("xpack.security.audit.outputs", randomFrom("index", "index,logfile"))
                         .putArray("xpack.security.audit.index.client.hosts", addresses.toArray(new String[addresses.size()]))

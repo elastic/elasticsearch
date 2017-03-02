@@ -19,6 +19,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCase {
 
@@ -29,6 +30,8 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
                 .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put(XPackSettings.GRAPH_ENABLED.getKey(), false)
+                .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
+                .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
                 .build();
     }
 

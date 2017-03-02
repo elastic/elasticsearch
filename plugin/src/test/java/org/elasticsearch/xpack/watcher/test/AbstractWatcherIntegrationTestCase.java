@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.notification.email.Authentication;
 import org.elasticsearch.xpack.notification.email.Email;
 import org.elasticsearch.xpack.notification.email.EmailService;
@@ -145,6 +146,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 .put(SecuritySettings.settings(securityEnabled))
                 .put("xpack.watcher.trigger.schedule.engine", scheduleEngineName)
                 .put("script.inline", "true")
+                // Disable native ML autodetect_process as the c++ controller won't be available
+                .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
                 .build();
     }
 

@@ -100,6 +100,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
+                .put("xpack.ml.autodetect_process", false)
                 .build();
         try (Node node = new MockNode(nodeSettings, Arrays.asList(XPackPlugin.class, TestZenDiscovery.TestPlugin.class))) {
             node.start();
@@ -137,6 +138,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put("path.home", home)
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
+                .put("xpack.ml.autodetect_process", false)
                 .build();
         try (Node node = new MockNode(nodeSettings, Arrays.asList(XPackPlugin.class, TestZenDiscovery.TestPlugin.class))) {
             node.start();

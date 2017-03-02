@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport.netty3;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
@@ -48,6 +49,8 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.Collections;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 

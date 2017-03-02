@@ -29,6 +29,7 @@ esplugin {
     hasClientJar = true
 }
 
+compileJava.options.compilerArgs << "-Xlint:-try"
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 
 dependencies {

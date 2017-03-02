@@ -20,6 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
@@ -99,8 +100,11 @@ public class BulkItemResponseTests extends ESTestCase {
 
         final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();
 
-        BulkItemResponse bulkItemResponse = new BulkItemResponse(itemId, opType, new Failure(index, type, id, (Exception) exceptions.v1()));
-        BulkItemResponse expectedBulkItemResponse = new BulkItemResponse(itemId, opType, new Failure(index, type, id, exceptions.v2()));
+        Exception bulkItemCause = (Exception) exceptions.v1();
+        Failure bulkItemFailure = new Failure(index, type, id, bulkItemCause);
+        BulkItemResponse bulkItemResponse = new BulkItemResponse(itemId, opType, bulkItemFailure);
+        Failure expectedBulkItemFailure = new Failure(index, type, id, exceptions.v2(), ExceptionsHelper.status(bulkItemCause));
+        BulkItemResponse expectedBulkItemResponse = new BulkItemResponse(itemId, opType, expectedBulkItemFailure);
         BytesReference originalBytes = toXContent(bulkItemResponse, xContentType, randomBoolean());
 
         // Shuffle the XContent fields

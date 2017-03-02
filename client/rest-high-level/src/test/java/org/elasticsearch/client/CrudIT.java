@@ -588,10 +588,10 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             DocWriteRequest.OpType requestOpType = bulkRequest.requests().get(i).opType();
             if (requestOpType == DocWriteRequest.OpType.INDEX || requestOpType == DocWriteRequest.OpType.CREATE) {
                 assertEquals(errors[i], bulkItemResponse.isFailed());
-                assertEquals(errors[i] ? RestStatus.INTERNAL_SERVER_ERROR : RestStatus.CREATED, bulkItemResponse.status());
+                assertEquals(errors[i] ? RestStatus.CONFLICT : RestStatus.CREATED, bulkItemResponse.status());
             } else if (requestOpType == DocWriteRequest.OpType.UPDATE) {
                 assertEquals(errors[i], bulkItemResponse.isFailed());
-                assertEquals(errors[i] ? RestStatus.INTERNAL_SERVER_ERROR : RestStatus.OK, bulkItemResponse.status());
+                assertEquals(errors[i] ? RestStatus.NOT_FOUND : RestStatus.OK, bulkItemResponse.status());
             } else if (requestOpType == DocWriteRequest.OpType.DELETE) {
                 assertFalse(bulkItemResponse.isFailed());
                 assertEquals(errors[i] ? RestStatus.NOT_FOUND : RestStatus.OK, bulkItemResponse.status());

@@ -163,7 +163,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
         if (timestamp != null) {
-            builder.field(TIMESTAMP.getPreferredName(), timestamp.getTime());
+            builder.dateField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         }
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
@@ -176,10 +176,12 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
             builder.field(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName(), modelSizeStats);
         }
         if (latestRecordTimeStamp != null) {
-            builder.field(LATEST_RECORD_TIME.getPreferredName(), latestRecordTimeStamp.getTime());
+            builder.dateField(LATEST_RECORD_TIME.getPreferredName(), LATEST_RECORD_TIME.getPreferredName() + "_string",
+                    latestRecordTimeStamp.getTime());
         }
         if (latestResultTimeStamp != null) {
-            builder.field(LATEST_RESULT_TIME.getPreferredName(), latestResultTimeStamp.getTime());
+            builder.dateField(LATEST_RESULT_TIME.getPreferredName(), LATEST_RESULT_TIME.getPreferredName() + "_string",
+                    latestResultTimeStamp.getTime());
         }
         if (quantiles != null) {
             builder.field(Quantiles.TYPE.getPreferredName(), quantiles);

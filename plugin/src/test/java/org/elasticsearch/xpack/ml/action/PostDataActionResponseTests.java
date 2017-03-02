@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCountsTests;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 import org.joda.time.DateTime;
 
@@ -13,10 +14,7 @@ public class PostDataActionResponseTests extends AbstractStreamableTestCase<Post
 
     @Override
     protected PostDataAction.Response createTestInstance() {
-        DataCounts counts = new DataCounts(randomAsciiOfLength(10), randomIntBetween(1, 1_000_000),
-                randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
-                randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
-                new DateTime(randomDateTimeZone()).toDate(), new DateTime(randomDateTimeZone()).toDate());
+        DataCounts counts = new DataCountsTests().createTestInstance();
 
         return new PostDataAction.Response(counts);
     }

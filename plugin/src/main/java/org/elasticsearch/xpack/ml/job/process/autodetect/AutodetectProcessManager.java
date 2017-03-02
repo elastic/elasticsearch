@@ -300,12 +300,12 @@ public class AutodetectProcessManager extends AbstractComponent {
         return autoDetectCommunicatorByJob.get(jobId) != null;
     }
 
-    public Duration jobUpTime(String jobId) {
+    public Optional<Duration> jobOpenTime(String jobId) {
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
         if (communicator == null) {
-            return Duration.ZERO;
+            return Optional.empty();
         }
-        return Duration.between(communicator.getProcessStartTime(), ZonedDateTime.now());
+        return Optional.of(Duration.between(communicator.getProcessStartTime(), ZonedDateTime.now()));
     }
 
     private void setJobState(long taskId, String jobId, JobState state) {

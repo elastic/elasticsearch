@@ -460,6 +460,9 @@ public class ElasticsearchMappings {
                             .startObject(DataCounts.LATEST_RECORD_TIME.getPreferredName())
                                 .field(TYPE, DATE)
                             .endObject()
+                            .startObject(DataCounts.LAST_DATA_TIME.getPreferredName())
+                                .field(TYPE, DATE)
+                            .endObject()
                         .endObject()
                     .endObject()
                 .endObject();

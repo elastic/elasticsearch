@@ -8,19 +8,22 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction.Response;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCountsTests;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
-import org.joda.time.DateTime;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+
+import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
 public class GetJobStatsActionResponseTests extends AbstractStreamableTestCase<Response> {
 
@@ -33,11 +36,7 @@ public class GetJobStatsActionResponseTests extends AbstractStreamableTestCase<R
         for (int j = 0; j < listSize; j++) {
             String jobId = randomAsciiOfLength(10);
 
-            DataCounts dataCounts = new DataCounts(randomAsciiOfLength(10), randomIntBetween(1, 1_000_000),
-                    randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
-                    randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
-                    new DateTime(randomDateTimeZone()).toDate(), new DateTime(randomDateTimeZone()).toDate());
-
+            DataCounts dataCounts = new DataCountsTests().createTestInstance();
             ModelSizeStats sizeStats = null;
             if (randomBoolean()) {
                 sizeStats = new ModelSizeStats.Builder("foo").build();
@@ -52,7 +51,11 @@ public class GetJobStatsActionResponseTests extends AbstractStreamableTestCase<R
             if (randomBoolean()) {
                 explanation = randomAsciiOfLength(3);
             }
-            Response.JobStats jobStats = new Response.JobStats(jobId, dataCounts, sizeStats, jobState, node, explanation);
+            TimeValue openTime = null;
+            if (randomBoolean()) {
+                openTime = parseTimeValue(randomPositiveTimeValue(), "open_time-Test");
+            }
+            Response.JobStats jobStats = new Response.JobStats(jobId, dataCounts, sizeStats, jobState, node, explanation, openTime);
             jobStatsList.add(jobStats);
         }
 

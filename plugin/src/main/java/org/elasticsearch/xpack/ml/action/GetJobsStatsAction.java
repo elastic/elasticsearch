@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasks;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -157,20 +159,24 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             private DataCounts dataCounts;
             @Nullable
             private ModelSizeStats modelSizeStats;
+            @Nullable
+            private TimeValue openTime;
             private JobState state;
             @Nullable
             private DiscoveryNode node;
             @Nullable
             private String assignmentExplanation;
 
+
             JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats, JobState state,
-                     @Nullable  DiscoveryNode node, @Nullable String assignmentExplanation) {
+                     @Nullable  DiscoveryNode node, @Nullable String assignmentExplanation, @Nullable TimeValue opentime) {
                 this.jobId = Objects.requireNonNull(jobId);
                 this.dataCounts = Objects.requireNonNull(dataCounts);
                 this.modelSizeStats = modelSizeStats;
                 this.state = Objects.requireNonNull(state);
                 this.node = node;
                 this.assignmentExplanation = assignmentExplanation;
+                this.openTime = opentime;
             }
 
             JobStats(StreamInput in) throws IOException {
@@ -180,6 +186,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 state = JobState.fromStream(in);
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
+                openTime = in.readOptionalWriteable(TimeValue::new);
             }
 
             public String getJobId() {
@@ -204,6 +211,10 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
             public String getAssignmentExplanation() {
                 return assignmentExplanation;
+            }
+
+            public TimeValue getOpenTime() {
+                return openTime;
             }
 
             @Override
@@ -232,6 +243,9 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 if (assignmentExplanation != null) {
                     builder.field("assigment_explanation", assignmentExplanation);
                 }
+                if (openTime != null) {
+                    builder.timeValueField("open_time", "open_time_string", openTime);
+                }
                 builder.endObject();
                 return builder;
             }
@@ -244,11 +258,12 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 state.writeTo(out);
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
+                out.writeOptionalWriteable(openTime);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(jobId, dataCounts, modelSizeStats, state, node, assignmentExplanation);
+                return Objects.hash(jobId, dataCounts, modelSizeStats, state, node, assignmentExplanation, openTime);
             }
 
             @Override
@@ -265,7 +280,8 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                         && Objects.equals(this.modelSizeStats, other.modelSizeStats)
                         && Objects.equals(this.state, other.state)
                         && Objects.equals(this.node, other.node)
-                        && Objects.equals(this.assignmentExplanation, other.assignmentExplanation);
+                        && Objects.equals(this.assignmentExplanation, other.assignmentExplanation)
+                        && Objects.equals(this.openTime, other.openTime);
             }
         }
 
@@ -401,8 +417,9 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 DiscoveryNode node = state.nodes().get(pTask.getExecutorNode());
                 JobState jobState = MlMetadata.getJobState(jobId, tasks);
                 String assignmentExplanation = pTask.getAssignment().getExplanation();
+                TimeValue openTime = durationToTimeValue(processManager.jobOpenTime(jobId));
                 Response.JobStats jobStats = new Response.JobStats(jobId, stats.get().v1(), stats.get().v2(), jobState,
-                        node, assignmentExplanation);
+                        node, assignmentExplanation, openTime);
                 listener.onResponse(new QueryPage<>(Collections.singletonList(jobStats), 1, Job.RESULTS_FIELD));
             } else {
                 listener.onResponse(new QueryPage<>(Collections.emptyList(), 0, Job.RESULTS_FIELD));
@@ -432,7 +449,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                         assignmentExplanation = pTask.getAssignment().getExplanation();
                     }
                     jobStats.set(slot, new Response.JobStats(jobId, dataCounts, modelSizeStats, jobState, null,
-                            assignmentExplanation));
+                            assignmentExplanation, null));
                     if (counter.decrementAndGet() == 0) {
                         List<Response.JobStats> results = response.getResponse().results();
                         results.addAll(jobStats.asList().stream()
@@ -452,6 +469,14 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                     handler.accept(dataCounts, modelSizeStats);
                 }, errorHandler);
             }, errorHandler);
+        }
+
+        static TimeValue durationToTimeValue(Optional<Duration> duration) {
+            if (duration.isPresent()) {
+                return TimeValue.timeValueSeconds(duration.get().getSeconds());
+            } else {
+                return null;
+            }
         }
 
         static List<String> determineJobIdsWithoutLiveStats(List<String> requestedJobIds, List<Response.JobStats> stats) {

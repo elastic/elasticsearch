@@ -73,7 +73,7 @@ public class DataCountsReporterTests extends ESTestCase {
     }
 
     public void testComplexConstructor() throws Exception {
-        DataCounts counts = new DataCounts("foo", 1L, 1L, 2L, 0L, 3L, 4L, 5L, new Date(), new Date());
+        DataCounts counts = new DataCounts("foo", 1L, 1L, 2L, 0L, 3L, 4L, 5L, new Date(), new Date(), new Date());
 
         try (DataCountsReporter dataCountsReporter =
                 new DataCountsReporter(threadPool, settings, JOB_ID, counts, jobDataCountsPersister)) {
@@ -249,13 +249,21 @@ public class DataCountsReporterTests extends ESTestCase {
 
             dataCountsReporter.setAnalysedFieldsPerRecord(3);
 
-            DataCounts dc = new DataCounts(JOB_ID, 2L, 5L, 0L, 10L, 0L, 1L, 0L, new Date(2000), new Date(3000));
+            Date now = new Date();
+            DataCounts dc = new DataCounts(JOB_ID, 2L, 5L, 0L, 10L, 0L, 1L, 0L, new Date(2000), new Date(3000), now);
             dataCountsReporter.reportRecordWritten(5, 2000);
             dataCountsReporter.reportRecordWritten(5, 3000);
             dataCountsReporter.reportMissingField();
             dataCountsReporter.finishReporting();
 
+            long lastReportedTimeMs = dataCountsReporter.incrementalStats().getLastDataTimeStamp().getTime();
+            // check last data time is equal to now give or take a second
+            assertTrue(lastReportedTimeMs >= now.getTime() && lastReportedTimeMs <= now.getTime() +1);
+            assertEquals(dataCountsReporter.incrementalStats().getLastDataTimeStamp(),
+                    dataCountsReporter.runningTotalStats().getLastDataTimeStamp());
+
             Mockito.verify(jobDataCountsPersister, Mockito.times(1)).persistDataCounts(eq("SR"), eq(dc), any());
+            dc.setLastDataTimeStamp(dataCountsReporter.incrementalStats().getLastDataTimeStamp());
             assertEquals(dc, dataCountsReporter.incrementalStats());
         }
     }

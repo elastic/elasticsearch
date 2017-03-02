@@ -47,6 +47,7 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
     public static final String OUT_OF_ORDER_TIME_COUNT_STR = "out_of_order_timestamp_count";
     public static final String EARLIEST_RECORD_TIME_STR = "earliest_record_timestamp";
     public static final String LATEST_RECORD_TIME_STR = "latest_record_timestamp";
+    public static final String LAST_DATA_TIME_STR = "last_data_time";
 
     public static final ParseField PROCESSED_RECORD_COUNT = new ParseField(PROCESSED_RECORD_COUNT_STR);
     public static final ParseField PROCESSED_FIELD_COUNT = new ParseField(PROCESSED_FIELD_COUNT_STR);
@@ -58,12 +59,13 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
     public static final ParseField OUT_OF_ORDER_TIME_COUNT = new ParseField(OUT_OF_ORDER_TIME_COUNT_STR);
     public static final ParseField EARLIEST_RECORD_TIME = new ParseField(EARLIEST_RECORD_TIME_STR);
     public static final ParseField LATEST_RECORD_TIME = new ParseField(LATEST_RECORD_TIME_STR);
+    public static final ParseField LAST_DATA_TIME = new ParseField(LAST_DATA_TIME_STR);
 
     public static final ParseField TYPE = new ParseField("data_counts");
 
     public static final ConstructingObjectParser<DataCounts, Void> PARSER =
             new ConstructingObjectParser<>("data_counts", a -> new DataCounts((String) a[0], (long) a[1], (long) a[2], (long) a[3],
-                    (long) a[4], (long) a[5], (long) a[6], (long) a[7], (Date) a[8], (Date) a[9]));
+                    (long) a[4], (long) a[5], (long) a[6], (long) a[7], (Date) a[8], (Date) a[9], (Date) a[10]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -92,6 +94,15 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
             throw new IllegalArgumentException(
                     "unexpected token [" + p.currentToken() + "] for [" + LATEST_RECORD_TIME.getPreferredName() + "]");
         }, LATEST_RECORD_TIME, ValueType.VALUE);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
+            if (p.currentToken() == Token.VALUE_NUMBER) {
+                return new Date(p.longValue());
+            } else if (p.currentToken() == Token.VALUE_STRING) {
+                return new Date(TimeUtils.dateStringToEpoch(p.text()));
+            }
+            throw new IllegalArgumentException(
+                    "unexpected token [" + p.currentToken() + "] for [" + LAST_DATA_TIME.getPreferredName() + "]");
+        }, LAST_DATA_TIME, ValueType.VALUE);
         PARSER.declareLong((t, u) -> {;}, INPUT_RECORD_COUNT);
     }
 
@@ -110,10 +121,11 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
     // NORELEASE: Use Jodatime instead
     private Date earliestRecordTimeStamp;
     private Date latestRecordTimeStamp;
+    private Date lastDataTimeStamp;
 
     public DataCounts(String jobId, long processedRecordCount, long processedFieldCount, long inputBytes,
                       long inputFieldCount, long invalidDateCount, long missingFieldCount, long outOfOrderTimeStampCount,
-                      Date earliestRecordTimeStamp, Date latestRecordTimeStamp) {
+                      Date earliestRecordTimeStamp, Date latestRecordTimeStamp, Date lastDataTimeStamp) {
         this.jobId = jobId;
         this.processedRecordCount = processedRecordCount;
         this.processedFieldCount = processedFieldCount;
@@ -124,6 +136,7 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         this.outOfOrderTimeStampCount = outOfOrderTimeStampCount;
         this.latestRecordTimeStamp = latestRecordTimeStamp;
         this.earliestRecordTimeStamp = earliestRecordTimeStamp;
+        this.lastDataTimeStamp = lastDataTimeStamp;
     }
 
     public DataCounts(String jobId) {
@@ -141,6 +154,7 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         outOfOrderTimeStampCount = lhs.outOfOrderTimeStampCount;
         latestRecordTimeStamp = lhs.latestRecordTimeStamp;
         earliestRecordTimeStamp = lhs.earliestRecordTimeStamp;
+        lastDataTimeStamp = lhs.lastDataTimeStamp;
     }
 
     public DataCounts(StreamInput in) throws IOException {
@@ -157,6 +171,9 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         }
         if (in.readBoolean()) {
             earliestRecordTimeStamp = new Date(in.readVLong());
+        }
+        if (in.readBoolean()) {
+            lastDataTimeStamp = new Date(in.readVLong());
         }
         in.readVLong(); // throw away inputRecordCount
     }
@@ -327,6 +344,19 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         this.latestRecordTimeStamp = latestRecordTimeStamp;
     }
 
+    /**
+     * The wall clock time the latest record was seen.
+     *
+     * @return Wall clock time of the lastest record
+     */
+    public Date getLastDataTimeStamp() {
+        return lastDataTimeStamp;
+    }
+
+    public void setLastDataTimeStamp(Date lastDataTimeStamp) {
+        this.lastDataTimeStamp = lastDataTimeStamp;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
@@ -346,6 +376,12 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         if (earliestRecordTimeStamp != null) {
             out.writeBoolean(true);
             out.writeVLong(earliestRecordTimeStamp.getTime());
+        } else {
+            out.writeBoolean(false);
+        }
+        if (lastDataTimeStamp != null) {
+            out.writeBoolean(true);
+            out.writeVLong(lastDataTimeStamp.getTime());
         } else {
             out.writeBoolean(false);
         }
@@ -377,6 +413,10 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
             builder.dateField(LATEST_RECORD_TIME.getPreferredName(), LATEST_RECORD_TIME.getPreferredName() + "_string",
                     latestRecordTimeStamp.getTime());
         }
+        if (lastDataTimeStamp != null) {
+            builder.dateField(LAST_DATA_TIME.getPreferredName(), LAST_DATA_TIME.getPreferredName() + "_string",
+                    lastDataTimeStamp.getTime());
+        }
         builder.field(INPUT_RECORD_COUNT.getPreferredName(), getInputRecordCount());
 
         return builder;
@@ -406,7 +446,8 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
                 this.missingFieldCount == that.missingFieldCount &&
                 this.outOfOrderTimeStampCount == that.outOfOrderTimeStampCount &&
                 Objects.equals(this.latestRecordTimeStamp, that.latestRecordTimeStamp) &&
-                Objects.equals(this.earliestRecordTimeStamp, that.earliestRecordTimeStamp);
+                Objects.equals(this.earliestRecordTimeStamp, that.earliestRecordTimeStamp) &&
+                Objects.equals(this.lastDataTimeStamp, that.lastDataTimeStamp);
 
     }
 
@@ -414,6 +455,6 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
     public int hashCode() {
         return Objects.hash(jobId, processedRecordCount, processedFieldCount,
                 inputBytes, inputFieldCount, invalidDateCount, missingFieldCount,
-                outOfOrderTimeStampCount, latestRecordTimeStamp, earliestRecordTimeStamp);
+                outOfOrderTimeStampCount, latestRecordTimeStamp, earliestRecordTimeStamp, lastDataTimeStamp);
     }
 }

@@ -184,9 +184,9 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
         builder.field(TOTAL_PARTITION_FIELD_COUNT_FIELD.getPreferredName(), totalPartitionFieldCount);
         builder.field(BUCKET_ALLOCATION_FAILURES_COUNT_FIELD.getPreferredName(), bucketAllocationFailuresCount);
         builder.field(MEMORY_STATUS_FIELD.getPreferredName(), memoryStatus);
-        builder.field(LOG_TIME_FIELD.getPreferredName(), logTime.getTime());
+        builder.dateField(LOG_TIME_FIELD.getPreferredName(), LOG_TIME_FIELD.getPreferredName() + "_string", logTime.getTime());
         if (timestamp != null) {
-            builder.field(TIMESTAMP_FIELD.getPreferredName(), timestamp.getTime());
+            builder.dateField(TIMESTAMP_FIELD.getPreferredName(), TIMESTAMP_FIELD.getPreferredName() + "_string", timestamp.getTime());
         }
 
         return builder;
@@ -220,10 +220,18 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
         return memoryStatus;
     }
 
+    /**
+     * The timestamp of the last processed record when this instance was created.
+     * @return The record time
+     */
     public Date getTimestamp() {
         return timestamp;
     }
 
+    /**
+     * The wall clock time at the point when this instance was created.
+     * @return The wall clock time
+     */
     public Date getLogTime() {
         return logTime;
     }

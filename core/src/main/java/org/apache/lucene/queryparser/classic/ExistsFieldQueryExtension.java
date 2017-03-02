@@ -19,8 +19,10 @@
 
 package org.apache.lucene.queryparser.classic;
 
-import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.WildcardQuery;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 
@@ -33,6 +35,13 @@ public class ExistsFieldQueryExtension implements FieldQueryExtension {
 
     @Override
     public Query query(QueryShardContext context, String queryText) {
-        return new ConstantScoreQuery(ExistsQueryBuilder.newFilter(context, queryText));
+        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
+            (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
+        if (fieldNamesFieldType.isEnabled() == false) {
+            // The field_names_field is disabled so we switch to a wildcard query that matches all terms
+            return new WildcardQuery(new Term(queryText, "*"));
+        }
+
+        return ExistsQueryBuilder.newFilter(context, queryText);
     }
 }

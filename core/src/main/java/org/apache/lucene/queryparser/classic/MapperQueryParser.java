@@ -572,22 +572,16 @@ public class MapperQueryParser extends AnalyzingQueryParser {
 
     @Override
     protected Query getWildcardQuery(String field, String termStr) throws ParseException {
-        if (termStr.equals("*")) {
-            // we want to optimize for match all query for the "*:*", and "*" cases
-            if ("*".equals(field) || Objects.equals(field, this.field)) {
-                String actualField = field;
-                if (actualField == null) {
-                    actualField = this.field;
-                }
-                if (actualField == null) {
-                    return newMatchAllDocsQuery();
-                }
-                if ("*".equals(actualField) || "_all".equals(actualField)) {
-                    return newMatchAllDocsQuery();
-                }
-                // effectively, we check if a field exists or not
-                return FIELD_QUERY_EXTENSIONS.get(ExistsFieldQueryExtension.NAME).query(context, actualField);
+        if (termStr.equals("*") && field != null) {
+            if ("*".equals(field)) {
+                return newMatchAllDocsQuery();
             }
+            String actualField = field;
+            if (actualField == null) {
+                actualField = this.field;
+            }
+            // effectively, we check if a field exists or not
+            return FIELD_QUERY_EXTENSIONS.get(ExistsFieldQueryExtension.NAME).query(context, actualField);
         }
         Collection<String> fields = extractMultiFields(field);
         if (fields != null) {
@@ -625,6 +619,10 @@ public class MapperQueryParser extends AnalyzingQueryParser {
     }
 
     private Query getWildcardQuerySingle(String field, String termStr) throws ParseException {
+        if ("*".equals(termStr)) {
+            // effectively, we check if a field exists or not
+            return FIELD_QUERY_EXTENSIONS.get(ExistsFieldQueryExtension.NAME).query(context, field);
+        }
         String indexedNameField = field;
         currentFieldType = null;
         Analyzer oldAnalyzer = getAnalyzer();

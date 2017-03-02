@@ -27,6 +27,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -45,11 +46,14 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
@@ -837,9 +841,57 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     .build();
             assertThat(query, equalTo(expectedQuery));
         }
-
-
     }
+
+    public void testExistsFieldQuery() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext context = createShardContext();
+        QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
+        Query query = queryBuilder.toQuery(context);
+        Query expected = new ConstantScoreQuery(new TermQuery(new Term("_field_names", "foo")));
+        assertThat(query, equalTo(expected));
+
+        queryBuilder = new QueryStringQueryBuilder("_all:*");
+        query = queryBuilder.toQuery(context);
+        expected = new ConstantScoreQuery(new TermQuery(new Term("_field_names", "_all")));
+        assertThat(query, equalTo(expected));
+
+        queryBuilder = new QueryStringQueryBuilder("*:*");
+        query = queryBuilder.toQuery(context);
+        expected = new MatchAllDocsQuery();
+        assertThat(query, equalTo(expected));
+
+        queryBuilder = new QueryStringQueryBuilder("*");
+        query = queryBuilder.toQuery(context);
+        List<Query> fieldQueries = new ArrayList<> ();
+        for (String type : QueryStringQueryBuilder.allQueryableDefaultFields(context).keySet()) {
+            fieldQueries.add(new ConstantScoreQuery(new TermQuery(new Term("_field_names", type))));
+        }
+        expected = new DisjunctionMaxQuery(fieldQueries, 0f);
+        assertThat(query, equalTo(expected));
+    }
+
+    public void testDisabledFieldNamesField() throws Exception {
+        QueryShardContext context = createShardContext();
+        context.getMapperService().merge("new_type",
+            new CompressedXContent(
+                PutMappingRequest.buildFromSimplifiedDef("new_type",
+                    "foo", "type=text",
+                    "_field_names", "enabled=false").string()),
+            MapperService.MergeReason.MAPPING_UPDATE, true);
+        QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
+        Query query = queryBuilder.toQuery(context);
+        Query expected = new WildcardQuery(new Term("foo", "*"));
+        assertThat(query, equalTo(expected));
+        context.getMapperService().merge("new_type",
+            new CompressedXContent(
+                PutMappingRequest.buildFromSimplifiedDef("new_type",
+                    "foo", "type=text",
+                    "_field_names", "enabled=true").string()),
+            MapperService.MergeReason.MAPPING_UPDATE, true);
+    }
+
+
 
     public void testFromJson() throws IOException {
         String json =

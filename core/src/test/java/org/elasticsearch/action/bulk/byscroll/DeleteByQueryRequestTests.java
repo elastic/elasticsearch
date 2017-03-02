@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.bulk.byscroll;
 
-import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequestTestCase;
-import org.elasticsearch.action.bulk.byscroll.DeleteByQueryRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 
@@ -73,5 +71,29 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
     @Override
     protected void extraForSliceAssertions(DeleteByQueryRequest original, DeleteByQueryRequest forSliced) {
         // No extra assertions needed
+    }
+
+    public void testTypesGetter() {
+        int numTypes = between(1, 50);
+        String[] types = new String[numTypes];
+        for (int i = 0; i < numTypes; i++) {
+            types[i] = randomSimpleString(random(), 1, 30);
+        }
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.types(types);
+        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
+        assertArrayEquals(request.types(), types);
+    }
+
+    public void testTypesSetter() {
+        int numTypes = between(1, 50);
+        String[] types = new String[numTypes];
+        for (int i = 0; i < numTypes; i++) {
+            types[i] = randomSimpleString(random(), 1, 30);
+        }
+        SearchRequest searchRequest = new SearchRequest();
+        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
+        request.types(types);
+        assertArrayEquals(request.types(), types);
     }
 }

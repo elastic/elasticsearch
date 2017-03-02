@@ -205,7 +205,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             cause = in.readException();
             status = ExceptionsHelper.status(cause);
             if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-                seqNo = in.readLong();
+                seqNo = in.readZLong();
             } else {
                 seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
             }
@@ -218,7 +218,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             out.writeOptionalString(getId());
             out.writeException(getCause());
             if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-                out.writeLong(getSeqNo());
+                out.writeZLong(getSeqNo());
             }
         }
 

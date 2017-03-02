@@ -14,13 +14,13 @@
                                 analyzer: ukrainian
 
     - do:
-      index:
-          index:  test
-          type:   type
-          id:     1
-          body:   { "text": "Ця п'єса у свою чергу рухається по колу." }
+        index:
+            index:  test
+            type:   type
+            id:     1
+            body:   { "text": "Ця п'єса у свою чергу рухається по колу." }
     - do:
-      indices.refresh: {}
+        indices.refresh: {}
 
     - do:
         search:

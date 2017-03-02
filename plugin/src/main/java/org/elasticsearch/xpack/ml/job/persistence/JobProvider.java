@@ -14,7 +14,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -27,11 +27,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -107,7 +105,6 @@ public class JobProvider {
 
     private static final int RECORDS_SIZE_PARAM = 500;
 
-
     private final Client client;
     private final Settings settings;
 
@@ -122,49 +119,46 @@ public class JobProvider {
     public void createJobResultIndex(Job job, ClusterState state, ActionListener<Boolean> listener) {
         Collection<String> termFields = (job.getAnalysisConfig() != null) ? job.getAnalysisConfig().termFields() : Collections.emptyList();
 
+        String aliasName = AnomalyDetectorsIndex.jobResultsAliasedName(job.getId());
+        String indexName = job.getResultsIndexName();
 
-            String aliasName = AnomalyDetectorsIndex.jobResultsAliasedName(job.getId());
-            String indexName = job.getResultsIndexName();
+        final ActionListener<Boolean> responseListener = listener;
+        listener = ActionListener.wrap(aBoolean -> {
+                    client.admin().indices().prepareAliases()
+                            .addAlias(indexName, aliasName, QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
+                            .execute(ActionListener.wrap(r -> responseListener.onResponse(true), responseListener::onFailure));
+                },
+                listener::onFailure);
 
+        // Indices can be shared, so only create if it doesn't exist already. Saves us a roundtrip if
+        // already in the CS
+        if (!state.getMetaData().hasIndex(indexName)) {
+            LOGGER.trace("ES API CALL: create index {}", indexName);
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
 
-            final ActionListener<Boolean> responseListener = listener;
-            listener = ActionListener.wrap(aBoolean -> {
-                        client.admin().indices().prepareAliases()
-                                .addAlias(indexName, aliasName)
-                                .execute(ActionListener.wrap(r -> responseListener.onResponse(true), responseListener::onFailure));
-                    },
-                    listener::onFailure);
-
-            // Indices can be shared, so only create if it doesn't exist already. Saves us a roundtrip if
-            // already in the CS
-            if (!state.getMetaData().hasIndex(indexName)) {
-                LOGGER.trace("ES API CALL: create index {}", indexName);
-                CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-
-                final ActionListener<Boolean> createdListener = listener;
-                client.admin().indices().create(createIndexRequest,
-                        ActionListener.wrap(
-                                r -> updateIndexMappingWithTermFields(indexName, termFields, createdListener),
-                                e -> {
-                                    // Possible that the index was created while the request was executing,
-                                    // so we need to handle that possibility
-                                    if (e instanceof ResourceAlreadyExistsException) {
-                                        LOGGER.info("Index already exists");
-                                        // Create the alias
-                                        createdListener.onResponse(true);
-                                    } else {
-                                        createdListener.onFailure(e);
-                                    }
+            final ActionListener<Boolean> createdListener = listener;
+            client.admin().indices().create(createIndexRequest,
+                    ActionListener.wrap(
+                            r -> updateIndexMappingWithTermFields(indexName, termFields, createdListener),
+                            e -> {
+                                // Possible that the index was created while the request was executing,
+                                // so we need to handle that possibility
+                                if (e instanceof ResourceAlreadyExistsException) {
+                                    LOGGER.info("Index already exists");
+                                    // Create the alias
+                                    createdListener.onResponse(true);
+                                } else {
+                                    createdListener.onFailure(e);
                                 }
-                        ));
-            } else {
-                // Add the job's term fields to the index mapping
-                final ActionListener<Boolean> updateMappingListener = listener;
-                checkNumberOfFieldsLimit(indexName, termFields.size(), ActionListener.wrap(
-                        r -> updateIndexMappingWithTermFields(indexName, termFields, updateMappingListener),
-                        updateMappingListener::onFailure));
-            }
-
+                            }
+                    ));
+        } else {
+            // Add the job's term fields to the index mapping
+            final ActionListener<Boolean> updateMappingListener = listener;
+            checkNumberOfFieldsLimit(indexName, termFields.size(), ActionListener.wrap(
+                    r -> updateIndexMappingWithTermFields(indexName, termFields, updateMappingListener),
+                    updateMappingListener::onFailure));
+        }
     }
 
     private void updateIndexMappingWithTermFields(String indexName, Collection<String> termFields, ActionListener<Boolean> listener) {
@@ -188,37 +182,36 @@ public class JobProvider {
     }
 
     private void checkNumberOfFieldsLimit(String indexName, long additionalFieldCount, ActionListener<Boolean> listener) {
-        client.admin().indices().prepareGetMappings(indexName).execute(new ActionListener<GetMappingsResponse>() {
-            @Override
-            public void onResponse(GetMappingsResponse getMappingsResponse) {
-                ImmutableOpenMap<String, MappingMetaData> typeMappings = getMappingsResponse.mappings().get(indexName);
-                Iterator<com.carrotsearch.hppc.cursors.ObjectObjectCursor<String, MappingMetaData>> iter = typeMappings.iterator();
-                long numFields = 0;
-                try {
-                    while (iter.hasNext()) {
-                        Map<String, Object> props = (Map<String, Object>)iter.next().value.getSourceAsMap().get("properties");
-                        numFields += props.size();
+        client.admin().indices().prepareGetFieldMappings(indexName).setTypes("*").setFields("*").execute(
+                new ActionListener<GetFieldMappingsResponse>() {
+                    @Override
+                    public void onResponse(GetFieldMappingsResponse getFieldMappingsResponse) {
+                        long numFields = 0;
+                        Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> indexMappings =
+                                getFieldMappingsResponse.mappings();
+                        for (String index : indexMappings.keySet()) {
+                            Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> typeMappings = indexMappings.get(index);
+                            for (String type : typeMappings.keySet()) {
+                                Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fieldMappings = typeMappings.get(type);
+                                numFields += fieldMappings.size();
+                            }
+                        }
+
+                        long fieldCountLimit = MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.get(settings);
+                        if (numFields + additionalFieldCount > fieldCountLimit) {
+                            String message = "Cannot create job in index '" + indexName + "' as the " +
+                                    MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey() + " setting will be violated";
+                            listener.onFailure(new IllegalArgumentException(message));
+                        } else {
+                            listener.onResponse(true);
+                        }
                     }
-                }
-                catch (IOException e) {
-                    listener.onFailure(e);
-                }
 
-                long fieldCountLimit = MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.get(settings);
-                if (numFields + additionalFieldCount > fieldCountLimit) {
-                    String message = "Cannot create job in index '" + indexName + "' as the " +
-                            MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey() + " setting will be violated";
-                    listener.onFailure(new IllegalArgumentException(message));
-                } else {
-                    listener.onResponse(true);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+                });
     }
 
     /**
@@ -792,7 +785,7 @@ public class JobProvider {
      * @param size  number of snapshots to retrieve
      */
     public void modelSnapshots(String jobId, int from, int size, Consumer<QueryPage<ModelSnapshot>> handler,
-                                                   Consumer<Exception> errorHandler) {
+                               Consumer<Exception> errorHandler) {
         modelSnapshots(jobId, from, size, null, true, QueryBuilders.matchAllQuery(), handler, errorHandler);
     }
 

@@ -259,7 +259,8 @@ public class MlJobIT extends ESRestTestCase {
         String responseAsString = responseEntityToString(response);
 
         assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName)
-                + "\":{\"aliases\":{\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "\":{},\"" +
+                + "\":{\"aliases\":{\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId1)
+                + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId1 + "\",\"boost\":1.0}}}},\"" +
                 AnomalyDetectorsIndex.jobResultsAliasedName(jobId2)));
 
         response = client().performRequest("get", "_cat/indices");

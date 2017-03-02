@@ -281,9 +281,9 @@ public class MockClientBuilder {
     }
 
     @SuppressWarnings("unchecked")
-    public MockClientBuilder prepareAlias(String indexName, String alias) {
+    public MockClientBuilder prepareAlias(String indexName, String alias, QueryBuilder filter) {
         IndicesAliasesRequestBuilder aliasesRequestBuilder = mock(IndicesAliasesRequestBuilder.class);
-        when(aliasesRequestBuilder.addAlias(eq(indexName), eq(alias))).thenReturn(aliasesRequestBuilder);
+        when(aliasesRequestBuilder.addAlias(eq(indexName), eq(alias), eq(filter))).thenReturn(aliasesRequestBuilder);
         when(indicesAdminClient.prepareAliases()).thenReturn(aliasesRequestBuilder);
         doAnswer(new Answer<Void>() {
             @Override

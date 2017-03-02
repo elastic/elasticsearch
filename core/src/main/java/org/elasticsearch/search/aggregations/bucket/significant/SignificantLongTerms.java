@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Result of the running the significant terms aggregation on a numeric field.
@@ -108,6 +109,16 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return super.equals(obj) && Objects.equals(term, ((Bucket) obj).term);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), term);
         }
     }
 

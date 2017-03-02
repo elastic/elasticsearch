@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -98,5 +99,22 @@ public abstract class InternalMappedSignificantTerms<
     @Override
     protected SignificanceHeuristic getSignificanceHeuristic() {
         return significanceHeuristic;
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalMappedSignificantTerms<?, ?> that = (InternalMappedSignificantTerms<?, ?>) obj;
+        return super.doEquals(obj)
+                && Objects.equals(format, that.format)
+                && subsetSize == that.subsetSize
+                && supersetSize == that.supersetSize
+                && Objects.equals(significanceHeuristic, that.significanceHeuristic)
+                && Objects.equals(buckets, that.buckets)
+                && Objects.equals(bucketMap, that.bucketMap);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(super.doHashCode(), format, subsetSize, supersetSize, significanceHeuristic, buckets, bucketMap);
     }
 }

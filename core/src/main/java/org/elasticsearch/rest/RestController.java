@@ -270,10 +270,19 @@ public class RestController extends AbstractComponent implements HttpServerTrans
     private boolean hasContentTypeOrCanAutoDetect(final RestRequest restRequest, final RestHandler restHandler) {
         if (restRequest.getXContentType() == null) {
             if (restHandler != null && restHandler.supportsPlainText()) {
-                // content type of null with a handler that supports plain text gets through for now. Once we remove plain text this can
-                // be removed!
-                deprecationLogger.deprecated("Plain text request bodies are deprecated. Use request parameters or body " +
-                    "in a supported format.");
+                if (isContentTypeRequired) {
+                    // content type of null with a handler that supports plain text gets through for now. Once we remove plain text this can
+                    // be removed!
+                    deprecationLogger.deprecated("Plain text request bodies are deprecated. Use request parameters or body " +
+                        "in a supported format.");
+                } else {
+                    // attempt to autodetect since we do not know that it is truly plain-text
+                    final boolean detected = autoDetectXContentType(restRequest);
+                    if (detected == false) {
+                        deprecationLogger.deprecated("Plain text request bodies are deprecated. Use request parameters or body " +
+                            "in a supported format.");
+                    }
+                }
             } else if (restHandler != null && restHandler.supportsContentStream() && restRequest.header("Content-Type") != null) {
                 final String lowercaseMediaType = restRequest.header("Content-Type").toLowerCase(Locale.ROOT);
                 // we also support newline delimited JSON: http://specs.okfnlabs.org/ndjson/

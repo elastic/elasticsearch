@@ -266,8 +266,8 @@ def provision(config,
     }
 
     installed gradle || {
-      echo "==> Installing gradle"
-      curl -o /tmp/gradle.zip -L https://services.gradle.org/distributions/gradle-3.3-bin.zip
+      echo "==> Installing Gradle"
+      curl -sS -o /tmp/gradle.zip -L https://services.gradle.org/distributions/gradle-3.3-bin.zip
       unzip /tmp/gradle.zip -d /opt
       rm -rf /tmp/gradle.zip 
       ln -s /opt/gradle-3.3/bin/gradle /usr/bin/gradle

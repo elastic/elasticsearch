@@ -224,6 +224,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
     public Netty3HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
             NamedXContentRegistry xContentRegistry, HttpServerTransport.Dispatcher dispatcher) {
         super(settings);
+        deprecationLogger.deprecated(deprecationMessage());
         this.networkService = networkService;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
@@ -276,6 +277,10 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], " +
             "receive_predictor[{}->{}], pipelining[{}], pipelining_max_events[{}]", maxChunkSize, maxHeaderSize, maxInitialLineLength,
             this.maxContentLength, receivePredictorMin, receivePredictorMax, pipelining, pipeliningMaxEvents);
+    }
+
+    protected String deprecationMessage() {
+        return "http type [netty3] is deprecated";
     }
 
     public Settings settings() {

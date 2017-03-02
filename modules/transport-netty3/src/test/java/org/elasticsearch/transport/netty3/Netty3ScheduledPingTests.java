@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.transport.netty3;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
@@ -33,7 +32,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -41,19 +39,27 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.Collections;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class Netty3ScheduledPingTests extends ESTestCase {
+
+    @Override
+    @After
+    public void tearDown() throws Exception {
+        assertWarnings("transport type [netty3] is deprecated");
+        super.tearDown();
+    }
+
     public void testScheduledPing() throws Exception {
         ThreadPool threadPool = new TestThreadPool(getClass().getName());
 

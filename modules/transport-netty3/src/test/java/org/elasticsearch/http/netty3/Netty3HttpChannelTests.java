@@ -79,6 +79,7 @@ public class Netty3HttpChannelTests extends ESTestCase {
 
     @After
     public void shutdown() throws Exception {
+        assertWarnings("http type [netty3] is deprecated");
         if (threadPool != null) {
             threadPool.shutdownNow();
         }

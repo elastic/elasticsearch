@@ -20,6 +20,7 @@ cluster1Config.setting('xpack.monitoring.enabled', false)
 cluster1Config.setting('xpack.security.enabled', false)
 cluster1Config.setting('xpack.watcher.enabled', false)
 cluster1Config.setting('xpack.graph.enabled', false)
+cluster1Config.setting('xpack.ml.enabled', false)
 
 List<NodeInfo> cluster1Nodes = ClusterFormationTasks.setup(project, 'clusterOne', integTestRunner, cluster1Config)
 
@@ -33,6 +34,7 @@ cluster2Config.setting('xpack.monitoring.enabled', false)
 cluster2Config.setting('xpack.security.enabled', false)
 cluster2Config.setting('xpack.watcher.enabled', false)
 cluster2Config.setting('xpack.graph.enabled', false)
+cluster2Config.setting('xpack.ml.enabled', false)
 
 List<NodeInfo> cluster2Nodes = ClusterFormationTasks.setup(project, 'clusterTwo', integTestRunner, cluster2Config)
 
@@ -47,6 +49,7 @@ integTestCluster {
   setting 'tribe.cluster1.xpack.security.enabled', false
   setting 'tribe.cluster1.xpack.watcher.enabled', false
   setting 'tribe.cluster1.xpack.graph.enabled', false
+  setting 'tribe.cluster1.xpack.ml.enabled', false
   setting 'tribe.cluster2.cluster.name', 'cluster2'
   setting 'tribe.cluster2.discovery.zen.ping.unicast.hosts', "'${-> cluster2Nodes.get(0).transportUri()}'"
   setting 'tribe.cluster2.http.enabled', 'true'
@@ -55,6 +58,7 @@ integTestCluster {
   setting 'tribe.cluster2.xpack.security.enabled', false
   setting 'tribe.cluster2.xpack.watcher.enabled', false
   setting 'tribe.cluster2.xpack.graph.enabled', false
+  setting 'tribe.cluster2.xpack.ml.enabled', false
   // x-pack
   plugin ':x-pack-elasticsearch:plugin'
   setting 'xpack.monitoring.enabled', false
@@ -62,6 +66,7 @@ integTestCluster {
   setting 'xpack.security.enabled', false
   setting 'xpack.watcher.enabled', false
   setting 'xpack.graph.enabled', false
+  setting 'xpack.ml.enabled', false
 }
 
 integTestRunner {

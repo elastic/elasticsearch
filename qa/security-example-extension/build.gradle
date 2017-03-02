@@ -59,6 +59,7 @@ integTestCluster {
   setting 'xpack.security.authc.realms.esusers.type', 'file'
   setting 'xpack.security.authc.realms.native.type', 'native'
   setting 'xpack.security.authc.realms.native.order', '2'
+  setting 'xpack.ml.enabled', 'false'
 
   setupCommand 'setupDummyUser',
                'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'

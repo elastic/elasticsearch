@@ -20,6 +20,7 @@ integTestRunner {
 
 integTestCluster {
   plugin ':x-pack-elasticsearch:plugin'
+  setting 'xpack.ml.enabled', 'false'
   setupCommand 'setupDummyUser',
                'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
   setupCommand 'setupTransportClientUser',

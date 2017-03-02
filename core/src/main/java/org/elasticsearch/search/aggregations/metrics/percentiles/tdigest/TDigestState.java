@@ -72,7 +72,7 @@ public class TDigestState extends AVLTreeDigest {
             return false;
         }
         Iterator<? extends Centroid> thisCentroids = centroids().iterator();
-        Iterator<? extends Centroid> thatCentroids = centroids().iterator();
+        Iterator<? extends Centroid> thatCentroids = that.centroids().iterator();
         while (thisCentroids.hasNext()) {
             if (thatCentroids.hasNext() == false) {
                 return false;

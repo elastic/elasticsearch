@@ -372,7 +372,7 @@ public class ConvertProcessorTests extends ESTestCase {
 
     public void testAutoConvertNotString() throws Exception {
         Object randomValue;
-        switch(randomIntBetween(0, 2)) {
+        switch(randomIntBetween(0, 4)) {
             case 0:
                 float randomFloat = randomFloat();
                 randomValue = randomFloat;

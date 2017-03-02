@@ -6,8 +6,8 @@
 #
 "Python Update With Empty Parameters":
     - skip:
-      features:
-        - warnings
+        features:
+          - warnings
     - do:
         index:
             index: test
@@ -40,8 +40,8 @@
 #
 "Python Update With Multi Lines":
     - skip:
-      features:
-        - warnings
+        features:
+          - warnings
     - do:
         index:
             index: test

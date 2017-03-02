@@ -2,8 +2,8 @@
 #
 "Python Query":
     - skip:
-      features:
-        - warnings
+        features:
+          - warnings
     - do:
         index:
             index: test
@@ -108,8 +108,8 @@
 ---
 "Python Script Field Using Source":
     - skip:
-      features:
-        - warnings
+        features:
+          - warnings
     - do:
         index:
             index: test
@@ -161,8 +161,8 @@
 ---
 "Python Custom Script Boost":
     - skip:
-      features:
-        - warnings
+        features:
+          - warnings
     - do:
         index:
             index: test
@@ -280,8 +280,8 @@
 ---
 "Python Scores Nested":
     - skip:
-      features:
-        - warnings
+        features:
+          - warnings
     - do:
         index:
             index: test
@@ -334,8 +334,8 @@
 ---
 "Python Scores With Agg":
     - skip:
-      features:
-        - warnings
+        features:
+          - warnings
     - do:
         index:
             index: test

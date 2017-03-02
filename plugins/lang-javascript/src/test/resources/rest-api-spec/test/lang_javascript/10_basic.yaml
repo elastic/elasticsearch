@@ -14,8 +14,8 @@ setup:
 
 "Lang JavaScript":
     - skip:
-      features:
-        - warnings
+        features:
+          - warnings
     - do:
         warnings:
           - '[javascript] scripts are deprecated, use [painless] scripts instead'

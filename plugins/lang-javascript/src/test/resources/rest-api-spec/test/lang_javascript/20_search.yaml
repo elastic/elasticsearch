@@ -2,8 +2,8 @@
 #
 "JavaScript Query":
     - skip:
-      features:
-        - warnings
+        features:
+          - warnings
     - do:
         index:
             index: test
@@ -108,8 +108,8 @@
 ---
 "JavaScript Script Field Using Source":
     - skip:
-      features:
-        - warnings
+        features:
+          - warnings
     - do:
         index:
             index: test
@@ -161,8 +161,8 @@
 ---
 "JavaScript Custom Script Boost":
     - skip:
-      features:
-        - warnings
+        features:
+          - warnings
     - do:
         index:
             index: test
@@ -328,8 +328,8 @@
 ---
 "JavaScript Scores Nested":
     - skip:
-      features:
-        - warnings
+        features:
+          - warnings
     - do:
         index:
             index: test
@@ -382,8 +382,8 @@
 ---
 "JavaScript Scores With Agg":
     - skip:
-      features:
-        - warnings
+        features:
+          - warnings
     - do:
         index:
             index: test
@@ -424,8 +424,8 @@
 ---
 "JavaScript Use List Length In Scripts":
     - skip:
-      features:
-        - warnings
+        features:
+          - warnings
     - do:
         index:
             index: test

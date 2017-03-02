@@ -13,8 +13,8 @@ setup:
 ---
 "Lang Python":
     - skip:
-      features:
-        - warnings
+        features:
+          - warnings
     - do:
         warnings:
           - '[python] scripts are deprecated, use [painless] scripts instead'

@@ -68,6 +68,7 @@ import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -868,7 +869,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             fieldQueries.add(new ConstantScoreQuery(new TermQuery(new Term("_field_names", type))));
         }
         expected = new DisjunctionMaxQuery(fieldQueries, 0f);
-        assertThat(query, equalTo(expected));
+        Query expectedSingle = new ConstantScoreQuery(new TermQuery(new Term("_field_names", "_all")));
+        assertThat(query, anyOf(equalTo(expected), equalTo(expectedSingle)));
     }
 
     public void testDisabledFieldNamesField() throws Exception {

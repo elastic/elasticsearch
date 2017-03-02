@@ -93,19 +93,18 @@ setup:
         job_id: farequote2
   - match: { closed: true }
 
+  - do:
+      indices.exists:
+        index: ".ml-anomalies-farequote"
+  - is_true: ''
+
+  - do:
+      indices.exists:
+        index: ".ml-anomalies-farequote"
+  - is_true: ''
 
   - do:
       indices.refresh: {}
-
-  - do:
-      indices.exists:
-        index: ".ml-anomalies-farequote"
-  - is_true: ''
-
-  - do:
-      indices.exists:
-        index: ".ml-anomalies-farequote"
-  - is_true: ''
 
   - do:
       count:
@@ -164,13 +163,17 @@ setup:
         job_id: "farequote"
   - match: { acknowledged: true }
 
-  - do:
-      indices.refresh: {}
+  # TODO: delete_job is asynchronous and returns before all job results are deleted - ideally
+  # we'd have a way to wait for delete_job to finish its work, but for now just assert some
+  # other things before refreshing the indexes to give time for delete_job to do its work
 
   - do:
       indices.exists:
         index: ".ml-anomalies-shared"
   - is_true: ''
+
+  - do:
+      indices.refresh: {}
 
   - do:
       count:
@@ -218,8 +221,9 @@ setup:
         job_id: "farequote2"
   - match: { acknowledged: true }
 
-  - do:
-      indices.refresh: {}
+  # TODO: delete_job is asynchronous and returns before all job results are deleted - ideally
+  # we'd have a way to wait for delete_job to finish its work, but for now just assert some
+  # other things before refreshing the indexes to give time for delete_job to do its work
 
   - do:
       indices.exists:
@@ -235,6 +239,9 @@ setup:
       indices.exists:
         index: ".ml-anomalies-farequote2"
   - is_false: ''
+
+  - do:
+      indices.refresh: {}
 
   - do:
       count:
@@ -323,8 +330,27 @@ setup:
         job_id: "farequote"
   - match: { acknowledged: true }
 
+  # TODO: delete_job is asynchronous and returns before all job results are deleted - ideally
+  # we'd have a way to wait for delete_job to finish its work, but for now just assert some
+  # other things before refreshing the indexes to give time for delete_job to do its work
+
   - do:
-        indices.refresh: {}
+      indices.exists:
+        index: ".ml-anomalies-shared"
+  - is_true: ''
+
+  - do:
+      indices.exists:
+        index: ".ml-anomalies-foo"
+  - is_true: ''
+
+  - do:
+      indices.exists:
+        index: "foo"
+  - is_true: ''
+
+  - do:
+      indices.refresh: {}
 
   - do:
       count:
@@ -340,6 +366,4 @@ setup:
       count:
         index: .ml-anomalies-foo
   - match: {count: 2}
-
-
 

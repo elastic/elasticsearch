@@ -19,9 +19,7 @@
 
 package org.elasticsearch.repositories.azure;
 
-
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cloud.azure.AbstractAzureWithThirdPartyIntegTestCase;
 import org.elasticsearch.common.settings.Settings;

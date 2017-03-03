@@ -76,6 +76,10 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
         return container;
     }
 
+    public LocationMode getLocationMode() {
+        return locMode;
+    }
+
     @Override
     public BlobContainer blobContainer(BlobPath path) {
         return new AzureBlobContainer(repositoryName, path, this);

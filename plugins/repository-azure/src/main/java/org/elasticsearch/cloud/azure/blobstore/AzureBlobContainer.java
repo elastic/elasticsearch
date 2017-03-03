@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cloud.azure.blobstore;
 
+import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
@@ -68,7 +69,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     public InputStream readBlob(String blobName) throws IOException {
         logger.trace("readBlob({})", blobName);
 
-        if (!blobExists(blobName)) {
+        if (blobStore.getLocationMode() == LocationMode.SECONDARY_ONLY && !blobExists(blobName)) {
             // On Azure, if the location path is a secondary location, and the blob does not
             // exist, instead of returning immediately from the getInputStream call below
             // with a 404 StorageException, Azure keeps trying and trying for a long timeout

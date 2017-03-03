@@ -30,6 +30,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.junit.After;
+import org.junit.Before;
 
 import java.net.URISyntaxException;
 import java.util.concurrent.TimeUnit;
@@ -57,12 +59,15 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class AzureSnapshotRestoreListSnapshotsTests extends AbstractAzureWithThirdPartyIntegTestCase {
 
     private final AzureStorageService azureStorageService = new AzureStorageServiceImpl(readSettingsFromFile());
+    private final String containerName = getContainerName();
 
+    @Before
+    public void setupContainer() {
+
+    }
     public void testList() throws Exception {
-        String containerName = getContainerName();
         Client client = client();
         logger.info("-->  creating azure primary repository");
-        createContainer(containerName);
         PutRepositoryResponse putRepositoryResponsePrimary = client.admin().cluster().preparePutRepository("primary")
                 .setType("azure").setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), containerName)
@@ -75,11 +80,8 @@ public class AzureSnapshotRestoreListSnapshotsTests extends AbstractAzureWithThi
         long endWait = System.currentTimeMillis();
         // definitely should be done in 30s, and if its not working as expected, it takes over 1m
         assertThat(endWait - startWait, lessThanOrEqualTo(30000L));
-        removeContainer(containerName);
 
         logger.info("-->  creating azure secondary repository");
-        containerName = getContainerName();
-        createContainer(containerName);
         PutRepositoryResponse putRepositoryResponseSecondary = client.admin().cluster().preparePutRepository("secondary")
                 .setType("azure").setSettings(Settings.builder()
                     .put(Repository.CONTAINER_SETTING.getKey(), containerName)
@@ -93,10 +95,10 @@ public class AzureSnapshotRestoreListSnapshotsTests extends AbstractAzureWithThi
         endWait = System.currentTimeMillis();
         logger.info("--> end of get snapshots on secondary. Took {} ms", endWait - startWait);
         assertThat(endWait - startWait, lessThanOrEqualTo(30000L));
-        removeContainer(containerName);
     }
 
-    private void createContainer(String containerName) throws Exception {
+    @Before
+    public void createContainer() throws Exception {
         // It could happen that we run this test really close to a previous one
         // so we might need some time to be able to create the container
         assertBusy(() -> {
@@ -112,7 +114,8 @@ public class AzureSnapshotRestoreListSnapshotsTests extends AbstractAzureWithThi
         }, 30, TimeUnit.SECONDS);
     }
 
-    private void removeContainer(String containerName) throws Exception {
+    @After
+    public void removeContainer() throws Exception {
         azureStorageService.removeContainer(null, LocationMode.PRIMARY_ONLY, containerName);
     }
 }

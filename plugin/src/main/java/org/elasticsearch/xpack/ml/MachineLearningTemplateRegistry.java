@@ -53,6 +53,9 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
     private final Client client;
     private final ThreadPool threadPool;
 
+    public static String [] TEMPLATE_NAMES = new String [] {Auditor.NOTIFICATIONS_INDEX, AnomalyDetectorsIndex.ML_META_INDEX,
+            AnomalyDetectorsIndex.jobStateIndexName(), AnomalyDetectorsIndex.jobResultsIndexPrefix()};
+
     final AtomicBoolean putMlNotificationsIndexTemplateCheck = new AtomicBoolean(false);
     final AtomicBoolean putMlMetaIndexTemplateCheck = new AtomicBoolean(false);
     final AtomicBoolean putStateIndexTemplateCheck = new AtomicBoolean(false);
@@ -84,33 +87,24 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
             // wait until the gateway has recovered from disk,
             // otherwise we think may not have the index templates while they actually do exist
             if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
-                addTemplatesIfMissing(event.state(), () -> {});
+                addTemplatesIfMissing(event.state());
             }
         }
     }
 
     /**
-     * Blocking call adds the registered index templates if missing to the
+     * Puts the registered index templates if missing to the
      * cluster waiting until the templates have been updated.
      */
-    public void addTemplatesIfMissing(ClusterState state) throws InterruptedException {
-        // to be sure that the templates exist after this method call, we should wait until the put index templates calls
-        // have returned if the templates were missing
-        CountDownLatch latch = new CountDownLatch(4);
-        addTemplatesIfMissing(state, latch::countDown);
-
-        latch.await();
-    }
-
-    private void addTemplatesIfMissing(ClusterState state, Runnable callback) {
+    public void addTemplatesIfMissing(ClusterState state) {
         MetaData metaData = state.metaData();
-        addMlNotificationsIndexTemplate(metaData, callback);
-        addMlMetaIndexTemplate(metaData, callback);
-        addStateIndexTemplate(metaData, callback);
-        addResultsIndexTemplate(metaData, callback);
+        addMlNotificationsIndexTemplate(metaData);
+        addMlMetaIndexTemplate(metaData);
+        addStateIndexTemplate(metaData);
+        addResultsIndexTemplate(metaData);
     }
 
-    boolean templateIsPresentAndUpToDate(String templateName, MetaData metaData) {
+    static boolean templateIsPresentAndUpToDate(String templateName, MetaData metaData) {
         IndexTemplateMetaData templateMetaData = metaData.templates().get(templateName);
         if (templateMetaData == null) {
             return false;
@@ -119,7 +113,7 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
         return templateMetaData.version() != null && templateMetaData.version() >= Version.CURRENT.id;
     }
 
-    private void addMlNotificationsIndexTemplate(MetaData metaData, Runnable callback) {
+    private void addMlNotificationsIndexTemplate(MetaData metaData) {
         if (templateIsPresentAndUpToDate(Auditor.NOTIFICATIONS_INDEX, metaData) == false) {
             if (putMlNotificationsIndexTemplateCheck.compareAndSet(false, true)) {
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
@@ -131,18 +125,13 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
                             logger.error(
                                     new ParameterizedMessage("not able to create {} index template", Auditor.NOTIFICATIONS_INDEX), error);
                         }
-                        callback.run();
                     });
                 });
-            } else {
-                callback.run();
             }
-        } else {
-            callback.run();
         }
     }
 
-    private void addMlMetaIndexTemplate(MetaData metaData, Runnable callback) {
+    private void addMlMetaIndexTemplate(MetaData metaData) {
         if (templateIsPresentAndUpToDate(AnomalyDetectorsIndex.ML_META_INDEX, metaData) == false) {
             if (putMlMetaIndexTemplateCheck.compareAndSet(false, true)) {
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
@@ -154,18 +143,13 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
                             logger.error(new ParameterizedMessage(
                                     "not able to create {} index template", AnomalyDetectorsIndex.ML_META_INDEX), error);
                         }
-                        callback.run();
                     });
                 });
-            } else {
-                callback.run();
             }
-        } else {
-            callback.run();
         }
     }
 
-    private void addStateIndexTemplate(MetaData metaData, Runnable callback) {
+    private void addStateIndexTemplate(MetaData metaData) {
         String stateIndexName = AnomalyDetectorsIndex.jobStateIndexName();
         if (templateIsPresentAndUpToDate(stateIndexName, metaData) == false) {
             if (putStateIndexTemplateCheck.compareAndSet(false, true)) {
@@ -177,18 +161,13 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
                         } else {
                             logger.error("not able to create " + stateIndexName + " index template", error);
                         }
-                        callback.run();
                     });
                 });
-            } else {
-                callback.run();
             }
-        } else {
-            callback.run();
         }
     }
 
-    private void addResultsIndexTemplate(MetaData metaData, Runnable callback) {
+    private void addResultsIndexTemplate(MetaData metaData) {
         if (templateIsPresentAndUpToDate(AnomalyDetectorsIndex.jobResultsIndexPrefix(), metaData) == false) {
             if (putResultsIndexTemplateCheck.compareAndSet(false, true)) {
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
@@ -201,14 +180,9 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
                                     new ParameterizedMessage("not able to create {} index template",
                                             AnomalyDetectorsIndex.jobResultsIndexPrefix()), error);
                         }
-                        callback.run();
                     });
                 });
-            } else {
-                callback.run();
             }
-        } else {
-            callback.run();
         }
     }
 
@@ -343,5 +317,14 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
                 // failure we can lose the last 5 seconds of changes, but it's
                 // much faster
                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), ASYNC);
+    }
+
+    public static boolean allTemplatesInstalled(MetaData metaData) {
+        boolean allPresent = true;
+        for (String templateName : TEMPLATE_NAMES) {
+            allPresent = allPresent && templateIsPresentAndUpToDate(templateName, metaData);
+        }
+
+        return allPresent;
     }
 }

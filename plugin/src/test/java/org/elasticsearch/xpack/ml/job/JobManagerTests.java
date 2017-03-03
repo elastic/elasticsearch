@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -13,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MlMetadata;
@@ -21,16 +23,9 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class JobManagerTests extends ESTestCase {
 
@@ -54,15 +49,6 @@ public class JobManagerTests extends ESTestCase {
         QueryPage<Job> doc = jobManager.getJob("foo", clusterState);
         assertTrue(doc.count() > 0);
         assertThat(doc.results().get(0).getId(), equalTo("foo"));
-    }
-
-    public void testFilter() {
-        Set<String> running = new HashSet<>(Arrays.asList("henry", "dim", "dave"));
-        Set<String> diff = new HashSet<>(Arrays.asList("dave", "tom")).stream().filter((s) -> !running.contains(s))
-                .collect(Collectors.toCollection(HashSet::new));
-
-        assertTrue(diff.size() == 1);
-        assertTrue(diff.contains("tom"));
     }
 
     public void testGetJobOrThrowIfUnknown_GivenUnknownJob() {

@@ -39,7 +39,9 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.net.InetAddress;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
@@ -271,24 +273,45 @@ public class MachineLearningTemplateRegistryTests extends ESTestCase {
     }
 
     public void testTemplateIsPresentAndUpToDate() {
-        MachineLearningTemplateRegistry templateRegistry =
-                new MachineLearningTemplateRegistry(createSettings(), clusterService, client, threadPool);
-
         // missing template
         MetaData metaData = MetaData.builder().build();
-        assertFalse(templateRegistry.templateIsPresentAndUpToDate(Auditor.NOTIFICATIONS_INDEX, metaData));
+        assertFalse(MachineLearningTemplateRegistry.templateIsPresentAndUpToDate(Auditor.NOTIFICATIONS_INDEX, metaData));
 
         // old version of template
         IndexTemplateMetaData templateMetaData = IndexTemplateMetaData.builder(Auditor.NOTIFICATIONS_INDEX)
                 .version(Version.CURRENT.id - 1).build();
         metaData = MetaData.builder().put(templateMetaData).build();
-        assertFalse(templateRegistry.templateIsPresentAndUpToDate(Auditor.NOTIFICATIONS_INDEX, metaData));
+        assertFalse(MachineLearningTemplateRegistry.templateIsPresentAndUpToDate(Auditor.NOTIFICATIONS_INDEX, metaData));
 
         // latest template
         templateMetaData = IndexTemplateMetaData.builder(Auditor.NOTIFICATIONS_INDEX)
                 .version(Version.CURRENT.id).build();
         metaData = MetaData.builder().put(templateMetaData).build();
-        assertTrue(templateRegistry.templateIsPresentAndUpToDate(Auditor.NOTIFICATIONS_INDEX, metaData));
+        assertTrue(MachineLearningTemplateRegistry.templateIsPresentAndUpToDate(Auditor.NOTIFICATIONS_INDEX, metaData));
+    }
+
+    public void testAllTemplatesInstalled() {
+        MetaData metaData = MetaData.builder()
+                .put(IndexTemplateMetaData.builder(Auditor.NOTIFICATIONS_INDEX).version(Version.CURRENT.id).build())
+                .put(IndexTemplateMetaData.builder(AnomalyDetectorsIndex.ML_META_INDEX).version(Version.CURRENT.id).build())
+                .put(IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobStateIndexName()).version(Version.CURRENT.id).build())
+                .put(IndexTemplateMetaData.builder(
+                        AnomalyDetectorsIndex.jobResultsIndexPrefix()).version(Version.CURRENT.id).build()).build();
+
+        assertTrue(MachineLearningTemplateRegistry.allTemplatesInstalled(metaData));
+    }
+
+    public void testAllTemplatesInstalled_OneMissing() {
+        MetaData.Builder metaDataBuilder = MetaData.builder();
+
+        String missing = randomFrom(MachineLearningTemplateRegistry.TEMPLATE_NAMES);
+        for (String templateName : MachineLearningTemplateRegistry.TEMPLATE_NAMES) {
+            if (templateName.equals(missing)) {
+                continue;
+            }
+            metaDataBuilder.put(IndexTemplateMetaData.builder(templateName).version(Version.CURRENT.id).build());
+        }
+        assertFalse(MachineLearningTemplateRegistry.allTemplatesInstalled(metaDataBuilder.build()));
     }
 
     private Settings createSettings() {

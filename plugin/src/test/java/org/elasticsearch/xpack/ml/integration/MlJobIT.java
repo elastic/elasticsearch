@@ -42,6 +42,11 @@ public class MlJobIT extends ESRestTestCase {
         return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
     }
 
+    @Override
+    protected boolean preserveTemplatesUponCompletion() {
+        return true;
+    }
+
     private static final String RESULT_MAPPING = "{ \"mappings\": {\"result\": { \"properties\": { " +
             "\"result_type\": { \"type\" : \"keyword\" }," +
             "\"timestamp\": { \"type\" : \"date\" }, " +

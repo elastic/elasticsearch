@@ -39,9 +39,14 @@ public class DatafeedJobIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
     }
 
+    @Override
+    protected boolean preserveTemplatesUponCompletion() {
+        return true;
+    }
+
     @Before
     public void setUpData() throws Exception {
-        // Create empty index
+
         String mappings = "{"
                 + "  \"mappings\": {"
                 + "    \"response\": {"

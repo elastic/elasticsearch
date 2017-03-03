@@ -19,6 +19,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.ml.MlMetadata;
+import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction;

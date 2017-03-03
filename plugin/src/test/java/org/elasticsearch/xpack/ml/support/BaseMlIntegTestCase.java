@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -48,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -97,6 +100,15 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
         return mocks;
     }
 
+    @Before
+    public void ensureTemplatesArePresent() throws Exception {
+        assertBusy(() -> {
+            MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
+            assertTrue("Timed out waiting for the ML templates to be installed",
+                    MachineLearningTemplateRegistry.allTemplatesInstalled(metaData));
+        });
+    }
+    
     protected Job.Builder createJob(String id) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataDescription.DataFormat.JSON);

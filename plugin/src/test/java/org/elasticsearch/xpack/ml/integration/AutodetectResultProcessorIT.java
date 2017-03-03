@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -52,6 +53,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Matchers.any;
@@ -226,7 +228,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         assertResultsAreSame(allRecords, persistedRecords);
     }
 
-    private void putIndexTemplates() throws InterruptedException {
+    private void putIndexTemplates() throws Exception {
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executorService = mock(ExecutorService.class);
         doAnswer(invocation -> {
@@ -235,8 +237,15 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         }).when(executorService).execute(any(Runnable.class));
         when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(executorService);
 
-         new MachineLearningTemplateRegistry(Settings.EMPTY, mock(ClusterService.class), client(), threadPool)
-                 .addTemplatesIfMissing(client().admin().cluster().state(new ClusterStateRequest().all()).actionGet().getState());
+        new MachineLearningTemplateRegistry(Settings.EMPTY, mock(ClusterService.class), client(), threadPool)
+                .addTemplatesIfMissing(client().admin().cluster().state(new ClusterStateRequest().all()).actionGet().getState());
+
+        // block until the templates are installed
+        assertBusy(() -> {
+            MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
+            assertTrue("Timed out waiting for the ML templates to be installed",
+                    MachineLearningTemplateRegistry.allTemplatesInstalled(metaData));
+        });
     }
 
     private Bucket createBucket(boolean isInterim) {

@@ -44,7 +44,7 @@ import java.util.function.Function;
 public interface AzureStorageService {
 
     ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
-    ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(64, ByteSizeUnit.MB);
+    ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(256, ByteSizeUnit.MB);
 
     final class Storage {
         public static final String PREFIX = "cloud.azure.storage.";

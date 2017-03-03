@@ -261,6 +261,7 @@ public class PluginBuildPlugin extends BuildPlugin {
         if (noticeFile != null) {
             NoticeTask generateNotice = project.tasks.create('generateNotice', NoticeTask.class)
             generateNotice.dependencies(project)
+            generateNotice.inputFile = noticeFile
             project.bundlePlugin.from(generateNotice)
         }
     }

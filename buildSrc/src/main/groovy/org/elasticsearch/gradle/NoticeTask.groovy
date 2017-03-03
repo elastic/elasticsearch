@@ -22,6 +22,7 @@ package org.elasticsearch.gradle
 import org.gradle.api.DefaultTask
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
+import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 
@@ -30,8 +31,11 @@ import org.gradle.api.tasks.TaskAction
  */
 public class NoticeTask extends DefaultTask {
 
+    @InputFile
+    File inputFile = project.rootProject.file('NOTICE.txt')
+
     @OutputFile
-    File noticeFile = new File(project.buildDir, "notices/${name}/NOTICE.txt")
+    File outputFile = new File(project.buildDir, "notices/${name}/NOTICE.txt")
 
     /** Configurations to inspect dependencies*/
     private List<Project> dependencies = new ArrayList<>()
@@ -48,7 +52,7 @@ public class NoticeTask extends DefaultTask {
     @TaskAction
     public void generateNotice() {
         StringBuilder output = new StringBuilder()
-        output.append(project.rootProject.file('NOTICE.txt').getText('UTF-8'))
+        output.append(inputFile.getText('UTF-8'))
         output.append('\n\n')
         Set<String> seen = new HashSet<>()
         for (Project dep : dependencies) {
@@ -61,7 +65,7 @@ public class NoticeTask extends DefaultTask {
                 seen.add(file.name)
             }
         }
-        noticeFile.setText(output.toString(), 'UTF-8')
+        outputFile.setText(output.toString(), 'UTF-8')
     }
 
     static void appendFile(File file, String name, String type, StringBuilder output) {

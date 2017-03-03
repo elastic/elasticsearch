@@ -124,7 +124,7 @@ public final class IndexPrivilege extends Privilege {
                 } else if (indexPrivilege != null) {
                     automata.add(indexPrivilege.automaton);
                 } else {
-                    throw new IllegalArgumentException("unknown index privilege [" + name + "]. a privilege must be either " +
+                    throw new IllegalArgumentException("unknown index privilege [" + part + "]. a privilege must be either " +
                             "one of the predefined fixed indices privileges [" +
                             Strings.collectionToCommaDelimitedString(VALUES.entrySet()) + "] or a pattern over one of the available index" +
                             " actions");
@@ -135,7 +135,7 @@ public final class IndexPrivilege extends Privilege {
         if (actions.isEmpty() == false) {
             automata.add(patterns(actions));
         }
-        return new IndexPrivilege(name, Automatons.unionAndMinimize(automata));
+        return new IndexPrivilege(name, unionAndMinimize(automata));
     }
 
     static Map<String, IndexPrivilege> values() {

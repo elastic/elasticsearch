@@ -88,6 +88,7 @@ cluster:admin/xpack/security/user/put
 cluster:admin/xpack/security/user/delete
 cluster:admin/xpack/security/user/get
 cluster:admin/xpack/security/user/set_enabled
+cluster:admin/xpack/security/user/has_privileges
 cluster:admin/xpack/security/role/put
 cluster:admin/xpack/security/role/delete
 cluster:admin/xpack/security/role/get

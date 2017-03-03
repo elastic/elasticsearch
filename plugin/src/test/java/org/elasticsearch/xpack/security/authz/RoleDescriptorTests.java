@@ -82,7 +82,7 @@ public class RoleDescriptorTests extends ESTestCase {
         assertEquals(0, rd.getIndicesPrivileges().length);
         assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
 
-        q = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"indices\": [{\"names\": \"idx1\", \"privileges\": [\"p1\", " +
+        q = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"index\": [{\"names\": \"idx1\", \"privileges\": [\"p1\", " +
                 "\"p2\"]}, {\"names\": \"idx2\", \"privileges\": [\"p3\"], \"field_security\": " +
                 "{\"grant\": [\"f1\", \"f2\"]}}, {\"names\": " +
                 "\"idx2\", " +
@@ -93,7 +93,7 @@ public class RoleDescriptorTests extends ESTestCase {
         assertEquals(3, rd.getIndicesPrivileges().length);
         assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
 
-        q = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"indices\": [{\"names\": [\"idx1\",\"idx2\"], \"privileges\": " +
+        q = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"index\": [{\"names\": [\"idx1\",\"idx2\"], \"privileges\": " +
                 "[\"p1\", \"p2\"]}]}";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertEquals("test", rd.getName());
@@ -134,6 +134,18 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testParseEmptyQuery() throws Exception {
+        String json = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"index\": [{\"names\": [\"idx1\",\"idx2\"], " +
+                "\"privileges\": [\"p1\", \"p2\"], \"query\": \"\"}]}";
+        RoleDescriptor rd = RoleDescriptor.parse("test", new BytesArray(json), false, XContentType.JSON);
+        assertEquals("test", rd.getName());
+        assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
+        assertEquals(1, rd.getIndicesPrivileges().length);
+        assertArrayEquals(new String[] { "idx1", "idx2" }, rd.getIndicesPrivileges()[0].getIndices());
+        assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
+        assertNull(rd.getIndicesPrivileges()[0].getQuery());
+    }
+
+    public void testParseEmptyQueryUsingDeprecatedIndicesField() throws Exception {
         String json = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"indices\": [{\"names\": [\"idx1\",\"idx2\"], " +
                 "\"privileges\": [\"p1\", \"p2\"], \"query\": \"\"}]}";
         RoleDescriptor rd = RoleDescriptor.parse("test", new BytesArray(json), false, XContentType.JSON);

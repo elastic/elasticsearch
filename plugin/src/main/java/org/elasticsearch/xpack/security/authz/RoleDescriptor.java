@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.common.xcontent.XContentUtils;
+import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.support.MetadataUtils;
 import org.elasticsearch.xpack.security.support.Validation;
 
@@ -231,7 +232,7 @@ public class RoleDescriptor implements ToXContentObject {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Fields.INDICES.match(currentFieldName)) {
+            } else if (Fields.INDEX.match(currentFieldName) || Fields.INDICES.match(currentFieldName)) {
                 indicesPrivileges = parseIndices(name, parser, allow2xFormat);
             } else if (Fields.RUN_AS.match(currentFieldName)) {
                 runAsUsers = readStringArray(name, parser, true);
@@ -264,6 +265,47 @@ public class RoleDescriptor implements ToXContentObject {
         } catch (ElasticsearchParseException e) {
             // re-wrap in order to add the role name
             throw new ElasticsearchParseException("failed to parse role [{}]", e, roleName);
+        }
+    }
+
+    public static RoleDescriptor parsePrivilegesCheck(String description, BytesReference source, XContentType xContentType)
+            throws IOException {
+        try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, source)) {
+            // advance to the START_OBJECT token
+            XContentParser.Token token = parser.nextToken();
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new ElasticsearchParseException("failed to parse privileges check [{}]. expected an object but found [{}] instead",
+                        description, token);
+            }
+            String currentFieldName = null;
+            IndicesPrivileges[] indexPrivileges = null;
+            String[] clusterPrivileges = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (Fields.INDEX.match(currentFieldName)) {
+                    indexPrivileges = parseIndices(description, parser, false);
+                } else if (Fields.CLUSTER.match(currentFieldName)) {
+                    clusterPrivileges = readStringArray(description, parser, true);
+                } else {
+                    throw new ElasticsearchParseException("failed to parse privileges check [{}]. unexpected field [{}]",
+                            description, currentFieldName);
+                }
+            }
+            if (indexPrivileges == null && clusterPrivileges == null) {
+                throw new ElasticsearchParseException("failed to parse privileges check [{}]. fields [{}] and [{}] are both missing",
+                        description, Fields.INDEX, Fields.CLUSTER);
+            }
+            if (indexPrivileges != null) {
+                if (Arrays.stream(indexPrivileges).anyMatch(IndicesPrivileges::isUsingFieldLevelSecurity)) {
+                    throw new ElasticsearchParseException("Field [{}] is not supported in a has_privileges request",
+                            RoleDescriptor.Fields.FIELD_PERMISSIONS);
+                }
+                if (Arrays.stream(indexPrivileges).anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity)) {
+                    throw new ElasticsearchParseException("Field [{}] is not supported in a has_privileges request", Fields.QUERY);
+                }
+            }
+            return new RoleDescriptor(description, clusterPrivileges, indexPrivileges, null);
         }
     }
 
@@ -634,6 +676,7 @@ public class RoleDescriptor implements ToXContentObject {
 
     public interface Fields {
         ParseField CLUSTER = new ParseField("cluster");
+        ParseField INDEX = new ParseField("index");
         ParseField INDICES = new ParseField("indices");
         ParseField RUN_AS = new ParseField("run_as");
         ParseField NAMES = new ParseField("names");

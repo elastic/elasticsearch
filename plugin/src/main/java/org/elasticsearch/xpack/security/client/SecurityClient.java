@@ -42,6 +42,10 @@ import org.elasticsearch.xpack.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.security.action.user.GetUsersRequest;
 import org.elasticsearch.xpack.security.action.user.GetUsersRequestBuilder;
 import org.elasticsearch.xpack.security.action.user.GetUsersResponse;
+import org.elasticsearch.xpack.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.security.action.user.HasPrivilegesRequestBuilder;
+import org.elasticsearch.xpack.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.security.action.user.PutUserRequestBuilder;
@@ -124,6 +128,22 @@ public class SecurityClient {
      */
     public ActionFuture<ClearRolesCacheResponse> clearRolesCache(ClearRolesCacheRequest request) {
         return client.execute(ClearRolesCacheAction.INSTANCE, request);
+    }
+
+    /**
+     * Permissions / Privileges
+     */
+    public HasPrivilegesRequestBuilder prepareHasPrivileges(String username) {
+        return new HasPrivilegesRequestBuilder(client).username(username);
+    }
+
+    public HasPrivilegesRequestBuilder prepareHasPrivileges(String username, BytesReference source, XContentType xContentType)
+            throws IOException {
+        return new HasPrivilegesRequestBuilder(client).source(username, source, xContentType);
+    }
+
+    public void hasPrivileges(HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
+        client.execute(HasPrivilegesAction.INSTANCE, request, listener);
     }
 
     /** User Management */

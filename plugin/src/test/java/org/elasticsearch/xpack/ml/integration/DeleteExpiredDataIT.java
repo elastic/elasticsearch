@@ -15,6 +15,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
@@ -46,10 +47,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -121,6 +125,7 @@ public class DeleteExpiredDataIT extends SecurityIntegTestCase {
         jobs.add(newJobBuilder("results-and-snapshots-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(2L).build());
 
         long now = System.currentTimeMillis();
+        long oneDayAgo = now - TimeValue.timeValueHours(48).getMillis() - 1;
         for (Job job : jobs) {
             PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
             client().execute(PutJobAction.INSTANCE, putJobRequest).get();
@@ -144,7 +149,7 @@ public class DeleteExpiredDataIT extends SecurityIntegTestCase {
             String snapshotDocId = job.getId() + "-" + modelSnapshots.get(0).getSnapshotId();
 
             // Update snapshot timestamp to force it out of snapshot retention window
-            String snapshotUpdate = "{ \"timestamp\": " + (now - TimeValue.timeValueHours(48).getMillis() - 1) + "}";
+            String snapshotUpdate = "{ \"timestamp\": " + oneDayAgo + "}";
             UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + job.getId(), "model_snapshot", snapshotDocId);
             updateSnapshotRequest.doc(snapshotUpdate.getBytes(StandardCharsets.UTF_8), XContentType.JSON);
             client().execute(UpdateAction.INSTANCE, updateSnapshotRequest).get();
@@ -164,7 +169,15 @@ public class DeleteExpiredDataIT extends SecurityIntegTestCase {
             assertThat(getRecords(job.getId()).size(), equalTo(1));
             List<ModelSnapshot> modelSnapshots = getModelSnapshots(job.getId());
             assertThat(modelSnapshots.size(), equalTo(2));
+
         }
+
+        long totalModelSizeStatsBeforeDelete = client().prepareSearch("*").setTypes("result")
+                .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
+                .get().getHits().totalHits;
+        long totalNotificationsCountBeforeDelete = client().prepareSearch(".ml-notifications").get().getHits().totalHits;
+        assertThat(totalModelSizeStatsBeforeDelete, greaterThan(0L));
+        assertThat(totalNotificationsCountBeforeDelete, greaterThan(0L));
 
         client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
 
@@ -179,6 +192,7 @@ public class DeleteExpiredDataIT extends SecurityIntegTestCase {
         List<Bucket> buckets = getBuckets("results-retention");
         assertThat(buckets.size(), is(lessThanOrEqualTo(24)));
         assertThat(buckets.size(), is(greaterThanOrEqualTo(22)));
+        assertThat(buckets.get(0).getTimestamp().getTime(), greaterThanOrEqualTo(oneDayAgo));
         assertThat(getRecords("results-retention").size(), equalTo(0));
         assertThat(getModelSnapshots("results-retention").size(), equalTo(2));
 
@@ -189,8 +203,16 @@ public class DeleteExpiredDataIT extends SecurityIntegTestCase {
         buckets = getBuckets("results-and-snapshots-retention");
         assertThat(buckets.size(), is(lessThanOrEqualTo(24)));
         assertThat(buckets.size(), is(greaterThanOrEqualTo(22)));
+        assertThat(buckets.get(0).getTimestamp().getTime(), greaterThanOrEqualTo(oneDayAgo));
         assertThat(getRecords("results-and-snapshots-retention").size(), equalTo(0));
         assertThat(getModelSnapshots("results-and-snapshots-retention").size(), equalTo(1));
+
+        long totalModelSizeStatsAfterDelete = client().prepareSearch("*").setTypes("result")
+                .setQuery(QueryBuilders.termQuery("result_type", "model_size_stats"))
+                .get().getHits().totalHits;
+        long totalNotificationsCountAfterDelete = client().prepareSearch(".ml-notifications").get().getHits().totalHits;
+        assertThat(totalModelSizeStatsAfterDelete, equalTo(totalModelSizeStatsBeforeDelete));
+        assertThat(totalNotificationsCountAfterDelete, greaterThanOrEqualTo(totalNotificationsCountBeforeDelete));
     }
 
     private static Job.Builder newJobBuilder(String id) {

@@ -30,6 +30,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * This test needs Azure to run and -Dtests.thirdparty=true to be set
@@ -62,15 +63,16 @@ public class AzureSnapshotRestoreListSnapshotsTests extends AbstractAzureWithThi
 
         logger.info("--> start get snapshots on primary");
         long startWait = System.currentTimeMillis();
-        GetSnapshotsResponse snapshotsResponsePrimary = client.admin().cluster().prepareGetSnapshots("primary").get();
+        client.admin().cluster().prepareGetSnapshots("primary").get();
         long endWait = System.currentTimeMillis();
-        logger.info("--> end of get snapshots on primary. Took {} ms", endWait - startWait);
+        // definitely should be done in 30s, and if its not working as expected, it takes over 1m
+        assertThat(endWait - startWait, lessThanOrEqualTo(30000L));
 
         logger.info("--> start get snapshots on secondary");
         startWait = System.currentTimeMillis();
-        GetSnapshotsResponse snapshotsResponseSecondary = client.admin().cluster().prepareGetSnapshots("secondary").get();
+        client.admin().cluster().prepareGetSnapshots("secondary").get();
         endWait = System.currentTimeMillis();
         logger.info("--> end of get snapshots on secondary. Took {} ms", endWait - startWait);
-
+        assertThat(endWait - startWait, lessThanOrEqualTo(30000L));
     }
 }

@@ -46,10 +46,6 @@
                 "synonymAnalyzerExpandWithStopAfterSynonym":{
                     "tokenizer": "whitespace",
                     "filter":["synonym_expand", "stop_within_synonym"]
-                },
-                "synonymAnalyzerWithTokenizerFactory":{
-                    "tokenizer": "whitespace",
-                    "filter":["stop_within_synonym", "synonym_with_tokenizer"]
                 }
             },
             "tokenizer":{
@@ -115,15 +111,6 @@
                         "dude , elasticsearch",
                         "abides , man!"
                     ]
-                },
-                "synonym_with_tokenizer":{
-                    "type":"synonym",
-                    "synonyms":[
-                        "kimchy => shay",
-                        "dude => elasticsearch",
-                        "abides => man!"
-                    ],
-                    "tokenizer": "standard"
                 }
             },
             "char_filter": {

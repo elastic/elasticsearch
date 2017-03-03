@@ -20,9 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.synonym.SolrSynonymParser;
 import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
@@ -43,50 +41,34 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        // fst is null means no synonyms
-        return synonymMap.fst == null ? tokenStream : new SynonymGraphFilter(tokenStream, synonymMap, ignoreCase);
+        throw new IllegalStateException("Call createPerAnalyzerSynonymGraphFactory to specialize this factory for an analysis chain first");
     }
 
-    public Factory createPerAnalyzerSynonymGraphFactory(Analyzer analyzerForParseSynonym){
-        return new Factory("synonymgraph", analyzerForParseSynonym);
+    Factory createPerAnalyzerSynonymGraphFactory(Analyzer analyzerForParseSynonym, Environment env){
+        return new Factory("synonymgraph", analyzerForParseSynonym, getRulesFromSettings(env));
     }
 
     public class Factory implements TokenFilterFactory{
 
         private final String name;
+        private final SynonymMap synonymMap;
 
-        public Factory(String name, Analyzer analyzerForParseSynonym) {
+        public Factory(String name, final Analyzer analyzerForParseSynonym, String rules) {
             this.name = name;
 
-            Analyzer analyzer;
-            if (tokenizerFactory != null) {
-                analyzer = new Analyzer() {
-                    @Override
-                    protected TokenStreamComponents createComponents(String fieldName) {
-                        Tokenizer tokenizer = tokenizerFactory.create();
-                        TokenStream stream = ignoreCase ? new LowerCaseFilter(tokenizer) : tokenizer;
-                        return new TokenStreamComponents(tokenizer, stream);
-                    }
-                };
-            } else {
-                analyzer = analyzerForParseSynonym;
-            }
-
-            if (synonymMap == null) {
-                try {
-                    SynonymMap.Builder parser;
-                    Reader rulesReader = new FastStringReader(rules);
-                    if ("wordnet".equalsIgnoreCase(format)) {
-                        parser = new WordnetSynonymParser(true, expand, analyzer);
-                        ((WordnetSynonymParser) parser).parse(rulesReader);
-                    } else {
-                        parser = new SolrSynonymParser(true, expand, analyzer);
-                        ((SolrSynonymParser) parser).parse(rulesReader);
-                    }
-                    synonymMap = parser.build();
-                } catch (Exception e) {
-                    throw new IllegalArgumentException("failed to build synonyms", e);
+            try {
+                SynonymMap.Builder parser;
+                Reader rulesReader = new FastStringReader(rules);
+                if ("wordnet".equalsIgnoreCase(format)) {
+                    parser = new WordnetSynonymParser(true, expand, analyzerForParseSynonym);
+                    ((WordnetSynonymParser) parser).parse(rulesReader);
+                } else {
+                    parser = new SolrSynonymParser(true, expand, analyzerForParseSynonym);
+                    ((SolrSynonymParser) parser).parse(rulesReader);
                 }
+                synonymMap = parser.build();
+            } catch (Exception e) {
+                throw new IllegalArgumentException("failed to build synonyms", e);
             }
         }
 

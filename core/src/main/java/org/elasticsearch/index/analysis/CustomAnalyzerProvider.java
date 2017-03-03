@@ -20,6 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 
@@ -34,13 +35,15 @@ import java.util.Map;
 public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<CustomAnalyzer> {
 
     private final Settings analyzerSettings;
+    private final Environment environment;
 
     private CustomAnalyzer customAnalyzer;
 
     public CustomAnalyzerProvider(IndexSettings indexSettings,
-                                  String name, Settings settings) {
+                                  String name, Settings settings, Environment environment) {
         super(indexSettings, name, settings);
         this.analyzerSettings = settings;
+        this.environment = environment;
     }
 
     public void build(final Map<String, TokenizerFactory> tokenizers, final Map<String, CharFilterFactory> charFilters,
@@ -78,24 +81,8 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             if (tokenFilter == null) {
                 throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find filter under name [" + tokenFilterName + "]");
             }
-            if (tokenFilter instanceof SynonymGraphTokenFilterFactory) {
-                List<TokenFilterFactory> tokenFiltersListForSynonym = new ArrayList<>(tokenFilterList);
-                tokenFilter = ((SynonymGraphTokenFilterFactory) tokenFilter).createPerAnalyzerSynonymGraphFactory(
-                    new CustomAnalyzer(tokenizer,
-                        charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
-                        tokenFiltersListForSynonym.toArray(new TokenFilterFactory[tokenFiltersListForSynonym.size()]),
-                        positionIncrementGap,
-                        offsetGap));;
-
-            } else if (tokenFilter instanceof SynonymTokenFilterFactory) {
-                List<TokenFilterFactory> tokenFiltersListForSynonym = new ArrayList<>(tokenFilterList);
-                tokenFilter = ((SynonymTokenFilterFactory) tokenFilter).createPerAnalyzerSynonymFactory(
-                    new CustomAnalyzer(tokenizer,
-                        charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
-                        tokenFiltersListForSynonym.toArray(new TokenFilterFactory[tokenFiltersListForSynonym.size()]),
-                        positionIncrementGap,
-                        offsetGap));;
-            }
+            tokenFilter = checkAndApplySynonymFilter(tokenFilter, tokenizer, tokenFilterList, charFiltersList,
+                positionIncrementGap, offsetGap, this.environment);
             tokenFilterList.add(tokenFilter);
         }
 
@@ -105,6 +92,34 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
                 positionIncrementGap,
                 offsetGap
         );
+    }
+
+    public static TokenFilterFactory checkAndApplySynonymFilter(TokenFilterFactory tokenFilter, TokenizerFactory tokenizer,
+                                                                List<TokenFilterFactory> tokenFilterList,
+                                                                List<CharFilterFactory> charFiltersList,
+                                                                int positionIncrementGap, int offsetGap, Environment env) {
+        if (tokenFilter instanceof SynonymGraphTokenFilterFactory) {
+            List<TokenFilterFactory> tokenFiltersListForSynonym = new ArrayList<>(tokenFilterList);
+
+            try (CustomAnalyzer analyzer = new CustomAnalyzer(tokenizer,
+                    charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
+                    tokenFiltersListForSynonym.toArray(new TokenFilterFactory[tokenFiltersListForSynonym.size()]),
+                    positionIncrementGap,
+                    offsetGap)){
+                tokenFilter = ((SynonymGraphTokenFilterFactory) tokenFilter).createPerAnalyzerSynonymGraphFactory(analyzer, env);
+            }
+
+        } else if (tokenFilter instanceof SynonymTokenFilterFactory) {
+            List<TokenFilterFactory> tokenFiltersListForSynonym = new ArrayList<>(tokenFilterList);
+            try (CustomAnalyzer analyzer = new CustomAnalyzer(tokenizer,
+                    charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
+                    tokenFiltersListForSynonym.toArray(new TokenFilterFactory[tokenFiltersListForSynonym.size()]),
+                    positionIncrementGap,
+                    offsetGap)) {
+                tokenFilter = ((SynonymTokenFilterFactory) tokenFilter).createPerAnalyzerSynonymFactory(analyzer, env);
+            }
+        }
+        return tokenFilter;
     }
 
     @Override

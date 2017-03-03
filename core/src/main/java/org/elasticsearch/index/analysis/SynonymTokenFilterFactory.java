@@ -27,7 +27,7 @@ import org.apache.lucene.analysis.synonym.SolrSynonymParser;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -44,13 +44,44 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     protected final boolean ignoreCase;
     protected final String format;
     protected final boolean expand;
-    protected final String rules;
-    protected SynonymMap synonymMap;
+    protected final Settings settings;
 
     public SynonymTokenFilterFactory(IndexSettings indexSettings, Environment env, AnalysisRegistry analysisRegistry,
                                       String name, Settings settings) throws IOException {
         super(indexSettings, name, settings);
+        this.settings = settings;
 
+        this.ignoreCase =
+            settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "ignore_case", false, deprecationLogger);
+        this.expand =
+            settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "expand", true, deprecationLogger);
+
+        // for backward compatibility
+        if (indexSettings.getIndexVersionCreated().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            String tokenizerName = settings.get("tokenizer", "whitespace");
+            AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory =
+                analysisRegistry.getTokenizerProvider(tokenizerName, indexSettings);
+            if (tokenizerFactoryFactory == null) {
+                throw new IllegalArgumentException("failed to find tokenizer [" + tokenizerName + "] for synonym token filter");
+            }
+            final TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.get(indexSettings, env, tokenizerName,
+                AnalysisRegistry.getSettingsFromIndexSettings(indexSettings,
+                    AnalysisRegistry.INDEX_ANALYSIS_TOKENIZER + "." + tokenizerName));
+            this.tokenizerFactory = tokenizerFactory;
+        } else {
+            this.tokenizerFactory = null;
+        }
+
+        this.format = settings.get("format", "");
+    }
+
+    @Override
+    public TokenStream create(TokenStream tokenStream) {
+        throw new IllegalStateException("Call createPerAnalyzerSynonymFactory to specialize this factory for an analysis chain first");
+    }
+
+    protected String getRulesFromSettings(Environment env) {
+        String rules;
         if (settings.getAsArray("synonyms", null) != null) {
             List<String> rulesList = Analysis.getWordList(env, settings, "synonyms");
             StringBuilder sb = new StringBuilder();
@@ -74,40 +105,13 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         } else {
             throw new IllegalArgumentException("synonym requires either `synonyms` or `synonyms_path` to be configured");
         }
-
-        this.ignoreCase =
-            settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "ignore_case", false, deprecationLogger);
-        this.expand =
-            settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "expand", true, deprecationLogger);
-
-        // for backward compatibility
-        String tokenizerName = settings.get("tokenizer", "");
-
-        if (Strings.hasLength(tokenizerName)) {
-            AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory =
-                analysisRegistry.getTokenizerProvider(tokenizerName, indexSettings);
-            if (tokenizerFactoryFactory == null) {
-                throw new IllegalArgumentException("failed to find tokenizer [" + tokenizerName + "] for synonym token filter");
-            }
-            final TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.get(indexSettings, env, tokenizerName,
-                AnalysisRegistry.getSettingsFromIndexSettings(indexSettings,
-                    AnalysisRegistry.INDEX_ANALYSIS_TOKENIZER + "." + tokenizerName));
-            this.tokenizerFactory = tokenizerFactory;
-        } else {
-            this.tokenizerFactory = null;
-        }
-
-        this.format = settings.get("format", "");
+        return rules;
     }
 
-    @Override
-    public TokenStream create(TokenStream tokenStream) {
-        // fst is null means no synonyms
-        return synonymMap.fst == null ? tokenStream : new SynonymFilter(tokenStream, synonymMap, ignoreCase);
-    }
+    Factory createPerAnalyzerSynonymFactory(Analyzer analyzerForParseSynonym, Environment env){
+        String rules = getRulesFromSettings(env);
 
-    public Factory createPerAnalyzerSynonymFactory(Analyzer analyzerForParseSynonym){
-        return new Factory("synonym", analyzerForParseSynonym);
+        return new Factory("synonym", analyzerForParseSynonym, rules);
     }
 
     // for backward compatibility
@@ -116,8 +120,10 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     public class Factory implements TokenFilterFactory{
 
         private final String name;
+        private final SynonymMap synonymMap;
 
-        public Factory(String name, Analyzer analyzerForParseSynonym) {
+        public Factory(String name, Analyzer analyzerForParseSynonym, String rules) {
+
             this.name = name;
 
             Analyzer analyzer;
@@ -134,21 +140,19 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                 analyzer = analyzerForParseSynonym;
             }
 
-            if (synonymMap == null) {
-                try {
-                    SynonymMap.Builder parser;
-                    Reader rulesReader = new FastStringReader(rules);
-                    if ("wordnet".equalsIgnoreCase(format)) {
-                        parser = new WordnetSynonymParser(true, expand, analyzer);
-                        ((WordnetSynonymParser) parser).parse(rulesReader);
-                    } else {
-                        parser = new SolrSynonymParser(true, expand, analyzer);
-                        ((SolrSynonymParser) parser).parse(rulesReader);
-                    }
-                    synonymMap = parser.build();
-                } catch (Exception e) {
-                    throw new IllegalArgumentException("failed to build synonyms", e);
+            try {
+                SynonymMap.Builder parser;
+                Reader rulesReader = new FastStringReader(rules);
+                if ("wordnet".equalsIgnoreCase(format)) {
+                    parser = new WordnetSynonymParser(true, expand, analyzer);
+                    ((WordnetSynonymParser) parser).parse(rulesReader);
+                } else {
+                    parser = new SolrSynonymParser(true, expand, analyzer);
+                    ((SolrSynonymParser) parser).parse(rulesReader);
                 }
+                synonymMap = parser.build();
+            } catch (Exception e) {
+                throw new IllegalArgumentException("failed to build synonyms", e);
             }
         }
 

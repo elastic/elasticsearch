@@ -78,7 +78,6 @@ public class SynonymsAnalysisTests extends ESTestCase {
         match("synonymAnalyzerWithStopSynonymAfterSynonym", "kimchy is the dude abides", "shay is the man!");
         match("synonymAnalyzerExpand", "kimchy is the dude abides", "kimchy shay is the dude elasticsearch abides man!");
         match("synonymAnalyzerExpandWithStopAfterSynonym", "kimchy is the dude abides", "shay is the dude abides man!");
-        match("synonymAnalyzerWithTokenizerFactory", "kimchy is the dude abides", "is the elasticsearch man");
 
     }
 

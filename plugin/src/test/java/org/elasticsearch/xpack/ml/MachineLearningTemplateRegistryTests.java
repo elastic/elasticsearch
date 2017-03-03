@@ -148,7 +148,7 @@ public class MachineLearningTemplateRegistryTests extends ESTestCase {
         verify(threadPool, times(0)).executor(anyString());
         assertFalse(templateRegistry.putMlNotificationsIndexTemplateCheck.get());
         assertFalse(templateRegistry.putMlMetaIndexTemplateCheck.get());
-        assertFalse(templateRegistry.putMlNotificationsIndexTemplateCheck.get());
+        assertFalse(templateRegistry.putStateIndexTemplateCheck.get());
         assertFalse(templateRegistry.putResultsIndexTemplateCheck.get());
     }
 

@@ -396,6 +396,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING,
                     IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING,
                     ResourceWatcherService.ENABLED,
+                    ResourceWatcherService.RELOAD_INTERVAL,
                     ResourceWatcherService.RELOAD_INTERVAL_HIGH,
                     ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
                     ResourceWatcherService.RELOAD_INTERVAL_LOW,

@@ -50,11 +50,11 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManage
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.JobStateObserver;
+import org.elasticsearch.xpack.persistent.NodePersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentActionRegistry;
 import org.elasticsearch.xpack.persistent.PersistentActionRequest;
 import org.elasticsearch.xpack.persistent.PersistentActionResponse;
 import org.elasticsearch.xpack.persistent.PersistentActionService;
-import org.elasticsearch.xpack.persistent.NodePersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTasks;
 import org.elasticsearch.xpack.persistent.PersistentTasks.Assignment;
 import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
@@ -66,7 +66,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE;
 
@@ -221,7 +221,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
     public static class JobTask extends NodePersistentTask {
 
         private final String jobId;
-        private volatile Consumer<String> cancelHandler;
+        private volatile BiConsumer<Boolean, String> cancelHandler;
 
         JobTask(String jobId, long id, String type, String action, TaskId parentTask) {
             super(id, type, action, "job-" + jobId, parentTask);
@@ -234,8 +234,9 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
 
         @Override
         protected void onCancelled() {
-            String reason = CancelTasksRequest.DEFAULT_REASON.equals(getReasonCancelled()) ? null : getReasonCancelled();
-            cancelHandler.accept(reason);
+            String reason = getReasonCancelled();
+            boolean restart = CancelTasksRequest.DEFAULT_REASON.equals(reason) == false;
+            cancelHandler.accept(restart, reason);
         }
 
         static boolean match(Task task, String expectedJobId) {
@@ -333,7 +334,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
                 }
 
                 JobTask jobTask = (JobTask) task;
-                jobTask.cancelHandler = (reason) -> autodetectProcessManager.closeJob(request.getJobId(), reason);
+                jobTask.cancelHandler = (restart, reason) -> autodetectProcessManager.closeJob(request.getJobId(), restart, reason);
                 autodetectProcessManager.openJob(request.getJobId(), task.getPersistentTaskId(), request.isIgnoreDowntime(), e2 -> {
                     if (e2 == null) {
                         listener.onResponse(new TransportResponse.Empty());

@@ -49,6 +49,7 @@ import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -95,6 +96,17 @@ public class AutodetectProcessManager extends AbstractComponent {
         this.jobDataCountsPersister = jobDataCountsPersister;
 
         this.autoDetectCommunicatorByJob = new ConcurrentHashMap<>();
+    }
+
+    public synchronized void closeAllJobs(String reason) throws IOException {
+        int numJobs = autoDetectCommunicatorByJob.size();
+        if (numJobs != 0) {
+            logger.info("Closing [{}] jobs, because [{}]", numJobs, reason);
+        }
+
+        for (Map.Entry<String, AutodetectCommunicator> entry : autoDetectCommunicatorByJob.entrySet()) {
+            closeJob(entry.getKey(), false, reason);
+        }
     }
 
     /**
@@ -267,25 +279,25 @@ public class AutodetectProcessManager extends AbstractComponent {
     /**
      * Stop the running job and mark it as finished.<br>
      * @param jobId         The job to stop
-     * @param errorReason   If caused by failure, the reason for closing the job
+     * @param restart       Whether the job should be restarted by persistent tasks
+     * @param reason        The reason for closing the job
      */
-    public void closeJob(String jobId, String errorReason) {
-        logger.debug("Attempting to close job [{}], because [{}]", jobId, errorReason);
+    public void closeJob(String jobId, boolean restart, String reason) {
+        logger.debug("Attempting to close job [{}], because [{}]", jobId, reason);
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.remove(jobId);
         if (communicator == null) {
             logger.debug("Cannot close: no active autodetect process for job {}", jobId);
             return;
         }
 
-        if (errorReason == null) {
+        if (reason == null) {
             logger.info("Closing job [{}]", jobId);
         } else {
-            logger.info("Closing job [{}], because [{}]", jobId, errorReason);
+            logger.info("Closing job [{}], because [{}]", jobId, reason);
         }
 
         try {
-            communicator.close(errorReason);
-            logger.info("[{}] job closed", jobId);
+            communicator.close(restart, reason);
         } catch (Exception e) {
             logger.warn("Exception closing stopped process input stream", e);
             throw ExceptionsHelper.serverError("Exception closing stopped process input stream", e);

@@ -39,7 +39,10 @@ import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
 
 import java.time.Duration;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -57,6 +60,7 @@ public class DatafeedJobRunner extends AbstractComponent {
     private final ThreadPool threadPool;
     private final Supplier<Long> currentTimeSupplier;
     private final Auditor auditor;
+    private final ConcurrentMap<String, Holder> runningDatafeeds = new ConcurrentHashMap<>();
 
     public DatafeedJobRunner(ThreadPool threadPool, Client client, ClusterService clusterService, JobProvider jobProvider,
                               Supplier<Long> currentTimeSupplier, Auditor auditor) {
@@ -95,6 +99,7 @@ public class DatafeedJobRunner extends AbstractComponent {
                 latestRecordTimeMs = dataCounts.getLatestRecordTimeStamp().getTime();
             }
             Holder holder = createJobDatafeed(datafeed, job, latestFinalBucketEndMs, latestRecordTimeMs, handler, task);
+            runningDatafeeds.put(datafeedId, holder);
             updateDatafeedState(task.getPersistentTaskId(), DatafeedState.STARTED, e -> {
                 if (e != null) {
                     handler.accept(e);
@@ -103,6 +108,17 @@ public class DatafeedJobRunner extends AbstractComponent {
                 }
             });
         }, handler);
+    }
+
+    public synchronized void closeAllDatafeeds(String reason) {
+        int numDatafeeds = runningDatafeeds.size();
+        if (numDatafeeds != 0) {
+            logger.info("Closing [{}] datafeeds, because [{}]", numDatafeeds, reason);
+        }
+
+        for (Map.Entry<String, Holder> entry : runningDatafeeds.entrySet()) {
+            entry.getValue().stop(reason, TimeValue.timeValueSeconds(20), null);
+        }
     }
 
     // Important: Holder must be created and assigned to DatafeedTask before setting state to started,
@@ -279,6 +295,7 @@ public class DatafeedJobRunner extends AbstractComponent {
                 } finally {
                     logger.info("[{}] stopping datafeed [{}] for job [{}], acquired [{}]...", source, datafeed.getId(),
                             datafeed.getJobId(), acquired);
+                    runningDatafeeds.remove(datafeed.getId());
                     FutureUtils.cancel(future);
                     auditor.info(datafeed.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
                     handler.accept(e);

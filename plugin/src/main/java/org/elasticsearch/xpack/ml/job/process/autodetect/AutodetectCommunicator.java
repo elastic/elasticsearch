@@ -89,15 +89,23 @@ public class AutodetectCommunicator implements Closeable {
 
     @Override
     public void close() throws IOException {
-        close(null);
+        close(false, null);
     }
 
-    public void close(String errorReason) throws IOException {
+    /**
+     * Closes job this communicator is encapsulating.
+     *
+     * @param restart   Whether the job should be restarted by persistent tasks
+     * @param reason    The reason for closing the job
+     */
+    public void close(boolean restart, String reason) throws IOException {
         checkAndRun(() -> Messages.getMessage(Messages.JOB_DATA_CONCURRENT_USE_CLOSE, job.getId()), () -> {
+            LOGGER.info("[{}] job closing, reason [{}]", job.getId(), reason);
             dataCountsReporter.close();
             autodetectProcess.close();
             autoDetectResultProcessor.awaitCompletion();
-            handler.accept(errorReason != null ? new ElasticsearchException(errorReason) : null);
+            handler.accept(restart ? new ElasticsearchException(reason) : null);
+            LOGGER.info("[{}] job closed", job.getId());
             return null;
         }, true);
     }

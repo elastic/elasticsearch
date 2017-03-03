@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -160,19 +161,17 @@ public class MachineLearning extends Plugin implements ActionPlugin {
 
     private final Settings settings;
     private final Environment env;
-    private boolean enabled;
-    private boolean transportClientMode;
+    private final XPackLicenseState licenseState;
+    private final boolean enabled;
+    private final boolean transportClientMode;
     private final boolean tribeNode;
     private final boolean tribeNodeClient;
 
-    public MachineLearning(Settings settings) {
-        this(settings, new Environment(settings));
-    }
-
-    public MachineLearning(Settings settings, Environment env) {
-        this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
+    public MachineLearning(Settings settings, Environment env, XPackLicenseState licenseState) {
         this.settings = settings;
         this.env = env;
+        this.licenseState = licenseState;
+        this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
         this.tribeNode = XPackPlugin.isTribeNode(settings);
         this.tribeNodeClient = XPackPlugin.isTribeClientNode(settings);
@@ -298,18 +297,21 @@ public class MachineLearning extends Plugin implements ActionPlugin {
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.THREAD_POOL_NAME));
-        AutodetectProcessManager dataProcessor = new AutodetectProcessManager(settings, client, threadPool, jobManager, jobProvider,
-                jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory, normalizerFactory);
+        AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(settings, client, threadPool,
+                jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
+                normalizerFactory);
         DatafeedJobRunner datafeedJobRunner = new DatafeedJobRunner(threadPool, client, clusterService, jobProvider,
                 System::currentTimeMillis, auditor);
         PersistentActionService persistentActionService = new PersistentActionService(Settings.EMPTY, threadPool, clusterService, client);
         PersistentActionRegistry persistentActionRegistry = new PersistentActionRegistry(Settings.EMPTY);
+        InvalidLicenseEnforcer invalidLicenseEnforcer =
+                new InvalidLicenseEnforcer(settings, licenseState, threadPool, datafeedJobRunner, autodetectProcessManager);
 
         return Arrays.asList(
                 mlLifeCycleService,
                 jobProvider,
                 jobManager,
-                dataProcessor,
+                autodetectProcessManager,
                 new MachineLearningTemplateRegistry(settings, clusterService, client, threadPool),
                 new MlInitializationService(settings, threadPool, clusterService, client),
                 jobDataCountsPersister,
@@ -318,7 +320,8 @@ public class MachineLearning extends Plugin implements ActionPlugin {
                 persistentActionRegistry,
                 new PersistentTaskClusterService(Settings.EMPTY, persistentActionRegistry, clusterService),
                 auditor,
-                new CloseJobService(client, threadPool, clusterService)
+                new CloseJobService(client, threadPool, clusterService),
+                invalidLicenseEnforcer
         );
     }
 

@@ -14,8 +14,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MlMetadata;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.persistent.PersistentTasks;
 
 import java.util.function.Consumer;
@@ -57,7 +57,8 @@ public class JobStateObserver {
 
             @Override
             public void onTimeout(TimeValue timeout) {
-                if (jobStatePredicate.test(clusterService.state())) {
+                ClusterState state = clusterService.state();
+                if (jobStatePredicate.test(state)) {
                     if (jobStatePredicate.failed) {
                         handler.accept(new ElasticsearchStatusException("[" + jobId + "] expected state [" + JobState.OPENED +
                                 "] but got [" + JobState.FAILED +"]", RestStatus.CONFLICT));
@@ -65,8 +66,10 @@ public class JobStateObserver {
                         handler.accept(null);
                     }
                 } else {
-                    Exception e = new IllegalArgumentException("Timeout expired while waiting for job state to change to ["
-                            + expectedState + "]");
+                    PersistentTasks tasks = state.getMetaData().custom(PersistentTasks.TYPE);
+                    JobState actual = MlMetadata.getJobState(jobId, tasks);
+                    Exception e = new IllegalArgumentException("Timeout expired while waiting for job state [" + actual +
+                            "] to change to [" + expectedState + "]");
                     handler.accept(e);
                 }
             }

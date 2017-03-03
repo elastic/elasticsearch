@@ -115,7 +115,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
                     MachineLearningTemplateRegistry.allTemplatesInstalled(metaData));
         });
     }
-    
+
     protected Job.Builder createJob(String id) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataDescription.DataFormat.JSON);
@@ -185,6 +185,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     @After
     public void cleanupWorkaround() throws Exception {
+        logger.info("[{}#{}]: Cleaning up datafeeds and jobs after test", getTestClass().getSimpleName(), getTestName());
         deleteAllDatafeeds(client());
         deleteAllJobs(client());
         assertBusy(() -> {
@@ -214,13 +215,32 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         logger.info("Indexed [{}] documents", numDocs);
     }
 
-    public static DataCounts getDataCounts(String jobId) {
+    public static GetJobsStatsAction.Response.JobStats getJobStats(String jobId) {
         GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
         GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
         if (response.getResponse().results().isEmpty()) {
-            return new DataCounts(jobId);
+            return null;
         } else {
-            return response.getResponse().results().get(0).getDataCounts();
+            return response.getResponse().results().get(0);
+        }
+    }
+
+    public static DataCounts getDataCounts(String jobId) {
+        GetJobsStatsAction.Response.JobStats jobStats = getJobStats(jobId);
+        if (jobStats != null) {
+            return jobStats.getDataCounts();
+        } else {
+            return new DataCounts(jobId);
+        }
+    }
+
+    public static GetDatafeedsStatsAction.Response.DatafeedStats getDatafeedStats(String datafeedId) {
+        GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
+        GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+        if (response.getResponse().results().isEmpty()) {
+            return null;
+        } else {
+            return response.getResponse().results().get(0);
         }
     }
 

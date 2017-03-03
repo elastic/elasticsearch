@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
@@ -190,7 +189,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         Exception e = holder[0];
         assertEquals("max running job capacity [3] reached", e.getMessage());
 
-        manager.closeJob("baz", null);
+        manager.closeJob("baz", false, null);
         assertEquals(2, manager.numberOfOpenJobs());
         manager.openJob("foobar", 4L, false, e1 -> {});
         assertEquals(3, manager.numberOfOpenJobs());
@@ -230,7 +229,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         // job is created
         assertEquals(1, manager.numberOfOpenJobs());
-        manager.closeJob("foo", null);
+        manager.closeJob("foo", false, null);
         assertEquals(0, manager.numberOfOpenJobs());
     }
 

@@ -84,8 +84,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -528,31 +526,6 @@ public class JobProvider {
         };
         bucketRecords(jobId, bucket, from, RECORDS_SIZE_PARAM, includeInterim, AnomalyRecord.PROBABILITY.getPreferredName(),
                 false, partitionFieldValue, h, errorHandler);
-    }
-
-    // keep blocking variant around for ScoresUpdater as that can remain a blocking as this is ran from dedicated ml threadpool.
-    // also refactoring that to be non blocking is a lot of work.
-    public int expandBucket(String jobId, boolean includeInterim, Bucket bucket) {
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Integer> holder = new AtomicReference<>();
-        AtomicReference<Exception> errorHolder = new AtomicReference<>();
-        expandBucket(jobId, includeInterim, bucket, null, 0, records -> {
-            holder.set(records);
-            latch.countDown();
-        }, e -> {
-            errorHolder.set(e);
-            latch.countDown();
-        });
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        if (errorHolder.get() != null) {
-            throw new RuntimeException(errorHolder.get());
-        } else {
-            return holder.get();
-        }
     }
 
     void bucketRecords(String jobId, Bucket bucket, int from, int size, boolean includeInterim, String sortField,

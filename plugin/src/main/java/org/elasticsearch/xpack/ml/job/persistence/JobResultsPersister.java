@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -298,7 +299,9 @@ public class JobResultsPersister extends AbstractComponent {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         // Refresh should wait for Lucene to make the data searchable
         logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
-        client.admin().indices().refresh(new RefreshRequest(indexName)).actionGet();
+        RefreshRequest refreshRequest = new RefreshRequest(indexName);
+        refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        client.admin().indices().refresh(refreshRequest).actionGet();
         return true;
     }
 
@@ -314,6 +317,7 @@ public class JobResultsPersister extends AbstractComponent {
         // Refresh should wait for Lucene to make the data searchable
         logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
         RefreshRequest refreshRequest = new RefreshRequest(indexName);
+        refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         client.admin().indices().refresh(refreshRequest).actionGet();
         return true;
     }

@@ -69,7 +69,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyIntegT
         return testName.contains(" ") ? Strings.split(testName, " ")[0] : testName;
     }
 
-    private static String getContainerName() {
+    public static String getContainerName() {
         String testName = "snapshot-itest-".concat(RandomizedTest.getContext().getRunnerSeedAsString().toLowerCase(Locale.ROOT));
         return testName.contains(" ") ? Strings.split(testName, " ")[0] : testName;
     }

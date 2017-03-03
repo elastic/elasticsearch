@@ -24,6 +24,8 @@ esplugin {
   name 'x-pack'
   description 'Elasticsearch Expanded Pack Plugin'
   classname 'org.elasticsearch.xpack.XPackPlugin'
+  licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
+  noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
 }
 archivesBaseName = 'x-pack' // for api jar
 
@@ -154,7 +156,19 @@ gradle.taskGraph.whenReady { taskGraph ->
 // TODO: fix this! https://github.com/elastic/x-plugins/issues/1066
 ext.compactProfile = 'full'
 
-dependencyLicenses.enabled = false
+dependencyLicenses {
+  mapping from: /netty-.*/, to: 'netty'
+  mapping from: /bc.*/, to: 'bouncycastle'
+  mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
+  mapping from: /transport-netty.*/, to: 'elasticsearch'
+  mapping from: /rest.*/, to: 'elasticsearch'
+  mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
+  mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
+  mapping from: /sniffer.*/, to: 'elasticsearch'
+  ignoreSha 'rest'
+  ignoreSha 'transport-netty4'
+  ignoreSha 'sniffer'
+}
 
 licenseHeaders {
   approvedLicenses << 'BCrypt (BSD-like)'
@@ -245,12 +259,6 @@ forbiddenPatterns {
 
 // TODO: standardize packaging config for plugins
 bundlePlugin {
-  from(parent.projectDir) {
-    include 'LICENSE.txt'
-  }
-  from(projectDir) {
-    include 'NOTICE.txt'
-  }
   from('bin/x-pack') {
     into 'bin'
   }

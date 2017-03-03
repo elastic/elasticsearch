@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
@@ -17,18 +21,12 @@ import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.ml.job.results.Result;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
-
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -129,7 +127,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testTermFieldMapping() throws IOException {
 
-        XContentBuilder builder = ElasticsearchMappings.termFieldsMapping(Arrays.asList("apple", "strawberry",
+        XContentBuilder builder = ElasticsearchMappings.termFieldsMapping(null, Arrays.asList("apple", "strawberry",
                 AnomalyRecord.BUCKET_SPAN.getPreferredName()));
 
         XContentParser parser = createParser(builder);

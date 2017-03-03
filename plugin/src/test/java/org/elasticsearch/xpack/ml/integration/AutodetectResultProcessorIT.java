@@ -76,7 +76,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         jobResultsPersister = new JobResultsPersister(nodeSettings(), client());
         Settings.Builder builder = Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
-        jobProvider = new JobProvider(client(), 1, builder.build());
+        jobProvider = new JobProvider(client(), builder.build());
         capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();
         resultProcessor = new AutoDetectResultProcessor(client(), JOB_ID, renormalizer, jobResultsPersister) {
             @Override

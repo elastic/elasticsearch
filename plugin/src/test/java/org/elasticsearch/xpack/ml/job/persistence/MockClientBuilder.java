@@ -54,7 +54,6 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -179,7 +178,8 @@ public class MockClientBuilder {
     public MockClientBuilder createIndexRequest(String index, ArgumentCaptor<CreateIndexRequest> requestCapture) {
 
         doAnswer(invocation -> {
-            ((ActionListener) invocation.getArguments()[1]).onResponse(mock(CreateIndexResponse.class));
+            CreateIndexResponse response = new CreateIndexResponse(true, true) {};
+            ((ActionListener) invocation.getArguments()[1]).onResponse(response);
             return null;
         }).when(indicesAdminClient).create(requestCapture.capture(), any(ActionListener.class));
         return this;

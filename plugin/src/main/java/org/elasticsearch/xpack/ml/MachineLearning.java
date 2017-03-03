@@ -268,7 +268,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
         }
 
         JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
-        JobProvider jobProvider = new JobProvider(client, 1, settings);
+        JobProvider jobProvider = new JobProvider(client, settings);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
 
         Auditor auditor = new Auditor(client, clusterService);

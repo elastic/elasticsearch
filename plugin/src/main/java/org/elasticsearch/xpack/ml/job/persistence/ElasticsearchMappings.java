@@ -264,10 +264,22 @@ public class ElasticsearchMappings {
         return builder;
     }
 
-    public static XContentBuilder termFieldsMapping(Collection<String> termFields) throws IOException {
-        XContentBuilder builder = jsonBuilder().startObject().startObject(PROPERTIES);
-        addTermFields(builder, termFields);
-        return builder.endObject().endObject();
+    static XContentBuilder termFieldsMapping(String type, Collection<String> termFields) {
+        try {
+            XContentBuilder builder = jsonBuilder().startObject();
+            if (type != null) {
+                builder.startObject(type);
+            }
+            builder.startObject(PROPERTIES);
+            addTermFields(builder, termFields);
+            builder.endObject();
+            if (type != null) {
+                builder.endObject();
+            }
+            return builder.endObject();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static void addTermFields(XContentBuilder builder, Collection<String> termFields) throws IOException {

@@ -14,7 +14,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -27,6 +26,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -108,7 +109,7 @@ public class JobProvider {
     private final Client client;
     private final Settings settings;
 
-    public JobProvider(Client client, int numberOfReplicas, Settings settings) {
+    public JobProvider(Client client, Settings settings) {
         this.client = Objects.requireNonNull(client);
         this.settings = settings;
     }
@@ -116,95 +117,105 @@ public class JobProvider {
     /**
      * Create the Elasticsearch index and the mappings
      */
-    public void createJobResultIndex(Job job, ClusterState state, ActionListener<Boolean> listener) {
+    public void createJobResultIndex(Job job, ClusterState state, final ActionListener<Boolean> finalListener) {
         Collection<String> termFields = (job.getAnalysisConfig() != null) ? job.getAnalysisConfig().termFields() : Collections.emptyList();
 
         String aliasName = AnomalyDetectorsIndex.jobResultsAliasedName(job.getId());
         String indexName = job.getResultsIndexName();
 
-        final ActionListener<Boolean> responseListener = listener;
-        listener = ActionListener.wrap(aBoolean -> {
+        final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
                     client.admin().indices().prepareAliases()
                             .addAlias(indexName, aliasName, QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
-                            .execute(ActionListener.wrap(r -> responseListener.onResponse(true), responseListener::onFailure));
+                            // we could return 'sucess && r.isAcknowledged()' instead of 'true', but that makes
+                            // testing not possible as we can't create IndicesAliasesResponse instance or
+                            // mock IndicesAliasesResponse#isAcknowledged()
+                            .execute(ActionListener.wrap(r -> finalListener.onResponse(true),
+                                    finalListener::onFailure));
                 },
-                listener::onFailure);
+                finalListener::onFailure);
 
         // Indices can be shared, so only create if it doesn't exist already. Saves us a roundtrip if
         // already in the CS
         if (!state.getMetaData().hasIndex(indexName)) {
             LOGGER.trace("ES API CALL: create index {}", indexName);
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-
-            final ActionListener<Boolean> createdListener = listener;
+            String type = Result.TYPE.getPreferredName();
+            createIndexRequest.mapping(type, ElasticsearchMappings.termFieldsMapping(type, termFields));
             client.admin().indices().create(createIndexRequest,
                     ActionListener.wrap(
-                            r -> updateIndexMappingWithTermFields(indexName, termFields, createdListener),
+                            r -> createAliasListener.onResponse(r.isAcknowledged()),
                             e -> {
                                 // Possible that the index was created while the request was executing,
                                 // so we need to handle that possibility
                                 if (e instanceof ResourceAlreadyExistsException) {
                                     LOGGER.info("Index already exists");
                                     // Create the alias
-                                    createdListener.onResponse(true);
+                                    createAliasListener.onResponse(true);
                                 } else {
-                                    createdListener.onFailure(e);
+                                    finalListener.onFailure(e);
                                 }
                             }
                     ));
         } else {
-            // Add the job's term fields to the index mapping
-            final ActionListener<Boolean> updateMappingListener = listener;
-            checkNumberOfFieldsLimit(indexName, termFields.size(), ActionListener.wrap(
-                    r -> updateIndexMappingWithTermFields(indexName, termFields, updateMappingListener),
-                    updateMappingListener::onFailure));
+            long fieldCountLimit = MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.get(settings);
+            if (violatedFieldCountLimit(indexName, termFields.size(), fieldCountLimit, state)) {
+                String message = "Cannot create job in index '" + indexName + "' as the " +
+                        MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey() + " setting will be violated";
+                finalListener.onFailure(new IllegalArgumentException(message));
+            } else {
+                updateIndexMappingWithTermFields(indexName, termFields,
+                        ActionListener.wrap(createAliasListener::onResponse, finalListener::onFailure));
+            }
         }
+    }
+
+    static boolean violatedFieldCountLimit(String indexName, long additionalFieldCount, long fieldCountLimit, ClusterState clusterState) {
+        long numFields = 0;
+        IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
+        Iterator<MappingMetaData> mappings = indexMetaData.getMappings().valuesIt();
+        while (mappings.hasNext()) {
+            MappingMetaData mapping = mappings.next();
+            try {
+                numFields += countFields(mapping.sourceAsMap());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        if (numFields + additionalFieldCount > fieldCountLimit) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    static int countFields(Map<String, Object> mapping) {
+        Object propertiesNode = mapping.get("properties");
+        if (propertiesNode != null && propertiesNode instanceof Map) {
+            mapping = (Map<String, Object>) propertiesNode;
+        } else {
+            return 0;
+        }
+
+        int count = 0;
+        for (Map.Entry<String, Object> entry : mapping.entrySet()) {
+            if (entry.getValue() instanceof Map) {
+                Map<String, Object> fieldMapping = (Map<String, Object>) entry.getValue();
+                // take into account object and nested fields:
+                count += countFields(fieldMapping);
+            }
+            count++;
+        }
+        return count;
     }
 
     private void updateIndexMappingWithTermFields(String indexName, Collection<String> termFields, ActionListener<Boolean> listener) {
-        try {
-            client.admin().indices().preparePutMapping(indexName).setType(Result.TYPE.getPreferredName())
-                    .setSource(ElasticsearchMappings.termFieldsMapping(termFields))
-                    .execute(new ActionListener<PutMappingResponse>() {
-                        @Override
-                        public void onResponse(PutMappingResponse putMappingResponse) {
-                            listener.onResponse(true);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
-        } catch (IOException e) {
-            listener.onFailure(e);
-        }
-    }
-
-    private void checkNumberOfFieldsLimit(String indexName, long additionalFieldCount, ActionListener<Boolean> listener) {
-        client.admin().indices().prepareGetFieldMappings(indexName).setTypes("*").setFields("*").execute(
-                new ActionListener<GetFieldMappingsResponse>() {
+        client.admin().indices().preparePutMapping(indexName).setType(Result.TYPE.getPreferredName())
+                .setSource(ElasticsearchMappings.termFieldsMapping(null, termFields))
+                .execute(new ActionListener<PutMappingResponse>() {
                     @Override
-                    public void onResponse(GetFieldMappingsResponse getFieldMappingsResponse) {
-                        long numFields = 0;
-                        Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> indexMappings =
-                                getFieldMappingsResponse.mappings();
-                        for (String index : indexMappings.keySet()) {
-                            Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> typeMappings = indexMappings.get(index);
-                            for (String type : typeMappings.keySet()) {
-                                Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fieldMappings = typeMappings.get(type);
-                                numFields += fieldMappings.size();
-                            }
-                        }
-
-                        long fieldCountLimit = MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.get(settings);
-                        if (numFields + additionalFieldCount > fieldCountLimit) {
-                            String message = "Cannot create job in index '" + indexName + "' as the " +
-                                    MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey() + " setting will be violated";
-                            listener.onFailure(new IllegalArgumentException(message));
-                        } else {
-                            listener.onResponse(true);
-                        }
+                    public void onResponse(PutMappingResponse putMappingResponse) {
+                        listener.onResponse(putMappingResponse.isAcknowledged());
                     }
 
                     @Override

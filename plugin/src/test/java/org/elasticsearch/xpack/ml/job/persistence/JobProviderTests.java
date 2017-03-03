@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -137,7 +138,6 @@ public class JobProviderTests extends ESTestCase {
         ArgumentCaptor<CreateIndexRequest> captor = ArgumentCaptor.forClass(CreateIndexRequest.class);
         clientBuilder.createIndexRequest(resultsIndexName, captor);
         clientBuilder.prepareAlias(resultsIndexName, AnomalyDetectorsIndex.jobResultsAliasedName("foo"), jobFilter);
-        clientBuilder.preparePutMapping(mock(PutMappingResponse.class), Result.TYPE.getPreferredName());
 
         Job.Builder job = buildJobBuilder("foo");
         JobProvider provider = createProvider(clientBuilder.build());
@@ -1100,6 +1100,63 @@ public class JobProviderTests extends ESTestCase {
         assertEquals("{\"modName\":\"modVal2\"}", restoreData[2]);
     }
 
+    public void testViolatedFieldCountLimit() throws Exception {
+        Map<String, Object> mapping = new HashMap<>();
+        for (int i = 0; i < 10; i++) {
+            mapping.put("field" + i, Collections.singletonMap("type", "string"));
+        }
+
+        IndexMetaData.Builder indexMetaData1 = new IndexMetaData.Builder("index1")
+                .settings(Settings.builder()
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+                .putMapping(new MappingMetaData("type1", Collections.singletonMap("properties", mapping)));
+        MetaData metaData = MetaData.builder()
+                .put(indexMetaData1)
+                .build();
+        boolean result = JobProvider.violatedFieldCountLimit("index1", 0, 10,
+                ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
+        assertFalse(result);
+
+        result = JobProvider.violatedFieldCountLimit("index1", 1, 10,
+                ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
+        assertTrue(result);
+
+        IndexMetaData.Builder indexMetaData2 = new IndexMetaData.Builder("index1")
+                .settings(Settings.builder()
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+                .putMapping(new MappingMetaData("type1", Collections.singletonMap("properties", mapping)))
+                .putMapping(new MappingMetaData("type2", Collections.singletonMap("properties", mapping)));
+        metaData = MetaData.builder()
+                .put(indexMetaData2)
+                .build();
+        result = JobProvider.violatedFieldCountLimit("index1", 0, 19,
+                ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
+        assertTrue(result);
+    }
+
+    public void testCountFields() {
+        Map<String, Object> mapping = new HashMap<>();
+        mapping.put("field1", Collections.singletonMap("type", "string"));
+        mapping.put("field2", Collections.singletonMap("type", "string"));
+        mapping.put("field3", Collections.singletonMap("type", "string"));
+        assertEquals(3, JobProvider.countFields(Collections.singletonMap("properties", mapping)));
+
+        Map<String, Object> objectProperties = new HashMap<>();
+        objectProperties.put("field4", Collections.singletonMap("type", "string"));
+        objectProperties.put("field5", Collections.singletonMap("type", "string"));
+        objectProperties.put("field6", Collections.singletonMap("type", "string"));
+        Map<String, Object> objectField = new HashMap<>();
+        objectField.put("type", "object");
+        objectField.put("properties", objectProperties);
+
+        mapping.put("field4", objectField);
+        assertEquals(7, JobProvider.countFields(Collections.singletonMap("properties", mapping)));
+    }
+
     private Bucket createBucketAtEpochTime(long epoch) {
         Bucket b = new Bucket("foo", new Date(epoch), 123);
         b.setMaxNormalizedProbability(10.0);
@@ -1107,7 +1164,7 @@ public class JobProviderTests extends ESTestCase {
     }
 
     private JobProvider createProvider(Client client) {
-        return new JobProvider(client, 0, Settings.EMPTY);
+        return new JobProvider(client, Settings.EMPTY);
     }
 
     private static GetResponse createGetResponse(boolean exists, Map<String, Object> source) throws IOException {

@@ -19,20 +19,35 @@
 
 package org.elasticsearch.repositories.azure;
 
+import com.microsoft.azure.storage.LocationMode;
+import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cloud.azure.AbstractAzureWithThirdPartyIntegTestCase;
+import org.elasticsearch.cloud.azure.storage.AzureStorageService;
+import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
+import java.net.URISyntaxException;
+import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.cloud.azure.AzureTestUtils.readSettingsFromFile;
+import static org.elasticsearch.repositories.azure.AzureSnapshotRestoreTests.getContainerName;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * This test needs Azure to run and -Dtests.thirdparty=true to be set
  * and -Dtests.config=/path/to/elasticsearch.yml
+ *
+ * Note that this test requires an Azure storage account, with the account
+ * and credentials set in the elasticsearch.yml config file passed in to the
+ * test.  The Azure storage account type must be a Read-access geo-redundant
+ * storage (RA-GRS) account.
+ *
  * @see AbstractAzureWithThirdPartyIntegTestCase
  */
 @ClusterScope(
@@ -40,24 +55,19 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
         supportsDedicatedMasters = false, numDataNodes = 1,
         transportClientRatio = 0.0)
 public class AzureSnapshotRestoreListSnapshotsTests extends AbstractAzureWithThirdPartyIntegTestCase {
-    public void testList() {
+
+    private final AzureStorageService azureStorageService = new AzureStorageServiceImpl(readSettingsFromFile());
+
+    public void testList() throws Exception {
+        String containerName = getContainerName();
         Client client = client();
         logger.info("-->  creating azure primary repository");
+        createContainer(containerName);
         PutRepositoryResponse putRepositoryResponsePrimary = client.admin().cluster().preparePutRepository("primary")
                 .setType("azure").setSettings(Settings.builder()
-                        .put(Repository.ACCOUNT_SETTING.getKey(), "my_account")
-                        .put(Repository.CONTAINER_SETTING.getKey(), "container")
+                        .put(Repository.CONTAINER_SETTING.getKey(), containerName)
                 ).get();
         assertThat(putRepositoryResponsePrimary.isAcknowledged(), equalTo(true));
-        logger.info("-->  creating azure secondary repository");
-        PutRepositoryResponse putRepositoryResponseSecondary = client.admin().cluster().preparePutRepository("secondary")
-                .setType("azure").setSettings(Settings.builder()
-                        .put(Repository.ACCOUNT_SETTING.getKey(), "my_account")
-                        .put(Repository.CONTAINER_SETTING.getKey(), "container")
-                        .put(Repository.LOCATION_MODE_SETTING.getKey(), "secondary_only")
-                ).get();
-        assertThat(putRepositoryResponseSecondary.isAcknowledged(), equalTo(true));
-
 
         logger.info("--> start get snapshots on primary");
         long startWait = System.currentTimeMillis();
@@ -65,6 +75,17 @@ public class AzureSnapshotRestoreListSnapshotsTests extends AbstractAzureWithThi
         long endWait = System.currentTimeMillis();
         // definitely should be done in 30s, and if its not working as expected, it takes over 1m
         assertThat(endWait - startWait, lessThanOrEqualTo(30000L));
+        removeContainer(containerName);
+
+        logger.info("-->  creating azure secondary repository");
+        containerName = getContainerName();
+        createContainer(containerName);
+        PutRepositoryResponse putRepositoryResponseSecondary = client.admin().cluster().preparePutRepository("secondary")
+                .setType("azure").setSettings(Settings.builder()
+                    .put(Repository.CONTAINER_SETTING.getKey(), containerName)
+                    .put(Repository.LOCATION_MODE_SETTING.getKey(), "secondary_only")
+                ).get();
+        assertThat(putRepositoryResponseSecondary.isAcknowledged(), equalTo(true));
 
         logger.info("--> start get snapshots on secondary");
         startWait = System.currentTimeMillis();
@@ -72,5 +93,26 @@ public class AzureSnapshotRestoreListSnapshotsTests extends AbstractAzureWithThi
         endWait = System.currentTimeMillis();
         logger.info("--> end of get snapshots on secondary. Took {} ms", endWait - startWait);
         assertThat(endWait - startWait, lessThanOrEqualTo(30000L));
+        removeContainer(containerName);
+    }
+
+    private void createContainer(String containerName) throws Exception {
+        // It could happen that we run this test really close to a previous one
+        // so we might need some time to be able to create the container
+        assertBusy(() -> {
+            try {
+                azureStorageService.createContainer(null, LocationMode.PRIMARY_ONLY, containerName);
+            } catch (URISyntaxException e) {
+                // Incorrect URL. This should never happen.
+                fail();
+            } catch (StorageException e) {
+                // It could happen. Let's wait for a while.
+                fail();
+            }
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    private void removeContainer(String containerName) throws Exception {
+        azureStorageService.removeContainer(null, LocationMode.PRIMARY_ONLY, containerName);
     }
 }

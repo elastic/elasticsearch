@@ -285,7 +285,7 @@ public class UpdateRequestTests extends ESTestCase {
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new MockScriptEngine("mock",
             scripts)));
 
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, null, scriptContextRegistry);
         ScriptService scriptService = new ScriptService(baseSettings, environment, new ResourceWatcherService(baseSettings, null),
                 scriptEngineRegistry, scriptContextRegistry, scriptSettings, new ScriptMetrics());
         Settings settings = settings(Version.CURRENT).build();

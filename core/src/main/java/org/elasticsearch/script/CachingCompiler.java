@@ -24,18 +24,9 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptResponse;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
@@ -80,8 +71,6 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
 
     private final Path scriptsDirectory;
 
-    private final int maxScriptSizeInBytes;
-
     private final ScriptMetrics scriptMetrics;
 
     private volatile ClusterState clusterState;
@@ -118,7 +107,6 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
             fileWatcher.init();
         }
 
-        maxScriptSizeInBytes = ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.get(settings);
         this.scriptMetrics = scriptMetrics;
     }
 
@@ -128,7 +116,6 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
     protected abstract CacheKeyT cacheKeyForFile(String baseName, String extension);
     protected abstract CacheKeyT cacheKeyFromClusterState(StoredScriptSource scriptMetadata);
     protected abstract StoredScriptSource lookupStoredScript(ClusterState clusterState, CacheKeyT cacheKey);
-    protected abstract void checkPutSupported(StoredScriptSource source);
     /**
      * Are any script contexts enabled for the given {@code cacheKey} and {@code scriptType}? Used to reject compilation if all script
      * contexts are disabled and produce a nice error message earlier rather than later.
@@ -209,81 +196,25 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
         return cacheKeyFromClusterState(source);
     }
 
-    public final void putStoredScript(ClusterService clusterService, PutStoredScriptRequest request,
-                                ActionListener<PutStoredScriptResponse> listener) {
-        if (request.content().length() > maxScriptSizeInBytes) {
-            throw new IllegalArgumentException("exceeded max allowed stored script size in bytes [" + maxScriptSizeInBytes
-                    + "] with size [" + request.content().length() + "] for script [" + request.id() + "]");
-        }
-
-        StoredScriptSource source = StoredScriptSource.parse(request.lang(), request.content(), request.xContentType());
-        checkPutSupported(source);
+    /**
+     * Check that a script compiles before attempting to store it.
+     */
+    public final void checkCompileBeforeStore(StoredScriptSource source) {
         CacheKeyT cacheKey = cacheKeyFromClusterState(source);
-
         try {
             if (areAnyScriptContextsEnabled(cacheKey, ScriptType.STORED)) {
                 Object compiled = compile(ScriptType.STORED, cacheKey);
 
                 if (compiled == null) {
-                    throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]" +
-                        (source.getCode() == null ? "" : " using code [" + source.getCode() + "]"));
+                    throw new IllegalArgumentException("failed to parse/compile");
                 }
             } else {
-                throw new IllegalArgumentException(
-                    "cannot put stored script [" + request.id() + "], stored scripts cannot be run under any context");
+                throw new IllegalArgumentException("cannot be run under any context");
             }
         } catch (ScriptException good) {
             throw good;
         } catch (Exception exception) {
-            throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]", exception);
-        }
-
-        clusterService.submitStateUpdateTask("put-script-" + request.id(),
-            new AckedClusterStateUpdateTask<PutStoredScriptResponse>(request, listener) {
-
-            @Override
-            protected PutStoredScriptResponse newResponse(boolean acknowledged) {
-                return new PutStoredScriptResponse(acknowledged);
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                ScriptMetaData smd = currentState.metaData().custom(ScriptMetaData.TYPE);
-                smd = ScriptMetaData.putStoredScript(smd, request.id(), source);
-                MetaData.Builder mdb = MetaData.builder(currentState.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
-
-                return ClusterState.builder(currentState).metaData(mdb).build();
-            }
-        });
-    }
-
-    public final void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request,
-                                   ActionListener<DeleteStoredScriptResponse> listener) {
-        clusterService.submitStateUpdateTask("delete-script-" + request.id(),
-            new AckedClusterStateUpdateTask<DeleteStoredScriptResponse>(request, listener) {
-                @Override
-                protected DeleteStoredScriptResponse newResponse(boolean acknowledged) {
-                    return new DeleteStoredScriptResponse(acknowledged);
-                }
-    
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    ScriptMetaData smd = currentState.metaData().custom(ScriptMetaData.TYPE);
-                    smd = ScriptMetaData.deleteStoredScript(smd, request.id(), request.lang());
-                    MetaData.Builder mdb = MetaData.builder(currentState.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
-    
-                    return ClusterState.builder(currentState).metaData(mdb).build();
-                }
-            });
-    }
-
-    public final StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
-        ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);
-
-        if (scriptMetadata != null) {
-            return scriptMetadata.getStoredScript(request.id(), request.lang());
-        } else {
-            return null;
+            throw new IllegalArgumentException("failed to parse/compile", exception);
         }
     }
 

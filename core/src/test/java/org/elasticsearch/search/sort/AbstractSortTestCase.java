@@ -93,7 +93,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         Environment environment = new Environment(baseSettings);
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new TestEngineService()));
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, null, scriptContextRegistry);
         scriptService = new ScriptService(baseSettings, environment, new ResourceWatcherService(baseSettings, null), scriptEngineRegistry,
                 scriptContextRegistry, scriptSettings, new ScriptMetrics()) {
             @Override

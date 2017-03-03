@@ -53,7 +53,7 @@ public class ScriptContextTests extends ESTestCase {
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"),
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, null, scriptContextRegistry); // NOCOMMIT remove null and test
         ScriptService scriptService = new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry,
                 scriptContextRegistry, scriptSettings, new ScriptMetrics());
 

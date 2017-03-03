@@ -109,7 +109,7 @@ public class ScriptServiceTests extends ESTestCase {
         scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(scriptEngineService, dangerousScriptEngineService,
                 defaultScriptServiceEngine));
         scriptContextRegistry = new ScriptContextRegistry(contexts.values());
-        scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        scriptSettings = new ScriptSettings(scriptEngineRegistry, null, scriptContextRegistry);
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
         logger.info("--> setup script service");
         scriptsFilePath = genericConfigFolder.resolve("scripts");

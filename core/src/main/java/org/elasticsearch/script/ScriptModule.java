@@ -84,7 +84,8 @@ public class ScriptModule {
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customScriptContexts);
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngineServices);
         ScriptMetrics scriptMetrics = new ScriptMetrics();
-        scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        // Note that if templateBackend is null this won't register any settings for it
+        scriptSettings = new ScriptSettings(scriptEngineRegistry, templateBackend, scriptContextRegistry);
         try {
             scriptService = new ScriptService(settings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry,
                     scriptSettings, scriptMetrics);

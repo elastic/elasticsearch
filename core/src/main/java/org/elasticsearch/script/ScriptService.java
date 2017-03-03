@@ -26,9 +26,11 @@ import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRe
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptResponse;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -73,6 +75,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     private final ScriptMetrics scriptMetrics;
     private final ScriptPermits scriptPermits;
     private final CachingCompiler<CacheKey> compiler;
+    private final int maxScriptSizeInBytes;
 
     public ScriptService(Settings settings, Environment env, ResourceWatcherService resourceWatcherService,
             ScriptEngineRegistry scriptEngineRegistry, ScriptContextRegistry scriptContextRegistry, ScriptSettings scriptSettings,
@@ -98,6 +101,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         this.scriptEnginesByLang = unmodifiableMap(enginesByLangBuilder);
         this.scriptEnginesByExt = unmodifiableMap(enginesByExtBuilder);
 
+        maxScriptSizeInBytes = ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.get(settings);
         this.scriptMetrics = scriptMetrics;
         this.scriptPermits = new ScriptPermits(settings, scriptSettings, scriptContextRegistry);
         this.compiler = new CachingCompiler<CacheKey>(settings, scriptSettings, env, resourceWatcherService, scriptMetrics) {
@@ -118,13 +122,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             @Override
             protected CacheKey cacheKeyFromClusterState(StoredScriptSource scriptMetadata) {
                 return new CacheKey(scriptMetadata.getLang(), scriptMetadata.getCode(), scriptMetadata.getOptions());
-            }
-
-            @Override
-            protected void checkPutSupported(StoredScriptSource source) {
-                if (false == isLangSupported(source.getLang())) {
-                    throw new IllegalArgumentException("unable to put stored script with unsupported lang [" + source.getLang() + "]");
-                }
             }
 
             @Override
@@ -291,12 +288,46 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     }
 
     public final StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
-        return compiler.getStoredScript(state, request);
+        ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);
+
+        if (scriptMetadata != null) {
+            return scriptMetadata.getStoredScript(request.id(), request.lang());
+        } else {
+            return null;
+        }
     }
 
     public void putStoredScript(ClusterService clusterService, PutStoredScriptRequest request,
             ActionListener<PutStoredScriptResponse> listener) {
-        compiler.putStoredScript(clusterService, request, listener);
+        if (request.content().length() > maxScriptSizeInBytes) {
+            throw new IllegalArgumentException("exceeded max allowed stored script size in bytes [" + maxScriptSizeInBytes
+                    + "] with size [" + request.content().length() + "] for script [" + request.id() + "]");
+        }
+
+        StoredScriptSource source = StoredScriptSource.parse(request.lang(), request.content(), request.xContentType());
+        try {
+            compiler.checkCompileBeforeStore(source);
+        } catch (IllegalArgumentException | ScriptException e) {
+            throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]" +
+                    (source.getCode() == null ? "" : " using code [" + source.getCode() + "]"), e);
+        }
+        clusterService.submitStateUpdateTask("put-script-" + request.id(),
+                new AckedClusterStateUpdateTask<PutStoredScriptResponse>(request, listener) {
+
+                @Override
+                protected PutStoredScriptResponse newResponse(boolean acknowledged) {
+                    return new PutStoredScriptResponse(acknowledged);
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    ScriptMetaData smd = currentState.metaData().custom(ScriptMetaData.TYPE);
+                    smd = ScriptMetaData.putStoredScript(smd, request.id(), source);
+                    MetaData.Builder mdb = MetaData.builder(currentState.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
+
+                    return ClusterState.builder(currentState).metaData(mdb).build();
+                }
+            });
     }
 
     public void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request,
@@ -305,7 +336,22 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             throw new IllegalArgumentException("unable to delete stored script with unsupported lang [" + request.lang() + "]");
         }
 
-        compiler.deleteStoredScript(clusterService, request, listener);
+        clusterService.submitStateUpdateTask("delete-script-" + request.id(),
+                new AckedClusterStateUpdateTask<DeleteStoredScriptResponse>(request, listener) {
+                    @Override
+                    protected DeleteStoredScriptResponse newResponse(boolean acknowledged) {
+                        return new DeleteStoredScriptResponse(acknowledged);
+                    }
+        
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        ScriptMetaData smd = currentState.metaData().custom(ScriptMetaData.TYPE);
+                        smd = ScriptMetaData.deleteStoredScript(smd, request.id(), request.lang());
+                        MetaData.Builder mdb = MetaData.builder(currentState.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
+        
+                        return ClusterState.builder(currentState).metaData(mdb).build();
+                    }
+                });
     }
 
     private static final class CacheKey {

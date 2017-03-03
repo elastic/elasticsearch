@@ -45,7 +45,7 @@ public abstract class AbstractScriptTestCase extends ESTestCase {
             .build();
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(new MustacheScriptEngineService()));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, null, scriptContextRegistry);
 
         ScriptService scriptService = new ScriptService(settings, new Environment(settings), null,
                 scriptEngineRegistry, scriptContextRegistry, scriptSettings, new ScriptMetrics());

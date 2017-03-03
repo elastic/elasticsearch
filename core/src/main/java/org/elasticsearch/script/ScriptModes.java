@@ -47,7 +47,7 @@ public class ScriptModes {
     }
 
     /**
-     * Returns the script mode for a script of a certain written in a certain language,
+     * Returns the script mode for a script or template of a certain written in a certain language,
      * of a certain type and executing as part of a specific operation/api.
      *
      * @param lang the language that the script is written in

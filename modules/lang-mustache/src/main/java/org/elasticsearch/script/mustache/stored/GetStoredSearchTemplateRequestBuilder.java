@@ -17,31 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.script.mustache;
+package org.elasticsearch.script.mustache.stored;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
+import org.elasticsearch.client.ElasticsearchClient;
 
-import java.io.IOException;
+public class GetStoredSearchTemplateRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+            GetStoredSearchTemplateRequest,
+            GetStoredSearchTemplateResponse,
+            GetStoredSearchTemplateRequestBuilder> {
 
-public class PutSearchTemplateResponse extends AcknowledgedResponse {
-    PutSearchTemplateResponse() {
-    }
-
-    public PutSearchTemplateResponse(boolean acknowledged) {
-        super(acknowledged);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        readAcknowledged(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        writeAcknowledged(out);
+    public GetStoredSearchTemplateRequestBuilder(ElasticsearchClient client, GetStoredSearchTemplateAction action) {
+        super(client, action, new GetStoredSearchTemplateRequest());
     }
 }

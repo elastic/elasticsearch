@@ -29,8 +29,9 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ScriptSettingsTests extends ESTestCase {
 
@@ -38,7 +39,9 @@ public class ScriptSettingsTests extends ESTestCase {
         ScriptEngineRegistry scriptEngineRegistry =
             new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngineService()));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        TemplateService.Backend templateBackend = mock(TemplateService.Backend.class);
+        when(templateBackend.getType()).thenReturn("test_template_backend");
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, templateBackend, scriptContextRegistry);
         boolean enabled = randomBoolean();
         Settings s = Settings.builder().put("script.inline", enabled).build();
         for (Iterator<Setting<Boolean>> iter = scriptSettings.getScriptLanguageSettings().iterator(); iter.hasNext();) {

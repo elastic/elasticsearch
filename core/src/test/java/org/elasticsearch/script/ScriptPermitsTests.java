@@ -28,7 +28,7 @@ import static java.util.Collections.emptyList;
 public class ScriptPermitsTests extends ESTestCase {
     public void testCompilationCircuitBreaking() throws Exception {
         ScriptContextRegistry contextRegistry = new ScriptContextRegistry(emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(new ScriptEngineRegistry(emptyList()), contextRegistry);
+        ScriptSettings scriptSettings = new ScriptSettings(new ScriptEngineRegistry(emptyList()), null, contextRegistry);
         ScriptPermits permits = new ScriptPermits(Settings.EMPTY, scriptSettings, contextRegistry);
         permits.setMaxCompilationsPerMinute(1);
         permits.checkCompilationLimit(); // should pass

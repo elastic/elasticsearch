@@ -17,35 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.script.mustache;
+package org.elasticsearch.script.mustache.stored;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class PutSearchTemplateRequest extends AcknowledgedRequest<PutSearchTemplateRequest> {
-    private String id;
-    private BytesReference content;
-    private XContentType xContentType;
+public class GetStoredSearchTemplateRequest extends MasterNodeReadRequest<GetStoredSearchTemplateRequest> {
+    protected String id;
 
-    public PutSearchTemplateRequest() {
+    GetStoredSearchTemplateRequest() {
         super();
     }
 
-    public PutSearchTemplateRequest(String id, BytesReference content, XContentType xContentType) {
+    public GetStoredSearchTemplateRequest(String id) {
         super();
+
         this.id = id;
-        this.content = content;
-        this.xContentType = Objects.requireNonNull(xContentType);
     }
 
     @Override
@@ -55,11 +48,7 @@ public class PutSearchTemplateRequest extends AcknowledgedRequest<PutSearchTempl
         if (id == null || id.isEmpty()) {
             validationException = addValidationError("must specify id for stored search template", validationException);
         } else if (id.contains("#")) {
-            validationException = addValidationError("id cannot contain '#' for search template", validationException);
-        }
-
-        if (content == null) {
-            validationException = addValidationError("must specify code for search template", validationException);
+            validationException = addValidationError("id cannot contain '#' for stored search template", validationException);
         }
 
         return validationException;
@@ -69,40 +58,20 @@ public class PutSearchTemplateRequest extends AcknowledgedRequest<PutSearchTempl
         return id;
     }
 
-    public BytesReference content() {
-        return content;
-    }
-
-    public XContentType xContentType() {
-        return xContentType;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        id = in.readOptionalString();
-        content = in.readBytesReference();
-        xContentType = XContentType.readFrom(in);
+        id = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalString(id);
-        out.writeBytesReference(content);
-        xContentType.writeTo(out);
+        out.writeString(id);
     }
 
     @Override
     public String toString() {
-        String source = "_na_";
-
-        try {
-            source = XContentHelper.convertToJson(content, false, xContentType);
-        } catch (Exception e) {
-            // ignore
-        }
-
-        return "put search template {id [" + id + "], content [" + source + "]}";
+        return "get stored search template [" + id + "]";
     }
 }

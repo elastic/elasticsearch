@@ -66,13 +66,6 @@ public class TemplateService {
             }
 
             @Override
-            protected void checkPutSupported(StoredScriptSource source) {
-                if (false == backend.getType().equals(source.getLang())) {
-                    throw new IllegalArgumentException("only mustache scripts are supported here but got [" + source.getLang() + "]");
-                }
-            }
-
-            @Override
             protected StoredScriptSource lookupStoredScript(ClusterState clusterState, String cacheKey) {
                 ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
                 if (scriptMetadata == null) {
@@ -137,5 +130,16 @@ public class TemplateService {
     public ExecutableScript executable(String idOrCode, ScriptType scriptType, ScriptContext scriptContext,
             Map<String, Object> scriptParams) {
         return backend.executable(compiler.getScript(idOrCode, scriptType, scriptContext), scriptParams);
+    }
+
+    /**
+     * The language name that templates have when stored in {@link ScriptMetaData}.
+     */
+    public String getTemplateLanguage() {
+        return backend.getType();
+    }
+
+    public void checkCompileBeforeStore(StoredScriptSource source) {
+        compiler.checkCompileBeforeStore(source);
     }
 }

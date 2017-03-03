@@ -22,7 +22,6 @@ package org.elasticsearch.script.mustache;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -33,7 +32,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.internal.SearchContext;
@@ -42,13 +40,12 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
 
+import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.containsString;
 
 public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQueryBuilder> {
@@ -69,38 +66,7 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(MustachePlugin.class, CustomScriptPlugin.class);
-    }
-
-    public static class CustomScriptPlugin extends MockScriptPlugin {
-
-        @Override
-        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-
-            scripts.put("{ \"match_all\" : {}}",
-                    s -> new BytesArray("{ \"match_all\" : {}}"));
-
-            scripts.put("{ \"match_all\" : {\"_name\" : \"foobar\"}}",
-                    s -> new BytesArray("{ \"match_all\" : {\"_name\" : \"foobar\"}}"));
-
-            scripts.put("{\n" +
-                    "  \"term\" : {\n" +
-                    "    \"foo\" : {\n" +
-                    "      \"value\" : \"bar\",\n" +
-                    "      \"boost\" : 2.0\n" +
-                    "    }\n" +
-                    "  }\n" +
-                    "}", s -> new BytesArray("{\n" +
-                    "  \"term\" : {\n" +
-                    "    \"foo\" : {\n" +
-                    "      \"value\" : \"bar\",\n" +
-                    "      \"boost\" : 2.0\n" +
-                    "    }\n" +
-                    "  }\n" +
-                    "}"));
-            return scripts;
-        }
+        return singleton(MustachePlugin.class);
     }
 
     @Before

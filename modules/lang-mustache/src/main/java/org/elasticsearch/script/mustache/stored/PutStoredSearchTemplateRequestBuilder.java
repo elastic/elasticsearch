@@ -17,15 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.script.mustache;
+package org.elasticsearch.script.mustache.stored;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class PutSearchTemplateRequestBuilder
-        extends AcknowledgedRequestBuilder<PutSearchTemplateRequest, PutSearchTemplateResponse, PutSearchTemplateRequestBuilder> {
+public class PutStoredSearchTemplateRequestBuilder extends AcknowledgedRequestBuilder<
+            PutStoredSearchTemplateRequest,
+            PutStoredSearchTemplateResponse,
+            PutStoredSearchTemplateRequestBuilder> {
 
-    public PutSearchTemplateRequestBuilder(ElasticsearchClient client, PutSearchTemplateAction action) {
-        super(client, action, new PutSearchTemplateRequest());
+    public PutStoredSearchTemplateRequestBuilder(ElasticsearchClient client, PutStoredSearchTemplateAction action) {
+        super(client, action, new PutStoredSearchTemplateRequest());
     }
 }

@@ -75,7 +75,7 @@ public class NativeScriptTests extends ESTestCase {
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singleton(new NativeScriptEngineService(settings,
             nativeScriptFactoryMap)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(new ArrayList<>());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, null, scriptContextRegistry);
         ScriptService scriptService = new ScriptService(settings, environment, resourceWatcherService, scriptEngineRegistry,
             scriptContextRegistry, scriptSettings, new ScriptMetrics());
 

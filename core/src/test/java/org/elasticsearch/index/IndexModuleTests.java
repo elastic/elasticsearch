@@ -34,7 +34,6 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SetOnce.AlreadySetException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -111,7 +110,6 @@ public class IndexModuleTests extends ESTestCase {
     private CircuitBreakerService circuitBreakerService;
     private BigArrays bigArrays;
     private ScriptService scriptService;
-    private ClusterService clusterService;
 
     @Override
     public void setUp() throws Exception {
@@ -127,7 +125,7 @@ public class IndexModuleTests extends ESTestCase {
         bigArrays = new BigArrays(settings, circuitBreakerService);
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(emptyList());
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, null, scriptContextRegistry);
         scriptService = new ScriptService(settings, environment, new ResourceWatcherService(settings, threadPool), scriptEngineRegistry,
                 scriptContextRegistry, scriptSettings, new ScriptMetrics());
         nodeEnvironment = new NodeEnvironment(settings, environment);

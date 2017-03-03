@@ -68,7 +68,7 @@ public class ScriptModesTests extends ESTestCase {
                 new NativeScriptEngineService(Settings.EMPTY, Collections.<String, NativeScriptFactory>emptyMap()),
                 new CustomScriptEngineService()));
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngines.values());
-        scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        scriptSettings = new ScriptSettings(scriptEngineRegistry, null, scriptContextRegistry); // NOCOMMIT remove null and test
         checkedSettings = new HashSet<>();
         assertAllSettingsWereChecked = true;
         assertScriptModesNonNull = true;

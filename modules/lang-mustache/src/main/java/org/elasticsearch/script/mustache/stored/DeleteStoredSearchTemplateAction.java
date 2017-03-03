@@ -17,26 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.script.mustache;
+package org.elasticsearch.script.mustache.stored;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class PutSearchTemplateAction extends Action<PutSearchTemplateRequest, PutSearchTemplateResponse, PutSearchTemplateRequestBuilder> {
-    public static final PutSearchTemplateAction INSTANCE = new PutSearchTemplateAction();
-    public static final String NAME = "cluster:admin/template/put";
+public class DeleteStoredSearchTemplateAction
+        extends Action<DeleteStoredSearchTemplateRequest, DeleteStoredSearchTemplateResponse, DeleteStoredSearchTemplateRequestBuilder> {
 
-    private PutSearchTemplateAction() {
+    public static final DeleteStoredSearchTemplateAction INSTANCE = new DeleteStoredSearchTemplateAction();
+    public static final String NAME = "cluster:admin/script/delete";
+
+    private DeleteStoredSearchTemplateAction() {
         super(NAME);
     }
 
     @Override
-    public PutSearchTemplateResponse newResponse() {
-        return new PutSearchTemplateResponse();
+    public DeleteStoredSearchTemplateResponse newResponse() {
+        return new DeleteStoredSearchTemplateResponse();
     }
 
     @Override
-    public PutSearchTemplateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new PutSearchTemplateRequestBuilder(client, this);
+    public DeleteStoredSearchTemplateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new DeleteStoredSearchTemplateRequestBuilder(client, this);
     }
 }

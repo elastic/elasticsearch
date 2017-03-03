@@ -6,29 +6,30 @@
 package org.elasticsearch.xpack.ml;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ml.action.DeleteExpiredDataAction;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ScheduledFuture;
 import java.util.function.Supplier;
 
 /**
- * A service that runs once a day and triggers management tasks.
+ * A service that runs once a day and triggers maintenance tasks.
  */
-public class MlDailyManagementService implements Releasable {
+public class MlDailyMaintenanceService implements Releasable {
 
-    private static final Logger LOGGER = Loggers.getLogger(MlDailyManagementService.class);
+    private static final Logger LOGGER = Loggers.getLogger(MlDailyMaintenanceService.class);
 
     private final ThreadPool threadPool;
+    private final Client client;
 
     /**
      * An interface to abstract the calculation of the delay to the next execution.
@@ -36,17 +37,16 @@ public class MlDailyManagementService implements Releasable {
      */
     private final Supplier<TimeValue> schedulerProvider;
 
-    private final List<Listener> listeners;
     private volatile ScheduledFuture<?> future;
 
-    MlDailyManagementService(ThreadPool threadPool, List<Listener> listeners, Supplier<TimeValue> scheduleProvider) {
+    MlDailyMaintenanceService(ThreadPool threadPool, Client client, Supplier<TimeValue> scheduleProvider) {
         this.threadPool = Objects.requireNonNull(threadPool);
-        this.listeners = new ArrayList<>(listeners);
+        this.client = Objects.requireNonNull(client);
         this.schedulerProvider = Objects.requireNonNull(scheduleProvider);
     }
 
-    public MlDailyManagementService(ThreadPool threadPool, List<Listener> listeners) {
-        this(threadPool, listeners, createAfterMidnightScheduleProvider());
+    public MlDailyMaintenanceService(ThreadPool threadPool, Client client) {
+        this(threadPool, client, createAfterMidnightScheduleProvider());
     }
 
     private static Supplier<TimeValue> createAfterMidnightScheduleProvider() {
@@ -58,12 +58,12 @@ public class MlDailyManagementService implements Releasable {
     }
 
     public void start() {
-        LOGGER.debug("Starting ML daily management service");
+        LOGGER.debug("Starting ML daily maintenance service");
         scheduleNext();
     }
 
     public void stop() {
-        LOGGER.debug("Stopping ML daily management service");
+        LOGGER.debug("Stopping ML daily maintenance service");
         if (future != null && future.isCancelled() == false) {
             FutureUtils.cancel(future);
         }
@@ -80,25 +80,23 @@ public class MlDailyManagementService implements Releasable {
 
     private void scheduleNext() {
         try {
-            future = threadPool.schedule(schedulerProvider.get(), ThreadPool.Names.GENERIC, () -> triggerListeners());
+            future = threadPool.schedule(schedulerProvider.get(), ThreadPool.Names.GENERIC, this::triggerTasks);
         } catch (EsRejectedExecutionException e) {
             if (e.isExecutorShutdown()) {
-                LOGGER.debug("failed to schedule next management task; shutting down", e);
+                LOGGER.debug("failed to schedule next maintenance task; shutting down", e);
             } else {
                 throw e;
             }
         }
     }
 
-    private void triggerListeners() {
-        LOGGER.info("triggering scheduled [ML] management tasks");
-        for (Listener listener : listeners) {
-            listener.onTrigger();
+    private void triggerTasks() {
+        LOGGER.info("triggering scheduled [ML] maintenance tasks");
+        try {
+            client.execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request());
+        } catch (Exception e) {
+            LOGGER.error("An error occurred during maintenance tasks execution", e);
         }
         scheduleNext();
-    }
-
-    public interface Listener {
-        void onTrigger();
     }
 }

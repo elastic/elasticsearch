@@ -286,6 +286,8 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         processorUnderTest.processResult(context, result);
 
         verify(persister, times(1)).persistQuantiles(quantiles);
+        verify(bulkBuilder).executeRequest();
+        verify(persister).commitResultWrites(JOB_ID);
         verify(renormalizer, times(1)).renormalize(quantiles);
         verifyNoMoreInteractions(persister);
         verifyNoMoreInteractions(renormalizer);

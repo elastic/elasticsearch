@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.CloseJobService;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
+import org.elasticsearch.xpack.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.action.DeleteFilterAction;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteModelSnapshotAction;
@@ -90,6 +91,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcess
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestDeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedStatsAction;
 import org.elasticsearch.xpack.ml.rest.datafeeds.RestGetDatafeedsAction;
@@ -308,8 +310,8 @@ public class MachineLearning extends Plugin implements ActionPlugin {
                 jobProvider,
                 jobManager,
                 dataProcessor,
-                new MlInitializationService(settings, threadPool, clusterService, client, auditor),
                 new MachineLearningTemplateRegistry(settings, clusterService, client, threadPool),
+                new MlInitializationService(settings, threadPool, clusterService, client),
                 jobDataCountsPersister,
                 datafeedJobRunner,
                 persistentActionService,
@@ -367,7 +369,8 @@ public class MachineLearning extends Plugin implements ActionPlugin {
             new RestPreviewDatafeedAction(settings, restController),
             new RestStartDatafeedAction(settings, restController),
             new RestStopDatafeedAction(settings, restController),
-            new RestDeleteModelSnapshotAction(settings, restController)
+            new RestDeleteModelSnapshotAction(settings, restController),
+            new RestDeleteExpiredDataAction(settings, restController)
         );
     }
 
@@ -413,7 +416,8 @@ public class MachineLearning extends Plugin implements ActionPlugin {
                 new ActionHandler<>(CompletionPersistentTaskAction.INSTANCE, CompletionPersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(RemovePersistentTaskAction.INSTANCE, RemovePersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(MlDeleteByQueryAction.INSTANCE, MlDeleteByQueryAction.TransportAction.class),
-                new ActionHandler<>(UpdateProcessAction.INSTANCE, UpdateProcessAction.TransportAction.class)
+                new ActionHandler<>(UpdateProcessAction.INSTANCE, UpdateProcessAction.TransportAction.class),
+                new ActionHandler<>(DeleteExpiredDataAction.INSTANCE, DeleteExpiredDataAction.TransportAction.class)
         );
     }
 

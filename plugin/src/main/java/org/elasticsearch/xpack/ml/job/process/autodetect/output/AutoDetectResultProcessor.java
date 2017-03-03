@@ -10,6 +10,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
@@ -98,9 +99,16 @@ public class AutoDetectResultProcessor {
         } catch (Exception e) {
             LOGGER.error(new ParameterizedMessage("[{}] error parsing autodetect output", new Object[] {jobId}), e);
         } finally {
-            waitUntilRenormalizerIsIdle();
-            flushListener.clear();
-            completionLatch.countDown();
+            try {
+                waitUntilRenormalizerIsIdle();
+                persister.commitResultWrites(jobId);
+                persister.commitStateWrites(jobId);
+            } catch (IndexNotFoundException e) {
+                LOGGER.error("[{}] Error while closing: no such index [{}]", jobId, e.getIndex().getName());
+            } finally {
+                flushListener.clear();
+                completionLatch.countDown();
+            }
         }
     }
 
@@ -157,6 +165,9 @@ public class AutoDetectResultProcessor {
         Quantiles quantiles = result.getQuantiles();
         if (quantiles != null) {
             persister.persistQuantiles(quantiles);
+            // We need to make all results written up to these quantiles available for renormalization
+            context.bulkResultsPersister.executeRequest();
+            persister.commitResultWrites(context.jobId);
 
             LOGGER.debug("[{}] Quantiles parsed from output - will trigger renormalization of scores", context.jobId);
             renormalizer.renormalize(quantiles);

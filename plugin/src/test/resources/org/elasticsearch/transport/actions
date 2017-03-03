@@ -138,6 +138,7 @@ cluster:admin/ml/anomaly_detectors/open
 cluster:admin/ml/job/update
 indices:data/write/delete/mlbyquery
 cluster:admin/ml/job/update/process
+cluster:admin/ml/delete_expired_data
 cluster:admin/persistent/create
 cluster:admin/persistent/start
 cluster:admin/persistent/completion

@@ -142,7 +142,6 @@ public class MachineLearningTemplateRegistryTests extends ESTestCase {
                                 AnomalyDetectorsIndex.jobResultsIndexPrefix()).version(Version.CURRENT.id).build())
                         .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
                 .build();
-        MlDailyManagementService initialDailyManagementService = mock(MlDailyManagementService.class);
         templateRegistry.clusterChanged(new ClusterChangedEvent("_source", cs, cs));
 
         verify(threadPool, times(0)).executor(anyString());

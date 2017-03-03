@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
 
 import java.net.InetAddress;
@@ -41,7 +40,6 @@ public class MlInitializationServiceTests extends ESTestCase {
     private ExecutorService executorService;
     private ClusterService clusterService;
     private Client client;
-    private Auditor auditor;
 
     @Before
     public void setUpMocks() {
@@ -49,7 +47,6 @@ public class MlInitializationServiceTests extends ESTestCase {
         executorService = mock(ExecutorService.class);
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);
-        auditor = mock(Auditor.class);
 
         doAnswer(invocation -> {
             ((Runnable) invocation.getArguments()[0]).run();
@@ -62,8 +59,7 @@ public class MlInitializationServiceTests extends ESTestCase {
     }
 
     public void testInitialize() throws Exception {
-        MlInitializationService initializationService =
-                new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, auditor);
+        MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
@@ -75,12 +71,11 @@ public class MlInitializationServiceTests extends ESTestCase {
         initializationService.clusterChanged(new ClusterChangedEvent("_source", cs, cs));
 
         verify(clusterService, times(1)).submitStateUpdateTask(eq("install-ml-metadata"), any());
-        assertThat(initializationService.getDailyManagementService().isStarted(), is(true));
+        assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(true));
     }
 
     public void testInitialize_noMasterNode() throws Exception {
-        MlInitializationService initializationService =
-                new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, auditor);
+        MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
@@ -90,13 +85,12 @@ public class MlInitializationServiceTests extends ESTestCase {
         initializationService.clusterChanged(new ClusterChangedEvent("_source", cs, cs));
 
         verify(clusterService, times(0)).submitStateUpdateTask(eq("install-ml-metadata"), any());
-        assertThat(initializationService.getDailyManagementService(), is(nullValue()));
+        assertThat(initializationService.getDailyMaintenanceService(), is(nullValue()));
     }
 
     public void testInitialize_alreadyInitialized() throws Exception {
         ClusterService clusterService = mock(ClusterService.class);
-        MlInitializationService initializationService =
-                new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, auditor);
+        MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
@@ -106,18 +100,17 @@ public class MlInitializationServiceTests extends ESTestCase {
                 .metaData(MetaData.builder()
                         .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
                 .build();
-        MlDailyManagementService initialDailyManagementService = mock(MlDailyManagementService.class);
-        initializationService.setDailyManagementService(initialDailyManagementService);
+        MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
+        initializationService.setDailyMaintenanceService(initialDailyMaintenanceService);
         initializationService.clusterChanged(new ClusterChangedEvent("_source", cs, cs));
 
         verify(clusterService, times(0)).submitStateUpdateTask(eq("install-ml-metadata"), any());
-        assertSame(initialDailyManagementService, initializationService.getDailyManagementService());
+        assertSame(initialDailyMaintenanceService, initializationService.getDailyMaintenanceService());
     }
 
     public void testInitialize_onlyOnce() throws Exception {
         ClusterService clusterService = mock(ClusterService.class);
-        MlInitializationService initializationService =
-                new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, auditor);
+        MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
@@ -133,10 +126,9 @@ public class MlInitializationServiceTests extends ESTestCase {
     }
 
     public void testNodeGoesFromMasterToNonMasterAndBack() throws Exception {
-        MlInitializationService initializationService =
-                new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, auditor);
-        MlDailyManagementService initialDailyManagementService = mock(MlDailyManagementService.class);
-        initializationService.setDailyManagementService(initialDailyManagementService);
+        MlInitializationService initializationService = new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client);
+        MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
+        initializationService.setDailyMaintenanceService(initialDailyMaintenanceService);
 
         ClusterState masterCs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
@@ -152,11 +144,11 @@ public class MlInitializationServiceTests extends ESTestCase {
                 .build();
         initializationService.clusterChanged(new ClusterChangedEvent("_source", noMasterCs, masterCs));
 
-        verify(initialDailyManagementService).stop();
+        verify(initialDailyMaintenanceService).stop();
 
         initializationService.clusterChanged(new ClusterChangedEvent("_source", masterCs, noMasterCs));
-        MlDailyManagementService finalDailyManagementService = initializationService.getDailyManagementService();
-        assertNotSame(initialDailyManagementService, finalDailyManagementService);
-        assertThat(initializationService.getDailyManagementService().isStarted(), is(true));
+        MlDailyMaintenanceService finalDailyMaintenanceService = initializationService.getDailyMaintenanceService();
+        assertNotSame(initialDailyMaintenanceService, finalDailyMaintenanceService);
+        assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(true));
     }
 }

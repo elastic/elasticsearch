@@ -5,28 +5,32 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ml.action.DeleteExpiredDataAction;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.mock.orig.Mockito.verify;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
 
 public class MlDailyManagementServiceTests extends ESTestCase {
 
     private ThreadPool threadPool;
+    private Client client;
 
     @Before
     public void setUpTests() {
         threadPool = new TestThreadPool("MlDailyManagementServiceTests");
+        client = mock(Client.class);
     }
 
     @After
@@ -35,21 +39,18 @@ public class MlDailyManagementServiceTests extends ESTestCase {
     }
 
     public void testScheduledTriggering() throws InterruptedException {
-        MlDailyManagementService.Listener listener1 = mock(MlDailyManagementService.Listener.class);
-        MlDailyManagementService.Listener listener2 = mock(MlDailyManagementService.Listener.class);
         int triggerCount = randomIntBetween(2, 4);
         CountDownLatch latch = new CountDownLatch(triggerCount);
-        try (MlDailyManagementService service = createService(latch, Arrays.asList(listener1, listener2))) {
+        try (MlDailyMaintenanceService service = createService(latch, client)) {
             service.start();
             latch.await(1, TimeUnit.SECONDS);
         }
 
-        verify(listener1, org.mockito.Mockito.atLeast(triggerCount - 1)).onTrigger();
-        verify(listener2, org.mockito.Mockito.atLeast(triggerCount - 1)).onTrigger();
+        verify(client, org.mockito.Mockito.atLeast(triggerCount - 1)).execute(same(DeleteExpiredDataAction.INSTANCE), any());
     }
 
-    private MlDailyManagementService createService(CountDownLatch latch, List<MlDailyManagementService.Listener> listeners) {
-        return new MlDailyManagementService(threadPool, listeners, () -> {
+    private MlDailyMaintenanceService createService(CountDownLatch latch, Client client) {
+        return new MlDailyMaintenanceService(threadPool, client, () -> {
                 latch.countDown();
                 return TimeValue.timeValueMillis(100);
             });

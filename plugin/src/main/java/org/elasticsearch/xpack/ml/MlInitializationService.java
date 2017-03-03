@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -17,30 +16,24 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ml.job.retention.ExpiredModelSnapshotsRemover;
-import org.elasticsearch.xpack.ml.job.retention.ExpiredResultsRemover;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
 
-import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class MlInitializationService extends AbstractComponent implements ClusterStateListener {
+class MlInitializationService extends AbstractComponent implements ClusterStateListener {
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final Client client;
-    private final Auditor auditor;
 
     private final AtomicBoolean installMlMetadataCheck = new AtomicBoolean(false);
-    private volatile MlDailyManagementService mlDailyManagementService;
 
-    public MlInitializationService(Settings settings, ThreadPool threadPool, ClusterService clusterService, Client client,
-                                   Auditor auditor) {
+    private volatile MlDailyMaintenanceService mlDailyMaintenanceService;
+
+    MlInitializationService(Settings settings, ThreadPool threadPool, ClusterService clusterService, Client client) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.client = client;
-        this.auditor = auditor;
         clusterService.addListener(this);
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
@@ -55,9 +48,9 @@ public class MlInitializationService extends AbstractComponent implements Cluste
         if (event.localNodeMaster()) {
             MetaData metaData = event.state().metaData();
             installMlMetadata(metaData);
-            installDailyManagementService();
+            installDailyMaintenanceService();
         } else {
-            uninstallDailyManagementService();
+            uninstallDailyMaintenanceService();
         }
     }
 
@@ -87,37 +80,34 @@ public class MlInitializationService extends AbstractComponent implements Cluste
         }
     }
 
-    private void installDailyManagementService() {
-        if (mlDailyManagementService == null) {
-            mlDailyManagementService = new MlDailyManagementService(threadPool, Arrays.asList((MlDailyManagementService.Listener)
-                    new ExpiredResultsRemover(client, clusterService, auditor),
-                    new ExpiredModelSnapshotsRemover(client, clusterService)
-            ));
-            mlDailyManagementService.start();
+    private void installDailyMaintenanceService() {
+        if (mlDailyMaintenanceService == null) {
+            mlDailyMaintenanceService = new MlDailyMaintenanceService(threadPool, client);
+            mlDailyMaintenanceService.start();
             clusterService.addLifecycleListener(new LifecycleListener() {
                 @Override
                 public void beforeStop() {
-                    uninstallDailyManagementService();
+                    uninstallDailyMaintenanceService();
                 }
             });
         }
     }
 
-    private void uninstallDailyManagementService() {
-        if (mlDailyManagementService != null) {
-            mlDailyManagementService.stop();
-            mlDailyManagementService = null;
+    private void uninstallDailyMaintenanceService() {
+        if (mlDailyMaintenanceService != null) {
+            mlDailyMaintenanceService.stop();
+            mlDailyMaintenanceService = null;
         }
     }
 
     /** For testing */
-    MlDailyManagementService getDailyManagementService() {
-        return mlDailyManagementService;
+    MlDailyMaintenanceService getDailyMaintenanceService() {
+        return mlDailyMaintenanceService;
     }
 
     /** For testing */
-    void setDailyManagementService(MlDailyManagementService service) {
-        mlDailyManagementService = service;
+    void setDailyMaintenanceService(MlDailyMaintenanceService service) {
+        mlDailyMaintenanceService = service;
     }
 }
 

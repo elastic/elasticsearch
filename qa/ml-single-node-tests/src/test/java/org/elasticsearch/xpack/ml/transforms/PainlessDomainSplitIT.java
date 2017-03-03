@@ -6,12 +6,10 @@
 package org.elasticsearch.xpack.ml.transforms;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;

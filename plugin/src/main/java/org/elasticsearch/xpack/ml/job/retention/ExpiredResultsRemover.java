@@ -58,8 +58,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     @Override
     protected void removeDataBefore(Job job, long cutoffEpochMs, Runnable onFinish) {
         LOGGER.info("Removing results of job [{}] that have a timestamp before [{}]", job.getId(), cutoffEpochMs);
-        QueryBuilder excludeFilter = QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ModelSizeStats.RESULT_TYPE_VALUE);
-        DeleteByQueryRequest request = createDBQRequest(job, Result.TYPE.getPreferredName(), cutoffEpochMs, excludeFilter);
+        DeleteByQueryRequest request = createDBQRequest(job, cutoffEpochMs);
 
         client.execute(MlDeleteByQueryAction.INSTANCE, request, new ActionListener<BulkByScrollResponse>() {
             @Override
@@ -80,7 +79,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         });
     }
 
-    private DeleteByQueryRequest createDBQRequest(Job job, String type, long cutoffEpochMs, QueryBuilder excludeFilter) {
+    private DeleteByQueryRequest createDBQRequest(Job job, long cutoffEpochMs) {
         SearchRequest searchRequest = new SearchRequest();
         // We need to create the DeleteByQueryRequest before we modify the SearchRequest
         // because the constructor of the former wipes the latter
@@ -88,7 +87,8 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         request.setSlices(5);
 
         searchRequest.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
-        searchRequest.types(type);
+        searchRequest.types(Result.TYPE.getPreferredName());
+        QueryBuilder excludeFilter = QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ModelSizeStats.RESULT_TYPE_VALUE);
         QueryBuilder query = createQuery(job.getId(), cutoffEpochMs).mustNot(excludeFilter);
         searchRequest.source(new SearchSourceBuilder().query(query));
         return request;

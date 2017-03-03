@@ -10,7 +10,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.ml.MlDailyManagementService;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.results.Result;
@@ -18,7 +17,6 @@ import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -31,7 +29,7 @@ import java.util.concurrent.TimeUnit;
  * blocking the thread it was called at for too long. It does so by
  * chaining the steps together.
  */
-abstract class AbstractExpiredJobDataRemover implements MlDailyManagementService.Listener {
+abstract class AbstractExpiredJobDataRemover {
 
     private final ClusterService clusterService;
 
@@ -39,9 +37,23 @@ abstract class AbstractExpiredJobDataRemover implements MlDailyManagementService
         this.clusterService = Objects.requireNonNull(clusterService);
     }
 
-    @Override
-    public void onTrigger() {
-        removeData(newJobIterator());
+    public void trigger(Runnable onFinish) {
+        removeData(newJobIterator(), onFinish);
+    }
+
+    private void removeData(Iterator<Job> jobIterator, Runnable onFinish) {
+        if (jobIterator.hasNext() == false) {
+            onFinish.run();
+            return;
+        }
+        Job job = jobIterator.next();
+        Long retentionDays = getRetentionDays(job);
+        if (retentionDays == null) {
+            removeData(jobIterator, () -> removeData(jobIterator, onFinish));
+            return;
+        }
+        long cutoffEpochMs = calcCutoffEpochMs(retentionDays);
+        removeDataBefore(job, cutoffEpochMs, () -> removeData(jobIterator, onFinish));
     }
 
     private Iterator<Job> newJobIterator() {
@@ -58,23 +70,9 @@ abstract class AbstractExpiredJobDataRemover implements MlDailyManagementService
         return new VolatileCursorIterator<T>(items);
     }
 
-    protected void removeData(Iterator<Job> jobIterator) {
-        if (jobIterator.hasNext() == false) {
-            return;
-        }
-        Job job = jobIterator.next();
-        Long retentionDays = getRetentionDays(job);
-        if (retentionDays == null) {
-            removeData(jobIterator);
-            return;
-        }
-        long cutoffEpochMs = calcCutoffEpochMs(retentionDays);
-        removeDataBefore(job, cutoffEpochMs, () -> removeData(jobIterator));
-    }
-
     private long calcCutoffEpochMs(long retentionDays) {
-        long startOfDayEpochMs = DateTime.now(ISOChronology.getInstance()).withTimeAtStartOfDay().getMillis();
-        return startOfDayEpochMs - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
+        long nowEpochMs = DateTime.now(ISOChronology.getInstance()).getMillis();
+        return nowEpochMs - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
     }
 
     protected abstract Long getRetentionDays(Job job);

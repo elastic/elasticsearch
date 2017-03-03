@@ -165,8 +165,6 @@ end
 def sles_common(config)
   extra = <<-SHELL
     zypper rr systemsmanagement_puppet puppetlabs-pc1
-    zypper addrepo -t yast2 http://demeter.uni-regensburg.de/SLES12-x64/DVD1/ dvd1 || true
-    zypper --no-gpg-checks --non-interactive refresh
     zypper --non-interactive install git-core
 SHELL
   suse_common config, extra

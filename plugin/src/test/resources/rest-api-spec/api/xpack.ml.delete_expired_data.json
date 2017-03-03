@@ -3,7 +3,8 @@
     "methods": [ "DELETE" ],
     "url": {
       "path": "/_xpack/ml/_delete_expired_data",
-      "paths": [ "/_xpack/ml/_delete_expired_data" ]
+      "paths": [ "/_xpack/ml/_delete_expired_data" ],
+      "parts": {}
     },
     "body": null
   }

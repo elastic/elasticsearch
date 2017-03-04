@@ -94,7 +94,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         long now = System.currentTimeMillis();
         long weekAgo = now - 604800000;
         long twoWeeksAgo = weekAgo - 604800000;
-        indexDocs("data", numDocs1, twoWeeksAgo, weekAgo);
+        indexDocs(logger, "data", numDocs1, twoWeeksAgo, weekAgo);
 
         Job.Builder job = createScheduledJob("job_id");
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build());
@@ -147,7 +147,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         long numDocs2 = randomIntBetween(2, 64);
         long now2 = System.currentTimeMillis();
-        indexDocs("data", numDocs2, now2 + 5000, now2 + 6000);
+        indexDocs(logger, "data", numDocs2, now2 + 5000, now2 + 6000);
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
             assertEquals(numDocs1 + numDocs2, dataCounts.getProcessedRecordCount());

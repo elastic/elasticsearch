@@ -16,7 +16,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
@@ -24,12 +24,12 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.persistent.PersistentActionCoordinator;
 import org.elasticsearch.xpack.persistent.PersistentActionRequest;
 import org.elasticsearch.xpack.persistent.PersistentActionResponse;
 import org.elasticsearch.xpack.persistent.PersistentTasks;
 import org.elasticsearch.xpack.security.Security;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,16 +40,15 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
+import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
+import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
+import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.deleteAllDatafeeds;
+import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.deleteAllJobs;
+import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.getDataCounts;
+import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.indexDocs;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0, numClientNodes = 0,
-        transportClientRatio = 0, supportsDedicatedMasters = false)
-public class DatafeedJobsIT extends BaseMlIntegTestCase {
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return false;
-    }
+public class DatafeedJobsIT extends SecurityIntegTestCase {
 
     @Override
     protected Settings externalClusterClientSettings() {
@@ -58,6 +57,12 @@ public class DatafeedJobsIT extends BaseMlIntegTestCase {
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         settings.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
         return settings.build();
+    }
+
+    @After
+    public void cleanupWorkaround() throws Exception {
+        deleteAllDatafeeds(client());
+        deleteAllJobs(client());
     }
 
     public void ensureClusterStateConsistency() throws IOException {
@@ -118,13 +123,13 @@ public class DatafeedJobsIT extends BaseMlIntegTestCase {
         long now = System.currentTimeMillis();
         long oneWeekAgo = now - 604800000;
         long twoWeeksAgo = oneWeekAgo - 604800000;
-        indexDocs("data-1", numDocs, twoWeeksAgo, oneWeekAgo);
+        indexDocs(logger, "data-1", numDocs, twoWeeksAgo, oneWeekAgo);
 
         client().admin().indices().prepareCreate("data-2")
                 .addMapping("type", "time", "type=date")
                 .get();
         long numDocs2 = randomIntBetween(32, 2048);
-        indexDocs("data-2", numDocs2, oneWeekAgo, now);
+        indexDocs(logger, "data-2", numDocs2, oneWeekAgo, now);
 
         Job.Builder job = createScheduledJob("lookback-job");
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build());
@@ -163,7 +168,7 @@ public class DatafeedJobsIT extends BaseMlIntegTestCase {
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
         long lastWeek = now - 604800000;
-        indexDocs("data", numDocs1, lastWeek, now);
+        indexDocs(logger, "data", numDocs1, lastWeek, now);
 
         Job.Builder job = createScheduledJob("realtime-job");
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build());
@@ -192,7 +197,7 @@ public class DatafeedJobsIT extends BaseMlIntegTestCase {
 
         long numDocs2 = randomIntBetween(2, 64);
         now = System.currentTimeMillis();
-        indexDocs("data", numDocs2, now + 5000, now + 6000);
+        indexDocs(logger, "data", numDocs2, now + 5000, now + 6000);
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
             assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs1 + numDocs2));

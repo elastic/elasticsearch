@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.support;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -16,11 +17,11 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
@@ -42,15 +43,13 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -63,7 +62,7 @@ import static org.hamcrest.Matchers.is;
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0,
         transportClientRatio = 0, supportsDedicatedMasters = false)
-public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
+public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected boolean ignoreExternalCluster() {
@@ -94,10 +93,18 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
     }
 
     @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(XPackPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return nodePlugins();
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        Set<Class<? extends Plugin>> mocks = new HashSet<>(super.getMockPlugins());
-        mocks.remove(NodeMocksPlugin.class);
-        return mocks;
+        return Arrays.asList(TestZenDiscovery.TestPlugin.class, TestSeedPlugin.class);
     }
 
     @Before
@@ -180,19 +187,17 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
     public void cleanupWorkaround() throws Exception {
         deleteAllDatafeeds(client());
         deleteAllJobs(client());
-        if (ignoreExternalCluster()) {
-            assertBusy(() -> {
-                RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries()
-                        .setActiveOnly(true)
-                        .get();
-                for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
-                    assertThat(recoveryStates.size(), equalTo(0));
-                }
-            });
-        }
+        assertBusy(() -> {
+            RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries()
+                    .setActiveOnly(true)
+                    .get();
+            for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
+                assertThat(recoveryStates.size(), equalTo(0));
+            }
+        });
     }
 
-    protected void indexDocs(String index, long numDocs, long start, long end) {
+    public static void indexDocs(Logger logger, String index, long numDocs, long start, long end) {
         int maxDelta = (int) (end - start - 1);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
@@ -209,7 +214,7 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
         logger.info("Indexed [{}] documents", numDocs);
     }
 
-    protected DataCounts getDataCounts(String jobId) {
+    public static DataCounts getDataCounts(String jobId) {
         GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
         GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
         if (response.getResponse().results().isEmpty()) {
@@ -219,7 +224,7 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
         }
     }
 
-    private void deleteAllDatafeeds(Client client) throws Exception {
+    public static void deleteAllDatafeeds(Client client) throws Exception {
         MetaData metaData = client.admin().cluster().prepareState().get().getState().getMetaData();
         MlMetadata mlMetadata = metaData.custom(MlMetadata.TYPE);
         for (DatafeedConfig datafeed : mlMetadata.getDatafeeds().values()) {
@@ -249,7 +254,7 @@ public abstract class BaseMlIntegTestCase extends SecurityIntegTestCase {
         }
     }
 
-    private void deleteAllJobs(Client client) throws Exception {
+    public static void deleteAllJobs(Client client) throws Exception {
         MetaData metaData = client.admin().cluster().prepareState().get().getState().getMetaData();
         MlMetadata mlMetadata = metaData.custom(MlMetadata.TYPE);
         for (Map.Entry<String, Job> entry : mlMetadata.getJobs().entrySet()) {

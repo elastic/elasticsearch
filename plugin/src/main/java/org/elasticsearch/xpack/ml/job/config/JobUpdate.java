@@ -24,9 +24,11 @@ import java.util.Objects;
 public class JobUpdate implements Writeable, ToXContent {
     public static final ParseField DETECTORS = new ParseField("detectors");
 
-    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("job_udpate", Builder::new);
+    public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(
+            "job_update", args ->  new Builder((String) args[0]));
 
     static {
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), Job.ID);
         PARSER.declareStringOrNull(Builder::setDescription, Job.DESCRIPTION);
         PARSER.declareObjectArray(Builder::setDetectorUpdates, DetectorUpdate.PARSER, DETECTORS);
         PARSER.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.PARSER, Job.MODEL_PLOT_CONFIG);
@@ -41,6 +43,7 @@ public class JobUpdate implements Writeable, ToXContent {
         PARSER.declareString(Builder::setModelSnapshotId, Job.MODEL_SNAPSHOT_ID);
     }
 
+    private final String jobId;
     private final String description;
     private final List<DetectorUpdate> detectorUpdates;
     private final ModelPlotConfig modelPlotConfig;
@@ -53,12 +56,13 @@ public class JobUpdate implements Writeable, ToXContent {
     private final Map<String, Object> customSettings;
     private final String modelSnapshotId;
 
-    private JobUpdate(@Nullable String description, @Nullable List<DetectorUpdate> detectorUpdates,
+    private JobUpdate(String jobId, @Nullable String description, @Nullable List<DetectorUpdate> detectorUpdates,
                       @Nullable ModelPlotConfig modelPlotConfig, @Nullable AnalysisLimits analysisLimits,
                       @Nullable TimeValue backgroundPersistInterval, @Nullable Long renormalizationWindowDays,
                       @Nullable Long resultsRetentionDays, @Nullable Long modelSnapshotRetentionDays,
                       @Nullable List<String> categorisationFilters, @Nullable  Map<String, Object> customSettings,
                       @Nullable String modelSnapshotId) {
+        this.jobId = jobId;
         this.description = description;
         this.detectorUpdates = detectorUpdates;
         this.modelPlotConfig = modelPlotConfig;
@@ -73,6 +77,7 @@ public class JobUpdate implements Writeable, ToXContent {
     }
 
     public JobUpdate(StreamInput in) throws IOException {
+        jobId = in.readString();
         description = in.readOptionalString();
         if (in.readBoolean()) {
             detectorUpdates = in.readList(DetectorUpdate::new);
@@ -95,6 +100,7 @@ public class JobUpdate implements Writeable, ToXContent {
     }
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(jobId);
         out.writeOptionalString(description);
         out.writeBoolean(detectorUpdates != null);
         if (detectorUpdates != null) {
@@ -112,6 +118,10 @@ public class JobUpdate implements Writeable, ToXContent {
         }
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
+    }
+
+    public String getJobId() {
+        return jobId;
     }
 
     public String getDescription() {
@@ -165,6 +175,7 @@ public class JobUpdate implements Writeable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field(Job.ID.getPreferredName(), jobId);
         if (description != null) {
             builder.field(Job.DESCRIPTION.getPreferredName(), description);
         }
@@ -279,7 +290,8 @@ public class JobUpdate implements Writeable, ToXContent {
 
         JobUpdate that = (JobUpdate) other;
 
-        return Objects.equals(this.description, that.description)
+        return Objects.equals(this.jobId, that.jobId)
+                && Objects.equals(this.description, that.description)
                 && Objects.equals(this.detectorUpdates, that.detectorUpdates)
                 && Objects.equals(this.modelPlotConfig, that.modelPlotConfig)
                 && Objects.equals(this.analysisLimits, that.analysisLimits)
@@ -294,7 +306,7 @@ public class JobUpdate implements Writeable, ToXContent {
 
     @Override
     public int hashCode() {
-        return Objects.hash(description, detectorUpdates, modelPlotConfig, analysisLimits, renormalizationWindowDays,
+        return Objects.hash(jobId, description, detectorUpdates, modelPlotConfig, analysisLimits, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, categorizationFilters, customSettings,
                 modelSnapshotId);
     }
@@ -393,6 +405,8 @@ public class JobUpdate implements Writeable, ToXContent {
     }
 
     public static class Builder {
+
+        private String jobId;
         private String description;
         private List<DetectorUpdate> detectorUpdates;
         private ModelPlotConfig modelPlotConfig;
@@ -405,7 +419,14 @@ public class JobUpdate implements Writeable, ToXContent {
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
 
-        public Builder() {}
+        public Builder(String jobId) {
+            this.jobId = jobId;
+        }
+
+        public Builder setJobId(String jobId) {
+            this.jobId = jobId;
+            return this;
+        }
 
         public Builder setDescription(String description) {
             this.description = description;
@@ -463,7 +484,7 @@ public class JobUpdate implements Writeable, ToXContent {
         }
 
         public JobUpdate build() {
-            return new JobUpdate(description, detectorUpdates, modelPlotConfig, analysisLimits, backgroundPersistInterval,
+            return new JobUpdate(jobId, description, detectorUpdates, modelPlotConfig, analysisLimits, backgroundPersistInterval,
                     renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays, categorizationFilters, customSettings,
                     modelSnapshotId);
         }

@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,15 +31,10 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
-import org.elasticsearch.xpack.ml.MlMetadata;
-import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.Semaphore;
 
 public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobAction.Response, UpdateJobAction.RequestBuilder> {
     public static final UpdateJobAction INSTANCE = new UpdateJobAction();
@@ -64,7 +57,7 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
     public static class Request extends AcknowledgedRequest<UpdateJobAction.Request> implements ToXContent {
 
         public static UpdateJobAction.Request parseRequest(String jobId, XContentParser parser) {
-            JobUpdate update = JobUpdate.PARSER.apply(parser, null).build();
+            JobUpdate update = JobUpdate.PARSER.apply(parser, null).setJobId(jobId).build();
             return new UpdateJobAction.Request(jobId, update);
         }
 
@@ -142,18 +135,15 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
 
     public static class TransportAction extends TransportMasterNodeAction<UpdateJobAction.Request, PutJobAction.Response> {
 
-        private final ConcurrentMap<String, Semaphore> semaphoreByJob = ConcurrentCollections.newConcurrentMap();
         private final JobManager jobManager;
-        private final Client client;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               JobManager jobManager, Client client) {
+                               JobManager jobManager) {
             super(settings, UpdateJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, UpdateJobAction.Request::new);
             this.jobManager = jobManager;
-            this.client = client;
         }
 
         @Override
@@ -173,57 +163,7 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
                 throw new IllegalArgumentException("Job Id " + Job.ALL + " cannot be for update");
             }
 
-            PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            boolean jobIsOpen = MlMetadata.getJobState(request.getJobId(), tasks) == JobState.OPENED;
-
-            semaphoreByJob.computeIfAbsent(request.getJobId(), id -> new Semaphore(1)).acquire();
-
-            ActionListener<PutJobAction.Response> wrappedListener;
-            if (jobIsOpen && request.getJobUpdate().isAutodetectProcessUpdate()) {
-                wrappedListener = ActionListener.wrap(
-                        response -> updateProcess(request, response, listener),
-                        e -> {
-                            releaseJobSemaphore(request.getJobId());
-                            listener.onFailure(e);
-                        });
-            } else {
-                wrappedListener = ActionListener.wrap(
-                        response -> {
-                            releaseJobSemaphore(request.getJobId());
-                            listener.onResponse(response);
-                        },
-                        e -> {
-                            releaseJobSemaphore(request.getJobId());
-                            listener.onFailure(e);
-                        });
-            }
-
-            jobManager.updateJob(request.getJobId(), request.getJobUpdate(), request, wrappedListener);
-        }
-
-        private void updateProcess(Request request, PutJobAction.Response updateConfigResponse,
-                                   ActionListener<PutJobAction.Response> listener) {
-
-            UpdateProcessAction.Request updateProcessRequest = new UpdateProcessAction.Request(request.getJobId(),
-                    request.getJobUpdate().getModelPlotConfig(), request.getJobUpdate().getDetectorUpdates());
-
-            client.execute(UpdateProcessAction.INSTANCE, updateProcessRequest, new ActionListener<UpdateProcessAction.Response>() {
-                @Override
-                public void onResponse(UpdateProcessAction.Response response) {
-                    releaseJobSemaphore(request.getJobId());
-                    listener.onResponse(updateConfigResponse);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    releaseJobSemaphore(request.getJobId());
-                    listener.onFailure(e);
-                }
-            });
-        }
-
-        private void releaseJobSemaphore(String jobId) {
-            semaphoreByJob.remove(jobId).release();
+            jobManager.updateJob(request.getJobId(), request.getJobUpdate(), request, listener);
         }
 
         @Override

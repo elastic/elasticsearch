@@ -23,7 +23,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
 
     @Override
     protected JobUpdate createTestInstance() {
-        JobUpdate.Builder update = new JobUpdate.Builder();
+        JobUpdate.Builder update = new JobUpdate.Builder(randomAsciiOfLength(4));
         if (randomBoolean()) {
             update.setDescription(randomAsciiOfLength(20));
         }
@@ -104,7 +104,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         List<String> categorizationFilters = Arrays.asList(generateRandomStringArray(10, 10, false));
         Map<String, Object> customSettings = Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10));
 
-        JobUpdate.Builder updateBuilder = new JobUpdate.Builder();
+        JobUpdate.Builder updateBuilder = new JobUpdate.Builder("foo");
         updateBuilder.setDescription("updated_description");
         updateBuilder.setDetectorUpdates(detectorUpdates);
         updateBuilder.setModelPlotConfig(modelPlotConfig);
@@ -151,11 +151,11 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
     }
 
     public void testIsAutodetectProcessUpdate() {
-        JobUpdate update = new JobUpdate.Builder().build();
+        JobUpdate update = new JobUpdate.Builder("foo").build();
         assertFalse(update.isAutodetectProcessUpdate());
-        update = new JobUpdate.Builder().setModelPlotConfig(new ModelPlotConfig(true, "ff")).build();
+        update = new JobUpdate.Builder("foo").setModelPlotConfig(new ModelPlotConfig(true, "ff")).build();
         assertTrue(update.isAutodetectProcessUpdate());
-        update = new JobUpdate.Builder().setDetectorUpdates(Arrays.asList(mock(JobUpdate.DetectorUpdate.class))).build();
+        update = new JobUpdate.Builder("foo").setDetectorUpdates(Arrays.asList(mock(JobUpdate.DetectorUpdate.class))).build();
         assertTrue(update.isAutodetectProcessUpdate());
     }
 }

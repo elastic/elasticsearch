@@ -269,7 +269,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
 
         verify(persister, times(1)).persistModelSnapshot(modelSnapshot);
         UpdateJobAction.Request expectedJobUpdateRequest = new UpdateJobAction.Request(JOB_ID,
-                new JobUpdate.Builder().setModelSnapshotId("a_snapshot_id").build());
+                new JobUpdate.Builder(JOB_ID).setModelSnapshotId("a_snapshot_id").build());
 
         verify(client).execute(same(UpdateJobAction.INSTANCE), eq(expectedJobUpdateRequest), any());
         verifyNoMoreInteractions(persister);

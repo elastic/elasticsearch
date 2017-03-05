@@ -16,7 +16,7 @@ public class UpdateJobActionRequestTests
     protected UpdateJobAction.Request createTestInstance() {
         String jobId = randomAsciiOfLength(10);
         // no need to randomize JobUpdate this is already tested in: JobUpdateTests
-        JobUpdate.Builder jobUpdate = new JobUpdate.Builder();
+        JobUpdate.Builder jobUpdate = new JobUpdate.Builder(jobId);
         jobUpdate.setAnalysisLimits(new AnalysisLimits(100L, 100L));
         return new UpdateJobAction.Request(jobId, jobUpdate.build());
     }

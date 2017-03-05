@@ -189,7 +189,7 @@ public class AutoDetectResultProcessor {
     }
 
     protected void updateModelSnapshotIdOnJob(ModelSnapshot modelSnapshot) {
-        JobUpdate update = new JobUpdate.Builder().setModelSnapshotId(modelSnapshot.getSnapshotId()).build();
+        JobUpdate update = new JobUpdate.Builder(jobId).setModelSnapshotId(modelSnapshot.getSnapshotId()).build();
         UpdateJobAction.Request updateRequest = new UpdateJobAction.Request(jobId, update);
         client.execute(UpdateJobAction.INSTANCE, updateRequest, new ActionListener<PutJobAction.Response>() {
             @Override

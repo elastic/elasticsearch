@@ -14,10 +14,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.action.PutJobAction;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
@@ -108,7 +107,8 @@ public class JobManagerTests extends ESTestCase {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         JobResultsPersister jobResultsPersister = mock(JobResultsPersister.class);
         Client client = mock(Client.class);
-        return new JobManager(settings, jobProvider, jobResultsPersister, clusterService, auditor, client);
+        UpdateJobProcessNotifier notifier = mock(UpdateJobProcessNotifier.class);
+        return new JobManager(settings, jobProvider, jobResultsPersister, clusterService, auditor, client, notifier);
     }
 
     private ClusterState createClusterState() {

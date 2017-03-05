@@ -59,18 +59,21 @@ public class JobManager extends AbstractComponent {
     private final JobResultsPersister jobResultsPersister;
     private final Auditor auditor;
     private final Client client;
+    private final UpdateJobProcessNotifier updateJobProcessNotifier;
 
     /**
      * Create a JobManager
      */
     public JobManager(Settings settings, JobProvider jobProvider, JobResultsPersister jobResultsPersister,
-                      ClusterService clusterService, Auditor auditor, Client client) {
+                      ClusterService clusterService, Auditor auditor, Client client,
+                      UpdateJobProcessNotifier updateJobProcessNotifier) {
         super(settings);
         this.jobProvider = Objects.requireNonNull(jobProvider);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
         this.auditor = Objects.requireNonNull(auditor);
         this.client = Objects.requireNonNull(client);
+        this.updateJobProcessNotifier = updateJobProcessNotifier;
     }
 
     /**
@@ -207,13 +210,15 @@ public class JobManager extends AbstractComponent {
         if (jobUpdate.getModelSnapshotId() != null) {
             jobProvider.getModelSnapshot(job.getId(), jobUpdate.getModelSnapshotId(), newModelSnapshot -> {
                 if (newModelSnapshot == null) {
-                    throw new ResourceNotFoundException(
-                            Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, jobUpdate.getModelSnapshotId(), job.getId()));
+                    String message = Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, jobUpdate.getModelSnapshotId(),
+                            job.getId());
+                    errorHandler.accept(new ResourceNotFoundException(message));
                 }
                 jobProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), oldModelSnapshot -> {
                     if (oldModelSnapshot != null && newModelSnapshot.getTimestamp().before(oldModelSnapshot.getTimestamp())) {
-                        throw new IllegalArgumentException("Job [" + job.getId() + "] has a more recent model snapshot ["
-                                + oldModelSnapshot.getSnapshotId() + "]");
+                        String message = "Job [" + job.getId() + "] has a more recent model snapshot [" +
+                                oldModelSnapshot.getSnapshotId() + "]";
+                        errorHandler.accept(new IllegalArgumentException(message));
                     }
                     handler.accept(true);
                 }, errorHandler);
@@ -227,7 +232,7 @@ public class JobManager extends AbstractComponent {
                                    ActionListener<PutJobAction.Response> actionListener) {
         clusterService.submitStateUpdateTask("update-job-" + jobId,
                 new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
-                    private Job updatedJob;
+                    private volatile Job updatedJob;
 
                     @Override
                     protected PutJobAction.Response newResponse(boolean acknowledged) {
@@ -239,6 +244,11 @@ public class JobManager extends AbstractComponent {
                         Job job = getJob(jobId, currentState).results().get(0);
                         updatedJob = jobUpdate.mergeWithJob(job);
                         return updateClusterState(updatedJob, true, currentState);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        updateJobProcessNotifier.submitJobUpdate(jobUpdate);
                     }
                 });
     }

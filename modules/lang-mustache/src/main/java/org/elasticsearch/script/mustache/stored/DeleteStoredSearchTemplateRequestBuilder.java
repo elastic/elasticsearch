@@ -30,4 +30,9 @@ public class DeleteStoredSearchTemplateRequestBuilder extends AcknowledgedReques
     public DeleteStoredSearchTemplateRequestBuilder(ElasticsearchClient client, DeleteStoredSearchTemplateAction action) {
         super(client, action, new DeleteStoredSearchTemplateRequest());
     }
+
+    public DeleteStoredSearchTemplateRequestBuilder setId(String id) {
+        request.id(id);
+        return this;
+    }
 }

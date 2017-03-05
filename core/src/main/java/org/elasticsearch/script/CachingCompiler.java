@@ -90,7 +90,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
         }
 
         logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
-        this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
+        this.cache = cacheBuilder.removalListener(new CacheRemovalListener()).build();
         
         // add file watcher for file scripts
         scriptsDirectory = env.scriptsFile();
@@ -98,7 +98,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
             logger.trace("Using scripts directory [{}] ", scriptsDirectory);
         }
         FileWatcher fileWatcher = new FileWatcher(scriptsDirectory);
-        fileWatcher.addListener(new ScriptsDirectoryChangesListener());
+        fileWatcher.addListener(new DirectoryChangesListener());
         if (ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.get(settings)) {
             // automatic reload is enabled - register scripts
             resourceWatcherService.add(fileWatcher);
@@ -112,7 +112,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
 
     /**
      * Build the cache key for a file name and its extension. Return null to indicate that the file type is not supported.
-     */ // NOCOMMIT rename to cacheKeyForFile
+     */
     protected abstract CacheKeyT cacheKeyForFile(String baseName, String extension);
     protected abstract CacheKeyT cacheKeyFromClusterState(StoredScriptSource scriptMetadata);
     protected abstract StoredScriptSource lookupStoredScript(ClusterState clusterState, CacheKeyT cacheKey);
@@ -192,7 +192,6 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
         if (source == null) {
             throw new ResourceNotFoundException("unable to find script [" + cacheKey + "] in cluster state");
         }
-
         return cacheKeyFromClusterState(source);
     }
 
@@ -226,7 +225,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
     /**
      * Listener to manage metrics for the script cache.
      */
-    private class ScriptCacheRemovalListener implements RemovalListener<CacheKeyT, CompiledScript> {
+    private class CacheRemovalListener implements RemovalListener<CacheKeyT, CompiledScript> {
         @Override
         public void onRemoval(RemovalNotification<CacheKeyT, CompiledScript> notification) {
             if (logger.isDebugEnabled()) {
@@ -236,7 +235,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
         }
     }
 
-    private class ScriptsDirectoryChangesListener implements FileChangesListener {
+    private class DirectoryChangesListener implements FileChangesListener {
         private Tuple<String, String> getScriptNameExt(Path file) {
             Path scriptPath = scriptsDirectory.relativize(file);
             int extIndex = scriptPath.toString().lastIndexOf('.');

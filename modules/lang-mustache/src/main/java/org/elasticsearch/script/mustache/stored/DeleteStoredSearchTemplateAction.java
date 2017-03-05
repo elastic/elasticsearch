@@ -26,7 +26,7 @@ public class DeleteStoredSearchTemplateAction
         extends Action<DeleteStoredSearchTemplateRequest, DeleteStoredSearchTemplateResponse, DeleteStoredSearchTemplateRequestBuilder> {
 
     public static final DeleteStoredSearchTemplateAction INSTANCE = new DeleteStoredSearchTemplateAction();
-    public static final String NAME = "cluster:admin/script/delete";
+    public static final String NAME = "cluster:admin/search/template/delete";
 
     private DeleteStoredSearchTemplateAction() {
         super(NAME);

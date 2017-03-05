@@ -32,13 +32,15 @@ public class GetStoredSearchTemplateRequest extends MasterNodeReadRequest<GetSto
     protected String id;
 
     GetStoredSearchTemplateRequest() {
-        super();
     }
 
     public GetStoredSearchTemplateRequest(String id) {
-        super();
-
         this.id = id;
+    }
+
+    public GetStoredSearchTemplateRequest id(String id) {
+        this.id = id;
+        return this;
     }
 
     @Override

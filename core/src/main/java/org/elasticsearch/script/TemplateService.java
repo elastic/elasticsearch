@@ -20,7 +20,9 @@
 package org.elasticsearch.script;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +36,7 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 
-public class TemplateService {
+public class TemplateService implements ClusterStateListener {
     public interface Backend extends ScriptEngineService {} // NOCOMMIT this should diverge....
 
     private static final Logger logger = ESLoggerFactory.getLogger(TemplateService.class);
@@ -141,5 +143,10 @@ public class TemplateService {
 
     public void checkCompileBeforeStore(StoredScriptSource source) {
         compiler.checkCompileBeforeStore(source);
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        compiler.clusterChanged(event);
     }
 }

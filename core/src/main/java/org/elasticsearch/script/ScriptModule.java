@@ -86,12 +86,14 @@ public class ScriptModule {
         ScriptMetrics scriptMetrics = new ScriptMetrics();
         // Note that if templateBackend is null this won't register any settings for it
         scriptSettings = new ScriptSettings(scriptEngineRegistry, templateBackend, scriptContextRegistry);
+
         try {
             scriptService = new ScriptService(settings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry,
                     scriptSettings, scriptMetrics);
         } catch (IOException e) {
             throw new RuntimeException("Couldn't setup ScriptService", e);
         }
+
         if (templateBackend == null) {
             templateBackend = new TemplatesUnsupportedBackend();
         }
@@ -99,7 +101,7 @@ public class ScriptModule {
             templateService = new TemplateService(settings, environment, resourceWatcherService, templateBackend,
                     scriptContextRegistry, scriptSettings, scriptMetrics);
         } catch (IOException e) {
-            throw new RuntimeException("Couldn't setup ScriptService", e);
+            throw new RuntimeException("Couldn't setup TemplateService", e);
         }
     }
 

@@ -30,4 +30,9 @@ public class GetStoredSearchTemplateRequestBuilder extends MasterNodeReadOperati
     public GetStoredSearchTemplateRequestBuilder(ElasticsearchClient client, GetStoredSearchTemplateAction action) {
         super(client, action, new GetStoredSearchTemplateRequest());
     }
+
+    public GetStoredSearchTemplateRequestBuilder setId(String id) {
+        request.id(id);
+        return this;
+    }
 }

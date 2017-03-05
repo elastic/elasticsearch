@@ -32,13 +32,15 @@ public class DeleteStoredSearchTemplateRequest extends AcknowledgedRequest<Delet
     private String id;
 
     DeleteStoredSearchTemplateRequest() {
-        super();
     }
 
     public DeleteStoredSearchTemplateRequest(String id) {
-        super();
-
         this.id = id;
+    }
+
+    public DeleteStoredSearchTemplateRequest id(String id) {
+        this.id = id;
+        return this;
     }
 
     @Override

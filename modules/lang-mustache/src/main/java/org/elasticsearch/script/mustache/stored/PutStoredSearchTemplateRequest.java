@@ -38,14 +38,23 @@ public class PutStoredSearchTemplateRequest extends AcknowledgedRequest<PutStore
     private XContentType xContentType;
 
     public PutStoredSearchTemplateRequest() {
-        super();
     }
 
     public PutStoredSearchTemplateRequest(String id, BytesReference content, XContentType xContentType) {
-        super();
         this.id = id;
         this.content = content;
         this.xContentType = Objects.requireNonNull(xContentType);
+    }
+
+    public PutStoredSearchTemplateRequest id(String id) {
+        this.id = id;
+        return this;
+    }
+
+    public PutStoredSearchTemplateRequest content(BytesReference content, XContentType xContentType) {
+        this.content = content;
+        this.xContentType = xContentType;
+        return this;
     }
 
     @Override

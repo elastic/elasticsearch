@@ -36,11 +36,13 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.TemplateService.Backend;
 import org.elasticsearch.script.mustache.stored.DeleteStoredSearchTemplateAction;
 import org.elasticsearch.script.mustache.stored.GetStoredSearchTemplateAction;
+import org.elasticsearch.script.mustache.stored.PutStoredSearchTemplateAction;
 import org.elasticsearch.script.mustache.stored.RestDeleteStoredSearchTemplateAction;
 import org.elasticsearch.script.mustache.stored.RestGetStoredSearchTemplateAction;
 import org.elasticsearch.script.mustache.stored.RestPutStoredSearchTemplateAction;
 import org.elasticsearch.script.mustache.stored.TransportDeleteStoredSearchTemplateAction;
 import org.elasticsearch.script.mustache.stored.TransportGetStoredSearchTemplateAction;
+import org.elasticsearch.script.mustache.stored.TransportPutStoredSearchTemplateAction;
 
 import java.util.Arrays;
 import java.util.List;
@@ -60,7 +62,8 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
                 new ActionHandler<>(SearchTemplateAction.INSTANCE, TransportSearchTemplateAction.class),
                 new ActionHandler<>(MultiSearchTemplateAction.INSTANCE, TransportMultiSearchTemplateAction.class),
                 new ActionHandler<>(DeleteStoredSearchTemplateAction.INSTANCE, TransportDeleteStoredSearchTemplateAction.class),
-                new ActionHandler<>(GetStoredSearchTemplateAction.INSTANCE, TransportGetStoredSearchTemplateAction.class));
+                new ActionHandler<>(GetStoredSearchTemplateAction.INSTANCE, TransportGetStoredSearchTemplateAction.class),
+                new ActionHandler<>(PutStoredSearchTemplateAction.INSTANCE, TransportPutStoredSearchTemplateAction.class));
     }
 
     @Override

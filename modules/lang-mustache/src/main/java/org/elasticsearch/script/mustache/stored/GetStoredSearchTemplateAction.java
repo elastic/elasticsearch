@@ -26,7 +26,7 @@ public class GetStoredSearchTemplateAction extends Action<GetStoredSearchTemplat
         GetStoredSearchTemplateRequestBuilder> {
 
     public static final GetStoredSearchTemplateAction INSTANCE = new GetStoredSearchTemplateAction();
-    public static final String NAME = "cluster:admin/script/get";
+    public static final String NAME = "cluster:admin/search/template/get";
 
     private GetStoredSearchTemplateAction() {
         super(NAME);

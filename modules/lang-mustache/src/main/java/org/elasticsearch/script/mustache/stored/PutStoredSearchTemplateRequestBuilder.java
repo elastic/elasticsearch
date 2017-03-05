@@ -21,6 +21,8 @@ package org.elasticsearch.script.mustache.stored;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 
 public class PutStoredSearchTemplateRequestBuilder extends AcknowledgedRequestBuilder<
             PutStoredSearchTemplateRequest,
@@ -30,4 +32,15 @@ public class PutStoredSearchTemplateRequestBuilder extends AcknowledgedRequestBu
     public PutStoredSearchTemplateRequestBuilder(ElasticsearchClient client, PutStoredSearchTemplateAction action) {
         super(client, action, new PutStoredSearchTemplateRequest());
     }
+
+    public PutStoredSearchTemplateRequestBuilder setId(String id) {
+        request.id(id);
+        return this;
+    }
+
+    public PutStoredSearchTemplateRequestBuilder setContent(BytesReference content, XContentType xContentType) {
+        request.content(content, xContentType);
+        return this;
+    }
+
 }

@@ -107,21 +107,28 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
      *  </ul>
      */
     @Override
-    public Set<CharSequence> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException {
+    public Set<CharSequence> parseContext(ParseContext parseContext, XContentParser parser)
+            throws IOException, ElasticsearchParseException {
         final Set<CharSequence> contexts = new HashSet<>();
         Token token = parser.currentToken();
-        if (token == Token.VALUE_STRING) {
+        if (token == Token.VALUE_NULL) {
+            return contexts;
+        } else if (token == Token.VALUE_STRING || token == Token.VALUE_NUMBER || token == Token.VALUE_BOOLEAN) {
             contexts.add(parser.text());
         } else if (token == Token.START_ARRAY) {
             while ((token = parser.nextToken()) != Token.END_ARRAY) {
-                if (token == Token.VALUE_STRING) {
+                if (token == Token.VALUE_STRING || token == Token.VALUE_NUMBER || token == Token.VALUE_BOOLEAN) {
                     contexts.add(parser.text());
+                } else if (token == Token.VALUE_NULL) {
+                    continue;
                 } else {
-                    throw new ElasticsearchParseException("context array must have string values");
+                    throw new ElasticsearchParseException(
+                            "context array must have string, number or boolean values, but was [" + token + "]");
                 }
             }
         } else {
-            throw new ElasticsearchParseException("contexts must be a string or a list of strings");
+            throw new ElasticsearchParseException(
+                    "contexts must be a string, number or boolean or a list of string, number or boolean, but was [" + token + "]");
         }
         return contexts;
     }

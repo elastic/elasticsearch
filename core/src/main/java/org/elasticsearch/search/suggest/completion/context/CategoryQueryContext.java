@@ -98,7 +98,8 @@ public final class CategoryQueryContext implements ToXContent {
 
     private static ObjectParser<Builder, Void> CATEGORY_PARSER = new ObjectParser<>(NAME, null);
     static {
-        CATEGORY_PARSER.declareString(Builder::setCategory, new ParseField(CONTEXT_VALUE));
+        CATEGORY_PARSER.declareField(Builder::setCategory, XContentParser::text, new ParseField(CONTEXT_VALUE),
+                ObjectParser.ValueType.VALUE);
         CATEGORY_PARSER.declareInt(Builder::setBoost, new ParseField(CONTEXT_BOOST));
         CATEGORY_PARSER.declareBoolean(Builder::setPrefix, new ParseField(CONTEXT_PREFIX));
     }
@@ -109,7 +110,8 @@ public final class CategoryQueryContext implements ToXContent {
         Builder builder = builder();
         if (token == XContentParser.Token.START_OBJECT) {
             CATEGORY_PARSER.parse(parser, builder, null);
-        } else if (token == XContentParser.Token.VALUE_STRING) {
+        } else if (token == XContentParser.Token.VALUE_STRING || token == XContentParser.Token.VALUE_BOOLEAN
+                || token == XContentParser.Token.VALUE_NUMBER) {
             builder.setCategory(parser.text());
         } else {
             throw new ElasticsearchParseException("category context must be an object or string");

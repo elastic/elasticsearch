@@ -109,13 +109,14 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
         List<T> queryContexts = new ArrayList<>();
         XContentParser parser = context.parser();
         Token token = parser.nextToken();
-        if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
-            queryContexts.add(fromXContent(context));
-        } else if (token == Token.START_ARRAY) {
+        if (token == Token.START_ARRAY) {
             while (parser.nextToken() != Token.END_ARRAY) {
                 queryContexts.add(fromXContent(context));
             }
+        } else if (token != Token.VALUE_NULL) {
+            queryContexts.add(fromXContent(context));
         }
+        
         return toInternalQueryContexts(queryContexts);
     }
 

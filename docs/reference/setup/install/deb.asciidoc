@@ -1,7 +1,7 @@
 [[deb]]
 === Install Elasticsearch with Debian Package
 
-The Debian package for Elasticsearch can be <<install-rpm,downloaded from our website>>
+The Debian package for Elasticsearch can be <<install-deb,downloaded from our website>>
 or from our  <<deb-repo,APT repository>>. It can be used to install
 Elasticsearch on any Debian-based system such as Debian and Ubuntu.
 

@@ -16,8 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-package org.elasticsearch.search.aggregations.bucket;
+package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -34,11 +33,11 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -48,13 +47,11 @@ import java.util.List;
  * {@link BestDocsDeferringCollector#createTopDocsCollector(int)} is designed to
  * be overridden and allows subclasses to choose a custom collector
  * implementation for determining the top N matches.
- *
  */
-
 public class BestDocsDeferringCollector extends DeferringBucketCollector implements Releasable {
-    final List<PerSegmentCollects> entries = new ArrayList<>();
-    BucketCollector deferred;
-    ObjectArray<PerParentBucketSamples> perBucketSamples;
+    private final List<PerSegmentCollects> entries = new ArrayList<>();
+    private BucketCollector deferred;
+    private ObjectArray<PerParentBucketSamples> perBucketSamples;
     private int shardSize;
     private PerSegmentCollects perSegCollector;
     private final BigArrays bigArrays;
@@ -65,13 +62,11 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
      * @param shardSize
      *            The number of top-scoring docs to collect for each bucket
      */
-    public BestDocsDeferringCollector(int shardSize, BigArrays bigArrays) {
+    BestDocsDeferringCollector(int shardSize, BigArrays bigArrays) {
         this.shardSize = shardSize;
         this.bigArrays = bigArrays;
         perBucketSamples = bigArrays.newObjectArray(1);
     }
-
-
 
     @Override
     public boolean needsScores() {
@@ -126,7 +121,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     }
 
     private void runDeferredAggs() throws IOException {
-
         List<ScoreDoc> allDocs = new ArrayList<>(shardSize);
         for (int i = 0; i < perBucketSamples.size(); i++) {
             PerParentBucketSamples perBucketSample = perBucketSamples.get(i);
@@ -138,15 +132,12 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
 
         // Sort the top matches by docID for the benefit of deferred collector
         ScoreDoc[] docsArr = allDocs.toArray(new ScoreDoc[allDocs.size()]);
-        Arrays.sort(docsArr, new Comparator<ScoreDoc>() {
-             @Override
-             public int compare(ScoreDoc o1, ScoreDoc o2) {
-                 if(o1.doc == o2.doc){
-                     return o1.shardIndex - o2.shardIndex;
-                 }
-                 return o1.doc - o2.doc;
-             }
-         });
+        Arrays.sort(docsArr, (o1, o2) -> {
+            if(o1.doc == o2.doc){
+                return o1.shardIndex - o2.shardIndex;
+            }
+            return o1.doc - o2.doc;
+        });
         try {
             for (PerSegmentCollects perSegDocs : entries) {
                 perSegDocs.replayRelatedMatches(docsArr);
@@ -294,7 +285,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
             maxDocId = Math.max(maxDocId, docId);
         }
     }
-
 
     public int getDocCount(long parentBucket) {
         PerParentBucketSamples sampler = perBucketSamples.get((int) parentBucket);

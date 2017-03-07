@@ -152,6 +152,19 @@ We have ported the known scenarios in the Jepsen blogs that check loss of acknow
 The new tests are run continuously in our testing farm and are passing. We are also working on running Jepsen independently to verify
 that no failures are found.
 
+[float]
+=== Replicas can fall out of sync when a primary shard fails (STATUS: ONGOING)
+
+In a scenario with more than one replica and a primary shard fails, one of the
+replicas will be promoted to be the primary shard. In this scenario, it is
+possible for the remaining replicas to be out of sync with the new primary
+shard. This arises due to the fact that indexing in Elasticsearch occurs
+concurrently. The discrepancies are not repaired on primary promotion but
+instead would be repaired if replica shards are relocated (e.g., from hot to
+cold nodes); this does mean that the length of time which replicas can be out of
+sync with the primary shard is unbounded. Sequence numbers {GIT}10708[#10708]
+will provide a mechanism for syncing the remaining replicas with the
+newly-promoted primary shard.
 
 == Completed
 

@@ -36,7 +36,7 @@ public class ParsedDocument {
 
     private final String id, type;
     private final BytesRef uid;
-    private final SeqNoFieldMapper.SequenceID seqID;
+    private final SeqNoFieldMapper.SequenceIDFields seqID;
 
     private final String routing;
 
@@ -50,7 +50,7 @@ public class ParsedDocument {
     private String parent;
 
     public ParsedDocument(Field version,
-                          SeqNoFieldMapper.SequenceID seqID,
+                          SeqNoFieldMapper.SequenceIDFields seqID,
                           String id,
                           String type,
                           String routing,

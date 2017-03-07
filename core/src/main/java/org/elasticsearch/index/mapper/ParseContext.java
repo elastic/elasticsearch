@@ -29,7 +29,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -255,12 +254,12 @@ public abstract class ParseContext {
         }
 
         @Override
-        public SeqNoFieldMapper.SequenceID seqID() {
+        public SeqNoFieldMapper.SequenceIDFields seqID() {
             return in.seqID();
         }
 
         @Override
-        public void seqID(SeqNoFieldMapper.SequenceID seqID) {
+        public void seqID(SeqNoFieldMapper.SequenceIDFields seqID) {
             in.seqID(seqID);
         }
 
@@ -311,7 +310,7 @@ public abstract class ParseContext {
 
         private Field version;
 
-        private SeqNoFieldMapper.SequenceID seqID;
+        private SeqNoFieldMapper.SequenceIDFields seqID;
 
         private final AllEntries allEntries;
 
@@ -405,12 +404,12 @@ public abstract class ParseContext {
         }
 
         @Override
-        public SeqNoFieldMapper.SequenceID seqID() {
+        public SeqNoFieldMapper.SequenceIDFields seqID() {
             return this.seqID;
         }
 
         @Override
-        public void seqID(SeqNoFieldMapper.SequenceID seqID) {
+        public void seqID(SeqNoFieldMapper.SequenceIDFields seqID) {
             this.seqID = seqID;
         }
 
@@ -540,9 +539,9 @@ public abstract class ParseContext {
 
     public abstract void version(Field version);
 
-    public abstract SeqNoFieldMapper.SequenceID seqID();
+    public abstract SeqNoFieldMapper.SequenceIDFields seqID();
 
-    public abstract void seqID(SeqNoFieldMapper.SequenceID seqID);
+    public abstract void seqID(SeqNoFieldMapper.SequenceIDFields seqID);
 
     public final boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
         return includeInAll(includeInAll, mapper.fieldType().indexOptions() != IndexOptions.NONE);

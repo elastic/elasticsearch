@@ -107,7 +107,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                                               Mapping mappingUpdate) {
         Field uidField = new Field("_uid", Uid.createUid(type, id), UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
-        SeqNoFieldMapper.SequenceID seqID = SeqNoFieldMapper.SequenceID.emptySeqID();
+        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(uidField);
         document.add(versionField);
         document.add(seqID.seqNo);

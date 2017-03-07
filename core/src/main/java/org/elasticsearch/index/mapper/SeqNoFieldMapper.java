@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -264,7 +263,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         for (int i = 1; i < context.docs().size(); i++) {
             final Document doc = context.docs().get(i);
             doc.add(new LongPoint(NAME, 1));
-            doc.add(new SortedNumericDocValuesField(NAME, 1L));
+            doc.add(new NumericDocValuesField(NAME, 1L));
             doc.add(new NumericDocValuesField(PRIMARY_TERM_NAME, 0L));
         }
     }

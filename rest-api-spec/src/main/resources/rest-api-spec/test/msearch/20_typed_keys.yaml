@@ -1,3 +1,4 @@
+---
 setup:
   - skip:
       version: " - 5.3.99"
@@ -46,7 +47,7 @@ setup:
         body:
           # Testing aggegrations
           - index: test-*
-          - {query: {match: {bool: true} }, size: 0, aggs: {test_filter: {filter: {range:{integer: {gte: 20} } } } } }
+          - {query: {match: {bool: true} }, size: 0, aggs: {test_filter: {filter: {range: {integer: {gte: 20} } } } } }
           - index: test-1
           - {query: {match_all: {} }, size: 0, aggs: {test_range: {range: {field: float, ranges: [ {to: 19.2499999}, {from: 19.25} ] } } } }
           - index: test-*

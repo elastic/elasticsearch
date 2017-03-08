@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVers
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 
 import java.io.IOException;
 
@@ -110,9 +111,9 @@ final class PerThreadIDAndVersionSeqNoLookup {
     /** Return null if id is not found. */
     public DocIdAndSeqNo lookupSequenceNo(BytesRef id, Bits liveDocs, LeafReaderContext context) throws IOException {
         assert context.reader().getCoreCacheKey().equals(readerKey);
-        int docID = seqNos == null ? DocIdSetIterator.NO_MORE_DOCS : getDocID(id, liveDocs);
+        int docID = getDocID(id, liveDocs);
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-            return new DocIdAndSeqNo(docID, seqNos.get(docID), context);
+            return new DocIdAndSeqNo(docID, seqNos == null ? SequenceNumbersService.UNASSIGNED_SEQ_NO : seqNos.get(docID), context);
         } else {
             return null;
         }

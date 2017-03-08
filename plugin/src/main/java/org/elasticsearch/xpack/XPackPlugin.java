@@ -376,7 +376,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         filters.add("xpack.notification.hipchat.account.*.auth_token");
         filters.addAll(security.getSettingsFilter());
         filters.addAll(MonitoringSettings.getSettingsFilter());
-        filters.addAll(machineLearning.getSettingsFilter());
         if (transportClientMode == false) {
             for (XPackExtension extension : extensionsService.getExtensions()) {
                 filters.addAll(extension.getSettingsFilter());

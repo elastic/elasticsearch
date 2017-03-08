@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -27,7 +26,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -134,6 +132,7 @@ import org.elasticsearch.xpack.persistent.PersistentTasks;
 import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
 import org.elasticsearch.xpack.persistent.StartPersistentTaskAction;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
+import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -145,7 +144,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 
-public class MachineLearning extends Plugin implements ActionPlugin {
+public class MachineLearning implements ActionPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_xpack/ml/";
     public static final String THREAD_POOL_NAME = NAME;
@@ -177,7 +176,6 @@ public class MachineLearning extends Plugin implements ActionPlugin {
         this.tribeNodeClient = XPackPlugin.isTribeClientNode(settings);
     }
 
-    @Override
     public List<Setting<?>> getSettings() {
         return Collections.unmodifiableList(
                 Arrays.asList(AUTODETECT_PROCESS,
@@ -190,14 +188,12 @@ public class MachineLearning extends Plugin implements ActionPlugin {
                         AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE));
     }
 
-    @Override
     public Settings additionalSettings() {
         if (enabled == false || this.transportClientMode || this.tribeNode || this.tribeNodeClient) {
-            return super.additionalSettings();
+            return Settings.EMPTY;
         }
 
         Settings.Builder additionalSettings = Settings.builder();
-        additionalSettings.put(super.additionalSettings());
         Boolean allocationEnabled = ML_ENABLED.get(settings);
         if (allocationEnabled != null && allocationEnabled) {
             // Copy max_running_jobs setting to node attribute, so that we use this information when assigning job tasks to nodes:
@@ -207,7 +203,6 @@ public class MachineLearning extends Plugin implements ActionPlugin {
         return additionalSettings.build();
     }
 
-    @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
                 // Custom metadata
@@ -228,7 +223,6 @@ public class MachineLearning extends Plugin implements ActionPlugin {
         );
     }
 
-    @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return Arrays.asList(
                 // Custom metadata
@@ -249,8 +243,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
         );
     }
 
-    @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+    public Collection<Object> createComponents(InternalClient internalClient, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry) {
         if (this.transportClientMode || this.tribeNodeClient) {
@@ -266,11 +259,11 @@ public class MachineLearning extends Plugin implements ActionPlugin {
             return Collections.singletonList(mlLifeCycleService);
         }
 
-        JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
-        JobProvider jobProvider = new JobProvider(client, settings);
-        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
+        JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, internalClient);
+        JobProvider jobProvider = new JobProvider(internalClient, settings);
+        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, internalClient);
 
-        Auditor auditor = new Auditor(client, clusterService);
+        Auditor auditor = new Auditor(internalClient, clusterService);
         JobManager jobManager = new JobManager(settings, jobProvider, jobResultsPersister, clusterService, auditor);
         AutodetectProcessFactory autodetectProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
@@ -281,7 +274,7 @@ public class MachineLearning extends Plugin implements ActionPlugin {
                     // This will only only happen when path.home is not set, which is disallowed in production
                     throw new ElasticsearchException("Failed to create native process controller for Machine Learning");
                 }
-                autodetectProcessFactory = new NativeAutodetectProcessFactory(jobProvider, env, settings, nativeController, client);
+                autodetectProcessFactory = new NativeAutodetectProcessFactory(jobProvider, env, settings, nativeController, internalClient);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(env, settings, nativeController);
             } catch (IOException e) {
                 // This also should not happen in production, as the MachineLearningFeatureSet should have
@@ -297,12 +290,13 @@ public class MachineLearning extends Plugin implements ActionPlugin {
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.THREAD_POOL_NAME));
-        AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(settings, client, threadPool,
+        AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(settings, internalClient, threadPool,
                 jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory);
-        DatafeedJobRunner datafeedJobRunner = new DatafeedJobRunner(threadPool, client, clusterService, jobProvider,
+        DatafeedJobRunner datafeedJobRunner = new DatafeedJobRunner(threadPool, internalClient, clusterService, jobProvider,
                 System::currentTimeMillis, auditor);
-        PersistentActionService persistentActionService = new PersistentActionService(Settings.EMPTY, threadPool, clusterService, client);
+        PersistentActionService persistentActionService = new PersistentActionService(Settings.EMPTY, threadPool, clusterService,
+                internalClient);
         PersistentActionRegistry persistentActionRegistry = new PersistentActionRegistry(Settings.EMPTY);
         InvalidLicenseEnforcer invalidLicenseEnforcer =
                 new InvalidLicenseEnforcer(settings, licenseState, threadPool, datafeedJobRunner, autodetectProcessManager);
@@ -312,15 +306,15 @@ public class MachineLearning extends Plugin implements ActionPlugin {
                 jobProvider,
                 jobManager,
                 autodetectProcessManager,
-                new MachineLearningTemplateRegistry(settings, clusterService, client, threadPool),
-                new MlInitializationService(settings, threadPool, clusterService, client),
+                new MachineLearningTemplateRegistry(settings, clusterService, internalClient, threadPool),
+                new MlInitializationService(settings, threadPool, clusterService, internalClient),
                 jobDataCountsPersister,
                 datafeedJobRunner,
                 persistentActionService,
                 persistentActionRegistry,
                 new PersistentTaskClusterService(Settings.EMPTY, persistentActionRegistry, clusterService),
                 auditor,
-                new CloseJobService(client, threadPool, clusterService),
+                new CloseJobService(internalClient, threadPool, clusterService),
                 invalidLicenseEnforcer
         );
     }
@@ -424,7 +418,6 @@ public class MachineLearning extends Plugin implements ActionPlugin {
         );
     }
 
-    @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         if (false == enabled || tribeNode || tribeNodeClient) {
             return emptyList();

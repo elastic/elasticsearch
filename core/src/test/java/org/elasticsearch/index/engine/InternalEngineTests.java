@@ -1655,7 +1655,7 @@ public class InternalEngineTests extends ESTestCase {
                 0, 1, VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0, -1, false);
             final Engine.IndexResult replicaV1Result = replicaEngine.index(replicaV1Index);
             assertFalse(replicaV1Result.hasFailure());
-            assertFalse(replicaV1Result.isCreated());
+            assertTrue(replicaV1Result.isCreated());
             assertThat(replicaV1Result.getVersion(), equalTo(1L));
 
             switch (randomIntBetween(1, 3)) {

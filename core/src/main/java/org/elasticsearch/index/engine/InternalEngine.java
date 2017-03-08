@@ -447,31 +447,32 @@ public class InternalEngine extends Engine {
         return status;
     }
 
+    /** resolves the current version of the document, returning null if not found */
+    private VersionValue resolveDocVersion(final Operation op) throws IOException {
+        assert incrementVersionLookup();
+        VersionValue versionValue = versionMap.getUnderLock(op.uid());
+        if (versionValue == null) {
+            assert incrementIndexVersionLookup();
+            final long currentVersion = loadCurrentVersionFromIndex(op.uid());
+            if (currentVersion != Versions.NOT_FOUND) {
+                versionValue = new VersionValue(currentVersion, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0L);
+            }
+        } else if (engineConfig.isEnableGcDeletes() && versionValue.isDelete() &&
+            (engineConfig.getThreadPool().relativeTimeInMillis() - versionValue.getTime()) > getGcDeletesInMillis()) {
+            versionValue = null;
+        }
+        return versionValue;
+    }
+
     private LuceneOpStatus checkLuceneOpStatusBasedOnVersions(final Operation op) throws IOException {
         assert op.seqNo() == SequenceNumbersService.UNASSIGNED_SEQ_NO;
         assert op.version() >= 0;
-        final LuceneOpStatus status;
-        final long currentVersion;
-        final VersionValue versionValue = versionMap.getUnderLock(op.uid());
-        if (versionValue != null) {
-            currentVersion = versionValue.getVersion();
+        final VersionValue versionValue = resolveDocVersion(op);
+        if (versionValue == null) {
+            return LuceneOpStatus.NOT_FOUND;
         } else {
-            // load from index
-            currentVersion = loadCurrentVersionFromIndex(op.uid());
-
+            return op.version() > versionValue.getVersion() ? LuceneOpStatus.STALE : LuceneOpStatus.NEWER_OR_EQUAL;
         }
-        return op.version() > currentVersion ? LuceneOpStatus.STALE : LuceneOpStatus.NEWER_OR_EQUAL;
-    }
-
-
-    private long checkDeletedAndGCed(VersionValue versionValue) {
-        long currentVersion;
-        if (engineConfig.isEnableGcDeletes() && versionValue.isDelete() && (engineConfig.getThreadPool().relativeTimeInMillis() - versionValue.getTime()) > getGcDeletesInMillis()) {
-            currentVersion = Versions.NOT_FOUND; // deleted, and GC
-        } else {
-            currentVersion = versionValue.getVersion();
-        }
-        return currentVersion;
     }
 
     private boolean canOptimizeAddDocument(Index index) {
@@ -590,19 +591,19 @@ public class InternalEngine extends Engine {
                         addToLucene = true;
                     } else {
                         // resolves incoming version
-                        final VersionValue versionValue = versionMap.getUnderLock(index.uid());
+                        final VersionValue versionValue = resolveDocVersion(index);
                         final long currentVersion;
                         assert incrementVersionLookup();
                         if (versionValue == null) {
-                            currentVersion = loadCurrentVersionFromIndex(index.uid());
-                            currentNotFoundOrDeleted = currentVersion == Versions.NOT_FOUND;
-                            useLuceneUpdateDocument = currentVersion != Versions.NOT_FOUND;
-                        } else {
-                            currentVersion = checkDeletedAndGCed(versionValue);
-                            currentNotFoundOrDeleted = versionValue.isDelete();
                             // nocommit: previously we based this on whether version is not found. That can mean however
                             // that the last op was deleted, but was also GCed. So presumably it is safe
                             // to sue use add after a delete.
+                            currentVersion = Versions.NOT_FOUND;
+                            currentNotFoundOrDeleted = true;
+                            useLuceneUpdateDocument = false;
+                        } else {
+                            currentVersion = versionValue.getVersion();
+                            currentNotFoundOrDeleted = versionValue.isDelete();
                             useLuceneUpdateDocument = versionValue.isDelete() == false; // last operation is not delete
                         }
                         if (index.versionType().isVersionConflictForWrites(currentVersion, index.version(), currentNotFoundOrDeleted)) {
@@ -621,7 +622,6 @@ public class InternalEngine extends Engine {
                     }
                 } else if (canOptimizeAddDocument && mayHaveBeenIndexedBefore(index) == false) {
                     // no need to deal with out of order delivery - we never saw this one
-                    // nocommit: verify this is tested!
                     useLuceneUpdateDocument = false;
                     currentNotFoundOrDeleted = true;
                     assert index.version() == 1L : "can optimize on replicas but incoming version is [" + index.version() + "]";
@@ -785,37 +785,38 @@ public class InternalEngine extends Engine {
         try (ReleasableLock ignored = readLock.acquire(); Releasable ignored2 = acquireLock(delete.uid())) {
             ensureOpen();
             lastWriteNanos = delete.startTime();
-            final boolean deleteInLucene;
-            final boolean currentFound;
+            // TODO: we can separate the two in the case that a document is already deleted but we want to update
+            // the version. For now, prefer to keep the code paths simpler (they are hairy enough) at the expense
+            // of a rare double delete
+            final boolean performOperation;
+            final boolean currentlyDeleted;
             final long seqNoForIndexing;
             final long versionForIndexing;
             Optional<DeleteResult> earlyResultOnPreflightError = Optional.empty();
             if (delete.origin() == Operation.Origin.PRIMARY) {
                 // resolve operation from external to internal
-                final VersionValue versionValue = versionMap.getUnderLock(delete.uid());
+                final VersionValue versionValue = resolveDocVersion(delete);
                 assert incrementVersionLookup();
                 final long currentVersion;
-                final boolean currentIsDeleted;
                 if (versionValue == null) {
-                    currentVersion = loadCurrentVersionFromIndex(delete.uid());
-                    currentIsDeleted = currentVersion == Versions.NOT_FOUND;
+                    currentVersion = Versions.NOT_FOUND;
+                    currentlyDeleted = true;
                 } else {
-                    currentVersion = checkDeletedAndGCed(versionValue);
-                    currentIsDeleted = versionValue.isDelete();
+                    currentVersion = versionValue.getVersion();
+                    currentlyDeleted = versionValue.isDelete();
                 }
-                currentFound = currentVersion != Versions.NOT_FOUND;
-                if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentIsDeleted)) {
+                if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
                     earlyResultOnPreflightError = Optional.of(new DeleteResult(
-                        new VersionConflictEngineException(shardId, delete, currentVersion, currentIsDeleted),
+                        new VersionConflictEngineException(shardId, delete, currentVersion, currentlyDeleted),
                         currentVersion, delete.seqNo()
                     ));
-                    deleteInLucene = false;
+                    performOperation = false;
                     seqNoForIndexing = SequenceNumbersService.UNASSIGNED_SEQ_NO;
                     versionForIndexing = -1;
                 } else {
                     versionForIndexing = delete.versionType().updateVersion(currentVersion, delete.version());
                     seqNoForIndexing = seqNoService().generateSeqNo();
-                    deleteInLucene = true;
+                    performOperation =  true;
                 }
             } else {
                 // drop out of order operations
@@ -829,24 +830,27 @@ public class InternalEngine extends Engine {
                     luceneOpStatus = checkLuceneOpStatusBasedOnVersions(delete);
                 }
                 // the found vs deleted distinction is not relevant on replicas, just set it
-                currentFound = luceneOpStatus != LuceneOpStatus.NOT_FOUND;
+                currentlyDeleted = luceneOpStatus == LuceneOpStatus.NOT_FOUND;
                 seqNoForIndexing = delete.seqNo();
                 versionForIndexing = delete.version();
-                deleteInLucene = luceneOpStatus != LuceneOpStatus.NEWER_OR_EQUAL;
+                performOperation = luceneOpStatus != LuceneOpStatus.NEWER_OR_EQUAL;
             }
 
             if (earlyResultOnPreflightError.isPresent()) {
                 deleteResult = earlyResultOnPreflightError.get();
+                assert performOperation == false;
             } else {
-                if (deleteInLucene) {
-                    // any exception that comes from this is a either an ACE or a fatal exception there can't be any document failures coming
-                    // from this.
-                    indexWriter.deleteDocuments(delete.uid());
+                if (performOperation) {
+                    if (currentlyDeleted == false) {
+                        // any exception that comes from this is a either an ACE or a fatal exception there can't be any document failures coming
+                        // from this.
+                        indexWriter.deleteDocuments(delete.uid());
+                    }
                     versionMap.putUnderLock(delete.uid().bytes(),
                         new DeleteVersionValue(versionForIndexing, seqNoForIndexing, delete.primaryTerm(),
                             engineConfig.getThreadPool().relativeTimeInMillis()));
                 }
-                deleteResult = new DeleteResult(versionForIndexing, seqNoForIndexing, currentFound);
+                deleteResult = new DeleteResult(versionForIndexing, seqNoForIndexing, currentlyDeleted == false);
             }
             if (!deleteResult.hasFailure()) {
                 Translog.Location location = delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY

@@ -595,9 +595,6 @@ public class InternalEngine extends Engine {
                         final long currentVersion;
                         assert incrementVersionLookup();
                         if (versionValue == null) {
-                            // nocommit: previously we based this on whether version is not found. That can mean however
-                            // that the last op was deleted, but was also GCed. So presumably it is safe
-                            // to sue use add after a delete.
                             currentVersion = Versions.NOT_FOUND;
                             currentNotFoundOrDeleted = true;
                             useLuceneUpdateDocument = false;

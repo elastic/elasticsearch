@@ -60,23 +60,12 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         DatafeedJobValidator.validate(datafeedConfig, job);
     }
 
-    public void testVerify_GivenAggsAndCorrectSummaryCountField() throws IOException {
-        Job.Builder builder = buildJobBuilder("foo");
-        AnalysisConfig.Builder ac = createAnalysisConfig();
-        ac.setBucketSpan(1800L);
-        ac.setSummaryCountFieldName("doc_count");
-        builder.setAnalysisConfig(ac);
-        Job job = builder.build();
-        DatafeedConfig datafeedConfig = createValidDatafeedConfigWithAggs().build();
-
-        DatafeedJobValidator.validate(datafeedConfig, job);
-    }
-
     public void testVerify_GivenAggsAndNoSummaryCountField() throws IOException {
         String errorMessage = Messages.getMessage(Messages.DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD,
                 DatafeedConfig.DOC_COUNT);
         Job.Builder builder = buildJobBuilder("foo");
         AnalysisConfig.Builder ac = createAnalysisConfig();
+        ac.setSummaryCountFieldName(null);
         ac.setBucketSpan(1800L);
         builder.setAnalysisConfig(ac);
         Job job = builder.build();
@@ -88,13 +77,13 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         assertEquals(errorMessage, e.getMessage());
     }
 
-    public void testVerify_GivenAggsAndWrongSummaryCountField() throws IOException {
-        String errorMessage = Messages.getMessage(
-                Messages.DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD, DatafeedConfig.DOC_COUNT);
+    public void testVerify_GivenAggsAndEmptySummaryCountField() throws IOException {
+        String errorMessage = Messages.getMessage(Messages.DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD,
+                DatafeedConfig.DOC_COUNT);
         Job.Builder builder = buildJobBuilder("foo");
         AnalysisConfig.Builder ac = createAnalysisConfig();
+        ac.setSummaryCountFieldName("");
         ac.setBucketSpan(1800L);
-        ac.setSummaryCountFieldName("wrong");
         builder.setAnalysisConfig(ac);
         Job job = builder.build();
         DatafeedConfig datafeedConfig = createValidDatafeedConfigWithAggs().build();
@@ -103,6 +92,18 @@ public class DatafeedJobValidatorTests extends ESTestCase {
                 () -> DatafeedJobValidator.validate(datafeedConfig, job));
 
         assertEquals(errorMessage, e.getMessage());
+    }
+
+    public void testVerify_GivenAggsAndSummaryCountField() throws IOException {
+        Job.Builder builder = buildJobBuilder("foo");
+        AnalysisConfig.Builder ac = createAnalysisConfig();
+        ac.setBucketSpan(1800L);
+        ac.setSummaryCountFieldName("some_count");
+        builder.setAnalysisConfig(ac);
+        Job job = builder.build();
+        DatafeedConfig datafeedConfig = createValidDatafeedConfigWithAggs().build();
+
+        DatafeedJobValidator.validate(datafeedConfig, job);
     }
 
     public static Job.Builder buildJobBuilder(String id) {

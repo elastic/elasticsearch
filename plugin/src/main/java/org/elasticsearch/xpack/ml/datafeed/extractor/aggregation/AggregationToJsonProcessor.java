@@ -18,6 +18,7 @@ import org.joda.time.base.BaseDateTime;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,10 +29,12 @@ import java.util.Map;
  */
 class AggregationToJsonProcessor implements Releasable {
 
+    private final boolean includeDocCount;
     private final XContentBuilder jsonBuilder;
     private final Map<String, Object> keyValuePairs;
 
-    AggregationToJsonProcessor(OutputStream outputStream) throws IOException {
+    AggregationToJsonProcessor(boolean includeDocCount, OutputStream outputStream) throws IOException {
+        this.includeDocCount = includeDocCount;
         jsonBuilder = new XContentBuilder(JsonXContent.jsonXContent, outputStream);
         keyValuePairs = new LinkedHashMap<>();
     }
@@ -67,16 +70,22 @@ class AggregationToJsonProcessor implements Releasable {
             writeJsonObject(docCount);
             return;
         }
-        if (aggs.size() > 1) {
-            throw new IllegalArgumentException("Multiple nested aggregations are not supported");
-        }
-        Aggregation nestedAgg = aggs.get(0);
-        if (nestedAgg instanceof Terms) {
-            processTerms((Terms) nestedAgg);
-        } else if (nestedAgg instanceof NumericMetricsAggregation.SingleValue) {
-            processSingleValue(docCount, (NumericMetricsAggregation.SingleValue) nestedAgg);
+        if (aggs.get(0) instanceof Terms) {
+            if (aggs.size() > 1) {
+                throw new IllegalArgumentException("Multiple non-leaf nested aggregations are not supported");
+            }
+            processTerms((Terms) aggs.get(0));
         } else {
-            throw new IllegalArgumentException("Unsupported aggregation type [" + nestedAgg.getName() + "]");
+            List<String> addedKeys = new ArrayList<>();
+            for (Aggregation nestedAgg : aggs) {
+                if (nestedAgg instanceof NumericMetricsAggregation.SingleValue) {
+                    addedKeys.add(processSingleValue(docCount, (NumericMetricsAggregation.SingleValue) nestedAgg));
+                } else {
+                    throw new IllegalArgumentException("Unsupported aggregation type [" + nestedAgg.getName() + "]");
+                }
+            }
+            writeJsonObject(docCount);
+            addedKeys.forEach(k -> keyValuePairs.remove(k));
         }
     }
 
@@ -84,12 +93,13 @@ class AggregationToJsonProcessor implements Releasable {
         for (Terms.Bucket bucket : termsAgg.getBuckets()) {
             keyValuePairs.put(termsAgg.getName(), bucket.getKey());
             processNestedAggs(bucket.getDocCount(), bucket.getAggregations());
+            keyValuePairs.remove(termsAgg.getName());
         }
     }
 
-    private void processSingleValue(long docCount, NumericMetricsAggregation.SingleValue singleValue) throws IOException {
+    private String processSingleValue(long docCount, NumericMetricsAggregation.SingleValue singleValue) throws IOException {
         keyValuePairs.put(singleValue.getName(), singleValue.value());
-        writeJsonObject(docCount);
+        return singleValue.getName();
     }
 
     private void writeJsonObject(long docCount) throws IOException {
@@ -98,7 +108,9 @@ class AggregationToJsonProcessor implements Releasable {
             for (Map.Entry<String, Object> keyValue : keyValuePairs.entrySet()) {
                 jsonBuilder.field(keyValue.getKey(), keyValue.getValue());
             }
-            jsonBuilder.field(DatafeedConfig.DOC_COUNT, docCount);
+            if (includeDocCount) {
+                jsonBuilder.field(DatafeedConfig.DOC_COUNT, docCount);
+            }
             jsonBuilder.endObject();
         }
     }

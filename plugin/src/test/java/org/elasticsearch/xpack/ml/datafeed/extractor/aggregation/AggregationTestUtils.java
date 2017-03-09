@@ -15,7 +15,10 @@ import org.joda.time.DateTime;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -66,9 +69,12 @@ public final class AggregationTestUtils {
             StringTerms.Bucket bucket = mock(StringTerms.Bucket.class);
             when(bucket.getKey()).thenReturn(term.key);
             when(bucket.getDocCount()).thenReturn(term.count);
-            if (term.value != null) {
-                NumericMetricsAggregation.SingleValue termValue = createSingleValue(term.valueName, term.value);
-                Aggregations aggs = createAggs(Arrays.asList(termValue));
+            List<Aggregation> numericAggs = new ArrayList<>();
+            for (Map.Entry<String, Double> keyValue : term.values.entrySet()) {
+                numericAggs.add(createSingleValue(keyValue.getKey(), keyValue.getValue()));
+            }
+            if (!numericAggs.isEmpty()) {
+                Aggregations aggs = createAggs(numericAggs);
                 when(bucket.getAggregations()).thenReturn(aggs);
             }
             buckets.add(bucket);
@@ -80,18 +86,26 @@ public final class AggregationTestUtils {
     static class Term {
         String key;
         long count;
-        String valueName;
-        Double value;
+        Map<String, Double> values;
 
         Term(String key, long count) {
-            this(key, count, null, null);
+            this(key, count, Collections.emptyMap());
         }
 
         Term(String key, long count, String valueName, Double value) {
+            this(key, count, newKeyValue(valueName, value));
+        }
+
+        Term(String key, long count, Map<String, Double> values) {
             this.key = key;
             this.count = count;
-            this.valueName = valueName;
-            this.value = value;
+            this.values = values;
+        }
+
+        private static Map<String, Double> newKeyValue(String key, Double value) {
+            Map<String, Double> keyValue = new HashMap<>();
+            keyValue.put(key, value);
+            return keyValue;
         }
     }
 }

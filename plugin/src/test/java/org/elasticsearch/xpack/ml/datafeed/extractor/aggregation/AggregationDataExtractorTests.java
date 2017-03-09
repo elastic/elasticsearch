@@ -17,7 +17,6 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorTests;
 import org.junit.Before;
 
 import java.io.BufferedReader;
@@ -156,7 +155,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
     }
 
     private AggregationDataExtractorContext createContext(long start, long end) {
-        return new AggregationDataExtractorContext(jobId, timeField, indexes, types, query, aggs, start, end);
+        return new AggregationDataExtractorContext(jobId, timeField, indexes, types, query, aggs, start, end, true);
     }
 
     private SearchResponse createSearchResponse(String histogramName, List<Histogram.Bucket> histogramBuckets) {

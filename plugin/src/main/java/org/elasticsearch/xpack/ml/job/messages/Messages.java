@@ -14,7 +14,7 @@ import java.util.Locale;
 public final class Messages {
 
     public static final String DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD =
-            "A job configured with a datafeed with aggregations must have summary_count_field_name ''{0}''";
+            "A job configured with a datafeed with aggregations must set summary_count_field_name; use doc_count or suitable alternative";
     public static final String DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE = "Cannot delete datafeed [{0}] while its status is {1}";
     public static final String DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE = "Cannot update datafeed [{0}] while its status is {1}";
     public static final String DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS =

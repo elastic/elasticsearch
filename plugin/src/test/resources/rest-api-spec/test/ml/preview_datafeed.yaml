@@ -12,6 +12,8 @@ setup:
                   type: keyword
                 responsetime:
                   type: float
+                event_rate:
+                  type: integer
 
   - do:
       index:
@@ -22,7 +24,8 @@ setup:
           {
             "time": "2017-02-18T00:00:00Z",
             "airline": "foo",
-            "responsetime": 1.0
+            "responsetime": 1.0,
+            "event_rate": 5
           }
 
   - do:
@@ -34,7 +37,8 @@ setup:
           {
             "time": "2017-02-18T00:30:00Z",
             "airline": "foo",
-            "responsetime": 1.0
+            "responsetime": 1.0,
+            "event_rate": 6
           }
 
   - do:
@@ -46,7 +50,21 @@ setup:
           {
             "time": "2017-02-18T01:00:00Z",
             "airline": "bar",
-            "responsetime": 42.0
+            "responsetime": 42.0,
+            "event_rate": 8
+          }
+
+  - do:
+      index:
+        index: airline-data
+        type: response
+        id: 4
+        body: >
+          {
+            "time": "2017-02-18T01:01:00Z",
+            "airline": "foo",
+            "responsetime": 42.0,
+            "event_rate": 7
           }
 
   - do:
@@ -83,7 +101,7 @@ setup:
   - do:
       xpack.ml.preview_datafeed:
         datafeed_id: scroll-feed
-  - length: { $body: 3 }
+  - length: { $body: 4 }
   - match: { 0.time: 1487376000000 }
   - match: { 0.airline: foo }
   - match: { 0.responsetime: 1.0 }
@@ -93,13 +111,16 @@ setup:
   - match: { 2.time: 1487379600000 }
   - match: { 2.airline: bar }
   - match: { 2.responsetime: 42.0 }
+  - match: { 3.time: 1487379660000 }
+  - match: { 3.airline: foo }
+  - match: { 3.responsetime: 42.0 }
 
 ---
-"Test preview aggregation datafeed":
+"Test preview aggregation datafeed with doc_count":
 
   - do:
       xpack.ml.put_job:
-        job_id: aggregation-job
+        job_id: aggregation-doc-count-job
         body:  >
           {
             "analysis_config" : {
@@ -114,10 +135,10 @@ setup:
 
   - do:
       xpack.ml.put_datafeed:
-        datafeed_id: aggregation-feed
+        datafeed_id: aggregation-doc-count-feed
         body:  >
           {
-            "job_id":"aggregation-job",
+            "job_id":"aggregation-doc-count-job",
             "indexes":"airline-data",
             "types":"response",
             "aggregations": {
@@ -147,8 +168,8 @@ setup:
 
   - do:
       xpack.ml.preview_datafeed:
-        datafeed_id: aggregation-feed
-  - length: { $body: 2 }
+        datafeed_id: aggregation-doc-count-feed
+  - length: { $body: 3 }
   - match: { 0.time: 1.487376E12 }
   - match: { 0.airline: foo }
   - match: { 0.responsetime: 2.0 }
@@ -157,6 +178,139 @@ setup:
   - match: { 1.airline: bar }
   - match: { 1.responsetime: 42.0 }
   - match: { 1.doc_count: 1 }
+  - match: { 1.time: 1.4873796E12 }
+  - match: { 2.airline: foo }
+  - match: { 2.responsetime: 42.0 }
+  - match: { 2.doc_count: 1 }
+
+---
+"Test preview single metric aggregation datafeed with different summary count field":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: aggregation-custom-single-metric-summary-job
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span":3600,
+                "summary_count_field_name": "dc_airline",
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: aggregation-custom-single-metric-summary-feed
+        body:  >
+          {
+            "job_id":"aggregation-custom-single-metric-summary-job",
+            "indexes":"airline-data",
+            "types":"response",
+            "aggregations": {
+              "time": {
+                "histogram": {
+                  "field": "time",
+                  "interval": 3600000
+                },
+                "aggregations": {
+                  "dc_airline": {
+                    "cardinality": {
+                      "field": "airline"
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+  - do:
+      xpack.ml.preview_datafeed:
+        datafeed_id: aggregation-custom-single-metric-summary-feed
+  - length: { $body: 2 }
+  - match: { 0.time: 1.487376E12 }
+  - match: { 0.dc_airline: 1 }
+  - is_false: 0.doc_count
+  - match: { 1.time: 1.4873796E12 }
+  - match: { 1.dc_airline: 2 }
+  - is_false: 1.doc_count
+
+---
+"Test preview multi metric aggregation datafeed with different summary count field":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: aggregation-custom-multi-metric-summary-job
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span":3600,
+                "summary_count_field_name": "event_rate",
+                "detectors" :[{"function":"mean","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: aggregation-custom-multi-metric-summary-feed
+        body:  >
+          {
+            "job_id":"aggregation-custom-multi-metric-summary-job",
+            "indexes":"airline-data",
+            "types":"response",
+            "aggregations": {
+              "time": {
+                "histogram": {
+                  "field": "time",
+                  "interval": 3600000
+                },
+                "aggregations": {
+                  "airline": {
+                    "terms": {
+                        "field": "airline"
+                    },
+                    "aggs": {
+                      "responsetime": {
+                        "sum": {
+                          "field": "responsetime"
+                        }
+                      },
+                      "event_rate": {
+                        "sum": {
+                          "field": "event_rate"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+  - do:
+      xpack.ml.preview_datafeed:
+        datafeed_id: aggregation-custom-multi-metric-summary-feed
+  - length: { $body: 3 }
+  - match: { 0.time: 1.487376E12 }
+  - match: { 0.airline: foo }
+  - match: { 0.responsetime: 2.0 }
+  - match: { 0.event_rate: 11 }
+  - is_false: 0.doc_count
+  - match: { 1.time: 1.4873796E12 }
+  - match: { 1.airline: bar }
+  - match: { 1.responsetime: 42.0 }
+  - match: { 1.event_rate: 8 }
+  - is_false: 1.doc_count
+  - match: { 1.time: 1.4873796E12 }
+  - match: { 2.airline: foo }
+  - match: { 2.responsetime: 42.0 }
+  - match: { 2.event_rate: 7 }
+  - is_false: 2.doc_count
 
 ---
 "Test preview missing datafeed":

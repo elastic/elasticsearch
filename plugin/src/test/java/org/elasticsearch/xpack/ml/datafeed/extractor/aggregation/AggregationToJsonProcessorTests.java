@@ -16,7 +16,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.Term;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createAggs;
@@ -43,6 +45,20 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         String json = aggToString(histogram);
 
         assertThat(json, equalTo("{\"time\":1000,\"doc_count\":3} {\"time\":2000,\"doc_count\":5}"));
+    }
+
+    public void testProcessGivenHistogramOnlyAndNoDocCount() throws IOException {
+        List<Histogram.Bucket> histogramBuckets = Arrays.asList(
+                createHistogramBucket(1000L, 3),
+                createHistogramBucket(2000L, 5)
+        );
+        Histogram histogram = mock(Histogram.class);
+        when(histogram.getName()).thenReturn("time");
+        when(histogram.getBuckets()).thenReturn(histogramBuckets);
+
+        String json = aggToString(histogram, false);
+
+        assertThat(json, equalTo("{\"time\":1000} {\"time\":2000}"));
     }
 
     public void testProcessGivenSingleMetricPerHistogram() throws IOException {
@@ -107,6 +123,52 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
                 "{\"time\":4000,\"my_field\":\"b\",\"my_value\":42.0,\"doc_count\":3}"));
     }
 
+    public void testProcessGivenMultipleSingleMetricPerSingleTermsPerHistogram() throws IOException {
+        Map<String, Double> a1NumericAggs = new LinkedHashMap<>();
+        a1NumericAggs.put("my_value", 111.0);
+        a1NumericAggs.put("my_value2", 112.0);
+        Map<String, Double> b1NumericAggs = new LinkedHashMap<>();
+        b1NumericAggs.put("my_value", 121.0);
+        b1NumericAggs.put("my_value2", 122.0);
+        Map<String, Double> c1NumericAggs = new LinkedHashMap<>();
+        c1NumericAggs.put("my_value", 131.0);
+        c1NumericAggs.put("my_value2", 132.0);
+        Map<String, Double> a2NumericAggs = new LinkedHashMap<>();
+        a2NumericAggs.put("my_value", 211.0);
+        a2NumericAggs.put("my_value2", 212.0);
+        Map<String, Double> b2NumericAggs = new LinkedHashMap<>();
+        b2NumericAggs.put("my_value", 221.0);
+        b2NumericAggs.put("my_value2", 222.0);
+        Map<String, Double> c4NumericAggs = new LinkedHashMap<>();
+        c4NumericAggs.put("my_value", 411.0);
+        c4NumericAggs.put("my_value2", 412.0);
+        Map<String, Double> b4NumericAggs = new LinkedHashMap<>();
+        b4NumericAggs.put("my_value", 421.0);
+        b4NumericAggs.put("my_value2", 422.0);
+        List<Histogram.Bucket> histogramBuckets = Arrays.asList(
+                createHistogramBucket(1000L, 4, Arrays.asList(createTerms("my_field",
+                        new Term("a", 1, a1NumericAggs), new Term("b", 2, b1NumericAggs), new Term("c", 1, c1NumericAggs)))),
+                createHistogramBucket(2000L, 5, Arrays.asList(createTerms("my_field",
+                        new Term("a", 5, a2NumericAggs), new Term("b", 2, b2NumericAggs)))),
+                createHistogramBucket(3000L, 0, Arrays.asList()),
+                createHistogramBucket(4000L, 7, Arrays.asList(createTerms("my_field",
+                        new Term("c", 4, c4NumericAggs), new Term("b", 3, b4NumericAggs))))
+        );
+        Histogram histogram = mock(Histogram.class);
+        when(histogram.getName()).thenReturn("time");
+        when(histogram.getBuckets()).thenReturn(histogramBuckets);
+
+        String json = aggToString(histogram, false);
+
+        assertThat(json, equalTo("{\"time\":1000,\"my_field\":\"a\",\"my_value\":111.0,\"my_value2\":112.0} " +
+                "{\"time\":1000,\"my_field\":\"b\",\"my_value\":121.0,\"my_value2\":122.0} " +
+                "{\"time\":1000,\"my_field\":\"c\",\"my_value\":131.0,\"my_value2\":132.0} " +
+                "{\"time\":2000,\"my_field\":\"a\",\"my_value\":211.0,\"my_value2\":212.0} " +
+                "{\"time\":2000,\"my_field\":\"b\",\"my_value\":221.0,\"my_value2\":222.0} " +
+                "{\"time\":4000,\"my_field\":\"c\",\"my_value\":411.0,\"my_value2\":412.0} " +
+                "{\"time\":4000,\"my_field\":\"b\",\"my_value\":421.0,\"my_value2\":422.0}"));
+    }
+
     public void testProcessGivenTopLevelAggIsNotHistogram() throws IOException {
         Terms terms = mock(Terms.class);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> aggToString(terms));
@@ -138,7 +200,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         when(histogram.getBuckets()).thenReturn(Arrays.asList(histogramBucket));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> aggToString(histogram));
-        assertThat(e.getMessage(), containsString("Multiple nested aggregations are not supported"));
+        assertThat(e.getMessage(), containsString("Multiple non-leaf nested aggregations are not supported"));
     }
 
     public void testProcessGivenHistogramWithDateTimeKeys() throws IOException {
@@ -156,8 +218,12 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
     }
 
     private String aggToString(Aggregation aggregation) throws IOException {
+        return aggToString(aggregation, true);
+    }
+
+    private String aggToString(Aggregation aggregation, boolean includeDocCount) throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        try (AggregationToJsonProcessor processor = new AggregationToJsonProcessor(outputStream)) {
+        try (AggregationToJsonProcessor processor = new AggregationToJsonProcessor(includeDocCount, outputStream)) {
             processor.process(aggregation);
         }
         return outputStream.toString(StandardCharsets.UTF_8.name());

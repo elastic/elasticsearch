@@ -98,7 +98,7 @@ class AggregationDataExtractor implements DataExtractor {
             return null;
         }
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        try (AggregationToJsonProcessor processor = new AggregationToJsonProcessor(outputStream)) {
+        try (AggregationToJsonProcessor processor = new AggregationToJsonProcessor(context.includeDocCount, outputStream)) {
             for (Aggregation agg : searchResponse.getAggregations().asList()) {
                 processor.process(agg);
             }

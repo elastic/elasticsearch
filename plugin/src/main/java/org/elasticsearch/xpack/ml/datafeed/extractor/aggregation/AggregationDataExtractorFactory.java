@@ -35,7 +35,8 @@ public class AggregationDataExtractorFactory implements DataExtractorFactory {
                 datafeedConfig.getQuery(),
                 datafeedConfig.getAggregations(),
                 start,
-                end);
+                end,
+                job.getAnalysisConfig().getSummaryCountFieldName().equals(DatafeedConfig.DOC_COUNT));
         return new AggregationDataExtractor(client, dataExtractorContext);
     }
 }

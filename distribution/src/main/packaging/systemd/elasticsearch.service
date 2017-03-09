@@ -5,6 +5,7 @@ Wants=network-online.target
 After=network-online.target
 
 [Service]
+RuntimeDirectory=elasticsearch
 Environment=ES_HOME=/usr/share/elasticsearch
 Environment=CONF_DIR=${path.conf}
 Environment=DATA_DIR=/var/lib/elasticsearch

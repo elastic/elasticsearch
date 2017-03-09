@@ -406,7 +406,7 @@ public class InternalEngine extends Engine {
 
     enum LuceneOpStatus {
         NEWER_OR_EQUAL,
-        STALE,
+        OLDER,
         NOT_FOUND
     }
 
@@ -418,7 +418,7 @@ public class InternalEngine extends Engine {
         if (versionValue != null) {
             if  (op.seqNo() > versionValue.getSeqNo() ||
                 (op.seqNo() == versionValue.getSeqNo() && op.primaryTerm() > versionValue.getTerm()))
-                status = LuceneOpStatus.STALE;
+                status = LuceneOpStatus.OLDER;
             else {
                 status = LuceneOpStatus.NEWER_OR_EQUAL;
             }
@@ -430,12 +430,12 @@ public class InternalEngine extends Engine {
                 if (docAndSeqNo == null) {
                     status = LuceneOpStatus.NOT_FOUND;
                 } else if (op.seqNo() > docAndSeqNo.seqNo) {
-                    status = LuceneOpStatus.STALE;
+                    status = LuceneOpStatus.OLDER;
                 } else if (op.seqNo() == docAndSeqNo.seqNo) {
                     // load term to tie break
                     final long existingTerm = VersionsAndSeqNoResolver.loadPrimaryTerm(docAndSeqNo);
                     if (op.primaryTerm() > existingTerm) {
-                        status = LuceneOpStatus.STALE;
+                        status = LuceneOpStatus.OLDER;
                     } else {
                         status = LuceneOpStatus.NEWER_OR_EQUAL;
                     }
@@ -471,7 +471,7 @@ public class InternalEngine extends Engine {
         if (versionValue == null) {
             return LuceneOpStatus.NOT_FOUND;
         } else {
-            return op.version() > versionValue.getVersion() ? LuceneOpStatus.STALE : LuceneOpStatus.NEWER_OR_EQUAL;
+            return op.version() > versionValue.getVersion() ? LuceneOpStatus.OLDER : LuceneOpStatus.NEWER_OR_EQUAL;
         }
     }
 
@@ -593,7 +593,6 @@ public class InternalEngine extends Engine {
                         // resolves incoming version
                         final VersionValue versionValue = resolveDocVersion(index);
                         final long currentVersion;
-                        assert incrementVersionLookup();
                         if (versionValue == null) {
                             currentVersion = Versions.NOT_FOUND;
                             currentNotFoundOrDeleted = true;
@@ -839,8 +838,8 @@ public class InternalEngine extends Engine {
             } else {
                 if (performOperation) {
                     if (currentlyDeleted == false) {
-                        // any exception that comes from this is a either an ACE or a fatal exception there can't be any document failures coming
-                        // from this.
+                        // any exception that comes from this is a either an ACE or a fatal exception there can't be any document failures
+                        // coming from this
                         indexWriter.deleteDocuments(delete.uid());
                     }
                     versionMap.putUnderLock(delete.uid().bytes(),
@@ -861,6 +860,7 @@ public class InternalEngine extends Engine {
             deleteResult.setTook(System.nanoTime() - delete.startTime());
             deleteResult.freeze();
         } catch (RuntimeException | IOException e) {
+            assert indexWriter.getTragicException() != null : "unexpected exception in delete\n" + e;
             try {
                 maybeFailEngine("index", e);
             } catch (Exception inner) {

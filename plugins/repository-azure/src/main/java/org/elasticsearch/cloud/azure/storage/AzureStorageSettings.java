@@ -27,10 +27,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
 
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public final class AzureStorageSettings {
@@ -42,6 +45,16 @@ public final class AzureStorageSettings {
         Setting.affixKeySetting(Storage.PREFIX, "key", (key) -> Setting.simpleString(key, Setting.Property.NodeScope));
     private static final Setting<Boolean> DEFAULT_SETTING =
         Setting.affixKeySetting(Storage.PREFIX, "default", (key) -> Setting.boolSetting(key, false, Setting.Property.NodeScope));
+    /** The host name of a proxy to connect to s3 through. */
+    private static final Setting<String> PROXY_HOST_SETTING =
+        Setting.affixKeySetting(Storage.PREFIX, "proxy.host", (key) -> Setting.simpleString(key, Setting.Property.NodeScope));
+    /** The port of a proxy to connect to azure through. */
+    private static final Setting<Integer> PROXY_PORT_SETTING = Setting.affixKeySetting(Storage.PREFIX, "proxy.port",
+        key -> Setting.intSetting(key, 80, 0, 1<<16, Setting.Property.NodeScope));
+    /** The type of the proxy to connect to azure through. Can be direct (no proxy, default), http or socks */
+    private static final Setting<Proxy.Type> PROXY_TYPE_SETTING = Setting.affixKeySetting(Storage.PREFIX, "proxy.type",
+            key -> new Setting<>(key, "direct", s -> Proxy.Type.valueOf(s.toUpperCase(Locale.ROOT)), Setting.Property.NodeScope));
+
     /**
      * max_retries: Number of retries in case of Azure errors. Defaults to 3 (RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT).
      */
@@ -55,14 +68,27 @@ public final class AzureStorageSettings {
     private final TimeValue timeout;
     private final boolean activeByDefault;
     private final int maxRetries;
+    private final String proxyHost;
+    private final Integer proxyPort;
+    private final Proxy.Type proxyType;
+    private final Proxy proxy;
 
-    public AzureStorageSettings(String name, String account, String key, TimeValue timeout, boolean activeByDefault, int maxRetries) {
+    public AzureStorageSettings(String name, String account, String key, TimeValue timeout, boolean activeByDefault, int maxRetries,
+                                String proxyHost, Integer proxyPort, Proxy.Type proxyType) {
         this.name = name;
         this.account = account;
         this.key = key;
         this.timeout = timeout;
         this.activeByDefault = activeByDefault;
         this.maxRetries = maxRetries;
+        if (proxyType.equals(Proxy.Type.DIRECT)) {
+            proxy = null;
+        } else {
+            proxy = new Proxy(proxyType, new InetSocketAddress(proxyHost, proxyPort));
+        }
+        this.proxyHost = proxyHost;
+        this.proxyPort = proxyPort;
+        this.proxyType = proxyType;
     }
 
     public String getName() {
@@ -87,6 +113,10 @@ public final class AzureStorageSettings {
 
     public int getMaxRetries() {
         return maxRetries;
+    }
+
+    public Proxy getProxy() {
+        return proxy;
     }
 
     @Override
@@ -124,7 +154,10 @@ public final class AzureStorageSettings {
                     getValue(settings, groupName, KEY_SETTING),
                     getValue(settings, groupName, TIMEOUT_SETTING),
                     getValue(settings, groupName, DEFAULT_SETTING),
-                    getValue(settings, groupName, MAX_RETRIES_SETTING))
+                    getValue(settings, groupName, MAX_RETRIES_SETTING),
+                    getValue(settings, groupName, PROXY_HOST_SETTING),
+                    getValue(settings, groupName, PROXY_PORT_SETTING),
+                    getValue(settings, groupName, PROXY_TYPE_SETTING))
             );
         }
         return storageSettings;
@@ -143,7 +176,7 @@ public final class AzureStorageSettings {
             // the only storage settings belong (implicitly) to the default primary storage
             AzureStorageSettings storage = settings.get(0);
             return new AzureStorageSettings(storage.getName(), storage.getAccount(), storage.getKey(), storage.getTimeout(), true,
-                storage.getMaxRetries());
+                storage.getMaxRetries(), storage.proxyHost, storage.proxyPort, storage.proxyType);
         } else {
             AzureStorageSettings primary = null;
             for (AzureStorageSettings setting : settings) {

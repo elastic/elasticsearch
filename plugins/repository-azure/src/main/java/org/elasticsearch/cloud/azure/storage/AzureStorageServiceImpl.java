@@ -23,6 +23,7 @@ import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.RetryPolicy;
+import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobProperties;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
@@ -45,9 +46,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -97,6 +95,11 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
             // Create the blob client.
             CloudBlobClient client = storageAccount.createCloudBlobClient();
+
+            // Register the proxy if we have any
+            if (azureStorageSettings.getProxy() != null) {
+                OperationContext.setDefaultProxy(azureStorageSettings.getProxy());
+            }
 
             // Register the client
             this.clients.put(azureStorageSettings.getAccount(), client);

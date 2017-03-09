@@ -21,6 +21,7 @@ package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.RetryPolicy;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -73,6 +74,7 @@ public final class AzureStorageSettings {
     private final Proxy.Type proxyType;
     private final Proxy proxy;
 
+    @SuppressForbidden(reason = "we know we pass a IP address or a host name")
     public AzureStorageSettings(String name, String account, String key, TimeValue timeout, boolean activeByDefault, int maxRetries,
                                 String proxyHost, Integer proxyPort, Proxy.Type proxyType) {
         this.name = name;

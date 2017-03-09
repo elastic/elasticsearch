@@ -268,8 +268,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             return new FieldStats.Double(stats.getMaxDoc(), stats.getDocCount(),
                     stats.getSumDocFreq(), stats.getSumTotalTermFreq(),
                     stats.isSearchable(), stats.isAggregatable(),
-                    stats.getMinValue() == null ? null : stats.getMinValue() / scalingFactor,
-                    stats.getMaxValue() == null ? null : stats.getMaxValue() / scalingFactor);
+                    stats.getMinValue() == null ? 0.0 : stats.getMinValue() / scalingFactor,
+                    stats.getMaxValue() == null ? 0.0  : stats.getMaxValue() / scalingFactor);
+
         }
 
         @Override

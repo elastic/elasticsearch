@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -143,6 +144,14 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             assertNull(ft.stats(reader));
         }
         Document doc = new Document();
+        doc.add(new StoredField("scaled_float", -1));
+        w.addDocument(doc);
+        try (DirectoryReader reader = DirectoryReader.open(w)) {
+            // field exists, but has no point values
+            FieldStats<?> stats = ft.stats(reader);
+            assertEquals(0.0, stats.getMinValue());
+            assertEquals(0.0, stats.getMaxValue());
+        }
         LongPoint point = new LongPoint("scaled_float", -1);
         doc.add(point);
         w.addDocument(doc);
@@ -152,7 +161,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             FieldStats<?> stats = ft.stats(reader);
             assertEquals(-1/ft.getScalingFactor(), stats.getMinValue());
             assertEquals(10/ft.getScalingFactor(), stats.getMaxValue());
-            assertEquals(2, stats.getMaxDoc());
+            assertEquals(3, stats.getMaxDoc());
         }
         w.deleteAll();
         try (DirectoryReader reader = DirectoryReader.open(w)) {

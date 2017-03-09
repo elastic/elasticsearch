@@ -23,8 +23,9 @@ esplugin {
 }
 
 dependencies {
-  compile 'com.microsoft.azure:azure-storage:4.0.0'
-  compile 'org.apache.commons:commons-lang3:3.3.2'
+  compile 'com.microsoft.azure:azure-storage:5.0.0'
+  compile 'com.microsoft.azure:azure-keyvault-core:0.8.0'
+  compile 'org.apache.commons:commons-lang3:3.4'
 }
 
 dependencyLicenses {

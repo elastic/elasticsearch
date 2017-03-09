@@ -46,8 +46,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
     @Inject
     public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                ClusterService clusterService, TransportSearchAction searchAction,
-                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                      ClusterService clusterService, TransportSearchAction searchAction,
+                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, MultiSearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiSearchRequest::new);
         this.clusterService = clusterService;
         this.searchAction = searchAction;
@@ -107,27 +107,61 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
                        AtomicInteger responseCounter, ActionListener<MultiSearchResponse> listener) {
         SearchRequestSlot request = requests.poll();
         if (request == null) {
-            // Ok... so there're no more requests then this is ok, we're then waiting for running requests to complete
+            /*
+             * The number of times that we poll an item from the queue here is the minimum of the number of requests and the maximum number
+             * of concurrent requests. At first glance, it appears that we should never poll from the queue and not obtain a request given
+             * that we only poll here no more times than the number of requests. However, this is not the only consumer of this queue as
+             * earlier requests that have already completed will poll from the queue too and they could complete before later polls are
+             * invoked here. Thus, it can be the case that we poll here and and the queue was empty.
+             */
             return;
         }
+
+        /*
+         * With a request in hand, we are going to asynchronously execute the search request. When the search request returns, either with
+         * a success or with a failure, we set the response corresponding to the request. Then, we enter a loop that repeatedly pulls
+         * requests off the request queue, this time only setting the response corresponding to the request.
+         */
         searchAction.execute(request.request, new ActionListener<SearchResponse>() {
             @Override
-            public void onResponse(SearchResponse searchResponse) {
-                responses.set(request.responseSlot, new MultiSearchResponse.Item(searchResponse, null));
-                handleResponse();
+            public void onResponse(final SearchResponse searchResponse) {
+                handleResponse(request.responseSlot, new MultiSearchResponse.Item(searchResponse, null));
+                executeSearchLoop();
             }
 
             @Override
-            public void onFailure(Exception e) {
-                responses.set(request.responseSlot, new MultiSearchResponse.Item(null, e));
-                handleResponse();
+            public void onFailure(final Exception e) {
+                handleResponse(request.responseSlot, new MultiSearchResponse.Item(null, e));
+                executeSearchLoop();
             }
 
-            private void handleResponse() {
+            private void handleResponse(final int responseSlot, final MultiSearchResponse.Item item) {
+                responses.set(responseSlot, item);
                 if (responseCounter.decrementAndGet() == 0) {
-                    listener.onResponse(new MultiSearchResponse(responses.toArray(new MultiSearchResponse.Item[responses.length()])));
-                } else {
-                    executeSearch(requests, responses, responseCounter, listener);
+                    assert requests.isEmpty();
+                    finish();
+                }
+            }
+
+            private void finish() {
+                listener.onResponse(new MultiSearchResponse(responses.toArray(new MultiSearchResponse.Item[responses.length()])));
+            }
+
+            private void executeSearchLoop() {
+                SearchRequestSlot next;
+                while ((next = requests.poll()) != null) {
+                    final int nextResponseSlot = next.responseSlot;
+                    searchAction.execute(next.request, new ActionListener<SearchResponse>() {
+                        @Override
+                        public void onResponse(SearchResponse searchResponse) {
+                            handleResponse(nextResponseSlot, new MultiSearchResponse.Item(searchResponse, null));
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            handleResponse(nextResponseSlot, new MultiSearchResponse.Item(null, e));
+                        }
+                    });
                 }
             }
         });

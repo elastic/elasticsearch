@@ -70,7 +70,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
 
         // Keep track of the number of concurrent searches started by multi search api,
         // and if there are more searches than is allowed create an error and remember that.
-        int maxAllowedConcurrentSearches = scaledRandomIntBetween(1, 20);
+        int maxAllowedConcurrentSearches = scaledRandomIntBetween(1, 16);
         AtomicInteger counter = new AtomicInteger();
         AtomicReference<AssertionError> errorHolder = new AtomicReference<>();
         TransportAction<SearchRequest, SearchResponse> searchAction = new TransportAction<SearchRequest, SearchResponse>
@@ -82,16 +82,8 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                     errorHolder.set(new AssertionError("Current concurrent search [" + currentConcurrentSearches +
                             "] is higher than is allowed [" + maxAllowedConcurrentSearches + "]"));
                 }
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(
-                        () -> {
-                            try {
-                                Thread.sleep(scaledRandomIntBetween(10, 1000));
-                            } catch (InterruptedException e) {
-                            }
-                            counter.decrementAndGet();
-                            listener.onResponse(new SearchResponse());
-                        }
-                );
+                counter.decrementAndGet();
+                listener.onResponse(new SearchResponse());
             }
         };
         TransportMultiSearchAction action =
@@ -99,7 +91,11 @@ public class TransportMultiSearchActionTests extends ESTestCase {
 
         // Execute the multi search api and fail if we find an error after executing:
         try {
-            int numSearchRequests = randomIntBetween(16, 128);
+            /*
+             * Allow for a large number of search requests in a single batch as previous implementations could stack overflow if the number
+             * of requests in a single batch was large
+             */
+            int numSearchRequests = scaledRandomIntBetween(1, 8192);
             MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
             multiSearchRequest.maxConcurrentSearchRequests(maxAllowedConcurrentSearches);
             for (int i = 0; i < numSearchRequests; i++) {

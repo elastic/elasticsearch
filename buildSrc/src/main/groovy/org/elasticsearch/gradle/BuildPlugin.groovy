@@ -178,25 +178,25 @@ class BuildPlugin implements Plugin<Project> {
     /** Finds printable java version of the given JAVA_HOME */
     private static String findJavaVersionDetails(Project project, String javaHome) {
         String versionInfoScript = 'print(' +
-            'java.lang.System.getProperty("java.vendor") + " " + java.lang.System.getProperty("java.version") + ' +
-            '" [" + java.lang.System.getProperty("java.vm.name") + " " + java.lang.System.getProperty("java.vm.version") + "]");'
+            'java.lang.System.getProperty(\\"java.vendor\\") + \\" \\" + java.lang.System.getProperty(\\"java.version\\") + ' +
+            '"\\ [\\" + java.lang.System.getProperty(\\"java.vm.name\\") + \\" \\" + java.lang.System.getProperty(\\"java.vm.version\\") + \\"]\\");'
         return runJavascript(project, javaHome, versionInfoScript).trim()
     }
 
     /** Finds the parsable java specification version */
     private static String findJavaSpecificationVersion(Project project, String javaHome) {
-        String versionScript = 'print(java.lang.System.getProperty("java.specification.version"));'
+        String versionScript = 'print(java.lang.System.getProperty(\\"java.specification.version\\"));'
         return runJavascript(project, javaHome, versionScript)
     }
 
     private static String findJavaVendor(Project project, String javaHome) {
-        String vendorScript = 'print(java.lang.System.getProperty("java.vendor"));'
+        String vendorScript = 'print(java.lang.System.getProperty(\\"java.vendor\\"));'
         return runJavascript(project, javaHome, vendorScript)
     }
 
     /** Finds the parsable java specification version */
     private static String findJavaVersion(Project project, String javaHome) {
-        String versionScript = 'print(java.lang.System.getProperty("java.version"));'
+        String versionScript = 'print(java.lang.System.getProperty(\\"java.version\\"));'
         return runJavascript(project, javaHome, versionScript)
     }
 

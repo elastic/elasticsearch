@@ -3051,10 +3051,11 @@ public class InternalEngineTests extends ESTestCase {
                 // all these simulated exceptions are not fatal to the IW so we treat them as document failures
                 if (randomBoolean()) {
                     throwingIndexWriter.get().setThrowFailure(() -> new IOException("simulated"));
-                    expectThrows(IOException.class, () -> engine.delete(new Engine.Delete("test", "1", newUid(doc1))));
+                    assertThat(engine.delete(new Engine.Delete("test", "1", newUid(doc1))).getFailure(), instanceOf(IOException.class));
                 } else {
                     throwingIndexWriter.get().setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
-                    expectThrows(IllegalArgumentException.class, () -> engine.delete(new Engine.Delete("test", "1", newUid(doc1))));
+                    assertThat(engine.delete(new Engine.Delete("test", "1", newUid(doc1))).getFailure(),
+                        instanceOf(IllegalArgumentException.class));
                 }
 
                 // test non document level failure is thrown

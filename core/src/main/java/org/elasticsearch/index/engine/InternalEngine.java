@@ -789,8 +789,8 @@ public class InternalEngine extends Engine {
             // of a rare double delete
             final boolean performOperation;
             final boolean currentlyDeleted;
-            final long seqNoForIndexing;
-            final long versionForIndexing;
+            final long seqNoOfDeletion;
+            final long versionOfDeletion;
             Optional<DeleteResult> earlyResultOnPreflightError = Optional.empty();
             if (delete.origin() == Operation.Origin.PRIMARY) {
                 // resolve operation from external to internal
@@ -810,11 +810,11 @@ public class InternalEngine extends Engine {
                         currentVersion, delete.seqNo(), currentlyDeleted == false
                     ));
                     performOperation = false;
-                    seqNoForIndexing = SequenceNumbersService.UNASSIGNED_SEQ_NO;
-                    versionForIndexing = -1;
+                    seqNoOfDeletion = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                    versionOfDeletion = -1;
                 } else {
-                    versionForIndexing = delete.versionType().updateVersion(currentVersion, delete.version());
-                    seqNoForIndexing = seqNoService().generateSeqNo();
+                    versionOfDeletion = delete.versionType().updateVersion(currentVersion, delete.version());
+                    seqNoOfDeletion = seqNoService().generateSeqNo();
                     performOperation =  true;
                 }
             } else {
@@ -833,8 +833,8 @@ public class InternalEngine extends Engine {
                 // this allows to ignore the case where a document was found in the live version maps in
                 // a delete state and return true for the found flag in favor of code simplicity
                 currentlyDeleted = luceneOpStatus == LuceneOpStatus.NOT_FOUND;
-                seqNoForIndexing = delete.seqNo();
-                versionForIndexing = delete.version();
+                seqNoOfDeletion = delete.seqNo();
+                versionOfDeletion = delete.version();
                 performOperation = luceneOpStatus != LuceneOpStatus.NEWER_OR_EQUAL;
             }
 
@@ -843,16 +843,10 @@ public class InternalEngine extends Engine {
                 assert performOperation == false;
             } else {
                 if (performOperation) {
-                    if (currentlyDeleted == false) {
-                        // any exception that comes from this is a either an ACE or a fatal exception there can't be any document failures
-                        // coming from this
-                        indexWriter.deleteDocuments(delete.uid());
-                    }
-                    versionMap.putUnderLock(delete.uid().bytes(),
-                        new DeleteVersionValue(versionForIndexing, seqNoForIndexing, delete.primaryTerm(),
-                            engineConfig.getThreadPool().relativeTimeInMillis()));
+                    deleteResult = deleteInLucene(delete, currentlyDeleted, seqNoOfDeletion, versionOfDeletion);
+                } else {
+                    deleteResult = new DeleteResult(versionOfDeletion, seqNoOfDeletion, currentlyDeleted == false);
                 }
-                deleteResult = new DeleteResult(versionForIndexing, seqNoForIndexing, currentlyDeleted == false);
             }
             if (!deleteResult.hasFailure()) {
                 Translog.Location location = delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY
@@ -866,7 +860,6 @@ public class InternalEngine extends Engine {
             deleteResult.setTook(System.nanoTime() - delete.startTime());
             deleteResult.freeze();
         } catch (RuntimeException | IOException e) {
-            assert indexWriter.getTragicException() != null : "unexpected exception in delete\n" + e;
             try {
                 maybeFailEngine("index", e);
             } catch (Exception inner) {
@@ -876,6 +869,27 @@ public class InternalEngine extends Engine {
         }
         maybePruneDeletedTombstones();
         return deleteResult;
+    }
+
+    private DeleteResult deleteInLucene(Delete delete, boolean currentlyDeleted, long seqNo, long version)
+        throws IOException {
+        try {
+            if (currentlyDeleted == false) {
+                // any exception that comes from this is a either an ACE or a fatal exception there can't be any document failures
+                // coming from this
+                indexWriter.deleteDocuments(delete.uid());
+            }
+            versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(version, seqNo, delete.primaryTerm(),
+                engineConfig.getThreadPool().relativeTimeInMillis()));
+            return new DeleteResult(version, seqNo, currentlyDeleted == false);
+        } catch (Exception ex) {
+            if (indexWriter.getTragicException() == null) {
+                // there is no tragic event and such it must be a document level failure
+                return new DeleteResult(ex, version, seqNo, currentlyDeleted == false);
+            } else {
+                throw ex;
+            }
+        }
     }
 
     private void maybePruneDeletedTombstones() {

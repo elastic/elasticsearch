@@ -234,6 +234,11 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         return tombstones.entrySet();
     }
 
+    /** clears all tombstones ops */
+    void clearTombstones() {
+        tombstones.clear();
+    }
+
     /** Called when this index is closed. */
     synchronized void clear() {
         maps = new Maps();

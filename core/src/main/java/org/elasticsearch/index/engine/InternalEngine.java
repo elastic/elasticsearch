@@ -578,7 +578,7 @@ public class InternalEngine extends Engine {
                 final boolean canOptimizeAddDocument = canOptimizeAddDocument(index);
                 final long seqNoForIndexing;
                 final long versionForIndexing;
-                final boolean addToLucene;
+                final boolean performOperation;
                 Optional<IndexResult> earlyResultOnPreFlightError = Optional.empty();
 
                 if (index.origin() == Operation.Origin.PRIMARY) {
@@ -588,7 +588,7 @@ public class InternalEngine extends Engine {
                         versionForIndexing = 1L;
                         currentNotFoundOrDeleted = true;
                         seqNoForIndexing = seqNoService().generateSeqNo();
-                        addToLucene = true;
+                        performOperation = true;
                     } else {
                         // resolves incoming version
                         final VersionValue versionValue = resolveDocVersion(index);
@@ -609,11 +609,11 @@ public class InternalEngine extends Engine {
                             ));
                             versionForIndexing = Versions.NOT_FOUND;
                             seqNoForIndexing = SequenceNumbersService.UNASSIGNED_SEQ_NO;
-                            addToLucene = false;
+                            performOperation = false;
                         } else {
                             versionForIndexing = index.versionType().updateVersion(currentVersion, index.version());
                             seqNoForIndexing = seqNoService().generateSeqNo();
-                            addToLucene = true;
+                            performOperation = true;
                         }
                     }
                 } else if (canOptimizeAddDocument && mayHaveBeenIndexedBefore(index) == false) {
@@ -623,7 +623,7 @@ public class InternalEngine extends Engine {
                     assert index.version() == 1L : "can optimize on replicas but incoming version is [" + index.version() + "]";
                     seqNoForIndexing = index.seqNo();
                     versionForIndexing = index.version();
-                    addToLucene = true;
+                    performOperation = true;
                 } else {
                     // drop out of order operations
                     assert index.versionType().versionTypeForReplicationAndRecovery() == index.versionType() :
@@ -635,18 +635,21 @@ public class InternalEngine extends Engine {
                     } else {
                         luceneOpStatus = checkLuceneOpStatusBasedOnVersions(index);
                     }
-                    useLuceneUpdateDocument = luceneOpStatus != LuceneOpStatus.NOT_FOUND;
+                    // unlike the primary, replicas don't really care to about creation status of documents
+                    // this allows to ignore the case where a document was found in the live version maps in
+                    // a delete state and return false for the created flag in favor of code simplicity
                     currentNotFoundOrDeleted = luceneOpStatus == LuceneOpStatus.NOT_FOUND;
+                    useLuceneUpdateDocument = luceneOpStatus != LuceneOpStatus.NOT_FOUND;
                     seqNoForIndexing = index.seqNo();
                     versionForIndexing = index.version();
-                    addToLucene = luceneOpStatus != LuceneOpStatus.NEWER_OR_EQUAL;
+                    performOperation = luceneOpStatus != LuceneOpStatus.NEWER_OR_EQUAL;
                 }
 
                 final IndexResult indexResult;
                 if (earlyResultOnPreFlightError.isPresent()) {
                     indexResult = earlyResultOnPreFlightError.get();
                     assert indexResult.hasFailure();
-                } else if (addToLucene) {
+                } else if (performOperation) {
                     indexResult = indexIntoLucene(index, seqNoForIndexing, versionForIndexing, currentNotFoundOrDeleted,
                         useLuceneUpdateDocument);
                 } else {
@@ -804,7 +807,7 @@ public class InternalEngine extends Engine {
                 if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
                     earlyResultOnPreflightError = Optional.of(new DeleteResult(
                         new VersionConflictEngineException(shardId, delete, currentVersion, currentlyDeleted),
-                        currentVersion, delete.seqNo()
+                        currentVersion, delete.seqNo(), currentlyDeleted == false
                     ));
                     performOperation = false;
                     seqNoForIndexing = SequenceNumbersService.UNASSIGNED_SEQ_NO;
@@ -823,9 +826,12 @@ public class InternalEngine extends Engine {
                 if (delete.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
                     luceneOpStatus = checkLuceneOpStatusBasedOnSeq(delete);
                 } else {
+                    // added a comment
                     luceneOpStatus = checkLuceneOpStatusBasedOnVersions(delete);
                 }
-                // the found vs deleted distinction is not relevant on replicas, just set it
+                // unlike the primary, replicas don't really care to about found status of documents
+                // this allows to ignore the case where a document was found in the live version maps in
+                // a delete state and return true for the found flag in favor of code simplicity
                 currentlyDeleted = luceneOpStatus == LuceneOpStatus.NOT_FOUND;
                 seqNoForIndexing = delete.seqNo();
                 versionForIndexing = delete.version();
@@ -1138,6 +1144,11 @@ public class InternalEngine extends Engine {
         }
 
         lastDeleteVersionPruneTimeMSec = timeMSec;
+    }
+
+    // testing
+    void clearDeletedTombstones() {
+        versionMap.clearTombstones();
     }
 
     @Override

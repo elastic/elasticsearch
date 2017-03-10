@@ -421,9 +421,9 @@ public abstract class Engine implements Closeable {
             this.found = found;
         }
 
-        public DeleteResult(Exception failure, long version, long seqNo) {
+        public DeleteResult(Exception failure, long version, long seqNo, boolean found) {
             super(Operation.TYPE.DELETE, failure, version, seqNo);
-            this.found = false;
+            this.found = found;
         }
 
         public boolean isFound() {

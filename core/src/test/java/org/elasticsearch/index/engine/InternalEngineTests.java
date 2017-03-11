@@ -1538,6 +1538,67 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
+    private void testOpsOnReplica(List<Engine.Operation> ops, InternalEngine replicaEngine) throws IOException {
+        final Engine.Operation lastOp = ops.get(ops.size() - 1);
+        final String lastFieldValue;
+        if (lastOp instanceof Engine.Index) {
+            Engine.Index index = (Engine.Index) lastOp;
+            lastFieldValue = index.docs().get(0).get("value");
+        } else {
+            // delete
+            lastFieldValue = null;
+        }
+        int firstOpWithSeqNo = 0;
+        while (firstOpWithSeqNo < ops.size() && ops.get(firstOpWithSeqNo).seqNo() < 0) {
+            firstOpWithSeqNo++;
+        }
+        // shuffle ops but make sure legacy ops are first
+        shuffle(ops.subList(0, firstOpWithSeqNo), random());
+        shuffle(ops.subList(firstOpWithSeqNo, ops.size()), random());
+        boolean firstOp = true;
+        for (Engine.Operation op : ops) {
+            logger.info("performing [{}], v [{}], seq# [{}], term [{}]",
+                op.operationType().name().charAt(0), op.version(), op.seqNo(), op.primaryTerm());
+            if (op instanceof Engine.Index) {
+                Engine.IndexResult result = replicaEngine.index((Engine.Index) op);
+                // replicas don't really care to about creation status of documents
+                // this allows to ignore the case where a document was found in the live version maps in
+                // a delete state and return false for the created flag in favor of code simplicity
+                // as deleted or not. This check is just signal regression so a decision can be made if it's
+                // intentional
+                assertThat(result.isCreated(), equalTo(firstOp));
+                assertThat(result.getVersion(), equalTo(op.version()));
+                assertThat(result.hasFailure(), equalTo(false));
+
+            } else {
+                Engine.DeleteResult result = replicaEngine.delete((Engine.Delete) op);
+                // Replicas don't really care to about found status of documents
+                // this allows to ignore the case where a document was found in the live version maps in
+                // a delete state and return true for the found flag in favor of code simplicity
+                // his check is just signal regression so a decision can be made if it's
+                // intentional
+                assertThat(result.isFound(), equalTo(firstOp == false));
+                assertThat(result.getVersion(), equalTo(op.version()));
+                assertThat(result.hasFailure(), equalTo(false));
+            }
+            if (randomBoolean()) {
+                engine.refresh("test");
+            } if (randomBoolean()) {
+                engine.flush();
+            }
+            firstOp = false;
+        }
+
+        assertVisibleCount(replicaEngine, lastFieldValue == null ? 0 : 1);
+        if (lastFieldValue != null) {
+            try (Searcher searcher = replicaEngine.acquireSearcher("test")) {
+                final TotalHitCountCollector collector = new TotalHitCountCollector();
+                searcher.searcher().search(new TermQuery(new Term("value", lastFieldValue)), collector);
+                assertThat(collector.getTotalHits(), equalTo(1));
+            }
+        }
+    }
+
     public void testInternalVersioningOnPrimary() throws IOException {
         final List<Engine.Operation> ops = generateSingleDocHistory(false, false, false);
         String lastFieldValue = null;
@@ -1626,8 +1687,8 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
-
-    private void testOpsOnReplica(List<Engine.Operation> ops, InternalEngine replicaEngine) throws IOException {
+    public void testExternalVersioningOnPrimary() throws IOException {
+        final List<Engine.Operation> ops = generateSingleDocHistory(false, true, false);
         final Engine.Operation lastOp = ops.get(ops.size() - 1);
         final String lastFieldValue;
         if (lastOp instanceof Engine.Index) {
@@ -1637,50 +1698,61 @@ public class InternalEngineTests extends ESTestCase {
             // delete
             lastFieldValue = null;
         }
-        int firstOpWithSeqNo = 0;
-        while (firstOpWithSeqNo < ops.size() && ops.get(firstOpWithSeqNo).seqNo() < 0) {
-            firstOpWithSeqNo++;
-        }
-        // shuffle ops but make sure legacy ops are first
-        shuffle(ops.subList(0, firstOpWithSeqNo), random());
-        shuffle(ops.subList(firstOpWithSeqNo, ops.size()), random());
-        boolean firstOp = true;
+        shuffle(ops, random());
+        long highestOpVersion = Versions.NOT_FOUND;
+        long seqNo = -1;
+        boolean docDeleted = true;
         for (Engine.Operation op : ops) {
             logger.info("performing [{}], v [{}], seq# [{}], term [{}]",
                 op.operationType().name().charAt(0), op.version(), op.seqNo(), op.primaryTerm());
             if (op instanceof Engine.Index) {
-                Engine.IndexResult result = replicaEngine.index((Engine.Index) op);
-                // replicas don't really care to about creation status of documents
-                // this allows to ignore the case where a document was found in the live version maps in
-                // a delete state and return false for the created flag in favor of code simplicity
-                // as deleted or not. This check is just signal regression so a decision can be made if it's
-                // intentional
-                assertThat(result.isCreated(), equalTo(firstOp));
-                assertThat(result.getVersion(), equalTo(op.version()));
-                assertThat(result.hasFailure(), equalTo(false));
-
+                final Engine.Index index = (Engine.Index) op;
+                Engine.IndexResult result = engine.index(index);
+                if (op.version() > highestOpVersion) {
+                    seqNo++;
+                    assertThat(result.getSeqNo(), equalTo(seqNo));
+                    assertThat(result.isCreated(), equalTo(docDeleted));
+                    assertThat(result.getVersion(), equalTo(op.version()));
+                    assertThat(result.hasFailure(), equalTo(false));
+                    assertThat(result.getFailure(), nullValue());
+                    docDeleted = false;
+                    highestOpVersion = op.version();
+                } else {
+                    assertThat(result.isCreated(), equalTo(false));
+                    assertThat(result.getVersion(), equalTo(highestOpVersion));
+                    assertThat(result.hasFailure(), equalTo(true));
+                    assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
+                }
             } else {
-                Engine.DeleteResult result = replicaEngine.delete((Engine.Delete) op);
-                // Replicas don't really care to about found status of documents
-                // this allows to ignore the case where a document was found in the live version maps in
-                // a delete state and return true for the found flag in favor of code simplicity
-                // his check is just signal regression so a decision can be made if it's
-                // intentional
-                assertThat(result.isFound(), equalTo(firstOp == false));
-                assertThat(result.getVersion(), equalTo(op.version()));
-                assertThat(result.hasFailure(), equalTo(false));
+                final Engine.Delete delete = (Engine.Delete) op;
+                Engine.DeleteResult result = engine.delete(delete);
+                if (op.version() > highestOpVersion) {
+                    seqNo++;
+                    assertThat(result.getSeqNo(), equalTo(seqNo));
+                    assertThat(result.isFound(), equalTo(docDeleted == false));
+                    assertThat(result.getVersion(), equalTo(op.version()));
+                    assertThat(result.hasFailure(), equalTo(false));
+                    assertThat(result.getFailure(), nullValue());
+                    docDeleted = true;
+                    highestOpVersion = op.version();
+                } else {
+                    assertThat(result.isFound(), equalTo(docDeleted == false));
+                    assertThat(result.getVersion(), equalTo(highestOpVersion));
+                    assertThat(result.hasFailure(), equalTo(true));
+                    assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
+                }
             }
             if (randomBoolean()) {
                 engine.refresh("test");
-            } if (randomBoolean()) {
+            }
+            if (randomBoolean()) {
                 engine.flush();
             }
-            firstOp = false;
         }
 
-        assertVisibleCount(replicaEngine, lastFieldValue == null ? 0 : 1);
-        if (lastFieldValue != null) {
-            try (Searcher searcher = replicaEngine.acquireSearcher("test")) {
+        assertVisibleCount(engine, docDeleted ? 0 : 1);
+        if (docDeleted == false) {
+            try (Searcher searcher = engine.acquireSearcher("test")) {
                 final TotalHitCountCollector collector = new TotalHitCountCollector();
                 searcher.searcher().search(new TermQuery(new Term("value", lastFieldValue)), collector);
                 assertThat(collector.getTotalHits(), equalTo(1));

@@ -280,46 +280,6 @@ public class JobProviderTests extends ESTestCase {
         });
     }
 
-    public void testDeleteJobRelatedIndices() throws InterruptedException, ExecutionException, IOException {
-        @SuppressWarnings("unchecked")
-        ActionListener<DeleteJobAction.Response> actionListener = mock(ActionListener.class);
-        String jobId = "ThisIsMyJob";
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse();
-        Client client = clientBuilder.build();
-        JobProvider provider = createProvider(client);
-        clientBuilder.resetIndices();
-        clientBuilder.addIndicesExistsResponse(AnomalyDetectorsIndex.jobResultsAliasedName(jobId), true)
-                .addIndicesDeleteResponse(AnomalyDetectorsIndex.jobResultsAliasedName(jobId), true,
-                false, actionListener);
-        clientBuilder.build();
-
-        provider.deleteJobRelatedIndices(jobId, actionListener);
-
-        ArgumentCaptor<DeleteJobAction.Response> responseCaptor = ArgumentCaptor.forClass(DeleteJobAction.Response.class);
-        verify(actionListener).onResponse(responseCaptor.capture());
-        assertTrue(responseCaptor.getValue().isAcknowledged());
-    }
-
-    public void testDeleteJobRelatedIndices_InvalidIndex() throws InterruptedException, ExecutionException, IOException {
-        @SuppressWarnings("unchecked")
-        ActionListener<DeleteJobAction.Response> actionListener = mock(ActionListener.class);
-        String jobId = "ThisIsMyJob";
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse();
-        Client client = clientBuilder.build();
-        JobProvider provider = createProvider(client);
-        clientBuilder.resetIndices();
-        clientBuilder.addIndicesExistsResponse(AnomalyDetectorsIndex.jobResultsAliasedName(jobId), true)
-                .addIndicesDeleteResponse(AnomalyDetectorsIndex.jobResultsAliasedName(jobId), true,
-                true, actionListener);
-        clientBuilder.build();
-
-        provider.deleteJobRelatedIndices(jobId, actionListener);
-
-        ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
-        verify(actionListener).onFailure(exceptionCaptor.capture());
-        assertThat(exceptionCaptor.getValue(), instanceOf(InterruptedException.class));
-    }
-
     public void testBuckets_OneBucketNoInterim()
             throws InterruptedException, ExecutionException, IOException {
         String jobId = "TestJobIdentification";

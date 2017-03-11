@@ -13,7 +13,6 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -51,7 +50,6 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
@@ -221,23 +219,6 @@ public class JobProvider {
                         listener.onFailure(e);
                     }
                 });
-    }
-
-    /**
-     * Delete all the job related documents from the database.
-     */
-    // TODO: should live together with createJobRelatedIndices (in case it moves)?
-    public void deleteJobRelatedIndices(String jobId, ActionListener<DeleteJobAction.Response> listener) {
-        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        LOGGER.trace("ES API CALL: delete index {}", indexName);
-
-        try {
-            DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName);
-            client.admin().indices().delete(deleteIndexRequest,
-                    ActionListener.wrap(r -> listener.onResponse(new DeleteJobAction.Response(r.isAcknowledged())), listener::onFailure));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
     }
 
     /**

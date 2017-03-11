@@ -203,6 +203,7 @@ class BuildPlugin implements Plugin<Project> {
     /** Runs the given javascript using jjs from the jdk, and returns the output */
     private static String runJavascript(Project project, String javaHome, String script) {
         ByteArrayOutputStream output = new ByteArrayOutputStream()
+        script = script.replace('"', '\\"') // gradle/groovy does not properly escape the double quote for windows
         project.exec {
             executable = new File(javaHome, 'bin/jrunscript')
             args '-e', script

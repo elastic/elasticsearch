@@ -75,6 +75,7 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -87,6 +88,7 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqN
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -97,6 +99,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine.Searcher;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
@@ -294,6 +297,8 @@ public class InternalEngineTests extends ESTestCase {
         document.add(seqID.seqNo);
         document.add(seqID.seqNoDocValue);
         document.add(seqID.primaryTerm);
+        BytesRef ref = source.toBytesRef();
+        document.add(new StoredField(SourceFieldMapper.NAME, ref.bytes, ref.offset, ref.length));
         return new ParsedDocument(versionField, seqID, id, type, routing, Arrays.asList(document), source, XContentType.JSON,
             mappingUpdate);
     }
@@ -419,7 +424,11 @@ public class InternalEngineTests extends ESTestCase {
     private static final BytesReference B_1 = new BytesArray(new byte[]{1});
     private static final BytesReference B_2 = new BytesArray(new byte[]{2});
     private static final BytesReference B_3 = new BytesArray(new byte[]{3});
-    private static final BytesArray SOURCE = new BytesArray("{}".getBytes(Charset.defaultCharset()));
+    private static final BytesArray SOURCE = bytesArray("{}");
+
+    private static BytesArray bytesArray(String string) {
+        return new BytesArray(string.getBytes(Charset.defaultCharset()));
+    }
 
     public void testSegments() throws Exception {
         try (Store store = createStore();
@@ -1702,6 +1711,62 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
+    public void testConcurrentGetAndSetOnPrimary() throws IOException, InterruptedException {
+        Thread[] thread = new Thread[randomIntBetween(3, 5)];
+        CountDownLatch startGun = new CountDownLatch(thread.length);
+        final int opsPerThread = randomIntBetween(10, 20);
+        final Set<String> currentValues = ConcurrentCollections.newConcurrentSet();
+        final AtomicInteger idGenerator = new AtomicInteger();
+        ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), bytesArray(""), null);
+        final Term uidTerm = newUid(doc);
+        engine.index(indexForDoc(doc));
+        for (int i = 0; i < thread.length; i++) {
+            thread[i] = new Thread(() -> {
+                startGun.countDown();
+                try {
+                    startGun.await();
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+                for (int op = 0; op < opsPerThread; op++) {
+                    try (Engine.GetResult get = engine.get(new Engine.Get(true, uidTerm))) {
+                        FieldsVisitor visitor = new FieldsVisitor(true);
+                        get.docIdAndVersion().context.reader().document(get.docIdAndVersion().docId, visitor);
+                        List<String> values = new ArrayList<>(Strings.commaDelimitedListToSet(visitor.source().utf8ToString()));
+                        String removed = op % 3 == 0 && values.size() > 0 ? values.remove(0) : null;
+                        String added = "v_" + idGenerator.incrementAndGet();
+                        values.add(added);
+                        Engine.Index index = new Engine.Index(uidTerm,
+                            testParsedDocument("1", "test", null, testDocument(),
+                                bytesArray(Strings.collectionToCommaDelimitedString(values)), null),
+                            SequenceNumbersService.UNASSIGNED_SEQ_NO, 2,
+                            get.version(), VersionType.INTERNAL,
+                            PRIMARY, System.currentTimeMillis(), -1, false);
+                        Engine.IndexResult indexResult = engine.index(index);
+                        if (indexResult.hasFailure() == false) {
+                            boolean exists = removed == null ? true : currentValues.remove(removed);
+                            assertTrue(removed + " should exist", exists);
+                            exists = currentValues.add(added);
+                            assertTrue(added + " should not exist", exists);
+                        }
+
+                    } catch (IOException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            });
+            thread[i].start();
+        }
+        for (int i = 0; i < thread.length; i++) {
+            thread[i].join();
+        }
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, uidTerm))) {
+            FieldsVisitor visitor = new FieldsVisitor(true);
+            get.docIdAndVersion().context.reader().document(get.docIdAndVersion().docId, visitor);
+            List<String> values = Arrays.asList(Strings.commaDelimitedListToStringArray(visitor.source().utf8ToString()));
+            assertThat(currentValues, equalTo(new HashSet<>(values)));
+        }
+    }
 
     public void testBasicCreatedFlag() throws IOException {
         ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);

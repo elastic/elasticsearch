@@ -1480,8 +1480,8 @@ public class InternalEngineTests extends ESTestCase {
 
 
     protected List<Engine.Operation> generateSingleDocHistory(boolean forReplica, boolean externalVersioning, boolean partialOldPrimary,
-                                                              long primaryTerm) {
-        final int numOfOps = randomIntBetween(2, 20);
+                                                              long primaryTerm, int minOpCount, int maxOpCount) {
+        final int numOfOps = randomIntBetween(minOpCount, maxOpCount);
         final List<Engine.Operation> ops = new ArrayList<>();
         final Term id = newUid(Uid.createUid("test", "1"));
         final int startWithSeqNo;
@@ -1519,7 +1519,7 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public void testOutOfOrderDocsOnReplica() throws IOException {
-        final List<Engine.Operation> ops = generateSingleDocHistory(true, true, false, 2);
+        final List<Engine.Operation> ops = generateSingleDocHistory(true, true, false, 2, 2, 20);
         assertOpsOnReplica(ops, replicaEngine);
     }
 
@@ -1535,7 +1535,7 @@ public class InternalEngineTests extends ESTestCase {
         try (Store oldReplicaStore = createStore();
              InternalEngine replicaEngine =
                  createEngine(oldSettings, oldReplicaStore, createTempDir("translog-old-replica"), newMergePolicy())) {
-            final List<Engine.Operation> ops = generateSingleDocHistory(true, true, true, 2);
+            final List<Engine.Operation> ops = generateSingleDocHistory(true, true, true, 2, 2, 20);
             assertOpsOnReplica(ops, replicaEngine);
         }
     }
@@ -1601,8 +1601,68 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
+    public void testConcurrentOutOfDocsOnReplica() throws IOException, InterruptedException {
+        final List<Engine.Operation> ops = generateSingleDocHistory(true, true, false, 2, 100, 300);
+        final Engine.Operation lastOp = ops.get(ops.size() - 1);
+        final String lastFieldValue;
+        if (lastOp instanceof Engine.Index) {
+            Engine.Index index = (Engine.Index) lastOp;
+            lastFieldValue = index.docs().get(0).get("value");
+        } else {
+            // delete
+            lastFieldValue = null;
+        }
+        shuffle(ops, random());
+        concurrentlyApplyOps(ops, engine);
+
+        assertVisibleCount(engine, lastFieldValue == null ? 0 : 1);
+        if (lastFieldValue != null) {
+            try (Searcher searcher = engine.acquireSearcher("test")) {
+                final TotalHitCountCollector collector = new TotalHitCountCollector();
+                searcher.searcher().search(new TermQuery(new Term("value", lastFieldValue)), collector);
+                assertThat(collector.getTotalHits(), equalTo(1));
+            }
+        }
+    }
+
+    private void concurrentlyApplyOps(List<Engine.Operation> ops, InternalEngine engine) throws InterruptedException {
+        Thread[] thread = new Thread[randomIntBetween(3, 5)];
+        CountDownLatch startGun = new CountDownLatch(thread.length);
+        AtomicInteger offset = new AtomicInteger(-1);
+        for (int i = 0; i < thread.length; i++) {
+            thread[i] = new Thread(() -> {
+                startGun.countDown();
+                try {
+                    startGun.await();
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+                int docOffset;
+                while ((docOffset = offset.incrementAndGet()) < ops.size()) {
+                    try {
+                        final Engine.Operation op = ops.get(docOffset);
+                        if (op instanceof Engine.Index) {
+                            engine.index((Engine.Index)op);
+                        } else {
+                            engine.delete((Engine.Delete)op);
+                        }
+                        if ((docOffset + 1) % 4 == 0) {
+                            engine.refresh("test");
+                        }
+                    } catch (IOException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            });
+            thread[i].start();
+        }
+        for (int i = 0; i < thread.length; i++) {
+            thread[i].join();
+        }
+    }
+
     public void testInternalVersioningOnPrimary() throws IOException {
-        final List<Engine.Operation> ops = generateSingleDocHistory(false, false, false, 2);
+        final List<Engine.Operation> ops = generateSingleDocHistory(false, false, false, 2, 2, 20);
         assertOpsOnPrimary(ops, Versions.NOT_FOUND, true, engine);
     }
 
@@ -1698,7 +1758,7 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public void testExternalVersioningOnPrimary() throws IOException {
-        final List<Engine.Operation> ops = generateSingleDocHistory(false, true, false, 2);
+        final List<Engine.Operation> ops = generateSingleDocHistory(false, true, false, 2, 2, 20);
         final Engine.Operation lastOp = ops.get(ops.size() - 1);
         final String lastFieldValue;
         if (lastOp instanceof Engine.Index) {
@@ -1771,8 +1831,8 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public void testVersioningPromotedReplica() throws IOException {
-        final List<Engine.Operation> replicaOps = generateSingleDocHistory(true, true, false, 1);
-        List<Engine.Operation> primaryOps = generateSingleDocHistory(false, false, false, 2);
+        final List<Engine.Operation> replicaOps = generateSingleDocHistory(true, true, false, 1, 2, 20);
+        List<Engine.Operation> primaryOps = generateSingleDocHistory(false, false, false, 2, 2, 20);
         Engine.Operation lastReplicaOp = replicaOps.get(replicaOps.size() - 1);
         final boolean deletedOnReplica = lastReplicaOp instanceof Engine.Delete;
         final long finalReplicaVersion = lastReplicaOp.version();
@@ -1790,7 +1850,31 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
-    // simulate a new replica getting data from an old priamry
+    public void testConcurrentExternalVersioningOnPrimary() throws IOException, InterruptedException {
+        final List<Engine.Operation> ops = generateSingleDocHistory(false, true, false, 2, 100, 300);
+        final Engine.Operation lastOp = ops.get(ops.size() - 1);
+        final String lastFieldValue;
+        if (lastOp instanceof Engine.Index) {
+            Engine.Index index = (Engine.Index) lastOp;
+            lastFieldValue = index.docs().get(0).get("value");
+        } else {
+            // delete
+            lastFieldValue = null;
+        }
+        shuffle(ops, random());
+        concurrentlyApplyOps(ops, engine);
+
+        assertVisibleCount(engine, lastFieldValue == null ? 0 : 1);
+        if (lastFieldValue != null) {
+            try (Searcher searcher = engine.acquireSearcher("test")) {
+                final TotalHitCountCollector collector = new TotalHitCountCollector();
+                searcher.searcher().search(new TermQuery(new Term("value", lastFieldValue)), collector);
+                assertThat(collector.getTotalHits(), equalTo(1));
+            }
+        }
+    }
+
+        // simulate a new replica getting data from an old primary
     public void testVersioningReplicaConflict1() throws IOException {
         IndexSettings oldSettings = IndexSettingsModule.newIndexSettings("testOld", Settings.builder()
             .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), "1h") // make sure this doesn't kick in on us

@@ -1366,7 +1366,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return 0;
     }
 
-    void trimUnreferencedReaders() {
+    void trimUnreferencedReaders() throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             if (closed.get()) {
                 // we're shutdown potentially on some tragic event - don't delete anything
@@ -1376,14 +1376,49 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             minReferencedGen = Math.min(lastCommittedTranslogFileGeneration, minReferencedGen);
             final long finalMinReferencedGen = minReferencedGen;
             List<TranslogReader> unreferenced = readers.stream().filter(r -> r.getGeneration() < finalMinReferencedGen).collect(Collectors.toList());
+
+            Throwable firstException = null;
             for (final TranslogReader unreferencedReader : unreferenced) {
+                
                 Path translogPath = unreferencedReader.path();
-                logger.trace("delete translog file - not referenced and not current anymore {}", translogPath);
-                IOUtils.closeWhileHandlingException(unreferencedReader);
-                IOUtils.deleteFilesIgnoringExceptions(translogPath,
-                        translogPath.resolveSibling(getCommitCheckpointFileName(unreferencedReader.getGeneration())));
+                Path translogCheckpointPath = translogPath.resolveSibling(getCommitCheckpointFileName(unreferencedReader.getGeneration()));
+                logger.trace("delete translog files - not referenced and not current anymore {} and {}", translogPath, translogCheckpointPath);
+
+                try {
+                    unreferencedReader.close();
+                } catch (Throwable t) {
+                    if (firstException == null) {
+                        firstException = t;
+                    } else {
+                        firstException.addSuppressed(t);
+                    }
+                }
+
+                try {
+                    Files.delete(translogPath);
+                } catch (Throwable t) {
+                    if (firstException == null) {
+                        firstException = t;
+                    } else {
+                        firstException.addSuppressed(t);
+                    }
+                }
+
+                try {
+                    Files.delete(translogCheckpointPath);
+                } catch (Throwable t) {
+                    if (firstException == null) {
+                        firstException = t;
+                    } else {
+                        firstException.addSuppressed(t);
+                    }
+                }
+
+                readers.remove(unreferencedReader);
             }
-            readers.removeAll(unreferenced);
+
+            // NOTE: does nothing if firstException is null:
+            IOUtils.reThrow(firstException);
         }
     }
 

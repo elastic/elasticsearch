@@ -1479,7 +1479,8 @@ public class InternalEngineTests extends ESTestCase {
     }
 
 
-    protected List<Engine.Operation> generateSingleDocHistory(boolean forReplica, boolean externalVersioning, boolean partialOldPrimary) {
+    protected List<Engine.Operation> generateSingleDocHistory(boolean forReplica, boolean externalVersioning, boolean partialOldPrimary,
+                                                              long primaryTerm) {
         final int numOfOps = randomIntBetween(2, 20);
         final List<Engine.Operation> ops = new ArrayList<>();
         final Term id = newUid(Uid.createUid("test", "1"));
@@ -1489,14 +1490,15 @@ public class InternalEngineTests extends ESTestCase {
         } else {
             startWithSeqNo = 0;
         }
+        final String valuePrefix = forReplica ? "r_" : "p_";
         final boolean incrementTermWhenIntroducingSeqNo = randomBoolean();
         final VersionType versionType = externalVersioning ? VersionType.EXTERNAL : VersionType.INTERNAL;
         for (int i = 0; i < numOfOps; i++) {
             final Engine.Operation op;
             if (randomBoolean()) {
-                op = new Engine.Index(id, testParsedDocument("1", "test", null, testDocumentWithTextField("v_" + i), B_1, null),
+                op = new Engine.Index(id, testParsedDocument("1", "test", null, testDocumentWithTextField(valuePrefix + i), B_1, null),
                     forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbersService.UNASSIGNED_SEQ_NO,
-                    forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? 2 : 1,
+                    forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
                     forReplica || externalVersioning ? i : Versions.MATCH_ANY,
                     forReplica ? versionType.versionTypeForReplicationAndRecovery() : versionType,
                     forReplica ? REPLICA : PRIMARY,
@@ -1505,7 +1507,7 @@ public class InternalEngineTests extends ESTestCase {
             } else {
                 op = new Engine.Delete("test", "1", id,
                     forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbersService.UNASSIGNED_SEQ_NO,
-                    forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? 2 : 1,
+                    forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
                     forReplica || externalVersioning ? i : Versions.MATCH_ANY,
                     forReplica ? versionType.versionTypeForReplicationAndRecovery() : versionType,
                     forReplica ? REPLICA : PRIMARY,
@@ -1517,8 +1519,8 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public void testOutOfOrderDocsOnReplica() throws IOException {
-        final List<Engine.Operation> ops = generateSingleDocHistory(true, true, false);
-        testOpsOnReplica(ops, replicaEngine);
+        final List<Engine.Operation> ops = generateSingleDocHistory(true, true, false, 2);
+        assertOpsOnReplica(ops, replicaEngine);
     }
 
     public void testOutOfOrderDocsOnReplicaOldPrimary() throws IOException {
@@ -1533,12 +1535,12 @@ public class InternalEngineTests extends ESTestCase {
         try (Store oldReplicaStore = createStore();
              InternalEngine replicaEngine =
                  createEngine(oldSettings, oldReplicaStore, createTempDir("translog-old-replica"), newMergePolicy())) {
-            final List<Engine.Operation> ops = generateSingleDocHistory(true, true, true);
-            testOpsOnReplica(ops, replicaEngine);
+            final List<Engine.Operation> ops = generateSingleDocHistory(true, true, true, 2);
+            assertOpsOnReplica(ops, replicaEngine);
         }
     }
 
-    private void testOpsOnReplica(List<Engine.Operation> ops, InternalEngine replicaEngine) throws IOException {
+    private void assertOpsOnReplica(List<Engine.Operation> ops, InternalEngine replicaEngine) throws IOException {
         final Engine.Operation lastOp = ops.get(ops.size() - 1);
         final String lastFieldValue;
         if (lastOp instanceof Engine.Index) {
@@ -1600,10 +1602,15 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public void testInternalVersioningOnPrimary() throws IOException {
-        final List<Engine.Operation> ops = generateSingleDocHistory(false, false, false);
+        final List<Engine.Operation> ops = generateSingleDocHistory(false, false, false, 2);
+        assertOpsOnPrimary(ops, Versions.NOT_FOUND, true, engine);
+    }
+
+    private int assertOpsOnPrimary(List<Engine.Operation> ops, long currentOpVersion, boolean docDeleted, InternalEngine engine)
+        throws IOException {
         String lastFieldValue = null;
-        long lastOpVersion = Versions.NOT_FOUND;
-        boolean docDeleted = true;
+        int opsPerformed = 0;
+        long lastOpVersion = currentOpVersion;
         BiFunction<Long, Engine.Index, Engine.Index> indexWithVersion = (version, index) -> new Engine.Index(index.uid(), index.parsedDoc(),
             index.seqNo(), index.primaryTerm(), version, index.versionType(), index.origin(), index.startTime(),
             index.getAutoGeneratedIdTimestamp(), index.isRetry());
@@ -1632,6 +1639,7 @@ public class InternalEngineTests extends ESTestCase {
                     lastFieldValue = index.docs().get(0).get("value");
                     docDeleted = false;
                     lastOpVersion = result.getVersion();
+                    opsPerformed++;
                 }
             } else {
                 final Engine.Delete delete = (Engine.Delete) op;
@@ -1650,6 +1658,7 @@ public class InternalEngineTests extends ESTestCase {
                     assertThat(result.getFailure(), nullValue());
                     docDeleted = true;
                     lastOpVersion = result.getVersion();
+                    opsPerformed++;
                 }
             }
             if (randomBoolean()) {
@@ -1685,10 +1694,11 @@ public class InternalEngineTests extends ESTestCase {
                 assertThat(collector.getTotalHits(), equalTo(1));
             }
         }
+        return opsPerformed;
     }
 
     public void testExternalVersioningOnPrimary() throws IOException {
-        final List<Engine.Operation> ops = generateSingleDocHistory(false, true, false);
+        final List<Engine.Operation> ops = generateSingleDocHistory(false, true, false, 2);
         final Engine.Operation lastOp = ops.get(ops.size() - 1);
         final String lastFieldValue;
         if (lastOp instanceof Engine.Index) {
@@ -1756,6 +1766,26 @@ public class InternalEngineTests extends ESTestCase {
                 final TotalHitCountCollector collector = new TotalHitCountCollector();
                 searcher.searcher().search(new TermQuery(new Term("value", lastFieldValue)), collector);
                 assertThat(collector.getTotalHits(), equalTo(1));
+            }
+        }
+    }
+
+    public void testVersioningPromotedReplica() throws IOException {
+        final List<Engine.Operation> replicaOps = generateSingleDocHistory(true, true, false, 1);
+        List<Engine.Operation> primaryOps = generateSingleDocHistory(false, false, false, 2);
+        Engine.Operation lastReplicaOp = replicaOps.get(replicaOps.size() - 1);
+        final boolean deletedOnReplica = lastReplicaOp instanceof Engine.Delete;
+        final long finalReplicaVersion = lastReplicaOp.version();
+        final long finalReplicaSeqNo = lastReplicaOp.seqNo();
+        assertOpsOnReplica(replicaOps, replicaEngine);
+        final int opsOnPrimary = assertOpsOnPrimary(primaryOps, finalReplicaVersion, deletedOnReplica, replicaEngine);
+        final long currentSeqNo = getSequenceID(replicaEngine, new Engine.Get(false, lastReplicaOp.uid())).v1();
+        try (Searcher searcher = engine.acquireSearcher("test")) {
+            final TotalHitCountCollector collector = new TotalHitCountCollector();
+            searcher.searcher().search(new MatchAllDocsQuery(), collector);
+            if (collector.getTotalHits() > 0) {
+                // last op wasn't delete
+                assertThat(currentSeqNo, equalTo(finalReplicaSeqNo + opsOnPrimary));
             }
         }
     }

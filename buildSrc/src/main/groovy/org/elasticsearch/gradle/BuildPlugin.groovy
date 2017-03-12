@@ -20,6 +20,7 @@ package org.elasticsearch.gradle
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import nebula.plugin.extraconfigurations.ProvidedBasePlugin
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -203,12 +204,21 @@ class BuildPlugin implements Plugin<Project> {
     /** Runs the given javascript using jjs from the jdk, and returns the output */
     private static String runJavascript(Project project, String javaHome, String script) {
         ByteArrayOutputStream output = new ByteArrayOutputStream()
-        script = script.replace('"', '\\"') // gradle/groovy does not properly escape the double quote for windows
-        project.exec {
-            executable = new File(javaHome, 'bin/jrunscript')
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            // gradle/groovy does not properly escape the double quote for windows
+            script = script.replace('"', '\\"')
+        }
+        File jrunscriptPath = new File(javaHome, 'bin/jrunscript')
+        ExecResult result = project.exec {
+            executable = jrunscriptPath
             args '-e', script
             standardOutput = output
-            errorOutput = new ByteArrayOutputStream()
+            errorOutput = output
+            ignoreExitValue = true
+        }
+        if (result.exitValue != 0) {
+            output.toString('UTF-8').eachLine { line -> project.logger.error(line) }
+            result.rethrowFailure()
         }
         return output.toString('UTF-8').trim()
     }

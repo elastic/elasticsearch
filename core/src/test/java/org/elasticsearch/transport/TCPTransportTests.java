@@ -38,6 +38,7 @@ import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -152,6 +153,7 @@ public class TCPTransportTests extends ESTestCase {
         final AtomicBoolean called = new AtomicBoolean(false);
         Req request = new Req(randomRealisticUnicodeOfLengthBetween(10, 100));
         ThreadPool threadPool = new TestThreadPool(TCPTransportTests.class.getName());
+        AtomicReference<IOException> exceptionReference = new AtomicReference<>();
         try {
             TcpTransport transport = new TcpTransport("test", Settings.builder().put("transport.tcp.compress", compressed).build(),
                 threadPool, new BigArrays(Settings.EMPTY, null), null, null, null) {
@@ -171,27 +173,31 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void sendMessage(Object o, BytesReference reference, Runnable sendListener) throws IOException {
-                    StreamInput streamIn = reference.streamInput();
-                    streamIn.skip(TcpHeader.MARKER_BYTES_SIZE);
-                    int len = streamIn.readInt();
-                    long requestId = streamIn.readLong();
-                    assertEquals(42, requestId);
-                    byte status = streamIn.readByte();
-                    Version version = Version.fromId(streamIn.readInt());
-                    assertEquals(Version.CURRENT, version);
-                    assertEquals(compressed, TransportStatus.isCompress(status));
-                    called.compareAndSet(false, true);
-                    if (compressed) {
-                        final int bytesConsumed = TcpHeader.HEADER_SIZE;
-                        streamIn = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed))
-                            .streamInput(streamIn);
+                protected void sendMessage(Object o, BytesReference reference, Runnable sendListener) {
+                    try {
+                        StreamInput streamIn = reference.streamInput();
+                        streamIn.skip(TcpHeader.MARKER_BYTES_SIZE);
+                        int len = streamIn.readInt();
+                        long requestId = streamIn.readLong();
+                        assertEquals(42, requestId);
+                        byte status = streamIn.readByte();
+                        Version version = Version.fromId(streamIn.readInt());
+                        assertEquals(Version.CURRENT, version);
+                        assertEquals(compressed, TransportStatus.isCompress(status));
+                        called.compareAndSet(false, true);
+                        if (compressed) {
+                            final int bytesConsumed = TcpHeader.HEADER_SIZE;
+                            streamIn = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed))
+                                .streamInput(streamIn);
+                        }
+                        threadPool.getThreadContext().readHeaders(streamIn);
+                        assertEquals("foobar", streamIn.readString());
+                        Req readReq = new Req("");
+                        readReq.readFrom(streamIn);
+                        assertEquals(request.value, readReq.value);
+                    } catch (IOException e) {
+                        exceptionReference.set(e);
                     }
-                    threadPool.getThreadContext().readHeaders(streamIn);
-                    assertEquals("foobar", streamIn.readString());
-                    Req readReq = new Req("");
-                    readReq.readFrom(streamIn);
-                    assertEquals(request.value, readReq.value);
                 }
 
                 @Override
@@ -219,6 +225,7 @@ public class TCPTransportTests extends ESTestCase {
             Transport.Connection connection = transport.getConnection(node);
             connection.sendRequest(42, "foobar", request, TransportRequestOptions.EMPTY);
             assertTrue(called.get());
+            assertNull("IOException while sending message.", exceptionReference.get());
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }

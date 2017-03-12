@@ -79,7 +79,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
 
     private final Set<MockChannel> openChannels = new HashSet<>();
 
-    static  {
+    static {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
         builder.addConnections(1,
             TransportRequestOptions.Type.BULK,
@@ -129,11 +129,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         executor.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
-                try {
-                    onException(serverMockChannel, e);
-                } catch (IOException ex) {
-                    logger.warn("failed on handling exception", ex);
-                }
+                onException(serverMockChannel, e);
             }
 
             @Override
@@ -242,12 +238,16 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected void sendMessage(MockChannel mockChannel, BytesReference reference, Runnable sendListener) throws IOException {
-        synchronized (mockChannel) {
-            final Socket socket = mockChannel.activeChannel;
-            OutputStream outputStream = new BufferedOutputStream(socket.getOutputStream());
-            reference.writeTo(outputStream);
-            outputStream.flush();
+    protected void sendMessage(MockChannel mockChannel, BytesReference reference, Runnable sendListener) {
+        try {
+            synchronized (mockChannel) {
+                final Socket socket = mockChannel.activeChannel;
+                OutputStream outputStream = new BufferedOutputStream(socket.getOutputStream());
+                reference.writeTo(outputStream);
+                outputStream.flush();
+            }
+        } catch (IOException e) {
+            onException(mockChannel, e);
         }
         if (sendListener != null) {
             sendListener.run();

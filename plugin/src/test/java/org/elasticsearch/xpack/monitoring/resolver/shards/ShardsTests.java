@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.resolver.shards;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.action.search.SearchRequestBuilder;

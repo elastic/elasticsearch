@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;

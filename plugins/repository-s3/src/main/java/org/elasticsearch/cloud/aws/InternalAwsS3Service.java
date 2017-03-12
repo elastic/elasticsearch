@@ -62,7 +62,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
     }
 
     @Override
-    public synchronized AmazonS3 client(Settings repositorySettings, Integer maxRetries,
+    public synchronized AmazonS3 client(Settings repositorySettings,
                                               boolean useThrottleRetries, Boolean pathStyleAccess) {
         String clientName = CLIENT_NAME.get(repositorySettings);
         String foundEndpoint = findEndpoint(logger, repositorySettings, settings, clientName);
@@ -77,7 +77,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
 
         client = new AmazonS3Client(
             credentials,
-            buildConfiguration(logger, repositorySettings, settings, clientName, maxRetries, foundEndpoint, useThrottleRetries));
+            buildConfiguration(logger, repositorySettings, settings, clientName, foundEndpoint, useThrottleRetries));
 
         if (pathStyleAccess != null) {
             client.setS3ClientOptions(new S3ClientOptions().withPathStyleAccess(pathStyleAccess));
@@ -93,7 +93,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
 
     // pkg private for tests
     static ClientConfiguration buildConfiguration(Logger logger, Settings repositorySettings, Settings settings,
-                                                         String clientName, Integer maxRetries, String endpoint,
+                                                         String clientName, String endpoint,
                                                          boolean useThrottleRetries) {
         ClientConfiguration clientConfiguration = new ClientConfiguration();
         // the response metadata cache is only there for diagnostics purposes,
@@ -121,10 +121,6 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
             }
         }
 
-        if (maxRetries != null) {
-            // If not explicitly set, default to 3 with exponential backoff policy
-            clientConfiguration.setMaxErrorRetry(maxRetries);
-        }
         clientConfiguration.setUseThrottleRetries(useThrottleRetries);
 
         // #155: we might have 3rd party users using older S3 API version

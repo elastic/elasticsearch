@@ -159,5 +159,5 @@ public interface AwsS3Service extends LifecycleComponent {
             Setting.timeSetting("cloud.aws.s3.read_timeout", AwsS3Service.READ_TIMEOUT, Property.NodeScope, Property.Deprecated);
     }
 
-    AmazonS3 client(Settings repositorySettings, Integer maxRetries, boolean useThrottleRetries, Boolean pathStyleAccess);
+    AmazonS3 client(Settings repositorySettings, boolean useThrottleRetries, Boolean pathStyleAccess);
 }

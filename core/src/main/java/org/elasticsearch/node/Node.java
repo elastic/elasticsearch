@@ -332,7 +332,7 @@ public class Node implements Closeable {
                 getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class)));
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool,
                 localNodeFactory::getNode);
-            clusterService.addListener(scriptModule.getScriptService());
+            clusterService.addListener(scriptModule.getScriptService()); // NOCOMMIT why not do this in the service's ctor?
             clusterService.addListener(scriptModule.getTemplateService());
             resourcesToClose.add(clusterService);
             final IngestService ingestService = new IngestService(settings, threadPool, this.environment,

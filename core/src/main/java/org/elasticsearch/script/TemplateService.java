@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
@@ -129,9 +130,11 @@ public class TemplateService implements ClusterStateListener {
         };
     }
 
-    public ExecutableScript executable(String idOrCode, ScriptType scriptType, ScriptContext scriptContext,
+    public BytesReference render(String idOrCode, ScriptType scriptType, ScriptContext scriptContext,
             Map<String, Object> scriptParams) {
-        return backend.executable(compiler.getScript(idOrCode, scriptType, scriptContext), scriptParams);
+        BytesReference b = (BytesReference) backend.executable(compiler.getScript(idOrCode, scriptType, scriptContext), scriptParams).run();
+        ESLoggerFactory.getLogger(TemplateService.class).warn("ASDFASDF rendered [{}]", b.utf8ToString());
+        return b;
     }
 
     /**

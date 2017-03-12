@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.TemplateService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,10 +65,8 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     protected void doExecute(SearchTemplateRequest request, ActionListener<SearchTemplateResponse> listener) {
         final SearchTemplateResponse response = new SearchTemplateResponse();
         try {
-            ExecutableScript executable = templateService.executable(request.getScript(), request.getScriptType(), SEARCH,
+            BytesReference source = templateService.render(request.getScript(), request.getScriptType(), SEARCH,
                     request.getScriptParams() == null ? Collections.emptyMap() : request.getScriptParams());
-
-            BytesReference source = (BytesReference) executable.run();
             response.setSource(source);
 
             if (request.isSimulate()) {

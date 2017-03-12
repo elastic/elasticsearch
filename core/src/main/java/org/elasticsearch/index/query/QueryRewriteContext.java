@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
@@ -107,9 +108,8 @@ public class QueryRewriteContext {
     }
 
     public BytesReference getTemplateBytes(Script template) {
-        ExecutableScript executable = templateService.executable(template.getIdOrCode(), template.getType(), ScriptContext.Standard.SEARCH,
+        return templateService.render(template.getIdOrCode(), template.getType(), ScriptContext.Standard.SEARCH,
                 template.getParams());
-        return (BytesReference) executable.run();
     }
 
     public TemplateService getTemplateService() {

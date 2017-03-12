@@ -41,6 +41,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -78,6 +79,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
     public CachingCompiler(Settings settings, ScriptSettings scriptSettings, Environment env,
             ResourceWatcherService resourceWatcherService, ScriptMetrics scriptMetrics) throws IOException {
         int cacheMaxSize = ScriptService.SCRIPT_CACHE_SIZE_SETTING.get(settings);
+        this.scriptMetrics = scriptMetrics;
 
         CacheBuilder<CacheKeyT, CompiledScript> cacheBuilder = CacheBuilder.builder();
         if (cacheMaxSize >= 0) {
@@ -106,8 +108,6 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
             // automatic reload is disabled just load scripts once
             fileWatcher.init();
         }
-
-        this.scriptMetrics = scriptMetrics;
     }
 
     /**
@@ -134,6 +134,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
     protected abstract CompiledScript compileFileScript(CacheKeyT cacheKey, String body, Path file);
 
     public final CompiledScript getScript(CacheKeyT cacheKey, ScriptType scriptType, ScriptContext scriptContext) {
+        ESLoggerFactory.getLogger(QueryRewriteContext.class).warn("ASDFASDF get {} {}", cacheKey, scriptType);
         Objects.requireNonNull(cacheKey);
 
         // First resolve stored scripts so so we have accurate parameters for checkCanExecuteScript
@@ -150,6 +151,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
             if (compiled == null) {
                 throw new IllegalArgumentException("unable to find file script " + cacheKey);
             }
+            ESLoggerFactory.getLogger(QueryRewriteContext.class).warn("ASDFASDF got file {}", compiled);
             return compiled;
         }
 

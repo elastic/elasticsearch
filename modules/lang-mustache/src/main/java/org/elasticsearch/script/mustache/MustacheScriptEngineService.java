@@ -107,6 +107,7 @@ public final class MustacheScriptEngineService implements TemplateService.Backen
     @Override
     public ExecutableScript executable(CompiledScript compiledScript,
             @Nullable Map<String, Object> vars) {
+        ESLoggerFactory.getLogger(TemplateService.class).warn("ASDFASDF toexec [{}] [{}]", compiledScript, vars);
         return new MustacheExecutableScript(compiledScript, vars);
     }
 

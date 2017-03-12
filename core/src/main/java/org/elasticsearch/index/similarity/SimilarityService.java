@@ -45,10 +45,9 @@ public final class SimilarityService extends AbstractIndexComponent {
     static {
         Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> defaults = new HashMap<>();
         Map<String, TriFunction<String, Settings, Settings, SimilarityProvider>> buildIn = new HashMap<>();
-        defaults.put("classic", ClassicSimilarityProvider::new);
         defaults.put("BM25", BM25SimilarityProvider::new);
-        buildIn.put("classic", ClassicSimilarityProvider::new);
         buildIn.put("BM25", BM25SimilarityProvider::new);
+        buildIn.put("classic", ClassicSimilarityProvider::new);
         buildIn.put("DFR", DFRSimilarityProvider::new);
         buildIn.put("IB", IBSimilarityProvider::new);
         buildIn.put("LMDirichlet", LMDirichletSimilarityProvider::new);

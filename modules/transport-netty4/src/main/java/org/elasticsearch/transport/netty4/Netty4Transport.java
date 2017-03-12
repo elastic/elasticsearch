@@ -403,6 +403,8 @@ public class Netty4Transport extends TcpTransport<Channel> {
                 listener.accept(null);
             } else {
                 Throwable cause = f.cause();
+                // If the Throwable is an Error something has gone very wrong and Netty4MessageChannelHandler is
+                // going to cause that to bubble up and kill the process.
                 if (cause instanceof Exception) {
                     listener.accept((Exception) cause);
                 }

@@ -1008,7 +1008,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
         // we wrap this in a release once since if the onRequestSent callback throws an exception
         // we might release things twice and this should be prevented
-        final Releasable toRelease = Releasables.releaseOnce(() -> Releasables.close(bStream.bytes()));
+        final Releasable toRelease = Releasables.releaseOnce(bStream::releaseIfNecessary);
         boolean addedReleaseListener = false;
         StreamOutput stream = bStream;
         try {
@@ -1109,7 +1109,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
         // we wrap this in a release once since if the onRequestSent callback throws an exception
         // we might release things twice and this should be prevented
-        final Releasable toRelease = Releasables.releaseOnce(() -> Releasables.close(bStream.bytes()));
+        final Releasable toRelease = Releasables.releaseOnce(bStream::releaseIfNecessary);
         boolean addedReleaseListener = false;
         StreamOutput stream = bStream;
         try {

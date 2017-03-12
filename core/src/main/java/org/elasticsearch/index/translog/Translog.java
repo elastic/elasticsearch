@@ -34,6 +34,7 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.BigArrays;
@@ -408,6 +409,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public Location add(final Operation operation) throws IOException {
         final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
+        final Releasable bytesReleasable = out::releaseIfNecessary;
         try {
             final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(out);
             final long start = out.position();
@@ -438,7 +440,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {
-            Releasables.close(out.bytes());
+            Releasables.close(bytesReleasable);
         }
     }
 
@@ -1290,6 +1292,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public static void writeOperations(StreamOutput outStream, List<Operation> toWrite) throws IOException {
         final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
+        final Releasable releasable = out::releaseIfNecessary;
         try {
             outStream.writeInt(toWrite.size());
             final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(out);
@@ -1307,7 +1310,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 bytes.writeTo(outStream);
             }
         } finally {
-            Releasables.close(out.bytes());
+            Releasables.close(releasable);
         }
 
     }

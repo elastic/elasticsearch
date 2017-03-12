@@ -120,6 +120,10 @@ public abstract class AbstractRestChannel implements RestChannel {
         return bytesOut;
     }
 
+    protected final BytesStreamOutput bytesOutputOrNull() {
+        return bytesOut;
+    }
+
     protected BytesStreamOutput newBytesOutput() {
         return new BytesStreamOutput();
     }

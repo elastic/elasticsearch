@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -173,7 +174,7 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void sendMessage(Object o, BytesReference reference, Runnable sendListener) {
+                protected void sendMessage(Object o, BytesReference reference, ActionListener listener) {
                     try {
                         StreamInput streamIn = reference.streamInput();
                         streamIn.skip(TcpHeader.MARKER_BYTES_SIZE);
@@ -195,7 +196,9 @@ public class TCPTransportTests extends ESTestCase {
                         Req readReq = new Req("");
                         readReq.readFrom(streamIn);
                         assertEquals(request.value, readReq.value);
+                        listener.onResponse(null);
                     } catch (IOException e) {
+                        listener.onFailure(e);
                         exceptionReference.set(e);
                     }
                 }

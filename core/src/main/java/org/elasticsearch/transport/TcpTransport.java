@@ -995,7 +995,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected abstract void closeChannels(List<Channel> channel) throws IOException;
 
 
-    protected abstract void sendMessage(Channel channel, BytesReference reference, ActionListener<Void> sendListener);
+    protected abstract void sendMessage(Channel channel, BytesReference reference, ActionListener<Void> listener);
 
     protected abstract NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException;
 

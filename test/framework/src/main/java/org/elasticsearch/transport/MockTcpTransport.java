@@ -20,6 +20,7 @@ package org.elasticsearch.transport;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -238,7 +239,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected void sendMessage(MockChannel mockChannel, BytesReference reference, Runnable sendListener) {
+    protected void sendMessage(MockChannel mockChannel, BytesReference reference, ActionListener<Void> listener) {
         try {
             synchronized (mockChannel) {
                 final Socket socket = mockChannel.activeChannel;
@@ -246,11 +247,10 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
                 reference.writeTo(outputStream);
                 outputStream.flush();
             }
+            listener.onResponse(null);
         } catch (IOException e) {
+            listener.onFailure(e);
             onException(mockChannel, e);
-        }
-        if (sendListener != null) {
-            sendListener.run();
         }
     }
 

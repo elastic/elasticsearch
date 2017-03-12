@@ -153,7 +153,6 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
      * with a 413 status.
      * @throws InterruptedException if the client communication with the server is interrupted
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/23172")
     public void testExpectContinueHeaderContentLengthTooLong() throws InterruptedException {
         final String key = HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey();
         final int maxContentLength = randomIntBetween(1, 104857600);
@@ -167,7 +166,6 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
      * Test that {@link Netty4HttpServerTransport} responds to an unsupported expectation with a 417 status.
      * @throws InterruptedException if the client communication with the server is interrupted
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/23172")
     public void testExpectUnsupportedExpectation() throws InterruptedException {
         runExpectHeaderTest(Settings.EMPTY, "chocolate=yummy", 0, HttpResponseStatus.EXPECTATION_FAILED);
     }

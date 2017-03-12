@@ -196,9 +196,7 @@ public class TCPTransportTests extends ESTestCase {
                         Req readReq = new Req("");
                         readReq.readFrom(streamIn);
                         assertEquals(request.value, readReq.value);
-                        listener.onResponse(null);
                     } catch (IOException e) {
-                        listener.onFailure(e);
                         exceptionReference.set(e);
                     }
                 }

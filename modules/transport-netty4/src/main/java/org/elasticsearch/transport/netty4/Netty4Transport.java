@@ -77,6 +77,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
@@ -395,15 +396,15 @@ public class Netty4Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected void sendMessage(Channel channel, BytesReference reference, ActionListener<Void> listener) {
+    protected void sendMessage(Channel channel, BytesReference reference, Consumer<Exception> listener) {
         final ChannelFuture future = channel.writeAndFlush(Netty4Utils.toByteBuf(reference));
         future.addListener(f -> {
             if (f.isSuccess()) {
-                listener.onResponse(null);
+                listener.accept(null);
             } else {
                 Throwable cause = f.cause();
                 if (cause instanceof Exception) {
-                    listener.onFailure((Exception) cause);
+                    listener.accept((Exception) cause);
                 }
             }
         });

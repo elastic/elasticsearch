@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -174,7 +175,7 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void sendMessage(Object o, BytesReference reference, ActionListener listener) {
+                protected void sendMessage(Object o, BytesReference reference, Consumer listener) {
                     try {
                         StreamInput streamIn = reference.streamInput();
                         streamIn.skip(TcpHeader.MARKER_BYTES_SIZE);

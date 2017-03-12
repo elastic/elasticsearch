@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -38,7 +39,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -74,17 +80,27 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         int maxAllowedConcurrentSearches = scaledRandomIntBetween(1, 16);
         AtomicInteger counter = new AtomicInteger();
         AtomicReference<AssertionError> errorHolder = new AtomicReference<>();
+        // randomize whether or not requests are executed asynchronously
+        final List<String> threadPoolNames = Arrays.asList(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME);
+        Randomness.shuffle(threadPoolNames);
+        final ExecutorService commonExecutor = threadPool.executor(threadPoolNames.get(0));
+        final ExecutorService rarelyExecutor = threadPool.executor(threadPoolNames.get(1));
+        final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
         TransportAction<SearchRequest, SearchResponse> searchAction = new TransportAction<SearchRequest, SearchResponse>
                 (Settings.EMPTY, "action", threadPool, actionFilters, resolver, taskManager) {
             @Override
             protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
+                requests.add(request);
                 int currentConcurrentSearches = counter.incrementAndGet();
                 if (currentConcurrentSearches > maxAllowedConcurrentSearches) {
                     errorHolder.set(new AssertionError("Current concurrent search [" + currentConcurrentSearches +
                             "] is higher than is allowed [" + maxAllowedConcurrentSearches + "]"));
                 }
-                counter.decrementAndGet();
-                listener.onResponse(new SearchResponse());
+                final ExecutorService executorService = rarely() ? rarelyExecutor : commonExecutor;
+                executorService.execute(() -> {
+                    counter.decrementAndGet();
+                    listener.onResponse(new SearchResponse());
+                });
             }
         };
         TransportMultiSearchAction action =
@@ -105,6 +121,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
 
             MultiSearchResponse response = action.execute(multiSearchRequest).actionGet();
             assertThat(response.getResponses().length, equalTo(numSearchRequests));
+            assertThat(requests.size(), equalTo(numSearchRequests));
             assertThat(errorHolder.get(), nullValue());
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));

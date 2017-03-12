@@ -149,8 +149,9 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         try (DirectoryReader reader = DirectoryReader.open(w)) {
             // field exists, but has no point values
             FieldStats<?> stats = ft.stats(reader);
-            assertEquals(0.0, stats.getMinValue());
-            assertEquals(0.0, stats.getMaxValue());
+            assertFalse(stats.hasMinMax());
+            assertNull(stats.getMinValue());
+            assertNull(stats.getMaxValue());
         }
         LongPoint point = new LongPoint("scaled_float", -1);
         doc.add(point);

@@ -203,7 +203,8 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Runs the given javascript using jjs from the jdk, and returns the output */
     private static String runJavascript(Project project, String javaHome, String script) {
-        ByteArrayOutputStream output = new ByteArrayOutputStream()
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream()
+        ByteArrayOutputStream stderr = new ByteArrayOutputStream()
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             // gradle/groovy does not properly escape the double quote for windows
             script = script.replace('"', '\\"')
@@ -212,15 +213,18 @@ class BuildPlugin implements Plugin<Project> {
         ExecResult result = project.exec {
             executable = jrunscriptPath
             args '-e', script
-            standardOutput = output
-            errorOutput = output
+            standardOutput = stdout
+            errorOutput = stderr
             ignoreExitValue = true
         }
         if (result.exitValue != 0) {
-            output.toString('UTF-8').eachLine { line -> project.logger.error(line) }
+            project.logger.error("STDOUT:")
+            stdout.toString('UTF-8').eachLine { line -> project.logger.error(line) }
+            project.logger.error("STDERR:")
+            stderr.toString('UTF-8').eachLine { line -> project.logger.error(line) }
             result.rethrowFailure()
         }
-        return output.toString('UTF-8').trim()
+        return stdout.toString('UTF-8').trim()
     }
 
     /** Return the configuration name used for finding transitive deps of the given dependency. */

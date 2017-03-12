@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.monitoring.resolver.shards;
 
+import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -31,6 +33,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/498")
 //test is just too slow, please fix it to not be sleep-based
 @BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 @ClusterScope(scope = Scope.TEST)

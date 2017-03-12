@@ -37,6 +37,7 @@ public class GetJobStatsActionResponseTests extends AbstractStreamableTestCase<R
             String jobId = randomAsciiOfLength(10);
 
             DataCounts dataCounts = new DataCountsTests().createTestInstance();
+
             ModelSizeStats sizeStats = null;
             if (randomBoolean()) {
                 sizeStats = new ModelSizeStats.Builder("foo").build();

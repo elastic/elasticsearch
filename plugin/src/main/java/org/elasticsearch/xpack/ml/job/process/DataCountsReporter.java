@@ -191,6 +191,43 @@ public class DataCountsReporter extends AbstractComponent implements Closeable {
         incrementalRecordStats.incrementInputFieldCount(inputFieldCount);
     }
 
+    public void reportEmptyBucket(long recordTimeMs ){
+        Date recordDate = new Date(recordTimeMs);
+        
+        totalRecordStats.incrementEmptyBucketCount(1);
+        totalRecordStats.setLatestEmptyBucketTimeStamp(recordDate);
+        incrementalRecordStats.incrementEmptyBucketCount(1);
+        incrementalRecordStats.setLatestEmptyBucketTimeStamp(recordDate);       
+    }
+    
+    public void reportEmptyBuckets(long additional, long lastRecordTimeMs ){
+        Date recordDate = new Date(lastRecordTimeMs);
+        
+        totalRecordStats.incrementEmptyBucketCount(additional);
+        totalRecordStats.setLatestEmptyBucketTimeStamp(recordDate);
+        incrementalRecordStats.incrementEmptyBucketCount(additional);
+        incrementalRecordStats.setLatestEmptyBucketTimeStamp(recordDate);       
+    }
+    
+    public void reportSparseBucket(long recordTimeMs){
+        Date recordDate = new Date(recordTimeMs);
+        
+        totalRecordStats.incrementSparseBucketCount(1);
+        totalRecordStats.setLatestSparseBucketTimeStamp(recordDate);
+        incrementalRecordStats.incrementSparseBucketCount(1);
+        incrementalRecordStats.setLatestSparseBucketTimeStamp(recordDate);
+    }
+    
+    public void reportBucket(){
+        totalRecordStats.incrementBucketCount(1);
+        incrementalRecordStats.incrementBucketCount(1);
+    }
+    
+    public void reportBuckets(long additional){
+        totalRecordStats.incrementBucketCount(additional);
+        incrementalRecordStats.incrementBucketCount(additional);
+    }
+    
     /**
      * Total records seen = records written to the Engine (processed record
      * count) + date parse error records count + out of order record count.
@@ -216,13 +253,33 @@ public class DataCountsReporter extends AbstractComponent implements Closeable {
     public long getOutOfOrderRecordCount() {
         return totalRecordStats.getOutOfOrderTimeStampCount();
     }
-
+    
+    public long getEmptyBucketCount() {
+        return totalRecordStats.getEmptyBucketCount();
+    }
+    
+    public long getSparseBucketCount() {
+        return totalRecordStats.getSparseBucketCount();
+    }
+    
+    public long getBucketCount() {
+        return totalRecordStats.getBucketCount();
+    }
+    
     public long getBytesRead() {
         return totalRecordStats.getInputBytes();
     }
 
     public Date getLatestRecordTime() {
         return totalRecordStats.getLatestRecordTimeStamp();
+    }
+    
+    public Date getLatestEmptyBucketTime() {
+        return totalRecordStats.getLatestEmptyBucketTimeStamp();
+    }
+    
+    public Date getLatestSparseBucketTime() {
+        return totalRecordStats.getLatestSparseBucketTimeStamp();
     }
 
     public long getProcessedFieldCount() {

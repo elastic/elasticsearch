@@ -8,14 +8,12 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCountsTests;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
-import org.joda.time.DateTime;
 
 public class PostDataActionResponseTests extends AbstractStreamableTestCase<PostDataAction.Response> {
 
     @Override
     protected PostDataAction.Response createTestInstance() {
         DataCounts counts = new DataCountsTests().createTestInstance();
-
         return new PostDataAction.Response(counts);
     }
 

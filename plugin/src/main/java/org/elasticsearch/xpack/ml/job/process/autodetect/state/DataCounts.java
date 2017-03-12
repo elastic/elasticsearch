@@ -45,10 +45,15 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
     public static final String INVALID_DATE_COUNT_STR = "invalid_date_count";
     public static final String MISSING_FIELD_COUNT_STR = "missing_field_count";
     public static final String OUT_OF_ORDER_TIME_COUNT_STR = "out_of_order_timestamp_count";
+    public static final String EMPTY_BUCKET_COUNT_STR = "empty_bucket_count";
+    public static final String SPARSE_BUCKET_COUNT_STR = "sparse_bucket_count";    
+    public static final String BUCKET_COUNT_STR = "bucket_count";
     public static final String EARLIEST_RECORD_TIME_STR = "earliest_record_timestamp";
     public static final String LATEST_RECORD_TIME_STR = "latest_record_timestamp";
     public static final String LAST_DATA_TIME_STR = "last_data_time";
-
+    public static final String LATEST_EMPTY_BUCKET_TIME_STR = "latest_empty_bucket_timestamp";
+    public static final String LATEST_SPARSE_BUCKET_TIME_STR = "latest_sparse_bucket_timestamp";
+    
     public static final ParseField PROCESSED_RECORD_COUNT = new ParseField(PROCESSED_RECORD_COUNT_STR);
     public static final ParseField PROCESSED_FIELD_COUNT = new ParseField(PROCESSED_FIELD_COUNT_STR);
     public static final ParseField INPUT_BYTES = new ParseField(INPUT_BYTES_STR);
@@ -57,15 +62,21 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
     public static final ParseField INVALID_DATE_COUNT = new ParseField(INVALID_DATE_COUNT_STR);
     public static final ParseField MISSING_FIELD_COUNT = new ParseField(MISSING_FIELD_COUNT_STR);
     public static final ParseField OUT_OF_ORDER_TIME_COUNT = new ParseField(OUT_OF_ORDER_TIME_COUNT_STR);
+    public static final ParseField EMPTY_BUCKET_COUNT = new ParseField(EMPTY_BUCKET_COUNT_STR);
+    public static final ParseField SPARSE_BUCKET_COUNT = new ParseField(SPARSE_BUCKET_COUNT_STR);
+    public static final ParseField BUCKET_COUNT = new ParseField(BUCKET_COUNT_STR);
     public static final ParseField EARLIEST_RECORD_TIME = new ParseField(EARLIEST_RECORD_TIME_STR);
     public static final ParseField LATEST_RECORD_TIME = new ParseField(LATEST_RECORD_TIME_STR);
     public static final ParseField LAST_DATA_TIME = new ParseField(LAST_DATA_TIME_STR);
+    public static final ParseField LATEST_EMPTY_BUCKET_TIME = new ParseField(LATEST_EMPTY_BUCKET_TIME_STR);
+    public static final ParseField LATEST_SPARSE_BUCKET_TIME = new ParseField(LATEST_SPARSE_BUCKET_TIME_STR);   
 
     public static final ParseField TYPE = new ParseField("data_counts");
 
     public static final ConstructingObjectParser<DataCounts, Void> PARSER =
             new ConstructingObjectParser<>("data_counts", a -> new DataCounts((String) a[0], (long) a[1], (long) a[2], (long) a[3],
-                    (long) a[4], (long) a[5], (long) a[6], (long) a[7], (Date) a[8], (Date) a[9], (Date) a[10]));
+                    (long) a[4], (long) a[5], (long) a[6], (long) a[7], (long) a[8], (long) a[9], (long) a[10],
+                    (Date) a[11], (Date) a[12], (Date) a[13], (Date) a[14], (Date) a[15]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -76,6 +87,9 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), INVALID_DATE_COUNT);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), MISSING_FIELD_COUNT);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), OUT_OF_ORDER_TIME_COUNT);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), EMPTY_BUCKET_COUNT);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), SPARSE_BUCKET_COUNT);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_COUNT);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
@@ -103,6 +117,24 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
             throw new IllegalArgumentException(
                     "unexpected token [" + p.currentToken() + "] for [" + LAST_DATA_TIME.getPreferredName() + "]");
         }, LAST_DATA_TIME, ValueType.VALUE);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
+            if (p.currentToken() == Token.VALUE_NUMBER) {
+                return new Date(p.longValue());
+            } else if (p.currentToken() == Token.VALUE_STRING) {
+                return new Date(TimeUtils.dateStringToEpoch(p.text()));
+            }
+            throw new IllegalArgumentException(        
+                    "unexpected token [" + p.currentToken() + "] for [" + LATEST_EMPTY_BUCKET_TIME.getPreferredName() + "]");
+        }, LATEST_EMPTY_BUCKET_TIME, ValueType.VALUE);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
+            if (p.currentToken() == Token.VALUE_NUMBER) {
+                return new Date(p.longValue());
+            } else if (p.currentToken() == Token.VALUE_STRING) {
+                return new Date(TimeUtils.dateStringToEpoch(p.text()));
+            }
+            throw new IllegalArgumentException(
+                    "unexpected token [" + p.currentToken() + "] for [" + LATEST_SPARSE_BUCKET_TIME.getPreferredName() + "]");
+        }, LATEST_SPARSE_BUCKET_TIME, ValueType.VALUE);
         PARSER.declareLong((t, u) -> {;}, INPUT_RECORD_COUNT);
     }
 
@@ -118,14 +150,21 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
     private long invalidDateCount;
     private long missingFieldCount;
     private long outOfOrderTimeStampCount;
+    private long emptyBucketCount;
+    private long sparseBucketCount;
+    private long bucketCount;
     // NORELEASE: Use Jodatime instead
     private Date earliestRecordTimeStamp;
     private Date latestRecordTimeStamp;
     private Date lastDataTimeStamp;
+    private Date latestEmptyBucketTimeStamp;
+    private Date latestSparseBucketTimeStamp;
 
     public DataCounts(String jobId, long processedRecordCount, long processedFieldCount, long inputBytes,
                       long inputFieldCount, long invalidDateCount, long missingFieldCount, long outOfOrderTimeStampCount,
-                      Date earliestRecordTimeStamp, Date latestRecordTimeStamp, Date lastDataTimeStamp) {
+                      long emptyBucketCount, long sparseBucketCount, long bucketCount,
+                      Date earliestRecordTimeStamp, Date latestRecordTimeStamp, Date lastDataTimeStamp, 
+                      Date latestEmptyBucketTimeStamp, Date latestSparseBucketTimeStamp) {
         this.jobId = jobId;
         this.processedRecordCount = processedRecordCount;
         this.processedFieldCount = processedFieldCount;
@@ -134,9 +173,14 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         this.invalidDateCount = invalidDateCount;
         this.missingFieldCount = missingFieldCount;
         this.outOfOrderTimeStampCount = outOfOrderTimeStampCount;
+        this.emptyBucketCount = emptyBucketCount;
+        this.sparseBucketCount = sparseBucketCount;
+        this.bucketCount = bucketCount;
         this.latestRecordTimeStamp = latestRecordTimeStamp;
         this.earliestRecordTimeStamp = earliestRecordTimeStamp;
         this.lastDataTimeStamp = lastDataTimeStamp;
+        this.latestEmptyBucketTimeStamp = latestEmptyBucketTimeStamp;
+        this.latestSparseBucketTimeStamp = latestSparseBucketTimeStamp;
     }
 
     public DataCounts(String jobId) {
@@ -152,9 +196,14 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         invalidDateCount = lhs.invalidDateCount;
         missingFieldCount = lhs.missingFieldCount;
         outOfOrderTimeStampCount = lhs.outOfOrderTimeStampCount;
+        emptyBucketCount = lhs.emptyBucketCount;
+        sparseBucketCount = lhs.sparseBucketCount;
+        bucketCount = lhs.bucketCount;
         latestRecordTimeStamp = lhs.latestRecordTimeStamp;
         earliestRecordTimeStamp = lhs.earliestRecordTimeStamp;
         lastDataTimeStamp = lhs.lastDataTimeStamp;
+        latestEmptyBucketTimeStamp = lhs.latestEmptyBucketTimeStamp;
+        latestSparseBucketTimeStamp = lhs.latestSparseBucketTimeStamp;
     }
 
     public DataCounts(StreamInput in) throws IOException {
@@ -166,6 +215,9 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         invalidDateCount = in.readVLong();
         missingFieldCount = in.readVLong();
         outOfOrderTimeStampCount = in.readVLong();
+        emptyBucketCount = in.readVLong();
+        sparseBucketCount = in.readVLong();
+        bucketCount = in.readVLong();
         if (in.readBoolean()) {
             latestRecordTimeStamp = new Date(in.readVLong());
         }
@@ -174,6 +226,12 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         }
         if (in.readBoolean()) {
             lastDataTimeStamp = new Date(in.readVLong());
+        }
+        if (in.readBoolean()) {            
+            latestEmptyBucketTimeStamp = new Date(in.readVLong());
+        }
+        if (in.readBoolean()) {
+            latestSparseBucketTimeStamp = new Date(in.readVLong());
         }
         in.readVLong(); // throw away inputRecordCount
     }
@@ -308,6 +366,46 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
     }
 
     /**
+     * The number of buckets with no records in it. Used to measure general data fitness and/or
+     * configuration problems (bucket span).
+     *
+     * @return Number of empty buckets processed by this job {@code long}
+     */
+    public long getEmptyBucketCount() {
+        return emptyBucketCount;
+    }
+
+    public void incrementEmptyBucketCount(long additional) {
+        emptyBucketCount += additional;
+    }
+    
+    /**
+     * The number of buckets with few records compared to the overall counts. 
+     * Used to measure general data fitness and/or configuration problems (bucket span).
+     *
+     * @return Number of sparse buckets processed by this job {@code long}
+     */
+    public long getSparseBucketCount() {
+        return sparseBucketCount;
+    }
+
+    public void incrementSparseBucketCount(long additional) {
+        sparseBucketCount += additional;
+    }
+    
+    /**
+     * The number of buckets overall.
+     *
+     * @return Number of buckets processed by this job {@code long}
+     */
+    public long getBucketCount() {
+        return bucketCount;
+    }
+
+    public void incrementBucketCount(long additional) {
+        bucketCount += additional;
+    }
+    /**
      * The time of the first record seen.
      *
      * @return The first record time
@@ -357,6 +455,33 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         this.lastDataTimeStamp = lastDataTimeStamp;
     }
 
+    /**
+     * The time of the latest empty bucket seen.
+     *
+     * @return Latest empty bucket time
+     */
+    public Date getLatestEmptyBucketTimeStamp() {
+        return latestEmptyBucketTimeStamp;
+    }
+
+    public void setLatestEmptyBucketTimeStamp(Date latestEmptyBucketTimeStamp) {
+        this.latestEmptyBucketTimeStamp = latestEmptyBucketTimeStamp;
+    }
+    
+    
+    /**
+     * The time of the latest sparse bucket seen.
+     *
+     * @return Latest sparse bucket time
+     */
+    public Date getLatestSparseBucketTimeStamp() {
+        return latestSparseBucketTimeStamp;
+    }
+
+    public void setLatestSparseBucketTimeStamp(Date latestSparseBucketTimeStamp) {
+        this.latestSparseBucketTimeStamp = latestSparseBucketTimeStamp;
+    }
+    
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
@@ -367,6 +492,9 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         out.writeVLong(invalidDateCount);
         out.writeVLong(missingFieldCount);
         out.writeVLong(outOfOrderTimeStampCount);
+        out.writeVLong(emptyBucketCount);
+        out.writeVLong(sparseBucketCount);
+        out.writeVLong(bucketCount);
         if (latestRecordTimeStamp != null) {
             out.writeBoolean(true);
             out.writeVLong(latestRecordTimeStamp.getTime());
@@ -382,6 +510,18 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         if (lastDataTimeStamp != null) {
             out.writeBoolean(true);
             out.writeVLong(lastDataTimeStamp.getTime());
+        } else {
+            out.writeBoolean(false);
+        }
+        if (latestEmptyBucketTimeStamp != null) {
+            out.writeBoolean(true);
+            out.writeVLong(latestEmptyBucketTimeStamp.getTime());
+        } else {
+            out.writeBoolean(false);
+        }
+        if (latestSparseBucketTimeStamp != null) {
+            out.writeBoolean(true);
+            out.writeVLong(latestSparseBucketTimeStamp.getTime());
         } else {
             out.writeBoolean(false);
         }
@@ -405,6 +545,9 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         builder.field(INVALID_DATE_COUNT.getPreferredName(), invalidDateCount);
         builder.field(MISSING_FIELD_COUNT.getPreferredName(), missingFieldCount);
         builder.field(OUT_OF_ORDER_TIME_COUNT.getPreferredName(), outOfOrderTimeStampCount);
+        builder.field(EMPTY_BUCKET_COUNT.getPreferredName(), emptyBucketCount);
+        builder.field(SPARSE_BUCKET_COUNT.getPreferredName(), sparseBucketCount);
+        builder.field(BUCKET_COUNT.getPreferredName(), bucketCount);
         if (earliestRecordTimeStamp != null) {
             builder.dateField(EARLIEST_RECORD_TIME.getPreferredName(), EARLIEST_RECORD_TIME.getPreferredName() + "_string",
                     earliestRecordTimeStamp.getTime());
@@ -416,6 +559,14 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         if (lastDataTimeStamp != null) {
             builder.dateField(LAST_DATA_TIME.getPreferredName(), LAST_DATA_TIME.getPreferredName() + "_string",
                     lastDataTimeStamp.getTime());
+        }
+        if (latestEmptyBucketTimeStamp != null) {
+            builder.dateField(LATEST_EMPTY_BUCKET_TIME.getPreferredName(), LATEST_EMPTY_BUCKET_TIME.getPreferredName() + "_string",
+                    latestEmptyBucketTimeStamp.getTime());
+        }
+        if (latestSparseBucketTimeStamp != null) {
+            builder.dateField(LATEST_SPARSE_BUCKET_TIME.getPreferredName(), LATEST_SPARSE_BUCKET_TIME.getPreferredName() + "_string",
+                    latestSparseBucketTimeStamp.getTime());
         }
         builder.field(INPUT_RECORD_COUNT.getPreferredName(), getInputRecordCount());
 
@@ -445,16 +596,21 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
                 this.invalidDateCount == that.invalidDateCount &&
                 this.missingFieldCount == that.missingFieldCount &&
                 this.outOfOrderTimeStampCount == that.outOfOrderTimeStampCount &&
+                this.emptyBucketCount == that.emptyBucketCount &&
+                this.sparseBucketCount == that.sparseBucketCount &&
+                this.bucketCount == that.bucketCount &&
                 Objects.equals(this.latestRecordTimeStamp, that.latestRecordTimeStamp) &&
                 Objects.equals(this.earliestRecordTimeStamp, that.earliestRecordTimeStamp) &&
-                Objects.equals(this.lastDataTimeStamp, that.lastDataTimeStamp);
-
+                Objects.equals(this.lastDataTimeStamp, that.lastDataTimeStamp) &&
+                Objects.equals(this.latestEmptyBucketTimeStamp, that.latestEmptyBucketTimeStamp) &&
+                Objects.equals(this.latestSparseBucketTimeStamp, that.latestSparseBucketTimeStamp);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(jobId, processedRecordCount, processedFieldCount,
                 inputBytes, inputFieldCount, invalidDateCount, missingFieldCount,
-                outOfOrderTimeStampCount, latestRecordTimeStamp, earliestRecordTimeStamp, lastDataTimeStamp);
+                outOfOrderTimeStampCount, lastDataTimeStamp, emptyBucketCount, sparseBucketCount, bucketCount,
+                latestRecordTimeStamp, earliestRecordTimeStamp, latestEmptyBucketTimeStamp, latestSparseBucketTimeStamp);
     }
 }

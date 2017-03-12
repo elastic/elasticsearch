@@ -297,7 +297,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 DiscoveryNode node = entry.getKey();
                 NodeChannels channels = entry.getValue();
                 for (Channel channel : channels.getChannels()) {
-                    // TODO: Should we catch all exceptions like we used to?
                     sendMessage(channel, pingHeader, e -> {
                         if (e == null) {
                             successfulPings.inc();
@@ -982,6 +981,13 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected abstract void closeChannels(List<Channel> channel) throws IOException;
 
 
+    /**
+     * Sends message to channel. The listener will be called with an exception if the send operation throws an exception. If the operation
+     * is successful, the listener will be called with null.
+     * @param channel the destination channel
+     * @param reference the byte reference for the message
+     * @param listener the listener to call when the operation has completed
+     */
     protected abstract void sendMessage(Channel channel, BytesReference reference, Consumer<Exception> listener);
 
     protected abstract NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException;
@@ -1033,7 +1039,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions);
                 }
             };
-            // TODO: Do we always want to log?
             sendMessage(targetChannel, message, onRequestSent);
         } finally {
             IOUtils.close(stream);

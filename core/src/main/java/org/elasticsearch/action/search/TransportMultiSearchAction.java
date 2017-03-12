@@ -37,7 +37,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class TransportMultiSearchAction extends HandledTransportAction<MultiSearchRequest, MultiSearchResponse> {
 
@@ -133,51 +132,40 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
          * or we do not (this can happen if the request does not resolve to any shards). If we do not go asynchronous, we are going to come
          * back on the same thread that attempted to execute the search request. At this point, or any other point where we come back on the
          * same thread as when the request was submitted, we should not recurse lest we might descend into a stack overflow. To avoid this,
-         * when we handle the response rather than going recursive, we set ourselves up to loop around and submit a new request. Otherwise
-         * we recurse.
+         * when we handle the response rather than going recursive, we fork to another thread, otherwise we recurse.
          */
-        final AtomicReference<SearchRequestSlot> next = new AtomicReference<>();
         final Thread thread = Thread.currentThread();
-        do {
-            final SearchRequestSlot current;
-            if (next.get() != null) {
-                current = next.get();
-                next.set(null);
-            } else {
-                current = request;
+        searchAction.execute(request.request, new ActionListener<SearchResponse>() {
+            @Override
+            public void onResponse(final SearchResponse searchResponse) {
+                handleResponse(request.responseSlot, new MultiSearchResponse.Item(searchResponse, null));
             }
-            searchAction.execute(current.request, new ActionListener<SearchResponse>() {
-                @Override
-                public void onResponse(final SearchResponse searchResponse) {
-                    handleResponse(current.responseSlot, new MultiSearchResponse.Item(searchResponse, null));
-                }
 
-                @Override
-                public void onFailure(final Exception e) {
-                    handleResponse(current.responseSlot, new MultiSearchResponse.Item(null, e));
-                }
+            @Override
+            public void onFailure(final Exception e) {
+                handleResponse(request.responseSlot, new MultiSearchResponse.Item(null, e));
+            }
 
-                private void handleResponse(final int responseSlot, final MultiSearchResponse.Item item) {
-                    responses.set(responseSlot, item);
-                    if (responseCounter.decrementAndGet() == 0) {
-                        assert requests.isEmpty();
-                        finish();
+            private void handleResponse(final int responseSlot, final MultiSearchResponse.Item item) {
+                responses.set(responseSlot, item);
+                if (responseCounter.decrementAndGet() == 0) {
+                    assert requests.isEmpty();
+                    finish();
+                } else {
+                    if (thread == Thread.currentThread()) {
+                        // we are on the same thread, we need to fork to another thread to avoid recursive stack overflow on a single thread
+                        threadPool.generic().execute(() -> executeSearch(requests, responses, responseCounter, listener));
                     } else {
-                        if (thread == Thread.currentThread()) {
-                            // we are on the same thread, let's set ourselves up to peel off another request and loop.
-                            next.set(requests.poll());
-                        } else {
-                            // we are on a different thread (we went asynchronous), it's safe to recurse
-                            executeSearch(requests, responses, responseCounter, listener);
-                        }
+                        // we are on a different thread (we went asynchronous), it's safe to recurse
+                        executeSearch(requests, responses, responseCounter, listener);
                     }
                 }
+            }
 
-                private void finish() {
-                    listener.onResponse(new MultiSearchResponse(responses.toArray(new MultiSearchResponse.Item[responses.length()])));
-                }
-            });
-        } while (next.get() != null);
+            private void finish() {
+                listener.onResponse(new MultiSearchResponse(responses.toArray(new MultiSearchResponse.Item[responses.length()])));
+            }
+        });
     }
 
     static final class SearchRequestSlot {

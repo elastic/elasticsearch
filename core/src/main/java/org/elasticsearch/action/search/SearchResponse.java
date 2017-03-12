@@ -148,7 +148,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     public int getFailedShards() {
         // we don't return totalShards - successfulShards, we don't count "no shards available" as a failed shard, just don't
         // count it in the successful counter
-        return shardFailures != null ? shardFailures.length : 0;
+        return shardFailures.length;
     }
 
     /**

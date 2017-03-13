@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -425,7 +426,16 @@ public class UnicastZenPingTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             new NamedWriteableRegistry(Collections.emptyList()),
             networkService,
-            Version.CURRENT);
+            Version.CURRENT) {
+
+            @Override
+            public BoundTransportAddress boundAddress() {
+                return new BoundTransportAddress(
+                    new TransportAddress[]{new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9500)},
+                    new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9500)
+                );
+            }
+        };
         closeables.push(transport);
         final TransportService transportService =
             new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null);
@@ -448,6 +458,50 @@ public class UnicastZenPingTests extends ESTestCase {
         assertThat(ports, equalTo(IntStream.range(9300, 9300 + limitPortCounts).mapToObj(m -> m).collect(Collectors.toSet())));
     }
 
+    public void testRemovingLocalAddresses() throws InterruptedException {
+        final NetworkService networkService = new NetworkService(Settings.EMPTY, Collections.emptyList());
+        final InetAddress loopbackAddress = InetAddress.getLoopbackAddress();
+        final Transport transport = new MockTcpTransport(
+            Settings.EMPTY,
+            threadPool,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            new NoneCircuitBreakerService(),
+            new NamedWriteableRegistry(Collections.emptyList()),
+            networkService,
+            Version.CURRENT) {
+
+            @Override
+            public BoundTransportAddress boundAddress() {
+                return new BoundTransportAddress(
+                    new TransportAddress[]{
+                        new InetSocketTransportAddress(loopbackAddress, 9300),
+                        new InetSocketTransportAddress(loopbackAddress, 9301)
+                    },
+                    new InetSocketTransportAddress(loopbackAddress, 9302)
+                );
+            }
+        };
+        closeables.push(transport);
+        final TransportService transportService =
+            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null);
+        closeables.push(transportService);
+        final List<DiscoveryNode> discoveryNodes = TestUnicastZenPing.resolveHostsLists(
+            executorService,
+            logger,
+            Collections.singletonList(loopbackAddress.getHostAddress()),
+            10,
+            transportService,
+            "test_",
+            TimeValue.timeValueSeconds(1));
+        assertThat(discoveryNodes, hasSize(7));
+        final Set<Integer> ports = new HashSet<>();
+        for (final DiscoveryNode discoveryNode : discoveryNodes) {
+            assertTrue(discoveryNode.getAddress().isLoopbackOrLinkLocalAddress());
+            ports.add(discoveryNode.getAddress().getPort());
+        }
+        assertThat(ports, equalTo(IntStream.range(9303, 9310).mapToObj(m -> m).collect(Collectors.toSet())));
+    }
+
     public void testUnknownHost() throws InterruptedException {
         final Logger logger = mock(Logger.class);
         final NetworkService networkService = new NetworkService(Settings.EMPTY, Collections.emptyList());
@@ -461,6 +515,14 @@ public class UnicastZenPingTests extends ESTestCase {
             new NamedWriteableRegistry(Collections.emptyList()),
             networkService,
             Version.CURRENT) {
+
+            @Override
+            public BoundTransportAddress boundAddress() {
+                return new BoundTransportAddress(
+                    new TransportAddress[]{new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9300)},
+                    new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9300)
+                );
+            }
 
             @Override
             public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
@@ -500,6 +562,14 @@ public class UnicastZenPingTests extends ESTestCase {
             new NamedWriteableRegistry(Collections.emptyList()),
             networkService,
             Version.CURRENT) {
+
+            @Override
+            public BoundTransportAddress boundAddress() {
+                return new BoundTransportAddress(
+                    new TransportAddress[]{new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9500)},
+                    new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9500)
+                );
+            }
 
             @Override
             public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
@@ -705,7 +775,15 @@ public class UnicastZenPingTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             new NamedWriteableRegistry(Collections.emptyList()),
             networkService,
-            Version.CURRENT);
+            Version.CURRENT) {
+            @Override
+            public BoundTransportAddress boundAddress() {
+                return new BoundTransportAddress(
+                    new TransportAddress[]{new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9300)},
+                    new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9300)
+                );
+            }
+        };
         closeables.push(transport);
 
         final TransportService transportService =

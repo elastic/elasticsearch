@@ -24,7 +24,7 @@ public final class MonitoringTemplateUtils {
     /**
      * Data types that should be supported by the {@linkplain #DATA_INDEX data index} that were not by the initial release.
      */
-    public static final String[] NEW_DATA_TYPES = { "kibana", "logstash" };
+    public static final String[] NEW_DATA_TYPES = { "kibana", "logstash", "beats" };
 
     private MonitoringTemplateUtils() {
     }

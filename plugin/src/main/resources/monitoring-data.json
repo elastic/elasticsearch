@@ -23,6 +23,9 @@
     },
     "logstash": {
       "enabled": false
+    },
+    "beats": {
+      "enabled": false
     }
   }
 }

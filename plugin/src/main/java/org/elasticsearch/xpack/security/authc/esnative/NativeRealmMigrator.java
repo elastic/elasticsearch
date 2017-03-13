@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.user.BeatsSystemUser;
+import org.elasticsearch.xpack.security.user.BuiltinUserInfo;
 import org.elasticsearch.xpack.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.security.user.User;
 
@@ -37,6 +39,8 @@ import java.util.function.BiConsumer;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 
+import java.util.ArrayList;
+
 /**
  * Performs migration steps for the {@link NativeRealm} and {@link ReservedRealm}.
  * When upgrading an Elasticsearch/X-Pack installation from a previous version, this class is responsible for ensuring that user/role
@@ -47,6 +51,10 @@ public class NativeRealmMigrator {
     private final XPackLicenseState licenseState;
     private final Logger logger;
     private InternalClient client;
+    private final BuiltinUserInfo[] builtinUsers = new BuiltinUserInfo[] {
+            LogstashSystemUser.USER_INFO,
+            BeatsSystemUser.USER_INFO
+    };
 
     public NativeRealmMigrator(Settings settings, XPackLicenseState licenseState, InternalClient internalClient) {
         this.licenseState = licenseState;
@@ -85,9 +93,12 @@ public class NativeRealmMigrator {
 
     private List<BiConsumer<Version, ActionListener<Void>>> collectUpgradeTasks(@Nullable Version previousVersion) {
         List<BiConsumer<Version, ActionListener<Void>>> tasks = new ArrayList<>();
-        if (shouldDisableLogstashUser(previousVersion)) {
-            tasks.add(this::createLogstashUserAsDisabled);
+        for (BuiltinUserInfo info : builtinUsers) {
+            if (isNewUser(previousVersion, info)) {
+                tasks.add((v,l) -> createUserAsDisabled(info, v, l));
+            }
         }
+
         if (shouldConvertDefaultPasswords(previousVersion)) {
             tasks.add(this::doConvertDefaultPasswords);
         }
@@ -95,41 +106,42 @@ public class NativeRealmMigrator {
     }
 
     /**
-     * If we're upgrading from a security version where the {@link LogstashSystemUser} did not exist, then we mark the user as disabled.
+     * If we're upgrading from a security version where the new user did not exist, then we mark the user as disabled.
      * Otherwise the user will exist with a default password, which is desirable for an <em>out-of-the-box</em> experience in fresh
      * installs but problematic for already-locked-down upgrades.
      */
-    private boolean shouldDisableLogstashUser(@Nullable Version previousVersion) {
-        return previousVersion != null && previousVersion.before(LogstashSystemUser.DEFINED_SINCE);
+    private boolean isNewUser(@Nullable Version previousVersion, BuiltinUserInfo info) {
+        return previousVersion != null && previousVersion.before(info.getDefinedSince());
     }
 
-    private void createLogstashUserAsDisabled(@Nullable Version previousVersion, ActionListener<Void> listener) {
+    private void createUserAsDisabled(BuiltinUserInfo info, @Nullable Version previousVersion, ActionListener<Void> listener) {
         logger.info("Upgrading security from version [{}] - new reserved user [{}] will default to disabled",
-        previousVersion, LogstashSystemUser.NAME);
+                previousVersion, info.getName());
         // Only clear the cache is authentication is allowed by the current license
         // otherwise the license management checks will prevent it from completing successfully.
         final boolean clearCache = licenseState.isAuthAllowed();
-        client.prepareGet(SECURITY_INDEX_NAME, NativeUsersStore.RESERVED_USER_DOC_TYPE, LogstashSystemUser.NAME).execute(
-        ActionListener.wrap(getResponse -> {
-            if (getResponse.isExists()) {
-                // the document exists - we shouldn't do anything
-                listener.onResponse(null);
-            } else {
-                client.prepareIndex(SECURITY_INDEX_NAME, NativeUsersStore.RESERVED_USER_DOC_TYPE, LogstashSystemUser.NAME)
-                      .setSource(Requests.INDEX_CONTENT_TYPE, User.Fields.ENABLED.getPreferredName(), false,
-                                 User.Fields.PASSWORD.getPreferredName(), "")
-                      .setCreate(true)
-                      .execute(ActionListener.wrap(r -> {
-                          if (clearCache) {
-                              new SecurityClient(client).prepareClearRealmCache()
-                                    .usernames(LogstashSystemUser.NAME)
-                                    .execute(ActionListener.wrap(re -> listener.onResponse(null), listener::onFailure));
-                          } else {
-                              listener.onResponse(null);
-                          }
-                      }, listener::onFailure));
-            }
-        }, listener::onFailure));
+        final String userName = info.getName();
+        client.prepareGet(SECURITY_INDEX_NAME, NativeUsersStore.RESERVED_USER_DOC_TYPE, userName).execute(
+            ActionListener.wrap(getResponse -> {
+                if (getResponse.isExists()) {
+                    // the document exists - we shouldn't do anything
+                    listener.onResponse(null);
+                } else {
+                    client.prepareIndex(SECURITY_INDEX_NAME, NativeUsersStore.RESERVED_USER_DOC_TYPE, userName)
+                          .setSource(Requests.INDEX_CONTENT_TYPE, User.Fields.ENABLED.getPreferredName(), false,
+                                     User.Fields.PASSWORD.getPreferredName(), "")
+                          .setCreate(true)
+                          .execute(ActionListener.wrap(r -> {
+                              if (clearCache) {
+                                  new SecurityClient(client).prepareClearRealmCache()
+                                        .usernames(userName)
+                                        .execute(ActionListener.wrap(re -> listener.onResponse(null), listener::onFailure));
+                              } else {
+                                  listener.onResponse(null);
+                              }
+                          }, listener::onFailure));
+                }
+            }, listener::onFailure));
     }
 
     /**

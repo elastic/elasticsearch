@@ -1,0 +1,88 @@
+{
+  "template": ".monitoring-beats-${monitoring.template.version}-*",
+  "settings": {
+    "index.number_of_shards": 1,
+    "index.number_of_replicas": 1,
+    "index.codec": "best_compression"
+  },
+  "mappings": {
+    "beats_stats": {
+      "properties": {
+        "cluster_uuid": {
+          "type": "keyword"
+        },
+        "timestamp": {
+          "type": "date",
+          "format": "date_time"
+        },
+        "source_node": {
+          "properties": {
+            "uuid": {
+              "type": "keyword"
+            },
+            "host": {
+              "type": "keyword"
+            },
+            "transport_address": {
+              "type": "keyword"
+            },
+            "ip": {
+              "type": "keyword"
+            },
+            "name": {
+              "type": "keyword"
+            },
+            "attributes": {
+              "dynamic": true,
+              "properties": {
+                "data": {
+                  "type": "boolean"
+                },
+                "master": {
+                  "type": "boolean"
+                },
+                "client": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "beats_stats": {
+          "properties": {
+            "timestamp": {
+              "type": "date",
+              "format": "date_time"
+            },
+            "tags": {
+              "type": "keyword"
+            },
+            "beat": {
+              "properties": {
+                "uuid": {
+                  "type": "keyword"
+                },
+                "type": {
+                  "type": "keyword"
+                },
+                "version": {
+                  "type": "keyword"
+                },
+                "host": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "metrics": {
+              "properties": {
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

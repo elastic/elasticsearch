@@ -331,12 +331,34 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(logstashSystemRole.cluster().check(ClusterRerouteAction.NAME), is(false));
         assertThat(logstashSystemRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
         assertThat(logstashSystemRole.cluster().check(MonitoringBulkAction.NAME), is(true));
-        
+
         assertThat(logstashSystemRole.runAs().check(randomAsciiOfLengthBetween(1, 30)), is(false));
 
         assertThat(logstashSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
         assertThat(logstashSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
         assertThat(logstashSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAsciiOfLengthBetween(8, 24)),
+                is(false));
+    }
+
+    public void testBeatsSystemRole() {
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("beats_system");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role beatsSystemRole = Role.builder(roleDescriptor, null).build();
+        assertThat(beatsSystemRole.cluster().check(ClusterHealthAction.NAME), is(true));
+        assertThat(beatsSystemRole.cluster().check(ClusterStateAction.NAME), is(true));
+        assertThat(beatsSystemRole.cluster().check(ClusterStatsAction.NAME), is(true));
+        assertThat(beatsSystemRole.cluster().check(PutIndexTemplateAction.NAME), is(false));
+        assertThat(beatsSystemRole.cluster().check(ClusterRerouteAction.NAME), is(false));
+        assertThat(beatsSystemRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
+        assertThat(beatsSystemRole.cluster().check(MonitoringBulkAction.NAME), is(true));
+
+        assertThat(beatsSystemRole.runAs().check(randomAsciiOfLengthBetween(1, 30)), is(false));
+
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAsciiOfLengthBetween(8, 24)),
                 is(false));
     }
 }

@@ -60,6 +60,8 @@ public class ReservedRolesStore {
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("logstash_system", new RoleDescriptor("logstash_system", new String[] { "monitor", MonitoringBulkAction.NAME},
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("beats_system", new RoleDescriptor("beats_system", new String[] { "monitor", MonitoringBulkAction.NAME},
+                        null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .immutableMap();
     }
 

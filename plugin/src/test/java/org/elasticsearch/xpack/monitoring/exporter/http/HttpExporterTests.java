@@ -307,7 +307,7 @@ public class HttpExporterTests extends ESTestCase {
                    equalTo(version + typeMappings.size() + templates.size() + pipelines.size() + bwc.size()));
         assertThat(version, equalTo(1));
         assertThat(typeMappings, hasSize(MonitoringTemplateUtils.NEW_DATA_TYPES.length));
-        assertThat(templates, hasSize(4));
+        assertThat(templates, hasSize(5));
         assertThat(pipelines, hasSize(useIngest ? 1 : 0));
         assertThat(bwc, hasSize(1));
 

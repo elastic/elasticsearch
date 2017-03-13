@@ -11,7 +11,8 @@ public enum MonitoredSystem {
 
     ES("es"),
     KIBANA("kibana"),
-    LOGSTASH("logstash");
+    LOGSTASH("logstash"),
+    BEATS("beats");
 
     private final String system;
 
@@ -31,6 +32,8 @@ public enum MonitoredSystem {
                 return KIBANA;
             case "logstash":
                 return LOGSTASH;
+            case "beats":
+                return BEATS;
             default:
                 throw new IllegalArgumentException("Unknown monitoring system [" + system + "]");
         }

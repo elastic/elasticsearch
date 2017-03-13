@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
+import org.elasticsearch.xpack.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.LogstashSystemUser;
@@ -150,14 +151,14 @@ public class NativeRealmMigratorTests extends ESTestCase {
     }
 
     public void testNoChangeOnFreshInstall() throws Exception {
-        verifyUpgrade(null, false, false);
+        verifyUpgrade(null, null, false);
     }
 
     public void testNoChangeOnUpgradeAfterV5_3() throws Exception {
-        verifyUpgrade(randomFrom(Version.V_6_0_0_alpha1_UNRELEASED), false, false);
+        verifyUpgrade(randomFrom(Version.V_6_0_0_alpha1_UNRELEASED), null, false);
     }
 
-    public void testDisableLogstashAndConvertPasswordsOnUpgradeFromVersionPriorToV5_2() throws Exception {
+    public void testDisableLogstashBeatsAndConvertPasswordsOnUpgradeFromVersionPriorToV5_2() throws Exception {
         this.reservedUsers = Collections.singletonMap(
                 KibanaUser.NAME,
                 MapBuilder.<String, Object>newMapBuilder()
@@ -165,7 +166,21 @@ public class NativeRealmMigratorTests extends ESTestCase {
                         .put(User.Fields.ENABLED.getPreferredName(), false)
                         .immutableMap()
         );
-        verifyUpgrade(randomFrom(Version.V_5_1_1_UNRELEASED, Version.V_5_0_2, Version.V_5_0_0), true, true);
+        String[] disabledUsers = new String[]{LogstashSystemUser.NAME, BeatsSystemUser.NAME};
+        verifyUpgrade(randomFrom(Version.V_5_1_1_UNRELEASED, Version.V_5_0_2, Version.V_5_0_0), disabledUsers, true);
+    }
+
+    public void testDisableBeatsAndConvertPasswordsOnUpgradeFromVersionPriorToV6() throws Exception {
+        this.reservedUsers = Collections.singletonMap(
+                KibanaUser.NAME,
+                MapBuilder.<String, Object>newMapBuilder()
+                        .put(User.Fields.PASSWORD.getPreferredName(), new String(Hasher.BCRYPT.hash(ReservedRealm.DEFAULT_PASSWORD_TEXT)))
+                        .put(User.Fields.ENABLED.getPreferredName(), false)
+                        .immutableMap()
+        );
+        String[] disabledUsers = new String[]{BeatsSystemUser.NAME};
+        Version version = randomFrom(Version.V_5_3_0_UNRELEASED, Version.V_5_2_1_UNRELEASED);
+        verifyUpgrade(version, disabledUsers, true);
     }
 
     public void testConvertPasswordsOnUpgradeFromVersion5_2() throws Exception {
@@ -177,24 +192,31 @@ public class NativeRealmMigratorTests extends ESTestCase {
                                 .put(User.Fields.ENABLED.getPreferredName(), randomBoolean())
                                 .immutableMap()
                 ));
-        verifyUpgrade(Version.V_5_2_0_UNRELEASED, false, true);
+        String[] disabledUsers = new String[]{BeatsSystemUser.NAME};
+        verifyUpgrade(Version.V_5_2_0_UNRELEASED, disabledUsers, true);
     }
 
-    private void verifyUpgrade(Version fromVersion, boolean disableLogstashUser, boolean convertDefaultPasswords) throws Exception {
+    private void verifyUpgrade(Version fromVersion, String[] disabledUsers, boolean convertDefaultPasswords) throws Exception {
         final PlainActionFuture<Boolean> future = doUpgrade(fromVersion);
         boolean expectedResult = false;
-        if (disableLogstashUser) {
+        if (disabledUsers != null) {
+            final int userCount = disabledUsers.length;
             final boolean clearCache = licenseState.isAuthAllowed();
             ArgumentCaptor<GetRequest> captor = ArgumentCaptor.forClass(GetRequest.class);
-            verify(mockClient).execute(eq(GetAction.INSTANCE), captor.capture(), any(ActionListener.class));
-            assertEquals(LogstashSystemUser.NAME, captor.getValue().id());
+            verify(mockClient, times(userCount)).execute(eq(GetAction.INSTANCE), captor.capture(), any(ActionListener.class));
+            for (int i = 0; i < userCount; i++) {
+                assertEquals(disabledUsers[i], captor.getAllValues().get(i).id());
+            }
+
             ArgumentCaptor<IndexRequest> indexCaptor = ArgumentCaptor.forClass(IndexRequest.class);
-            verify(mockClient).execute(eq(IndexAction.INSTANCE), indexCaptor.capture(), any(ActionListener.class));
-            assertEquals(LogstashSystemUser.NAME, indexCaptor.getValue().id());
-            assertEquals(false, indexCaptor.getValue().sourceAsMap().get(User.Fields.ENABLED.getPreferredName()));
+            verify(mockClient, times(userCount)).execute(eq(IndexAction.INSTANCE), indexCaptor.capture(), any(ActionListener.class));
+            for (int i = 0; i < userCount; i++) {
+                assertEquals(disabledUsers[i], captor.getAllValues().get(i).id());
+                assertEquals(false, indexCaptor.getValue().sourceAsMap().get(User.Fields.ENABLED.getPreferredName()));
+            }
 
             if (clearCache) {
-                verify(mockClient).execute(eq(ClearRealmCacheAction.INSTANCE), any(ClearRealmCacheRequest.class),
+                verify(mockClient, times(userCount)).execute(eq(ClearRealmCacheAction.INSTANCE), any(ClearRealmCacheRequest.class),
                         any(ActionListener.class));
             }
             expectedResult = true;

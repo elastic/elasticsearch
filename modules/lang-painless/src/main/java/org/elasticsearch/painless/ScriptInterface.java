@@ -40,7 +40,7 @@ public class ScriptInterface {
     private final List<MethodArgument> executeArguments;
     private final List<org.objectweb.asm.commons.Method> usesMethods;
 
-    public ScriptInterface(Class<?> iface) {
+    public ScriptInterface(Definition definition, Class<?> iface) {
         this.iface = iface;
 
         // Find the main method and the uses$argName methods
@@ -77,7 +77,7 @@ public class ScriptInterface {
         }
         MethodType methodType = MethodType.methodType(executeMethod.getReturnType(), executeMethod.getParameterTypes());
         this.executeMethod = new org.objectweb.asm.commons.Method(executeMethod.getName(), methodType.toMethodDescriptorString());
-        executeMethodReturnType = definitionTypeForClass(executeMethod.getReturnType(),
+        executeMethodReturnType = definitionTypeForClass(definition, executeMethod.getReturnType(),
                 componentType -> "Painless can only implement execute methods returning a whitelisted type but [" + iface.getName()
                         + "#execute] returns [" + componentType.getName() + "] which isn't whitelisted.");
 
@@ -91,7 +91,7 @@ public class ScriptInterface {
                     + iface.getName() + "#execute] takes [1] argument.");
         }
         for (int arg = 0; arg < types.length; arg++) {
-            arguments.add(methodArgument(types[arg], argumentNamesConstant[arg]));
+            arguments.add(methodArgument(definition, types[arg], argumentNamesConstant[arg]));
             argumentNames.add(argumentNamesConstant[arg]);
         }
         this.executeArguments = unmodifiableList(arguments);
@@ -164,13 +164,14 @@ public class ScriptInterface {
         }
     }
 
-    private static MethodArgument methodArgument(Class<?> type, String argName) {
-        Definition.Type defType = definitionTypeForClass(type, componentType -> "[" + argName + "] is of unknown type ["
+    private MethodArgument methodArgument(Definition definition, Class<?> type, String argName) {
+        Definition.Type defType = definitionTypeForClass(definition, type, componentType -> "[" + argName + "] is of unknown type ["
                 + componentType.getName() + ". Painless interfaces can only accept arguments that are of whitelisted types.");
         return new MethodArgument(defType, argName);
     }
 
-    private static Definition.Type definitionTypeForClass(Class<?> type, Function<Class<?>, String> unknownErrorMessageSource) {
+    private static Definition.Type definitionTypeForClass(Definition definition, Class<?> type,
+            Function<Class<?>, String> unknownErrorMessageSource) {
         int dimensions = 0;
         Class<?> componentType = type;
         while (componentType.isArray()) {
@@ -181,7 +182,7 @@ public class ScriptInterface {
         if (componentType.equals(Object.class)) {
             struct = Definition.DEF_TYPE.struct;
         } else {
-            Definition.RuntimeClass runtimeClass = Definition.getRuntimeClass(componentType);
+            Definition.RuntimeClass runtimeClass = definition.getRuntimeClass(componentType);
             if (runtimeClass == null) {
                 throw new IllegalArgumentException(unknownErrorMessageSource.apply(componentType));
             }

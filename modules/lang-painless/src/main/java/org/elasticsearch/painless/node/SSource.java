@@ -58,6 +58,10 @@ import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 import static org.elasticsearch.painless.WriterConstants.COLLECTIONS_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CONSTRUCTOR;
 import static org.elasticsearch.painless.WriterConstants.CONVERT_TO_SCRIPT_EXCEPTION_METHOD;
+import static org.elasticsearch.painless.WriterConstants.DEFINITION_TYPE;
+import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_DELEGATE_METHOD;
+import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_DELEGATE_TYPE;
+import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_METHOD;
 import static org.elasticsearch.painless.WriterConstants.EMPTY_MAP_METHOD;
 import static org.elasticsearch.painless.WriterConstants.EXCEPTION_TYPE;
 import static org.elasticsearch.painless.WriterConstants.OUT_OF_MEMORY_ERROR_TYPE;
@@ -216,6 +220,19 @@ public final class SSource extends AStatement {
         visitor.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, classBase, classInterfaces);
         visitor.visitSource(Location.computeSourceName(name, source), null);
 
+        // Write the a method to bootstrap def calls
+        MethodWriter bootstrapDef = new MethodWriter(Opcodes.ACC_STATIC | Opcodes.ACC_VARARGS, DEF_BOOTSTRAP_METHOD, visitor,
+                globals.getStatements(), settings);
+        bootstrapDef.visitCode();
+        bootstrapDef.getStatic(CLASS_TYPE, "$DEFINITION", DEFINITION_TYPE);
+        bootstrapDef.loadArgs();
+        bootstrapDef.invokeStatic(DEF_BOOTSTRAP_DELEGATE_TYPE, DEF_BOOTSTRAP_DELEGATE_METHOD);
+        bootstrapDef.returnValue();
+        bootstrapDef.endMethod();
+
+        // Write the static variable used by the method to bootstrap def calls
+        visitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$DEFINITION", DEFINITION_TYPE.getDescriptor(), null, null).visitEnd();
+
         // Write the constructor:
         MethodWriter constructor = new MethodWriter(Opcodes.ACC_PUBLIC, CONSTRUCTOR, visitor, globals.getStatements(), settings);
         constructor.visitCode();
@@ -330,13 +347,14 @@ public final class SSource extends AStatement {
         writer.goTo(endCatch);
         // This looks like:
         // } catch (PainlessExplainError e) {
-        //   throw this.convertToScriptException(e, e.getHeaders())
+        //   throw this.convertToScriptException(e, e.getHeaders($DEFINITION))
         // }
         writer.visitTryCatchBlock(startTry, endTry, startExplainCatch, PAINLESS_EXPLAIN_ERROR_TYPE.getInternalName());
         writer.mark(startExplainCatch);
         writer.loadThis();
         writer.swap();
         writer.dup();
+        writer.getStatic(CLASS_TYPE, "$DEFINITION", DEFINITION_TYPE);
         writer.invokeVirtual(PAINLESS_EXPLAIN_ERROR_TYPE, PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD);
         writer.invokeVirtual(BASE_CLASS_TYPE, CONVERT_TO_SCRIPT_EXCEPTION_METHOD);
         writer.throwException();

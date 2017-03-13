@@ -47,6 +47,8 @@ import static java.util.Collections.singletonList;
  * Tests {@link Object#toString} implementations on all extensions of {@link ANode}.
  */
 public class NodeToStringTests extends ESTestCase {
+    private final Definition definition = Definition.INSTANCE;
+
     public void testEAssignment() {
         assertToString(
                 "(SSource\n"
@@ -399,7 +401,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubCallInvoke() {
         Location l = new Location(getTestName(), 0);
-        RuntimeClass c = Definition.getRuntimeClass(Integer.class);
+        RuntimeClass c = definition.getRuntimeClass(Integer.class);
         Method m = c.methods.get(new MethodKey("toString", 0));
         PSubCallInvoke node = new PSubCallInvoke(l, m, null, emptyList());
         node.prefix = new EVariable(l, "a");
@@ -896,7 +898,7 @@ public class NodeToStringTests extends ESTestCase {
     }
 
     private SSource walk(String code) {
-        ScriptInterface scriptInterface = new ScriptInterface(GenericElasticsearchScript.class);
+        ScriptInterface scriptInterface = new ScriptInterface(definition, GenericElasticsearchScript.class);
         CompilerSettings compilerSettings = new CompilerSettings();
         compilerSettings.setRegexesEnabled(true);
         try {

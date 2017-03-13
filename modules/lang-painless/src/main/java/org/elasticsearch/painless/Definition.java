@@ -65,7 +65,10 @@ public final class Definition {
                       "java.util.stream.txt",
                       "joda.time.txt"));
 
-    private static final Definition INSTANCE = new Definition();
+    /**
+     * Singleton instance of the whitelist. This will be removed in the future so we can support context specific whitelists.
+     */
+    public static final Definition INSTANCE = new Definition();
 
     /** Some native types as constants: */
     public static final Type VOID_TYPE = getType("void");
@@ -508,7 +511,7 @@ public final class Definition {
         return INSTANCE.getTypeInternal(struct, dimensions);
     }
 
-    public static RuntimeClass getRuntimeClass(Class<?> clazz) {
+    public RuntimeClass getRuntimeClass(Class<?> clazz) {
         return INSTANCE.runtimeMap.get(clazz);
     }
 

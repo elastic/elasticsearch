@@ -76,7 +76,7 @@ public abstract class ScriptTestCase extends ESTestCase {
     public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, Scorer scorer, boolean picky) {
         // test for ambiguity errors before running the actual script if picky is true
         if (picky) {
-            ScriptInterface scriptInterface = new ScriptInterface(GenericElasticsearchScript.class);
+            ScriptInterface scriptInterface = new ScriptInterface(Definition.INSTANCE, GenericElasticsearchScript.class);
             CompilerSettings pickySettings = new CompilerSettings();
             pickySettings.setPicky(true);
             pickySettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(scriptEngineSettings()));

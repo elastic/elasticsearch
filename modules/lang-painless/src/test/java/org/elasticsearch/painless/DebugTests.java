@@ -34,22 +34,24 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 public class DebugTests extends ScriptTestCase {
+    private final Definition definition = Definition.INSTANCE;
+
     public void testExplain() {
         // Debug.explain can explain an object
         Object dummy = new Object();
         PainlessExplainError e = expectScriptThrows(PainlessExplainError.class, () -> exec(
                 "Debug.explain(params.a)", singletonMap("a", dummy), true));
         assertSame(dummy, e.getObjectToExplain());
-        assertThat(e.getHeaders(), hasEntry("es.to_string", singletonList(dummy.toString())));
-        assertThat(e.getHeaders(), hasEntry("es.java_class", singletonList("java.lang.Object")));
-        assertThat(e.getHeaders(), hasEntry("es.painless_class", singletonList("Object")));
+        assertThat(e.getHeaders(definition), hasEntry("es.to_string", singletonList(dummy.toString())));
+        assertThat(e.getHeaders(definition), hasEntry("es.java_class", singletonList("java.lang.Object")));
+        assertThat(e.getHeaders(definition), hasEntry("es.painless_class", singletonList("Object")));
 
         // Null should be ok
         e = expectScriptThrows(PainlessExplainError.class, () -> exec("Debug.explain(null)"));
         assertNull(e.getObjectToExplain());
-        assertThat(e.getHeaders(), hasEntry("es.to_string", singletonList("null")));
-        assertThat(e.getHeaders(), not(hasKey("es.java_class")));
-        assertThat(e.getHeaders(), not(hasKey("es.painless_class")));
+        assertThat(e.getHeaders(definition), hasEntry("es.to_string", singletonList("null")));
+        assertThat(e.getHeaders(definition), not(hasKey("es.java_class")));
+        assertThat(e.getHeaders(definition), not(hasKey("es.painless_class")));
 
         // You can't catch the explain exception
         e = expectScriptThrows(PainlessExplainError.class, () -> exec(

@@ -100,7 +100,7 @@ final class Compiler {
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
-        ScriptInterface scriptInterface = new ScriptInterface(iface);
+        ScriptInterface scriptInterface = new ScriptInterface(Definition.INSTANCE, iface);
 
         SSource root = Walker.buildPainlessTree(scriptInterface, name, source, settings, null);
 
@@ -109,6 +109,7 @@ final class Compiler {
 
         try {
             Class<? extends PainlessScript> clazz = loader.define(CLASS_NAME, root.getBytes());
+            clazz.getField("$DEFINITION").set(null, Definition.INSTANCE);
             java.lang.reflect.Constructor<? extends PainlessScript> constructor =
                     clazz.getConstructor(String.class, String.class, BitSet.class);
 
@@ -131,7 +132,7 @@ final class Compiler {
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
-        ScriptInterface scriptInterface = new ScriptInterface(iface);
+        ScriptInterface scriptInterface = new ScriptInterface(Definition.INSTANCE, iface);
 
         SSource root = Walker.buildPainlessTree(scriptInterface, name, source, settings, debugStream);
 

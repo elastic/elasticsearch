@@ -290,11 +290,13 @@ public class AwsS3ServiceImplTests extends ESTestCase {
                                               Integer expectedMaxRetries,
                                               boolean expectedUseThrottleRetries,
                                               int expectedReadTimeout) {
+        Integer maxRetries = S3Repository.getValue(singleRepositorySettings, settings,
+            S3Repository.Repository.MAX_RETRIES_SETTING, S3Repository.Repositories.MAX_RETRIES_SETTING);
         Boolean useThrottleRetries = S3Repository.getValue(singleRepositorySettings, settings,
             S3Repository.Repository.USE_THROTTLE_RETRIES_SETTING, S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING);
 
         ClientConfiguration configuration = InternalAwsS3Service.buildConfiguration(logger, singleRepositorySettings, settings,
-            "default", null, useThrottleRetries);
+            "default", maxRetries, null, useThrottleRetries);
 
         assertThat(configuration.getResponseMetadataCacheSize(), is(0));
         assertThat(configuration.getProtocol(), is(expectedProtocol));

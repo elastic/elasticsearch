@@ -42,9 +42,9 @@ public class TestAwsS3Service extends InternalAwsS3Service {
 
 
     @Override
-    public synchronized AmazonS3 client(Settings repositorySettings,
+    public synchronized AmazonS3 client(Settings repositorySettings, Integer maxRetries,
                                               boolean useThrottleRetries, Boolean pathStyleAccess) {
-        return cachedWrapper(super.client(repositorySettings, useThrottleRetries, pathStyleAccess));
+        return cachedWrapper(super.client(repositorySettings, maxRetries, useThrottleRetries, pathStyleAccess));
     }
 
     private AmazonS3 cachedWrapper(AmazonS3 client) {

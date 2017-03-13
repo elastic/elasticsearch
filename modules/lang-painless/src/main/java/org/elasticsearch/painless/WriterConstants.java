@@ -104,11 +104,11 @@ public final class WriterConstants {
 
     public static final Method DEF_BOOTSTRAP_METHOD = getAsmMethod(CallSite.class, "$bootstrapDef", MethodHandles.Lookup.class,
             String.class, MethodType.class, int.class, int.class, Object[].class);
+    static final Handle DEF_BOOTSTRAP_HANDLE = new Handle(Opcodes.H_INVOKESTATIC, CLASS_TYPE.getInternalName(), "$bootstrapDef",
+            DEF_BOOTSTRAP_METHOD.getDescriptor(), false);
     public static final Type DEF_BOOTSTRAP_DELEGATE_TYPE = Type.getType(DefBootstrap.class);
     public static final Method DEF_BOOTSTRAP_DELEGATE_METHOD = getAsmMethod(CallSite.class, "bootstrap", Definition.class,
             MethodHandles.Lookup.class, String.class, MethodType.class, int.class, int.class, Object[].class);
-    static final Handle DEF_BOOTSTRAP_HANDLE = new Handle(Opcodes.H_INVOKESTATIC, CLASS_TYPE.getInternalName(), "$bootstrapDef",
-            DEF_BOOTSTRAP_METHOD.getDescriptor(), false);
 
 
     public static final Type DEF_UTIL_TYPE = Type.getType(Def.class);

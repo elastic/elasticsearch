@@ -564,7 +564,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             aliases.add(Alias.read(in));
         }
         version = in.readOptionalVInt();
-        if (in.getVersion().onOrAfter(Version.V_5_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
             validation = in.readBoolean();
         }
     }
@@ -593,7 +593,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             alias.writeTo(out);
         }
         out.writeOptionalVInt(version);
-        if (out.getVersion().onOrAfter(Version.V_5_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
             out.writeBoolean(validation);
         }
 

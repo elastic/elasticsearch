@@ -488,7 +488,7 @@ public class UnicastZenPingTests extends ESTestCase {
         final List<DiscoveryNode> discoveryNodes = TestUnicastZenPing.resolveHostsLists(
             executorService,
             logger,
-            Collections.singletonList(loopbackAddress.getHostAddress()),
+            Collections.singletonList(NetworkAddress.format(loopbackAddress)),
             10,
             transportService,
             "test_",

@@ -11,6 +11,8 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
+import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 import org.joda.time.DateTime;
 
 import java.util.ArrayList;
@@ -81,6 +83,19 @@ public final class AggregationTestUtils {
         }
         when(termsAgg.getBuckets()).thenReturn(buckets);
         return termsAgg;
+    }
+
+    static Percentiles createPercentiles(String name, double... values) {
+        Percentiles percentiles = mock(Percentiles.class);
+        when(percentiles.getName()).thenReturn(name);
+        List<Percentile> percentileList = new ArrayList<>();
+        for (double value : values) {
+            Percentile percentile = mock(Percentile.class);
+            when(percentile.getValue()).thenReturn(value);
+            percentileList.add(percentile);
+        }
+        when(percentiles.iterator()).thenReturn(percentileList.iterator());
+        return percentiles;
     }
 
     static class Term {

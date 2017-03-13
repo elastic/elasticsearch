@@ -13,6 +13,8 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
+import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.joda.time.base.BaseDateTime;
 
@@ -20,6 +22,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +82,9 @@ class AggregationToJsonProcessor implements Releasable {
             List<String> addedKeys = new ArrayList<>();
             for (Aggregation nestedAgg : aggs) {
                 if (nestedAgg instanceof NumericMetricsAggregation.SingleValue) {
-                    addedKeys.add(processSingleValue(docCount, (NumericMetricsAggregation.SingleValue) nestedAgg));
+                    addedKeys.add(processSingleValue((NumericMetricsAggregation.SingleValue) nestedAgg));
+                } else if (nestedAgg instanceof Percentiles) {
+                    addedKeys.add(processPercentiles((Percentiles) nestedAgg));
                 } else {
                     throw new IllegalArgumentException("Unsupported aggregation type [" + nestedAgg.getName() + "]");
                 }
@@ -97,9 +102,18 @@ class AggregationToJsonProcessor implements Releasable {
         }
     }
 
-    private String processSingleValue(long docCount, NumericMetricsAggregation.SingleValue singleValue) throws IOException {
+    private String processSingleValue(NumericMetricsAggregation.SingleValue singleValue) throws IOException {
         keyValuePairs.put(singleValue.getName(), singleValue.value());
         return singleValue.getName();
+    }
+
+    private String processPercentiles(Percentiles percentiles) throws IOException {
+        Iterator<Percentile> percentileIterator = percentiles.iterator();
+        keyValuePairs.put(percentiles.getName(), percentileIterator.next().getValue());
+        if (percentileIterator.hasNext()) {
+            throw new IllegalArgumentException("Multi-percentile aggregation [" + percentiles.getName() + "] is not supported");
+        }
+        return percentiles.getName();
     }
 
     private void writeJsonObject(long docCount) throws IOException {

@@ -24,6 +24,7 @@ import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.Aggregat
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createAggs;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createDateHistogramBucket;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createHistogramBucket;
+import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createPercentiles;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createSingleValue;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createTerms;
 import static org.hamcrest.Matchers.containsString;
@@ -215,6 +216,40 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         String json = aggToString(histogram);
 
         assertThat(json, equalTo("{\"time\":1000,\"doc_count\":3} {\"time\":2000,\"doc_count\":5}"));
+    }
+
+    public void testProcessGivenSinglePercentilesPerHistogram() throws IOException {
+        List<Histogram.Bucket> histogramBuckets = Arrays.asList(
+                createHistogramBucket(1000L, 4, Arrays.asList(createPercentiles("my_field", 1.0))),
+                createHistogramBucket(2000L, 7, Arrays.asList(createPercentiles("my_field", 2.0))),
+                createHistogramBucket(3000L, 10, Arrays.asList(createPercentiles("my_field", 3.0))),
+                createHistogramBucket(4000L, 14, Arrays.asList(createPercentiles("my_field", 4.0)))
+        );
+        Histogram histogram = mock(Histogram.class);
+        when(histogram.getName()).thenReturn("time");
+        when(histogram.getBuckets()).thenReturn(histogramBuckets);
+
+        String json = aggToString(histogram);
+
+        assertThat(json, equalTo("{\"time\":1000,\"my_field\":1.0,\"doc_count\":4} " +
+                "{\"time\":2000,\"my_field\":2.0,\"doc_count\":7} " +
+                "{\"time\":3000,\"my_field\":3.0,\"doc_count\":10} " +
+                "{\"time\":4000,\"my_field\":4.0,\"doc_count\":14}"));
+    }
+
+    public void testProcessGivenMultiplePercentilesPerHistogram() throws IOException {
+        List<Histogram.Bucket> histogramBuckets = Arrays.asList(
+                createHistogramBucket(1000L, 4, Arrays.asList(createPercentiles("my_field", 1.0))),
+                createHistogramBucket(2000L, 7, Arrays.asList(createPercentiles("my_field", 2.0, 5.0))),
+                createHistogramBucket(3000L, 10, Arrays.asList(createPercentiles("my_field", 3.0))),
+                createHistogramBucket(4000L, 14, Arrays.asList(createPercentiles("my_field", 4.0)))
+        );
+        Histogram histogram = mock(Histogram.class);
+        when(histogram.getName()).thenReturn("time");
+        when(histogram.getBuckets()).thenReturn(histogramBuckets);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> aggToString(histogram));
+        assertThat(e.getMessage(), containsString("Multi-percentile aggregation [my_field] is not supported"));
     }
 
     private String aggToString(Aggregation aggregation) throws IOException {

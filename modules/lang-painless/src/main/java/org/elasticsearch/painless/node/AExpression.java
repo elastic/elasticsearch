@@ -137,6 +137,9 @@ public abstract class AExpression extends ANode {
                 EConstant econstant = new EConstant(location, constant);
                 econstant.analyze(locals);
 
+                /* If we can't assign the constant to this node then we've failed to cast. The
+                 * types don't have to be exactly equal because a cast isn't required when a
+                 * narrower type is assigned to a wider type. */
                 if (!expected.clazz.isAssignableFrom(econstant.actual.clazz)) {
                     throw createError(new IllegalStateException("Illegal tree structure."));
                 }

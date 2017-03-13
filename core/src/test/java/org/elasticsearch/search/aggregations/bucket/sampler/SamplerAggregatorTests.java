@@ -23,7 +23,10 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
@@ -50,8 +53,11 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
         MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         numericFieldType.setName("int");
 
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        indexWriterConfig.setMaxBufferedDocs(100);
+        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a single segment with predictable docIds
         try (Directory dir = newDirectory();
-                RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+                IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
             for (long value : new long[] {7, 3, -10, -6, 5, 50}) {
                 Document doc = new Document();
                 StringBuilder text = new StringBuilder();
@@ -67,7 +73,8 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                     .shardSize(3)
                     .subAggregation(new MinAggregationBuilder("min")
                             .field("int"));
-            try (IndexReader reader = w.getReader()) {
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                assertEquals("test expects a single segment", 1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
                 Sampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "good")), aggBuilder, textFieldType,
                         numericFieldType);

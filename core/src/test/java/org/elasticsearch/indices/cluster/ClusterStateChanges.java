@@ -117,15 +117,15 @@ public class ClusterStateChanges extends AbstractComponent {
     public ClusterStateChanges(NamedXContentRegistry xContentRegistry, ThreadPool threadPool) {
         super(Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build());
 
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         allocationService = new AllocationService(settings, new AllocationDeciders(settings,
-            new HashSet<>(Arrays.asList(new SameShardAllocationDecider(settings),
+            new HashSet<>(Arrays.asList(new SameShardAllocationDecider(settings, clusterSettings),
                 new ReplicaAfterPrimaryActiveAllocationDecider(settings),
                 new RandomAllocationDeciderTests.RandomAllocationDecider(getRandom())))),
             new TestGatewayAllocator(), new BalancedShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE);
         shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger);
         shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, logger);
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterSettings);

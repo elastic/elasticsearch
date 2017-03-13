@@ -462,18 +462,20 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     public void testNoContentTypeIsError() throws Exception {
         Exception e = expectThrows(RuntimeException.class, () ->
                 sourceWithMockedRemoteCall(false, null, "main/0_20_5.json").lookupRemoteVersion(null));
-        assertThat(e.getCause().getCause().getMessage(), containsString("Response didn't include Content-Type: body={"));
+        assertThat(e.getCause().getCause().getCause().getMessage(), containsString("Response didn't include Content-Type: body={"));
     }
 
     public void testInvalidJsonThinksRemoveIsNotES() throws IOException {
         Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("some_text.txt").doStart(null));
-        assertEquals("Error parsing the response, remote is likely not an Elasticsearch instance", e.getCause().getCause().getMessage());
+        assertEquals("Error parsing the response, remote is likely not an Elasticsearch instance",
+                e.getCause().getCause().getCause().getMessage());
     }
 
     public void testUnexpectedJsonThinksRemoveIsNotES() throws IOException {
         // Use the response from a main action instead of a proper start response to generate a parse error
         Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("main/2_3_3.json").doStart(null));
-        assertEquals("Error parsing the response, remote is likely not an Elasticsearch instance", e.getCause().getCause().getMessage());
+        assertEquals("Error parsing the response, remote is likely not an Elasticsearch instance",
+                e.getCause().getCause().getCause().getMessage());
     }
 
     private RemoteScrollableHitSource sourceWithMockedRemoteCall(String... paths) throws Exception {

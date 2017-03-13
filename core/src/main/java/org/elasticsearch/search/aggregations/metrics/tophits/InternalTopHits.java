@@ -27,11 +27,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,7 +40,7 @@ import java.util.Map;
 /**
  * Results of the {@link TopHitsAggregator}.
  */
-public class InternalTopHits extends InternalMetricsAggregation implements TopHits {
+public class InternalTopHits extends InternalAggregation implements TopHits {
     private int from;
     private int size;
     private TopDocs topDocs;
@@ -117,10 +116,10 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
             shardDocs = new TopFieldDocs[aggregations.size()];
             for (int i = 0; i < shardDocs.length; i++) {
                 InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
-                shardDocs[i] = (TopFieldDocs) topHitsAgg.topDocs;
+                shardDocs[i] = topHitsAgg.topDocs;
                 shardHits[i] = topHitsAgg.searchHits;
             }
-            reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs);
+            reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs, true);
         } else {
             shardDocs = new TopDocs[aggregations.size()];
             for (int i = 0; i < shardDocs.length; i++) {
@@ -128,7 +127,7 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
                 shardDocs[i] = topHitsAgg.topDocs;
                 shardHits[i] = topHitsAgg.searchHits;
             }
-            reducedTopDocs = TopDocs.merge(from, size, shardDocs);
+            reducedTopDocs = TopDocs.merge(from, size, shardDocs, true);
         }
 
         final int[] tracker = new int[shardHits.length];

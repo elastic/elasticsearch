@@ -62,7 +62,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,14 +69,6 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 public class SearchPhaseController extends AbstractComponent {
-
-    private static final Comparator<AtomicArray.Entry<? extends QuerySearchResultProvider>> QUERY_RESULT_ORDERING = (o1, o2) -> {
-        int i = o1.value.shardTarget().getIndex().compareTo(o2.value.shardTarget().getIndex());
-        if (i == 0) {
-            i = o1.value.shardTarget().getShardId().id() - o2.value.shardTarget().getShardId().id();
-        }
-        return i;
-    };
 
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
@@ -150,6 +141,9 @@ public class SearchPhaseController extends AbstractComponent {
      * named completion suggestion across all shards. If more than one named completion suggestion is specified in the
      * request, the suggest docs for a named suggestion are ordered by the suggestion name.
      *
+     * Note: The order of the sorted score docs depends on the shard index in the result array if the merge process needs to disambiguate
+     * the result. In oder to obtain stable results the shard index (index of the result in the result array) must be the same.
+     *
      * @param ignoreFrom Whether to ignore the from and sort all hits in each shard result.
      *                   Enabled only for scroll search, because that only retrieves hits of length 'size' in the query phase.
      * @param resultsArr Shard result holder
@@ -160,26 +154,31 @@ public class SearchPhaseController extends AbstractComponent {
             return EMPTY_DOCS;
         }
 
+        final QuerySearchResult result;
         boolean canOptimize = false;
-        QuerySearchResult result = null;
         int shardIndex = -1;
         if (results.size() == 1) {
             canOptimize = true;
             result = results.get(0).value.queryResult();
             shardIndex = results.get(0).index;
         } else {
+            boolean hasResult = false;
+            QuerySearchResult resultToOptimize = null;
             // lets see if we only got hits from a single shard, if so, we can optimize...
             for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : results) {
                 if (entry.value.queryResult().hasHits()) {
-                    if (result != null) { // we already have one, can't really optimize
+                    if (hasResult) { // we already have one, can't really optimize
                         canOptimize = false;
                         break;
                     }
                     canOptimize = true;
-                    result = entry.value.queryResult();
+                    hasResult = true;
+                    resultToOptimize = entry.value.queryResult();
                     shardIndex = entry.index;
                 }
             }
+            result = canOptimize ? resultToOptimize : results.get(0).value.queryResult();
+            assert result != null;
         }
         if (canOptimize) {
             int offset = result.from();
@@ -225,74 +224,34 @@ public class SearchPhaseController extends AbstractComponent {
             return docs;
         }
 
-        @SuppressWarnings("unchecked")
-        AtomicArray.Entry<? extends QuerySearchResultProvider>[] sortedResults = results.toArray(new AtomicArray.Entry[results.size()]);
-        Arrays.sort(sortedResults, QUERY_RESULT_ORDERING);
-        QuerySearchResultProvider firstResult = sortedResults[0].value;
-
-        int topN = firstResult.queryResult().size();
-        int from = firstResult.queryResult().from();
-        if (ignoreFrom) {
-            from = 0;
-        }
+        final int topN = result.queryResult().size();
+        final int from =  ignoreFrom ? 0 : result.queryResult().from();
 
         final TopDocs mergedTopDocs;
-        int numShards = resultsArr.length();
-        if (firstResult.queryResult().topDocs() instanceof CollapseTopFieldDocs) {
-            CollapseTopFieldDocs firstTopDocs = (CollapseTopFieldDocs) firstResult.queryResult().topDocs();
+        final int numShards = resultsArr.length();
+        if (result.queryResult().topDocs() instanceof CollapseTopFieldDocs) {
+            CollapseTopFieldDocs firstTopDocs = (CollapseTopFieldDocs) result.queryResult().topDocs();
             final Sort sort = new Sort(firstTopDocs.fields);
-
             final CollapseTopFieldDocs[] shardTopDocs = new CollapseTopFieldDocs[numShards];
-            for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : sortedResults) {
-                TopDocs topDocs = sortedResult.value.queryResult().topDocs();
-                // the 'index' field is the position in the resultsArr atomic array
-                shardTopDocs[sortedResult.index] = (CollapseTopFieldDocs) topDocs;
-            }
-            // TopDocs#merge can't deal with null shard TopDocs
-            for (int i = 0; i < shardTopDocs.length; ++i) {
-                if (shardTopDocs[i] == null) {
-                    shardTopDocs[i] = new CollapseTopFieldDocs(firstTopDocs.field, 0, new FieldDoc[0],
-                        sort.getSort(), new Object[0], Float.NaN);
-                }
-            }
+            fillTopDocs(shardTopDocs, results, new CollapseTopFieldDocs(firstTopDocs.field, 0, new FieldDoc[0],
+                sort.getSort(), new Object[0], Float.NaN));
             mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs);
-        } else if (firstResult.queryResult().topDocs() instanceof TopFieldDocs) {
-            TopFieldDocs firstTopDocs = (TopFieldDocs) firstResult.queryResult().topDocs();
+        } else if (result.queryResult().topDocs() instanceof TopFieldDocs) {
+            TopFieldDocs firstTopDocs = (TopFieldDocs) result.queryResult().topDocs();
             final Sort sort = new Sort(firstTopDocs.fields);
-
             final TopFieldDocs[] shardTopDocs = new TopFieldDocs[resultsArr.length()];
-            for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : sortedResults) {
-                TopDocs topDocs = sortedResult.value.queryResult().topDocs();
-                // the 'index' field is the position in the resultsArr atomic array
-                shardTopDocs[sortedResult.index] = (TopFieldDocs) topDocs;
-            }
-            // TopDocs#merge can't deal with null shard TopDocs
-            for (int i = 0; i < shardTopDocs.length; ++i) {
-                if (shardTopDocs[i] == null) {
-                    shardTopDocs[i] = new TopFieldDocs(0, new FieldDoc[0], sort.getSort(), Float.NaN);
-                }
-            }
-            mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
+            fillTopDocs(shardTopDocs, results, new TopFieldDocs(0, new FieldDoc[0], sort.getSort(), Float.NaN));
+            mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs, true);
         } else {
             final TopDocs[] shardTopDocs = new TopDocs[resultsArr.length()];
-            for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : sortedResults) {
-                TopDocs topDocs = sortedResult.value.queryResult().topDocs();
-                // the 'index' field is the position in the resultsArr atomic array
-                shardTopDocs[sortedResult.index] = topDocs;
-            }
-            // TopDocs#merge can't deal with null shard TopDocs
-            for (int i = 0; i < shardTopDocs.length; ++i) {
-                if (shardTopDocs[i] == null) {
-                    shardTopDocs[i] = Lucene.EMPTY_TOP_DOCS;
-                }
-            }
-            mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
+            fillTopDocs(shardTopDocs, results, Lucene.EMPTY_TOP_DOCS);
+            mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs, true);
         }
 
         ScoreDoc[] scoreDocs = mergedTopDocs.scoreDocs;
         final Map<String, List<Suggestion<CompletionSuggestion.Entry>>> groupedCompletionSuggestions = new HashMap<>();
         // group suggestions and assign shard index
-        for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : sortedResults) {
+        for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : results) {
             Suggest shardSuggest = sortedResult.value.queryResult().suggest();
             if (shardSuggest != null) {
                 for (CompletionSuggestion suggestion : shardSuggest.filter(CompletionSuggestion.class)) {
@@ -326,6 +285,20 @@ public class SearchPhaseController extends AbstractComponent {
         return scoreDocs;
     }
 
+    static <T extends TopDocs> void fillTopDocs(T[] shardTopDocs,
+                                                        List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> results,
+                                                        T empytTopDocs) {
+        if (results.size() != shardTopDocs.length) {
+            // TopDocs#merge can't deal with null shard TopDocs
+            Arrays.fill(shardTopDocs, empytTopDocs);
+        }
+        for (AtomicArray.Entry<? extends QuerySearchResultProvider> resultProvider : results) {
+            final T topDocs = (T) resultProvider.value.queryResult().topDocs();
+            assert topDocs != null : "top docs must not be null in a valid result";
+            // the 'index' field is the position in the resultsArr atomic array
+            shardTopDocs[resultProvider.index] = topDocs;
+        }
+    }
     public ScoreDoc[] getLastEmittedDocPerShard(ReducedQueryPhase reducedQueryPhase,
                                                 ScoreDoc[] sortedScoreDocs, int numShards) {
         ScoreDoc[] lastEmittedDocPerShard = new ScoreDoc[numShards];

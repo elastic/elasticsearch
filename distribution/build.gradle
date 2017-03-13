@@ -81,20 +81,16 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each
     }
   }
   // We would like to make sure integ tests for the distribution run after
-  // integ tests for the modules included in the distribution. However, gradle
-  // has a bug where depending on a task with a finalizer can sometimes not make
-  // the finalizer task follow the original task immediately. To work around this,
-  // we make the mustRunAfter the finalizer task itself.
-  // See https://discuss.gradle.org/t/cross-project-task-dependencies-ordering-screws-up-finalizers/13190
+  // integ tests for the modules included in the distribution.
   project.configure(distributions.findAll { it.name != 'integ-test-zip' }) { Project distribution ->
     distribution.afterEvaluate({
       // some integTest tasks will have multiple finalizers
-      distribution.integTest.mustRunAfter module.tasks.find { t -> t.name.matches(".*integTest\$") }.getFinalizedBy()
+      distribution.integTest.mustRunAfter module.tasks.find { t -> t.name.matches(".*integTest\$") }
     })
   }
   // also want to make sure the module's integration tests run after the integ-test-zip (ie rest tests)
   module.afterEvaluate({
-    module.integTest.mustRunAfter(':distribution:integ-test-zip:integTest#stop')
+    module.integTest.mustRunAfter(':distribution:integ-test-zip:integTest')
   })
   restTestExpansions['expected.modules.count'] += 1
 }
@@ -129,13 +125,12 @@ configure(distributions) {
   project.integTest {
     dependsOn project.assemble
     includePackaged project.name == 'integ-test-zip'
-    cluster {
-      distribution = project.name
-    }
     if (project.name != 'integ-test-zip') {
-      // see note above with module mustRunAfter about why integTest#stop is used here
-      mustRunAfter ':distribution:integ-test-zip:integTest#stop'
+      mustRunAfter ':distribution:integ-test-zip:integTest'
     }
+  }
+  project.integTestCluster {
+    distribution = project.name
   }
 
   processTestResources {

@@ -27,7 +27,6 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
@@ -36,8 +35,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-public class InternalScriptedMetric extends InternalMetricsAggregation implements ScriptedMetric {
+public class InternalScriptedMetric extends InternalAggregation implements ScriptedMetric {
     private final Script reduceScript;
     private final List<Object> aggregation;
 
@@ -125,6 +125,18 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         return builder.field("value", aggregation());
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalScriptedMetric other = (InternalScriptedMetric) obj;
+        return Objects.equals(reduceScript, other.reduceScript) &&
+                Objects.equals(aggregation, other.aggregation);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(reduceScript, aggregation);
     }
 
 }

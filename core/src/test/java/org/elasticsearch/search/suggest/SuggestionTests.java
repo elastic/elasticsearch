@@ -22,6 +22,7 @@ package org.elasticsearch.search.suggest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -48,13 +49,18 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class SuggestionTests extends ESTestCase {
 
-    @SuppressWarnings({ "unchecked" })
+    @SuppressWarnings("unchecked")
     private static final Class<Suggestion<? extends Entry<? extends Option>>>[] SUGGESTION_TYPES = new Class[] {
-        Suggestion.class, TermSuggestion.class, PhraseSuggestion.class, CompletionSuggestion.class
+        TermSuggestion.class, PhraseSuggestion.class, CompletionSuggestion.class
     };
 
     public static Suggestion<? extends Entry<? extends Option>> createTestItem() {
         return createTestItem(randomFrom(SUGGESTION_TYPES));
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return SuggestTests.getSuggestersRegistry();
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -64,10 +70,7 @@ public class SuggestionTests extends ESTestCase {
         int size = randomInt();
         Supplier<Entry> entrySupplier = null;
         Suggestion suggestion = null;
-        if (type == Suggestion.class) {
-            suggestion = new Suggestion(name, size);
-            entrySupplier = () -> SuggestionEntryTests.createTestItem(Entry.class);
-        } else if (type == TermSuggestion.class) {
+        if (type == TermSuggestion.class) {
             suggestion = new TermSuggestion(name, size, randomFrom(SortBy.values()));
             entrySupplier = () -> SuggestionEntryTests.createTestItem(TermSuggestion.Entry.class);
         } else if (type == PhraseSuggestion.class) {
@@ -76,6 +79,8 @@ public class SuggestionTests extends ESTestCase {
         } else if (type == CompletionSuggestion.class) {
             suggestion = new CompletionSuggestion(name, size);
             entrySupplier = () -> SuggestionEntryTests.createTestItem(CompletionSuggestion.Entry.class);
+        } else {
+            throw new UnsupportedOperationException("type not supported [" + type + "]");
         }
         int numEntries;
         if (frequently()) {
@@ -151,7 +156,7 @@ public class SuggestionTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
             ParsingException e = expectThrows(ParsingException.class, () -> Suggestion.fromXContent(parser));
-            assertEquals("Unknown suggestion type [unknownType]", e.getMessage());
+            assertEquals("Unknown Suggestion [unknownType]", e.getMessage());
         }
     }
 

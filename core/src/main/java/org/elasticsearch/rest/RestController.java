@@ -231,27 +231,25 @@ public class RestController extends AbstractComponent implements HttpServerTrans
         if (checkRequestParameters(request, channel) == false) {
             channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(BAD_REQUEST, "error traces in responses are disabled."));
         } else {
-            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                for (String key : headersToCopy) {
-                    String httpHeader = request.header(key);
-                    if (httpHeader != null) {
-                        threadContext.putHeader(key, httpHeader);
-                    }
+            for (String key : headersToCopy) {
+                String httpHeader = request.header(key);
+                if (httpHeader != null) {
+                    threadContext.putHeader(key, httpHeader);
                 }
+            }
 
-                if (handler == null) {
-                    if (request.method() == RestRequest.Method.OPTIONS) {
-                        // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
+            if (handler == null) {
+                if (request.method() == RestRequest.Method.OPTIONS) {
+                    // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
 
-                        channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-                    } else {
-                        final String msg = "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]";
-                        channel.sendResponse(new BytesRestResponse(BAD_REQUEST, msg));
-                    }
+                    channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
                 } else {
-                    final RestHandler wrappedHandler = Objects.requireNonNull(handlerWrapper.apply(handler));
-                    wrappedHandler.handleRequest(request, channel, client);
+                    final String msg = "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]";
+                    channel.sendResponse(new BytesRestResponse(BAD_REQUEST, msg));
                 }
+            } else {
+                final RestHandler wrappedHandler = Objects.requireNonNull(handlerWrapper.apply(handler));
+                wrappedHandler.handleRequest(request, channel, client);
             }
         }
     }

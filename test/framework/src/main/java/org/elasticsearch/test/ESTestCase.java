@@ -59,6 +59,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -130,14 +131,13 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -286,7 +286,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         // initialized
         if (threadContext != null) {
             ensureNoWarnings();
-            threadContext = null;
+            assert threadContext == null;
         }
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();
@@ -297,11 +297,29 @@ public abstract class ESTestCase extends LuceneTestCase {
         //Check that there are no unaccounted warning headers. These should be checked with {@link #assertWarnings(String...)} in the
         //appropriate test
         try {
-            final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.WARNING_HEADER);
+            final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
             assertNull("unexpected warning headers", warnings);
         } finally {
-            resetDeprecationLogger();
+            resetDeprecationLogger(false);
         }
+    }
+
+    /**
+     * Convenience method to assert warnings for settings deprecations and general deprecation warnings.
+     *
+     * @param settings the settings that are expected to be deprecated
+     * @param warnings other expected general deprecation warnings
+     */
+    protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final String... warnings) {
+        assertWarnings(
+                Stream.concat(
+                        Arrays
+                                .stream(settings)
+                                .map(Setting::getKey)
+                                .map(k -> "[" + k + "] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                                        "See the breaking changes documentation for the next major version."),
+                        Arrays.stream(warnings))
+                        .toArray(String[]::new));
     }
 
     protected final void assertWarnings(String... expectedWarnings) {
@@ -309,19 +327,27 @@ public abstract class ESTestCase extends LuceneTestCase {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
         }
         try {
-            final List<String> actualWarnings = threadContext.getResponseHeaders().get(DeprecationLogger.WARNING_HEADER);
+            final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
+            final Set<String> actualWarningValues =
+                    actualWarnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toSet());
             for (String msg : expectedWarnings) {
-                assertThat(actualWarnings, hasItem(containsString(msg)));
+                assertTrue(actualWarningValues.contains(DeprecationLogger.escape(msg)));
             }
             assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
                     + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
                 expectedWarnings.length, actualWarnings.size());
         } finally {
-            resetDeprecationLogger();
+            resetDeprecationLogger(true);
         }
     }
 
-    private void resetDeprecationLogger() {
+    /**
+     * Reset the deprecation logger by removing the current thread context, and setting a new thread context if {@code setNewThreadContext}
+     * is set to {@code true} and otherwise clearing the current thread context.
+     *
+     * @param setNewThreadContext whether or not to attach a new thread context to the deprecation logger
+     */
+    private void resetDeprecationLogger(final boolean setNewThreadContext) {
         // "clear" current warning headers by setting a new ThreadContext
         DeprecationLogger.removeThreadContext(this.threadContext);
         try {
@@ -331,8 +357,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         } catch (IOException ex) {
             throw new AssertionError("IOException thrown while closing deprecation logger's thread context", ex);
         }
-        this.threadContext = new ThreadContext(Settings.EMPTY);
-        DeprecationLogger.setThreadContext(this.threadContext);
+        if (setNewThreadContext) {
+            this.threadContext = new ThreadContext(Settings.EMPTY);
+            DeprecationLogger.setThreadContext(this.threadContext);
+        } else {
+            this.threadContext = null;
+        }
     }
 
     private static final List<StatusData> statusData = new ArrayList<>();

@@ -217,7 +217,7 @@ epoch      timestamp cluster       status node.total node.data shards pri relo i
 1475247709 17:01:49  elasticsearch green           1         1      0   0    0    0        0             0                  -                100.0%
 --------------------------------------------------
 // TESTRESPONSE[s/0             0/0             [01]/]
-// TESTRESPONSE[s/1475247709 17:01:49  elasticsearch/\\d+ \\d+:\\d+:\\d+ docs_integTest/ _cat]
+// TESTRESPONSE[s/1475247709 17:01:49  elasticsearch/\\d+ \\d+:\\d+:\\d+ docs_integTestCluster/ _cat]
 
 We can see that our cluster named "elasticsearch" is up with a green status.
 
@@ -401,7 +401,7 @@ If we study the above commands carefully, we can actually see a pattern of how w
 --------------------------------------------------
 // NOTCONSOLE
 
-This REST access pattern is pervasive throughout all the API commands that if you can simply remember it, you will have a good head start at mastering Elasticsearch.
+This REST access pattern is so pervasive throughout all the API commands that if you can simply remember it, you will have a good head start at mastering Elasticsearch.
 
 == Modifying Your Data
 
@@ -1196,7 +1196,7 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
-There are a many other aggregations capabilities that we won't go into detail here. The <<search-aggregations,aggregations reference guide>> is a great starting point if you want to do further experimentation.
+There are many other aggregations capabilities that we won't go into detail here. The <<search-aggregations,aggregations reference guide>> is a great starting point if you want to do further experimentation.
 
 == Conclusion
 

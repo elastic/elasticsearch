@@ -14,13 +14,13 @@
                                 analyzer: smartcn
 
     - do:
-      index:
-          index:  test
-          type:   type
-          id:     1
-          body:   { "text": "我购买了道具和服装" }
+        index:
+            index:  test
+            type:   type
+            id:     1
+            body:   { "text": "我购买了道具和服装" }
     - do:
-      indices.refresh: {}
+        indices.refresh: {}
 
     - do:
         search:

@@ -52,6 +52,8 @@ public class TerminalTests extends ESTestCase {
         assertTrue(terminal.promptYesNo("Answer?", true));
         terminal.addTextInput("");
         assertFalse(terminal.promptYesNo("Answer?", false));
+        terminal.addTextInput(null);
+        assertFalse(terminal.promptYesNo("Answer?", false));
     }
 
     public void testPromptYesNoReprompt() throws Exception {

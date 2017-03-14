@@ -1,1 +1,1 @@
-<Group name>:<Issue number> no links to elasticsearch, just the number
+Issue number: group name (no links to elasticsearch, just the number)

@@ -10,6 +10,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 17597: 100
 17620: JAH
 18348: JAH
+18515: Group 1
 18543: Oink
 20912: Evil_Engineers
 21978: Group SmallBit
@@ -27,5 +28,4 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 23193: 100
 23208: java jch
 23329: JAH
-23381: Group 1
 23446: Group SmallBit

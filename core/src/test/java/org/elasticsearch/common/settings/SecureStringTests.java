@@ -33,7 +33,7 @@ public class SecureStringTests extends ESTestCase {
         final char[] password = randomAsciiOfLengthBetween(1, 32).toCharArray();
         SecureString secureString = new SecureString(password);
         assertSecureStringEqualToChars(password, secureString);
-        try (SecureString copy = secureString.newCopy()) {
+        try (SecureString copy = secureString.clone()) {
             assertArrayEquals(password, copy.getChars());
             assertThat(copy.getChars(), not(sameInstance(password)));
         }
@@ -44,7 +44,7 @@ public class SecureStringTests extends ESTestCase {
         final char[] password = randomAsciiOfLengthBetween(1, 32).toCharArray();
         SecureString secureString = new SecureString(password);
         assertSecureStringEqualToChars(password, secureString);
-        SecureString copy = secureString.newCopy();
+        SecureString copy = secureString.clone();
         assertArrayEquals(password, copy.getChars());
         assertThat(copy.getChars(), not(sameInstance(password)));
         final char[] passwordCopy = Arrays.copyOf(password, password.length);
@@ -58,7 +58,7 @@ public class SecureStringTests extends ESTestCase {
         final char[] password = randomAsciiOfLengthBetween(1, 32).toCharArray();
         SecureString secureString = new SecureString(password);
         assertSecureStringEqualToChars(password, secureString);
-        SecureString copy = secureString.newCopy();
+        SecureString copy = secureString.clone();
         assertArrayEquals(password, copy.getChars());
         assertThat(copy.getChars(), not(sameInstance(password)));
         copy.close();
@@ -79,7 +79,7 @@ public class SecureStringTests extends ESTestCase {
             // close another time and no exception is thrown
             secureString.close();
         }
-        IllegalStateException e = expectThrows(IllegalStateException.class, secureString::newCopy);
+        IllegalStateException e = expectThrows(IllegalStateException.class, secureString::clone);
         assertThat(e.getMessage(), containsString("already been closed"));
     }
 

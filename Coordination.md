@@ -19,14 +19,12 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 22621: Group 1
 22748: Group 1
 22821: Random 1
-22823: Group SmallBit
+22840: Group SmallBit
 22845: java ych
 22870: Group SmallBit
 23121: The code less traveled
 23193: 100
 23208: java jch
-23268: Group SmallBit
 23329: JAH
 23381: Group 1
-23436: Group SmallBit
 23446: Group SmallBit

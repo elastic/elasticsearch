@@ -17,7 +17,6 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 20912: Evil_Engineers
 * 21418: marathon
 * 21974: Krispy Belgian Cookies
-* 21978: Group SmallBit
 * 22209: JTeam1
 * 22530: Evil_Engineers
 * 22573: The code less traveled
@@ -26,6 +25,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 22748: Group 1
 * 22768: Evil_Engineers
 * 22821: Random 1
+* 22823: Group SmallBit
 * 22840: Group SmallBit
 * 22845: java ych
 * 22870: Group SmallBit
@@ -33,4 +33,4 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 23193: 100
 * 23208: java ych
 * 23329: JAH
-* 23446: Group SmallBit
+

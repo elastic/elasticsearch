@@ -56,8 +56,12 @@ final class BootstrapChecks {
     private BootstrapChecks() {
     }
 
+    final static String ES_ENFORCE_BOOTSTRAP_CHECKS = "es.enforce.bootstrap.checks";
+
     /**
-     * Executes the bootstrap checks if the node has the transport protocol bound to a non-loopback interface.
+     * Executes the bootstrap checks if the node has the transport protocol bound to a non-loopback interface. If the system property
+     * "es.enforce.bootstrap.checks" is set to {@code true} then the bootstrap checks will be enforced regardless of whether or not the
+     * transport protocol is bound to a non-loopback interface.
      *
      * @param settings              the current node settings
      * @param boundTransportAddress the node network bindings
@@ -101,13 +105,31 @@ final class BootstrapChecks {
         final List<String> errors = new ArrayList<>();
         final List<String> ignoredErrors = new ArrayList<>();
 
+        final String esEnforceBootstrapChecks = System.getProperty(ES_ENFORCE_BOOTSTRAP_CHECKS);
+        final boolean enforceBootstrapChecks;
+        if (esEnforceBootstrapChecks == null) {
+            enforceBootstrapChecks = false;
+        } else if (Boolean.TRUE.toString().equals(esEnforceBootstrapChecks)) {
+            enforceBootstrapChecks = true;
+        } else {
+            final String message =
+                    String.format(
+                            Locale.ROOT,
+                            "[%s] must be [true] but was [%s]",
+                            ES_ENFORCE_BOOTSTRAP_CHECKS,
+                            esEnforceBootstrapChecks);
+            throw new IllegalArgumentException(message);
+        }
+
         if (enforceLimits) {
             logger.info("bound or publishing to a non-loopback or non-link-local address, enforcing bootstrap checks");
+        } else if (enforceBootstrapChecks) {
+            logger.info("explicitly enforcing bootstrap checks");
         }
 
         for (final BootstrapCheck check : checks) {
             if (check.check()) {
-                if (!enforceLimits && !check.alwaysEnforce()) {
+                if (!(enforceLimits || enforceBootstrapChecks) && !check.alwaysEnforce()) {
                     ignoredErrors.add(check.errorMessage());
                 } else {
                     errors.add(check.errorMessage());
@@ -127,7 +149,6 @@ final class BootstrapChecks {
             errors.stream().map(IllegalStateException::new).forEach(ne::addSuppressed);
             throw ne;
         }
-
     }
 
     static void log(final Logger logger, final String error) {
@@ -140,9 +161,9 @@ final class BootstrapChecks {
      * @param boundTransportAddress the node network bindings
      * @return {@code true} if the checks should be enforced
      */
-    static boolean enforceLimits(BoundTransportAddress boundTransportAddress) {
-        Predicate<TransportAddress> isLoopbackOrLinkLocalAddress = t -> t.address().getAddress().isLinkLocalAddress()
-            || t.address().getAddress().isLoopbackAddress();
+    static boolean enforceLimits(final BoundTransportAddress boundTransportAddress) {
+        Predicate<TransportAddress> isLoopbackOrLinkLocalAddress =
+                t -> t.address().getAddress().isLinkLocalAddress() || t.address().getAddress().isLoopbackAddress();
         return !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackOrLinkLocalAddress) &&
                 isLoopbackOrLinkLocalAddress.test(boundTransportAddress.publishAddress()));
     }

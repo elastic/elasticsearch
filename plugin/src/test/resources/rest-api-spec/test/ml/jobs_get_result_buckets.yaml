@@ -107,7 +107,7 @@ setup:
         anomaly_score: "80.0"
 
 ---
-"Test mutually-exclusive params (via body)":
+"Test mutually-exclusive params via body":
   - do:
       catch: request
       xpack.ml.get_buckets:

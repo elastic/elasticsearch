@@ -69,7 +69,7 @@ setup:
         size: 1
 
 ---
-"Test with invalid param combinations (via body)":
+"Test with invalid param combinations via body":
   - do:
       catch: request
       xpack.ml.get_categories:

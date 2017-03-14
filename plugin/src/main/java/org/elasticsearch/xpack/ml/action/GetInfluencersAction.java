@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseField;
@@ -43,7 +44,7 @@ public class GetInfluencersAction
 extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetInfluencersAction.RequestBuilder> {
 
     public static final GetInfluencersAction INSTANCE = new GetInfluencersAction();
-    public static final String NAME = "cluster:admin/ml/anomaly_detectors/results/influencers/get";
+    public static final String NAME = "cluster:monitor/ml/anomaly_detectors/results/influencers/get";
 
     private GetInfluencersAction() {
         super(NAME);
@@ -300,12 +301,14 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         private final JobProvider jobProvider;
+        private final Client client;
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider) {
+                IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider, Client client) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.jobProvider = jobProvider;
+            this.client = client;
         }
 
         @Override
@@ -313,7 +316,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
             InfluencersQueryBuilder.InfluencersQuery query = new InfluencersQueryBuilder().includeInterim(request.includeInterim)
                     .start(request.start).end(request.end).from(request.pageParams.getFrom()).size(request.pageParams.getSize())
                     .anomalyScoreThreshold(request.anomalyScoreFilter).sortField(request.sort).sortDescending(request.decending).build();
-            jobProvider.influencers(request.jobId, query, page -> listener.onResponse(new Response(page)), listener::onFailure);
+            jobProvider.influencers(request.jobId, query, page -> listener.onResponse(new Response(page)), listener::onFailure, client);
         }
     }
 

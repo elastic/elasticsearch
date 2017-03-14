@@ -43,7 +43,7 @@ public class GetModelSnapshotsAction
 extends Action<GetModelSnapshotsAction.Request, GetModelSnapshotsAction.Response, GetModelSnapshotsAction.RequestBuilder> {
 
     public static final GetModelSnapshotsAction INSTANCE = new GetModelSnapshotsAction();
-    public static final String NAME = "cluster:admin/ml/anomaly_detectors/model_snapshots/get";
+    public static final String NAME = "cluster:monitor/ml/anomaly_detectors/model_snapshots/get";
 
     private GetModelSnapshotsAction() {
         super(NAME);

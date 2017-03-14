@@ -51,7 +51,7 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
         GetDatafeedsStatsAction.RequestBuilder> {
 
     public static final GetDatafeedsStatsAction INSTANCE = new GetDatafeedsStatsAction();
-    public static final String NAME = "cluster:admin/ml/datafeeds/stats/get";
+    public static final String NAME = "cluster:monitor/ml/datafeeds/stats/get";
 
     public static final String ALL = "_all";
     private static final String STATE = "state";

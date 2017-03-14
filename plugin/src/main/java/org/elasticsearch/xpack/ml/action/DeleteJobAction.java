@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -145,16 +144,14 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
         private final JobManager jobManager;
-        private final Client client;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager,
-                               Client client) {
+                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                               JobManager jobManager) {
             super(settings, DeleteJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.jobManager = jobManager;
-            this.client = client;
         }
 
         @Override
@@ -169,7 +166,7 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
 
         @Override
         protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            jobManager.deleteJob(request, client, (JobStorageDeletionTask) task, listener);
+            jobManager.deleteJob(request, (JobStorageDeletionTask) task, listener);
         }
 
         @Override

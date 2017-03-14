@@ -59,17 +59,19 @@ public class JobManager extends AbstractComponent {
     private final ClusterService clusterService;
     private final JobResultsPersister jobResultsPersister;
     private final Auditor auditor;
+    private final Client client;
 
     /**
      * Create a JobManager
      */
     public JobManager(Settings settings, JobProvider jobProvider, JobResultsPersister jobResultsPersister,
-                      ClusterService clusterService, Auditor auditor) {
+                      ClusterService clusterService, Auditor auditor, Client client) {
         super(settings);
         this.jobProvider = Objects.requireNonNull(jobProvider);
-        this.clusterService = clusterService;
-        this.jobResultsPersister = jobResultsPersister;
-        this.auditor = auditor;
+        this.clusterService = Objects.requireNonNull(clusterService);
+        this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
+        this.auditor = Objects.requireNonNull(auditor);
+        this.client = Objects.requireNonNull(client);
     }
 
     /**
@@ -248,8 +250,7 @@ public class JobManager extends AbstractComponent {
         return buildNewClusterState(currentState, builder);
     }
 
-
-    public void deleteJob(DeleteJobAction.Request request, Client client, JobStorageDeletionTask task,
+    public void deleteJob(DeleteJobAction.Request request, JobStorageDeletionTask task,
                           ActionListener<DeleteJobAction.Response> actionListener) {
 
         String jobId = request.getJobId();
@@ -296,7 +297,7 @@ public class JobManager extends AbstractComponent {
             }
 
             // This task manages the physical deletion of the job (removing the results, then the index)
-            task.delete(jobId, client,  clusterService.state(),
+            task.delete(jobId, client, clusterService.state(),
                     deleteJobStateHandler::accept, actionListener::onFailure);
         };
 

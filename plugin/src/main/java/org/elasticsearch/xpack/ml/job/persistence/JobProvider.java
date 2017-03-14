@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -50,6 +52,10 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.ml.action.GetBucketsAction;
+import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
+import org.elasticsearch.xpack.ml.action.GetInfluencersAction;
+import org.elasticsearch.xpack.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
@@ -68,6 +74,7 @@ import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.Result;
+import org.elasticsearch.xpack.security.support.Exceptions;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -302,9 +309,21 @@ public class JobProvider {
 
     /**
      * Search for buckets with the parameters in the {@link BucketsQueryBuilder}
+     * Uses the internal client, so runs as the _xpack user
      */
-    public void buckets(String jobId, BucketsQuery query, Consumer<QueryPage<Bucket>> handler, Consumer<Exception> errorHandler)
+    public void bucketsViaInternalClient(String jobId, BucketsQuery query, Consumer<QueryPage<Bucket>> handler,
+                                         Consumer<Exception> errorHandler)
             throws ResourceNotFoundException {
+        buckets(jobId, query, handler, errorHandler, client);
+    }
+
+    /**
+     * Search for buckets with the parameters in the {@link BucketsQueryBuilder}
+     * Uses a supplied client, so may run as the currently authenticated user
+     */
+    public void buckets(String jobId, BucketsQuery query, Consumer<QueryPage<Bucket>> handler, Consumer<Exception> errorHandler,
+                        Client client) throws ResourceNotFoundException {
+
         ResultsFilterBuilder rfb = new ResultsFilterBuilder();
         if (query.getTimestamp() != null) {
             rfb.timeRange(Result.TIMESTAMP.getPreferredName(), query.getTimestamp());
@@ -342,7 +361,7 @@ public class JobProvider {
         client.multiSearch(mrequest, ActionListener.wrap(mresponse -> {
             MultiSearchResponse.Item item1 = mresponse.getResponses()[0];
             if (item1.isFailure()) {
-                errorHandler.accept(item1.getFailure());
+                errorHandler.accept(mapAuthFailure(item1.getFailure(), jobId, GetBucketsAction.NAME));
                 return;
             }
 
@@ -352,7 +371,7 @@ public class JobProvider {
                 if (hits.getTotalHits() == 0) {
                     throw QueryPage.emptyQueryPage(Bucket.RESULTS_FIELD);
                 } else if (hits.getTotalHits() > 1) {
-                    LOGGER.error("Found more than one bucket with timestamp [{}]" + " from index {}", query.getTimestamp(), indexName);
+                    LOGGER.error("Found more than one bucket with timestamp [{}] from index {}", query.getTimestamp(), indexName);
                 }
             }
 
@@ -387,14 +406,14 @@ public class JobProvider {
                 if (query.isExpand()) {
                     Iterator<Bucket> bucketsToExpand = buckets.results().stream()
                             .filter(bucket -> bucket.getRecordCount() > 0).iterator();
-                    expandBuckets(jobId, query, buckets, bucketsToExpand, 0, handler, errorHandler);
+                    expandBuckets(jobId, query, buckets, bucketsToExpand, 0, handler, errorHandler, client);
                     return;
                 }
             } else {
                 if (query.isExpand()) {
                     Iterator<Bucket> bucketsToExpand = buckets.results().stream()
                             .filter(bucket -> bucket.getRecordCount() > 0).iterator();
-                    expandBuckets(jobId, query, buckets, bucketsToExpand, 0, handler, errorHandler);
+                    expandBuckets(jobId, query, buckets, bucketsToExpand, 0, handler, errorHandler, client);
                     return;
                 }
             }
@@ -403,12 +422,12 @@ public class JobProvider {
     }
 
     private void expandBuckets(String jobId, BucketsQuery query, QueryPage<Bucket> buckets, Iterator<Bucket> bucketsToExpand,
-                               int from, Consumer<QueryPage<Bucket>> handler, Consumer<Exception> errorHandler) {
+                               int from, Consumer<QueryPage<Bucket>> handler, Consumer<Exception> errorHandler, Client client) {
         if (bucketsToExpand.hasNext()) {
             Consumer<Integer> c = i -> {
-                expandBuckets(jobId, query, buckets, bucketsToExpand, from + RECORDS_SIZE_PARAM, handler, errorHandler);
+                expandBuckets(jobId, query, buckets, bucketsToExpand, from + RECORDS_SIZE_PARAM, handler, errorHandler, client);
             };
-            expandBucket(jobId, query.isIncludeInterim(), bucketsToExpand.next(), query.getPartitionValue(), from, c, errorHandler);
+            expandBucket(jobId, query.isIncludeInterim(), bucketsToExpand.next(), query.getPartitionValue(), from, c, errorHandler, client);
         } else {
             handler.accept(buckets);
         }
@@ -491,27 +510,31 @@ public class JobProvider {
         return new BatchedRecordsIterator(client, jobId);
     }
 
+    /**
+     * Expand a bucket with its records
+     */
     // TODO (norelease): Use scroll search instead of multiple searches with increasing from
     public void expandBucket(String jobId, boolean includeInterim, Bucket bucket, String partitionFieldValue, int from,
-                             Consumer<Integer> consumer, Consumer<Exception> errorHandler) {
+                             Consumer<Integer> consumer, Consumer<Exception> errorHandler, Client client) {
         Consumer<QueryPage<AnomalyRecord>> h = page -> {
             bucket.getRecords().addAll(page.results());
             if (partitionFieldValue != null) {
                 bucket.setAnomalyScore(bucket.partitionAnomalyScore(partitionFieldValue));
             }
             if (page.count() > from + RECORDS_SIZE_PARAM) {
-                expandBucket(jobId, includeInterim, bucket, partitionFieldValue, from + RECORDS_SIZE_PARAM, consumer, errorHandler);
+                expandBucket(jobId, includeInterim, bucket, partitionFieldValue, from + RECORDS_SIZE_PARAM, consumer, errorHandler,
+                        client);
             } else {
                 consumer.accept(bucket.getRecords().size());
             }
         };
         bucketRecords(jobId, bucket, from, RECORDS_SIZE_PARAM, includeInterim, AnomalyRecord.PROBABILITY.getPreferredName(),
-                false, partitionFieldValue, h, errorHandler);
+                false, partitionFieldValue, h, errorHandler, client);
     }
 
     void bucketRecords(String jobId, Bucket bucket, int from, int size, boolean includeInterim, String sortField,
                        boolean descending, String partitionFieldValue, Consumer<QueryPage<AnomalyRecord>> handler,
-                       Consumer<Exception> errorHandler) {
+                       Consumer<Exception> errorHandler, Client client) {
         // Find the records using the time stamp rather than a parent-child
         // relationship.  The parent-child filter involves two queries behind
         // the scenes, and Elasticsearch documentation claims it's significantly
@@ -533,19 +556,32 @@ public class JobProvider {
                     .order(descending ? SortOrder.DESC : SortOrder.ASC);
         }
 
-        records(jobId, from, size, recordFilter, sb, SECONDARY_SORT, descending, handler, errorHandler);
+        records(jobId, from, size, recordFilter, sb, SECONDARY_SORT, descending, handler, errorHandler, client);
     }
 
     /**
      * Get a page of {@linkplain CategoryDefinition}s for the given <code>jobId</code>.
-     *
+     * Uses the internal client, so runs as the _xpack user
+     * @param jobId the job id
+     * @param from  Skip the first N categories. This parameter is for paging
+     * @param size  Take only this number of categories
+     */
+    public void categoryDefinitionsViaInternalClient(String jobId, String categoryId, Integer from, Integer size,
+                                                     Consumer<QueryPage<CategoryDefinition>> handler,
+                                                     Consumer<Exception> errorHandler) {
+        categoryDefinitions(jobId, categoryId, from, size, handler, errorHandler, client);
+    }
+
+    /**
+     * Get a page of {@linkplain CategoryDefinition}s for the given <code>jobId</code>.
+     * Uses a supplied client, so may run as the currently authenticated user
      * @param jobId the job id
      * @param from  Skip the first N categories. This parameter is for paging
      * @param size  Take only this number of categories
      */
     public void categoryDefinitions(String jobId, String categoryId, Integer from, Integer size,
                                     Consumer<QueryPage<CategoryDefinition>> handler,
-                                    Consumer<Exception> errorHandler) {
+                                    Consumer<Exception> errorHandler, Client client) {
         if (categoryId != null && (from != null || size != null)) {
             throw new IllegalStateException("Both categoryId and pageParams are specified");
         }
@@ -585,15 +621,26 @@ public class JobProvider {
             QueryPage<CategoryDefinition> result =
                     new QueryPage<>(results, searchResponse.getHits().getTotalHits(), CategoryDefinition.RESULTS_FIELD);
             handler.accept(result);
-        }, errorHandler::accept));
+        }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetCategoriesAction.NAME))));
     }
 
     /**
      * Search for anomaly records with the parameters in the
      * {@link org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder.RecordsQuery}
+     * Uses the internal client, so runs as the _xpack user
+     */
+    public void recordsViaInternalClient(String jobId, RecordsQueryBuilder.RecordsQuery query, Consumer<QueryPage<AnomalyRecord>> handler,
+                                         Consumer<Exception> errorHandler) {
+        records(jobId, query, handler, errorHandler, client);
+    }
+
+    /**
+     * Search for anomaly records with the parameters in the
+     * {@link org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder.RecordsQuery}
+     * Uses a supplied client, so may run as the currently authenticated user
      */
     public void records(String jobId, RecordsQueryBuilder.RecordsQuery query, Consumer<QueryPage<AnomalyRecord>> handler,
-                        Consumer<Exception> errorHandler) {
+                        Consumer<Exception> errorHandler, Client client) {
         QueryBuilder fb = new ResultsFilterBuilder()
                 .timeRange(Result.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
                 .score(AnomalyRecord.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreThreshold())
@@ -606,7 +653,7 @@ public class JobProvider {
                     .missing("_last")
                     .order(query.isSortDescending() ? SortOrder.DESC : SortOrder.ASC);
         }
-        records(jobId, query.getFrom(), query.getSize(), fb, sb, SECONDARY_SORT, query.isSortDescending(), handler, errorHandler);
+        records(jobId, query.getFrom(), query.getSize(), fb, sb, SECONDARY_SORT, query.isSortDescending(), handler, errorHandler, client);
     }
 
     /**
@@ -615,7 +662,7 @@ public class JobProvider {
     private void records(String jobId, int from, int size,
                          QueryBuilder recordFilter, FieldSortBuilder sb, List<String> secondarySort,
                          boolean descending, Consumer<QueryPage<AnomalyRecord>> handler,
-                         Consumer<Exception> errorHandler) {
+                         Consumer<Exception> errorHandler, Client client) {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
 
         recordFilter = new BoolQueryBuilder()
@@ -653,18 +700,28 @@ public class JobProvider {
             QueryPage<AnomalyRecord> queryPage =
                     new QueryPage<>(results, searchResponse.getHits().getTotalHits(), AnomalyRecord.RESULTS_FIELD);
             handler.accept(queryPage);
-        }, errorHandler::accept));
+        }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetRecordsAction.NAME))));
     }
 
     /**
-     * Return a page of influencers for the given job and within the given date
-     * range
-     *
+     * Return a page of influencers for the given job and within the given date range
+     * Uses the internal client, so runs as the _xpack user
+     * @param jobId The job ID for which influencers are requested
+     * @param query the query
+     */
+    public void influencersViaInternalClient(String jobId, InfluencersQuery query, Consumer<QueryPage<Influencer>> handler,
+                                             Consumer<Exception> errorHandler) {
+        influencers(jobId, query, handler, errorHandler, client);
+    }
+
+    /**
+     * Return a page of influencers for the given job and within the given date range
+     * Uses a supplied client, so may run as the currently authenticated user
      * @param jobId The job ID for which influencers are requested
      * @param query the query
      */
     public void influencers(String jobId, InfluencersQuery query, Consumer<QueryPage<Influencer>> handler,
-                            Consumer<Exception> errorHandler) {
+                            Consumer<Exception> errorHandler, Client client) {
         QueryBuilder fb = new ResultsFilterBuilder()
                 .timeRange(Result.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
                 .score(Bucket.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreFilter())
@@ -701,7 +758,7 @@ public class JobProvider {
             }
             QueryPage<Influencer> result = new QueryPage<>(influencers, response.getHits().getTotalHits(), Influencer.RESULTS_FIELD);
             handler.accept(result);
-        }, errorHandler));
+        }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetInfluencersAction.NAME))));
     }
 
     /**
@@ -955,5 +1012,33 @@ public class JobProvider {
      */
     public void getFilters(Consumer<Set<MlFilter>> handler, Consumer<Exception> errorHandler, Set<String> ids) {
         mget(ML_META_INDEX, MlFilter.TYPE.getPreferredName(), ids, handler, errorHandler, MlFilter.PARSER);
+    }
+
+    /**
+     * Maps authorization failures when querying ML indexes to job-specific authorization failures attributed to the ML actions.
+     * Works by replacing the action name with another provided by the caller, and appending the job ID.
+     * This is designed to improve understandability when an admin has applied index or document level security to the .ml-anomalies
+     * indexes to allow some users to have access to certain job results but not others.
+     * For example, if user ml_test is allowed to see some results, but not the ones for job "farequote" then:
+     *
+     * action [indices:data/read/search] is unauthorized for user [ml_test]
+     *
+     * gets mapped to:
+     *
+     * action [cluster:monitor/ml/anomaly_detectors/results/buckets/get] is unauthorized for user [ml_test] for job [farequote]
+     *
+     * Exceptions that are not related to authorization are returned unaltered.
+     * @param e An exception that occurred while getting ML data
+     * @param jobId The job ID
+     * @param mappedActionName The outermost action name, that will make sense to the user who made the request
+     */
+    static Exception mapAuthFailure(Exception e, String jobId, String mappedActionName) {
+        if (e instanceof ElasticsearchStatusException) {
+            if (((ElasticsearchStatusException)e).status() == RestStatus.FORBIDDEN) {
+                e = Exceptions.authorizationError(
+                        e.getMessage().replaceFirst("action \\[.*?\\]", "action [" + mappedActionName + "]") + " for job [{}]", jobId);
+            }
+        }
+        return e;
     }
 }

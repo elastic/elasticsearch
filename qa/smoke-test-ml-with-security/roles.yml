@@ -1,0 +1,15 @@
+minimal:
+  cluster:
+    - cluster:monitor/health
+    - cluster:monitor/main
+  indices:
+    - names: '*'
+      privileges:
+        - indices:admin/create
+        - indices:admin/exists
+        - indices:admin/get
+        - indices:admin/mapping/put
+        - indices:admin/refresh
+        - indices:data/read/search
+        - indices:data/write/bulk
+        - indices:data/write/index

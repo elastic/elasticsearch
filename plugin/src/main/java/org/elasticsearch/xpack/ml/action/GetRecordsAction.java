@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseField;
@@ -44,7 +45,7 @@ import java.util.Objects;
 public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecordsAction.Response, GetRecordsAction.RequestBuilder> {
 
     public static final GetRecordsAction INSTANCE = new GetRecordsAction();
-    public static final String NAME = "cluster:admin/ml/anomaly_detectors/results/records/get";
+    public static final String NAME = "cluster:monitor/ml/anomaly_detectors/results/records/get";
 
     private GetRecordsAction() {
         super(NAME);
@@ -338,14 +339,16 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
 
         private final JobProvider jobProvider;
         private final JobManager jobManager;
+        private final Client client;
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                JobProvider jobProvider, JobManager jobManager) {
+                JobProvider jobProvider, JobManager jobManager, Client client) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.jobProvider = jobProvider;
             this.jobManager = jobManager;
+            this.client = client;
         }
 
         @Override
@@ -363,7 +366,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
                     .sortField(request.sort)
                     .sortDescending(request.decending)
                     .build();
-            jobProvider.records(request.jobId, query, page -> listener.onResponse(new Response(page)), listener::onFailure);
+            jobProvider.records(request.jobId, query, page -> listener.onResponse(new Response(page)), listener::onFailure, client);
         }
     }
 

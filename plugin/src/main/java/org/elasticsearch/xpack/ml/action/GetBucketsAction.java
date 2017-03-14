@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseField;
@@ -44,7 +45,7 @@ import java.util.Objects;
 public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucketsAction.Response, GetBucketsAction.RequestBuilder> {
 
     public static final GetBucketsAction INSTANCE = new GetBucketsAction();
-    public static final String NAME = "cluster:admin/ml/anomaly_detectors/results/buckets/get";
+    public static final String NAME = "cluster:monitor/ml/anomaly_detectors/results/buckets/get";
 
     private GetBucketsAction() {
         super(NAME);
@@ -387,14 +388,16 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
 
         private final JobProvider jobProvider;
         private final JobManager jobManager;
+        private final Client client;
 
         @Inject
         public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               JobProvider jobProvider, JobManager jobManager) {
+                               JobProvider jobProvider, JobManager jobManager, Client client) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.jobProvider = jobProvider;
             this.jobManager = jobManager;
+            this.client = client;
         }
 
         @Override
@@ -420,7 +423,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
                 query.start(request.start);
                 query.end(request.end);
             }
-            jobProvider.buckets(request.jobId, query.build(), q -> listener.onResponse(new Response(q)), listener::onFailure);
+            jobProvider.buckets(request.jobId, query.build(), q -> listener.onResponse(new Response(q)), listener::onFailure, client);
         }
     }
 

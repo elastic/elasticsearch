@@ -36,7 +36,7 @@ public class UpdateProcessAction extends
         Action<UpdateProcessAction.Request, UpdateProcessAction.Response, UpdateProcessAction.RequestBuilder> {
 
     public static final UpdateProcessAction INSTANCE = new UpdateProcessAction();
-    public static final String NAME = "cluster:admin/ml/job/update/process";
+    public static final String NAME = "internal:admin/ml/anomaly_detectors/update/process";
 
     private UpdateProcessAction() {
         super(NAME);

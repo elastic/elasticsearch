@@ -26,22 +26,26 @@ public final class ClusterPrivilege extends Privilege {
     // shared automatons
     private static final Automaton MANAGE_SECURITY_AUTOMATON = patterns("cluster:admin/xpack/security/*");
     private static final Automaton MONITOR_AUTOMATON = patterns("cluster:monitor/*");
+    private static final Automaton MONITOR_ML_AUTOMATON = patterns("cluster:monitor/ml/*");
     private static final Automaton ALL_CLUSTER_AUTOMATON = patterns("cluster:*", "indices:admin/template/*");
     private static final Automaton MANAGE_AUTOMATON = minusAndMinimize(ALL_CLUSTER_AUTOMATON, MANAGE_SECURITY_AUTOMATON);
+    private static final Automaton MANAGE_ML_AUTOMATON = patterns("cluster:admin/ml/*", "cluster:monitor/ml/*");
     private static final Automaton TRANSPORT_CLIENT_AUTOMATON = patterns("cluster:monitor/nodes/liveness", "cluster:monitor/state");
     private static final Automaton MANAGE_IDX_TEMPLATE_AUTOMATON = patterns("indices:admin/template/*");
     private static final Automaton MANAGE_INGEST_PIPELINE_AUTOMATON = patterns("cluster:admin/ingest/pipeline/*");
 
     public static final ClusterPrivilege NONE =                  new ClusterPrivilege("none",                Automatons.EMPTY);
     public static final ClusterPrivilege ALL =                   new ClusterPrivilege("all",                 ALL_CLUSTER_AUTOMATON);
-    public static final ClusterPrivilege MONITOR =               new ClusterPrivilege("monitor",                MONITOR_AUTOMATON);
-    public static final ClusterPrivilege MANAGE =                new ClusterPrivilege("manage",                 MANAGE_AUTOMATON);
+    public static final ClusterPrivilege MONITOR =               new ClusterPrivilege("monitor",             MONITOR_AUTOMATON);
+    public static final ClusterPrivilege MONITOR_ML =            new ClusterPrivilege("monitor_ml",          MONITOR_ML_AUTOMATON);
+    public static final ClusterPrivilege MANAGE =                new ClusterPrivilege("manage",              MANAGE_AUTOMATON);
+    public static final ClusterPrivilege MANAGE_ML =             new ClusterPrivilege("manage_ml",           MANAGE_ML_AUTOMATON);
     public static final ClusterPrivilege MANAGE_IDX_TEMPLATES =
             new ClusterPrivilege("manage_index_templates", MANAGE_IDX_TEMPLATE_AUTOMATON);
     public static final ClusterPrivilege MANAGE_INGEST_PIPELINES =
             new ClusterPrivilege("manage_ingest_pipelines", MANAGE_INGEST_PIPELINE_AUTOMATON);
-    public static final ClusterPrivilege TRANSPORT_CLIENT =      new ClusterPrivilege("transport_client",       TRANSPORT_CLIENT_AUTOMATON);
-    public static final ClusterPrivilege MANAGE_SECURITY =       new ClusterPrivilege("manage_security",        MANAGE_SECURITY_AUTOMATON);
+    public static final ClusterPrivilege TRANSPORT_CLIENT =      new ClusterPrivilege("transport_client",    TRANSPORT_CLIENT_AUTOMATON);
+    public static final ClusterPrivilege MANAGE_SECURITY =       new ClusterPrivilege("manage_security",     MANAGE_SECURITY_AUTOMATON);
     public static final ClusterPrivilege MANAGE_PIPELINE =       new ClusterPrivilege("manage_pipeline", "cluster:admin/ingest/pipeline/*");
 
     public static final Predicate<String> ACTION_MATCHER = ClusterPrivilege.ALL.predicate();
@@ -50,7 +54,9 @@ public final class ClusterPrivilege extends Privilege {
             .put("none", NONE)
             .put("all", ALL)
             .put("monitor", MONITOR)
+            .put("monitor_ml", MONITOR_ML)
             .put("manage", MANAGE)
+            .put("manage_ml", MANAGE_ML)
             .put("manage_index_templates", MANAGE_IDX_TEMPLATES)
             .put("manage_ingest_pipelines", MANAGE_INGEST_PIPELINES)
             .put("transport_client", TRANSPORT_CLIENT)

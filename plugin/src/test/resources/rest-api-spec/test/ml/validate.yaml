@@ -57,7 +57,7 @@
   - match: { acknowledged: true }
 
 ---
-"Test job config that's invalid only because of the job ID":
+"Test job config that is invalid only because of the job ID":
   - do:
       catch: /Invalid job_id; '_' must be lowercase alphanumeric, may contain hyphens or underscores, may not start with underscore/
       xpack.ml.validate:

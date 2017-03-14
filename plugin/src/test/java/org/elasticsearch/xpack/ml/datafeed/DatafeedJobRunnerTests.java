@@ -151,7 +151,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
             Consumer consumer = (Consumer) invocationOnMock.getArguments()[3];
             consumer.accept(new ResourceNotFoundException("dummy"));
             return null;
-        }).when(jobProvider).buckets(any(), any(), any(), any());
+        }).when(jobProvider).bucketsViaInternalClient(any(), any(), any(), any());
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")

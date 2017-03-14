@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.job;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -107,7 +107,8 @@ public class JobManagerTests extends ESTestCase {
     private JobManager createJobManager() {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         JobResultsPersister jobResultsPersister = mock(JobResultsPersister.class);
-        return new JobManager(settings, jobProvider, jobResultsPersister, clusterService, auditor);
+        Client client = mock(Client.class);
+        return new JobManager(settings, jobProvider, jobResultsPersister, clusterService, auditor, client);
     }
 
     private ClusterState createClusterState() {

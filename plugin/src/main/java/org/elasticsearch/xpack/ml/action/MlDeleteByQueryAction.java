@@ -37,7 +37,10 @@ public class MlDeleteByQueryAction extends Action<DeleteByQueryRequest, BulkBySc
         MlDeleteByQueryAction.MlDeleteByQueryRequestBuilder> {
 
     public static final MlDeleteByQueryAction INSTANCE = new MlDeleteByQueryAction();
-    public static final String NAME = "indices:data/write/delete/mlbyquery";
+    // TODO: Ideally we'd use an "internal" action here as we don't want transport client users running it, but unfortunately the internal
+    // _xpack user is forbidden to run "internal" actions.  Putting "internal" at the top level of the action name at least restricts it to
+    // superusers, and makes clear to anyone who sees the name that it's not for general use.
+    public static final String NAME = "indices:internal/data/write/mldeletebyquery";
 
     private MlDeleteByQueryAction() {
         super(NAME);

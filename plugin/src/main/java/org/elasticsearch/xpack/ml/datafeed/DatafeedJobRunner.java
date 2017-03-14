@@ -229,7 +229,7 @@ public class DatafeedJobRunner extends AbstractComponent {
                 .sortDescending(true).size(1)
                 .includeInterim(false)
                 .build();
-        jobProvider.buckets(jobId, latestBucketQuery, buckets -> {
+        jobProvider.bucketsViaInternalClient(jobId, latestBucketQuery, buckets -> {
             jobProvider.dataCounts(jobId, dataCounts -> handler.accept(buckets, dataCounts), errorHandler);
         }, e -> {
             if (e instanceof ResourceNotFoundException) {

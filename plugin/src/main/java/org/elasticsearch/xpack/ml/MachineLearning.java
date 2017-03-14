@@ -264,7 +264,7 @@ public class MachineLearning implements ActionPlugin {
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, internalClient);
 
         Auditor auditor = new Auditor(internalClient, clusterService);
-        JobManager jobManager = new JobManager(settings, jobProvider, jobResultsPersister, clusterService, auditor);
+        JobManager jobManager = new JobManager(settings, jobProvider, jobResultsPersister, clusterService, auditor, internalClient);
         AutodetectProcessFactory autodetectProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
         if (AUTODETECT_PROCESS.get(settings)) {

@@ -461,7 +461,7 @@ public class DatafeedJobIT extends ESRestTestCase {
 
     @After
     public void clearMlState() throws Exception {
-        new MlRestTestStateCleaner(logger, client(), this).clearMlMetadata();
+        new MlRestTestStateCleaner(logger, adminClient(), this).clearMlMetadata();
     }
 
     private static class DatafeedBuilder {

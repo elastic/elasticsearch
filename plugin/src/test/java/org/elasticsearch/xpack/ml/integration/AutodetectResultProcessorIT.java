@@ -396,7 +396,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         }, e -> {
             errorHolder.set(e);
             latch.countDown();
-        });
+        }, client());
         latch.await();
         if (errorHolder.get() != null) {
             throw errorHolder.get();
@@ -414,7 +414,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         }, e -> {
             errorHolder.set(e);
             latch.countDown();
-        });
+        }, client());
         latch.await();
         if (errorHolder.get() != null) {
             throw errorHolder.get();
@@ -450,7 +450,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         }, e -> {
             errorHolder.set(e);
             latch.countDown();
-        });
+        }, client());
         latch.await();
         if (errorHolder.get() != null) {
             throw errorHolder.get();
@@ -468,7 +468,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         }, e -> {
             errorHolder.set(e);
             latch.countDown();
-        });
+        }, client());
         latch.await();
         if (errorHolder.get() != null) {
             throw errorHolder.get();

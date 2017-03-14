@@ -604,6 +604,6 @@ public class MlJobIT extends ESRestTestCase {
 
     @After
     public void clearMlState() throws IOException {
-        new MlRestTestStateCleaner(logger, client(), this).clearMlMetadata();
+        new MlRestTestStateCleaner(logger, adminClient(), this).clearMlMetadata();
     }
 }

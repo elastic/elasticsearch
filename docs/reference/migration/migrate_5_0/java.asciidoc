@@ -88,7 +88,7 @@ language `org.codehaus.groovy:groovy` artifact.
 
 ==== DocumentAlreadyExistsException removed
 
-`DocumentAlreadyExistsException` is removed and a `VersionConflictException` is thrown instead (with a better
+`DocumentAlreadyExistsException` is removed and a `VersionConflictEngineException` is thrown instead (with a better
 error description). This will influence code that use the `IndexRequest.opType()` or `IndexRequest.create()`
 to index a document only if it doesn't already exist.
 

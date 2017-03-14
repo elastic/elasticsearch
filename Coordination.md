@@ -3,16 +3,19 @@ Note: number of pull requests has changed to 2-3 per group due to changes to ass
 Issue number: group name (no links to elasticsearch, just the number - sort by issue number)
 5042: jk
 5341: 100
+9538: Krispy Belgian Cookies
 10096: jk
 12315: Oink
 13260: jk
 16564: Oink
 17597: 100
 17620: JAH
+18109: Krispy Belgian Cookies
 18348: JAH
 18515: Group 1
 18543: Oink
 20912: Evil_Engineers
+21974: Krispy Belgian Cookies
 21978: Group SmallBit
 22209: JTeam1
 22530: Evil_Engineers

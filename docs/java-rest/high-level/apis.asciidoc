@@ -1,0 +1,10 @@
+* index API
+
+* get API
+
+* <<java-rest-high-document-delete>>
+
+* bulk API
+
+* search API
+

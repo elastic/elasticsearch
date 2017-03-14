@@ -62,7 +62,7 @@ public class CustomMustacheFactoryTests extends ESTestCase {
     }
 
     public void testJsonEscapeEncoder() {
-        final ScriptEngineService engine = new MustacheScriptEngineService(Settings.EMPTY);
+        final ScriptEngineService engine = new MustacheScriptEngineService();
         final Map<String, String> params = randomBoolean() ? singletonMap(Script.CONTENT_TYPE_OPTION, JSON_MIME_TYPE) : emptyMap();
 
         Mustache script = (Mustache) engine.compile(null, "{\"field\": \"{{value}}\"}", params);
@@ -74,7 +74,7 @@ public class CustomMustacheFactoryTests extends ESTestCase {
     }
 
     public void testDefaultEncoder() {
-        final ScriptEngineService engine = new MustacheScriptEngineService(Settings.EMPTY);
+        final ScriptEngineService engine = new MustacheScriptEngineService();
         final Map<String, String> params = singletonMap(Script.CONTENT_TYPE_OPTION, PLAIN_TEXT_MIME_TYPE);
 
         Mustache script = (Mustache) engine.compile(null, "{\"field\": \"{{value}}\"}", params);
@@ -86,7 +86,7 @@ public class CustomMustacheFactoryTests extends ESTestCase {
     }
 
     public void testUrlEncoder() {
-        final ScriptEngineService engine = new MustacheScriptEngineService(Settings.EMPTY);
+        final ScriptEngineService engine = new MustacheScriptEngineService();
         final Map<String, String> params = singletonMap(Script.CONTENT_TYPE_OPTION, X_WWW_FORM_URLENCODED_MIME_TYPE);
 
         Mustache script = (Mustache) engine.compile(null, "{\"field\": \"{{value}}\"}", params);

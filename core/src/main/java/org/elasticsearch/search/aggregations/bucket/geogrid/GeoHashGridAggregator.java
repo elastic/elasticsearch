@@ -24,7 +24,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
@@ -39,9 +38,7 @@ import java.util.Map;
 
 /**
  * Aggregates data expressed as GeoHash longs (for efficiency's sake) but formats results as Geohash strings.
- *
  */
-
 public class GeoHashGridAggregator extends BucketsAggregator {
 
     private final int requiredSize;
@@ -49,7 +46,7 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     private final GeoGridAggregationBuilder.CellIdSource valuesSource;
     private final LongHash bucketOrds;
 
-    public GeoHashGridAggregator(String name, AggregatorFactories factories, GeoGridAggregationBuilder.CellIdSource valuesSource,
+    GeoHashGridAggregator(String name, AggregatorFactories factories, GeoGridAggregationBuilder.CellIdSource valuesSource,
             int requiredSize, int shardSize, SearchContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
@@ -99,7 +96,7 @@ public class GeoHashGridAggregator extends BucketsAggregator {
         long bucketOrd;
 
         OrdinalBucket() {
-            super(0, 0, (InternalAggregations) null);
+            super(0, 0, null);
         }
 
     }
@@ -133,7 +130,7 @@ public class GeoHashGridAggregator extends BucketsAggregator {
 
     @Override
     public InternalGeoHashGrid buildEmptyAggregation() {
-        return new InternalGeoHashGrid(name, requiredSize, Collections.<InternalGeoHashGrid.Bucket> emptyList(), pipelineAggregators(), metaData());
+        return new InternalGeoHashGrid(name, requiredSize, Collections.emptyList(), pipelineAggregators(), metaData());
     }
 
 

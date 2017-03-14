@@ -25,8 +25,8 @@ A `sum_bucket` aggregation looks like this in isolation:
 |`buckets_path` |The path to the buckets we wish to find the sum for (see <<buckets-path-syntax>> for more
  details) |Required |
  |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
- details)|Optional, defaults to `skip` ||
- |`format` |format to apply to the output value of this aggregation |Optional, defaults to `null` |
+ details)|Optional | `skip`
+ |`format` |format to apply to the output value of this aggregation |Optional |`null` 
 |===
 
 The following snippet calculates the sum of all the total monthly `sales` buckets:

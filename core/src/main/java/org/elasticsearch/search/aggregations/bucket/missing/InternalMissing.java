@@ -28,7 +28,8 @@ import java.util.List;
 import java.util.Map;
 
 public class InternalMissing extends InternalSingleBucketAggregation implements Missing {
-    InternalMissing(String name, long docCount, InternalAggregations aggregations, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    InternalMissing(String name, long docCount, InternalAggregations aggregations, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) {
         super(name, docCount, aggregations, pipelineAggregators, metaData);
     }
 

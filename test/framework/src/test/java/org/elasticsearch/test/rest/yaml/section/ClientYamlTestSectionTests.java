@@ -20,9 +20,12 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
@@ -58,6 +61,38 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         Exception e = expectThrows(IllegalArgumentException.class, () -> section.addExecutableSection(doSection));
         assertEquals("Attempted to add a [do] with a [warnings] section without a corresponding [skip] so runners that do not support the"
                 + " [warnings] section can skip the test at line [" + lineNumber + "]", e.getMessage());
+    }
+
+    public void testWrongIndentation() throws Exception {
+        {
+            XContentParser parser = createParser(YamlXContent.yamlXContent,
+                    "\"First test section\": \n" +
+                            "  - skip:\n" +
+                            "    version:  \"2.0.0 - 2.2.0\"\n" +
+                            "    reason:   \"Update doesn't return metadata fields, waiting for #3259\"");
+
+            ParsingException e = expectThrows(ParsingException.class, () -> ClientYamlTestSection.parse(parser));
+            assertEquals("Error parsing test named [First test section]", e.getMessage());
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            assertEquals("Expected [START_OBJECT, found [VALUE_NULL], the skip section is not properly indented",
+                    e.getCause().getMessage());
+        }
+        {
+            XContentParser parser = createParser(YamlXContent.yamlXContent,
+                    "\"First test section\": \n" +
+                            " - do :\n" +
+                            "   catch: missing\n" +
+                            "   indices.get_warmer:\n" +
+                            "       index: test_index\n" +
+                            "       name: test_warmer"
+            );
+            ParsingException e = expectThrows(ParsingException.class, () -> ClientYamlTestSection.parse(parser));
+            assertEquals("Error parsing test named [First test section]", e.getMessage());
+            assertThat(e.getCause(), instanceOf(IOException.class));
+            assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+            assertEquals("expected [START_OBJECT], found [VALUE_NULL], the do section is not properly indented",
+                    e.getCause().getCause().getMessage());
+        }
     }
 
     public void testParseTestSectionWithDoSection() throws Exception {

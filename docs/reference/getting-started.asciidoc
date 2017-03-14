@@ -1196,7 +1196,7 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
-There are a many other aggregations capabilities that we won't go into detail here. The <<search-aggregations,aggregations reference guide>> is a great starting point if you want to do further experimentation.
+There are many other aggregations capabilities that we won't go into detail here. The <<search-aggregations,aggregations reference guide>> is a great starting point if you want to do further experimentation.
 
 == Conclusion
 

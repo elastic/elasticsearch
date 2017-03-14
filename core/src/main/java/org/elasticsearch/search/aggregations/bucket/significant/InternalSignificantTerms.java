@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -126,6 +127,27 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         @Override
         public double getSignificanceScore() {
             return score;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            Bucket<?> that = (Bucket<?>) o;
+            return bucketOrd == that.bucketOrd &&
+                    Double.compare(that.score, score) == 0 &&
+                    Objects.equals(aggregations, that.aggregations) &&
+                    Objects.equals(format, that.format);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getClass(), bucketOrd, aggregations, score, format);
         }
     }
 
@@ -226,4 +248,16 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     protected abstract long getSupersetSize();
 
     protected abstract SignificanceHeuristic getSignificanceHeuristic();
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(minDocCount, requiredSize);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalSignificantTerms<?, ?> that = (InternalSignificantTerms<?, ?>) obj;
+        return Objects.equals(minDocCount, that.minDocCount)
+                && Objects.equals(requiredSize, that.requiredSize);
+    }
 }

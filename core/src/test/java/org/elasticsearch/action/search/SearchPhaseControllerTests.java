@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
@@ -344,6 +345,33 @@ public class SearchPhaseControllerTests extends ESTestCase {
             } else {
                 assertThat("expectedNumResults: " + expectedNumResults + " bufferSize: " + bufferSize,
                     consumer, not(instanceOf(SearchPhaseController.QueryPhaseResultConsumer.class)));
+            }
+        }
+    }
+
+    public void testFillTopDocs() {
+        final int maxIters =  randomIntBetween(5, 15);
+        for (int iters = 0; iters < maxIters; iters++) {
+            TopDocs[] topDocs = new TopDocs[randomIntBetween(2, 100)];
+            int numShards = topDocs.length;
+            AtomicArray<QuerySearchResultProvider> resultProviderAtomicArray = generateQueryResults(numShards, Collections.emptyList(),
+                2, randomBoolean());
+            if (randomBoolean()) {
+                int maxNull = randomIntBetween(1, topDocs.length - 1);
+                for (int i = 0; i < maxNull; i++) {
+                    resultProviderAtomicArray.set(randomIntBetween(0, resultProviderAtomicArray.length() - 1), null);
+                }
+            }
+            SearchPhaseController.fillTopDocs(topDocs, resultProviderAtomicArray.asList(), Lucene.EMPTY_TOP_DOCS);
+            for (int i = 0; i < topDocs.length; i++) {
+                assertNotNull(topDocs[i]);
+                if (topDocs[i] == Lucene.EMPTY_TOP_DOCS) {
+                    assertNull(resultProviderAtomicArray.get(i));
+                } else {
+                    assertNotNull(resultProviderAtomicArray.get(i));
+                    assertNotNull(resultProviderAtomicArray.get(i).queryResult());
+                    assertSame(resultProviderAtomicArray.get(i).queryResult().topDocs(), topDocs[i]);
+                }
             }
         }
     }

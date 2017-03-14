@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugins;
 
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -83,7 +84,12 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
 
         terminal.println(VERBOSE, "Removing: " + pluginDir);
         final Path tmpPluginDir = env.pluginsFile().resolve(".removing-" + pluginName);
-        Files.move(pluginDir, tmpPluginDir, StandardCopyOption.ATOMIC_MOVE);
+        try {
+            Files.move(pluginDir, tmpPluginDir, StandardCopyOption.ATOMIC_MOVE);
+        } catch (final AtomicMoveNotSupportedException e) {
+            // this can happen on a union filesystem when a plugin is not installed on the top layer; we fall back to a non-atomic move
+            Files.move(pluginDir, tmpPluginDir);
+        }
         pluginPaths.add(tmpPluginDir);
 
         IOUtils.rm(pluginPaths.toArray(new Path[pluginPaths.size()]));

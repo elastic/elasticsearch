@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.translog;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -44,13 +45,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
@@ -100,6 +102,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -156,12 +159,25 @@ public class TranslogTests extends ESTestCase {
         return new Translog(getTranslogConfig(path), null, () -> globalCheckpoint.get());
     }
 
-    private TranslogConfig getTranslogConfig(Path path) {
-        Settings build = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
-            .build();
-        ByteSizeValue bufferSize = randomBoolean() ? TranslogConfig.DEFAULT_BUFFER_SIZE : new ByteSizeValue(10 + randomInt(128 * 1024), ByteSizeUnit.BYTES);
-        return new TranslogConfig(shardId, path, IndexSettingsModule.newIndexSettings(shardId.getIndex(), build), BigArrays.NON_RECYCLING_INSTANCE, bufferSize);
+    private TranslogConfig getTranslogConfig(final Path path) {
+        final Settings settings = Settings
+                .builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
+                .build();
+        return getTranslogConfig(path, settings);
+    }
+
+    private TranslogConfig getTranslogConfig(final Path path, final Settings settings) {
+        final ByteSizeValue bufferSize;
+        if (randomBoolean()) {
+            bufferSize = TranslogConfig.DEFAULT_BUFFER_SIZE;
+        } else {
+            bufferSize = new ByteSizeValue(10 + randomInt(128 * 1024), ByteSizeUnit.BYTES);
+        }
+
+        final IndexSettings indexSettings =
+                IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings);
+        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize);
     }
 
     protected void addToTranslogAndList(Translog translog, ArrayList<Translog.Operation> list, Translog.Operation op) throws IOException {
@@ -2073,4 +2089,65 @@ public class TranslogTests extends ESTestCase {
         Translog.Delete serializedDelete = new Translog.Delete(in);
         assertEquals(delete, serializedDelete);
     }
+
+    public void testFoldGeneration() throws IOException {
+        final long generation = translog.currentFileGeneration();
+        final int folds = randomIntBetween(1, 16);
+        int totalOperations = 0;
+        int seqNo = 0;
+        for (int i = 0; i < folds; i++) {
+            final int operations = randomIntBetween(1, 128);
+            for (int j = 0; j < operations; j++) {
+                translog.add(new Translog.NoOp(seqNo++, 0, "test"));
+                totalOperations++;
+            }
+            try (ReleasableLock ignored = translog.writeLock.acquire()) {
+                translog.foldGeneration(generation + i);
+            }
+            assertThat(translog.currentFileGeneration(), equalTo(generation + i + 1));
+            assertThat(translog.totalOperations(), equalTo(totalOperations));
+        }
+        for (int i = 0; i <= folds; i++) {
+            assertFileIsPresent(translog, generation + i);
+        }
+        translog.commit();
+        assertThat(translog.currentFileGeneration(), equalTo(generation + folds + 1));
+        assertThat(translog.totalOperations(), equalTo(0));
+        for (int i = 0; i <= folds; i++) {
+            assertFileDeleted(translog, generation + i);
+        }
+        assertFileIsPresent(translog, generation + folds + 1);
+    }
+
+    public void testGenerationThreshold() throws IOException {
+        translog.close();
+        final int generationThreshold = randomIntBetween(1, 512);
+        final Settings settings = Settings
+                .builder()
+                .put("index.translog.generation_threshold_size", generationThreshold + "b")
+                .build();
+        long seqNo = 0;
+        long folds = 0;
+        final TranslogConfig config = getTranslogConfig(translogDir, settings);
+        try (Translog translog =
+                     new Translog(config, null, () -> SequenceNumbersService.UNASSIGNED_SEQ_NO)) {
+            final long generation = translog.currentFileGeneration();
+            for (int i = 0; i < randomIntBetween(32, 128); i++) {
+                assertThat(translog.currentFileGeneration(), equalTo(generation + folds));
+                final Location location = translog.add(new Translog.NoOp(seqNo++, 0, "test"));
+                if (location.translogLocation + location.size > generationThreshold) {
+                    folds++;
+                    assertThat(translog.currentFileGeneration(), equalTo(generation + folds));
+                    for (int j = 0; j < folds; j++) {
+                        assertFileIsPresent(translog, generation + j);
+                    }
+                }
+            }
+
+            for (int j = 0; j < folds; j++) {
+                assertFileIsPresent(translog, generation + j);
+            }
+        }
+    }
+
 }

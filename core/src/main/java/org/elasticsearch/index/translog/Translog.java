@@ -329,7 +329,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * Returns the generation of the current transaction log.
      */
     public long currentFileGeneration() {
-        try (ReleasableLock lock = readLock.acquire()) {
+        try (ReleasableLock ignored = readLock.acquire()) {
             return current.getGeneration();
         }
     }
@@ -399,6 +399,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return newFile;
     }
 
+    final AtomicBoolean foldingGeneration = new AtomicBoolean();
+
     /**
      * Adds an operation to the transaction log.
      *
@@ -409,20 +411,31 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public Location add(final Operation operation) throws IOException {
         final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
         try {
-            final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(out);
             final long start = out.position();
             out.skip(Integer.BYTES);
-            writeOperationNoSize(checksumStreamOutput, operation);
+            writeOperationNoSize(new BufferedChecksumStreamOutput(out), operation);
             final long end = out.position();
             final int operationSize = (int) (end - Integer.BYTES - start);
             out.seek(start);
             out.writeInt(operationSize);
             out.seek(end);
             final ReleasablePagedBytesReference bytes = out.bytes();
+            final Location location;
             try (ReleasableLock ignored = readLock.acquire()) {
                 ensureOpen();
-                return current.add(bytes, operation.seqNo());
+                location = current.add(bytes, operation.seqNo());
             }
+            try (ReleasableLock ignored = writeLock.acquire()) {
+                if (shouldFoldGeneration(this) && foldingGeneration.compareAndSet(false, true)) {
+                    // we have to check the condition again lest we could fold twice in a race
+                    if (shouldFoldGeneration(this)) {
+                        this.foldGeneration(current.getGeneration());
+                    }
+                    final boolean wasFoldingGeneration = foldingGeneration.getAndSet(false);
+                    assert wasFoldingGeneration;
+                }
+            }
+            return location;
         } catch (final AlreadyClosedException | IOException ex) {
             try {
                 closeOnTragicEvent(ex);
@@ -440,6 +453,20 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         } finally {
             Releasables.close(out.bytes());
         }
+    }
+
+    /**
+     * Tests whether or not the current generation of the translog should be folded into a new
+     * generation. This test is based on the size of the current generation compared to the
+     * configured generation threshold size.
+     *
+     * @param translog the translog
+     * @return {@code true} if the current generation should be folded into a new generation
+     */
+    private static boolean shouldFoldGeneration(final Translog translog) {
+        final long size = translog.current.sizeInBytes();
+        final long threshold = translog.indexSettings.getGenerationThresholdSize().getBytes();
+        return size > threshold;
     }
 
     /**
@@ -1322,27 +1349,46 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         out.writeInt((int) checksum);
     }
 
+    /**
+     * Fold the current translog generation into a new generation. This does not commit the
+     * translog. The translog write lock must be held by the current thread.
+     *
+     * @param generation the current translog generation
+     * @throws IOException if an I/O exception occurred during any file operations
+     */
+    void foldGeneration(final long generation) throws IOException {
+        assert writeLock.isHeldByCurrentThread();
+        try {
+            final TranslogReader reader = current.closeIntoReader();
+            readers.add(reader);
+            final Path checkpoint = location.resolve(CHECKPOINT_FILE_NAME);
+            assert Checkpoint.read(checkpoint).generation == generation;
+            final Path generationCheckpoint =
+                    location.resolve(getCommitCheckpointFileName(generation));
+            Files.copy(checkpoint, generationCheckpoint);
+            IOUtils.fsync(generationCheckpoint, false);
+            IOUtils.fsync(generationCheckpoint.getParent(), true);
+            // create a new translog file; this will sync it and update the checkpoint data;
+            current = createWriter(generation + 1);
+            logger.trace("current translog set to [{}]", current.getGeneration());
+        } catch (final Exception e) {
+            IOUtils.closeWhileHandlingException(this); // tragic event
+            throw e;
+        }
+    }
+
     @Override
     public long prepareCommit() throws IOException {
-        try (ReleasableLock lock = writeLock.acquire()) {
+        try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
             if (currentCommittingGeneration != NOT_SET_GENERATION) {
-                throw new IllegalStateException("already committing a translog with generation: " + currentCommittingGeneration);
+                throw new IllegalStateException("already committing a translog with generation: " +
+                        currentCommittingGeneration);
             }
-            currentCommittingGeneration = current.getGeneration();
-            TranslogReader currentCommittingTranslog = current.closeIntoReader();
-            readers.add(currentCommittingTranslog);
-            Path checkpoint = location.resolve(CHECKPOINT_FILE_NAME);
-            assert Checkpoint.read(checkpoint).generation == currentCommittingTranslog.getGeneration();
-            Path commitCheckpoint = location.resolve(getCommitCheckpointFileName(currentCommittingTranslog.getGeneration()));
-            Files.copy(checkpoint, commitCheckpoint);
-            IOUtils.fsync(commitCheckpoint, false);
-            IOUtils.fsync(commitCheckpoint.getParent(), true);
-            // create a new translog file - this will sync it and update the checkpoint data;
-            current = createWriter(current.getGeneration() + 1);
-            logger.trace("current translog set to [{}]", current.getGeneration());
-
-        } catch (Exception e) {
+            final long generation = current.getGeneration();
+            currentCommittingGeneration = generation;
+            foldGeneration(generation);
+        } catch (final Exception e) {
             IOUtils.closeWhileHandlingException(this); // tragic event
             throw e;
         }

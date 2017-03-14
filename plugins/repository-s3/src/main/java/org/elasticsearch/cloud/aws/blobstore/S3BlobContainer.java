@@ -75,12 +75,12 @@ public class S3BlobContainer extends AbstractBlobContainer {
     @Override
     public InputStream readBlob(String blobName) throws IOException {
         int retry = 0;
-        while (retry <= blobStore.numberOfRetries()) {
+        while (retry <= 0) {
             try {
                 S3Object s3Object = SocketAccess.doPrivileged(() -> blobStore.client().getObject(blobStore.bucket(), buildKey(blobName)));
                 return s3Object.getObjectContent();
             } catch (AmazonClientException e) {
-                if (blobStore.shouldRetry(e) && (retry < blobStore.numberOfRetries())) {
+                if (blobStore.shouldRetry(e) && (retry < 0)) {
                     retry++;
                 } else {
                     if (e instanceof AmazonS3Exception) {
@@ -121,7 +121,7 @@ public class S3BlobContainer extends AbstractBlobContainer {
     private OutputStream createOutput(final String blobName) throws IOException {
         // UploadS3OutputStream does buffering & retry logic internally
         return new DefaultS3OutputStream(blobStore, blobStore.bucket(), buildKey(blobName),
-            blobStore.bufferSizeInBytes(), blobStore.numberOfRetries(), blobStore.serverSideEncryption());
+            blobStore.bufferSizeInBytes(), 0, blobStore.serverSideEncryption());
     }
 
     @Override

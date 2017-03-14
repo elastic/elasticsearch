@@ -34,6 +34,6 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
         String bucket = randomAsciiOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
 
         return new S3BlobStore(Settings.EMPTY, client, bucket, false,
-            new ByteSizeValue(10, ByteSizeUnit.MB), 5, "public-read-write", "standard");
+            new ByteSizeValue(10, ByteSizeUnit.MB), "public-read-write", "standard");
     }
 }

@@ -171,11 +171,14 @@ class LdapUserSearchSessionFactory extends SessionFactory {
                 listener.onResponse(null);
             } else {
                 final String dn = entry.getDN();
+                final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.internalChars());
                 try {
-                    LdapUtils.privilegedConnect(() -> connectionPool.bindAndRevertAuthentication(dn, new String(password.internalChars())));
+                    LdapUtils.privilegedConnect(() -> connectionPool.bindAndRevertAuthentication(new SimpleBindRequest(dn, passwordBytes)));
                     listener.onResponse(new LdapSession(logger, connectionPool, dn, groupResolver, timeout, entry.getAttributes()));
                 } catch (LDAPException e) {
                     listener.onFailure(e);
+                } finally {
+                    Arrays.fill(passwordBytes, (byte) 0);
                 }
             }
         }, listener::onFailure));

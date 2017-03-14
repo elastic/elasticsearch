@@ -12,11 +12,11 @@ GET /_search
     "query": {
         "has_child" : {
             "type" : "blog_tag",
-                "query" : {
-                    "term" : {
-                        "tag" : "something"
-                    }
+            "query" : {
+                "term" : {
+                    "tag" : "something"
                 }
+            }
         }
     }
 }
@@ -41,12 +41,12 @@ GET /_search
     "query": {
         "has_child" : {
             "type" : "blog_tag",
-                "score_mode" : "min",
-                "query" : {
-                    "term" : {
-                        "tag" : "something"
-                    }
+            "score_mode" : "min",
+            "query" : {
+                "term" : {
+                    "tag" : "something"
                 }
+            }
         }
     }
 }

@@ -28,8 +28,10 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
@@ -121,5 +123,18 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
             builder.endArray();
         }
         return builder;
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        AbstractInternalTDigestPercentiles that = (AbstractInternalTDigestPercentiles) obj;
+        return keyed == that.keyed
+                && Arrays.equals(keys, that.keys)
+                && Objects.equals(state, that.state);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(keyed, Arrays.hashCode(keys), state);
     }
 }

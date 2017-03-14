@@ -183,6 +183,25 @@ public class InnerHitBuilderTests extends ESTestCase {
         assertThat(innerHitBuilders.get(leafInnerHits.getName()), notNullValue());
     }
 
+    public void testInlineLeafInnerHitsNestedQueryViaDisMaxQuery() {
+        InnerHitBuilder leafInnerHits1 = randomInnerHits();
+        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None)
+                .innerHit(leafInnerHits1, false);
+
+        InnerHitBuilder leafInnerHits2 = randomInnerHits();
+        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder("type", new MatchAllQueryBuilder(), ScoreMode.None)
+                .innerHit(leafInnerHits2, false);
+
+        DisMaxQueryBuilder disMaxQueryBuilder = new DisMaxQueryBuilder();
+        disMaxQueryBuilder.add(nestedQueryBuilder);
+        disMaxQueryBuilder.add(hasChildQueryBuilder);
+        Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
+        disMaxQueryBuilder.extractInnerHitBuilders(innerHitBuilders);
+        assertThat(innerHitBuilders.size(), equalTo(2));
+        assertThat(innerHitBuilders.get(leafInnerHits1.getName()), notNullValue());
+        assertThat(innerHitBuilders.get(leafInnerHits2.getName()), notNullValue());
+    }
+
     public void testInlineLeafInnerHitsNestedQueryViaConstantScoreQuery() {
         InnerHitBuilder leafInnerHits = randomInnerHits();
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None)

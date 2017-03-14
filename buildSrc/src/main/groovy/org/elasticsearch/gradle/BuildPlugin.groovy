@@ -20,6 +20,7 @@ package org.elasticsearch.gradle
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import nebula.plugin.extraconfigurations.ProvidedBasePlugin
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -202,14 +203,28 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Runs the given javascript using jjs from the jdk, and returns the output */
     private static String runJavascript(Project project, String javaHome, String script) {
-        ByteArrayOutputStream output = new ByteArrayOutputStream()
-        project.exec {
-            executable = new File(javaHome, 'bin/jrunscript')
-            args '-e', script
-            standardOutput = output
-            errorOutput = new ByteArrayOutputStream()
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream()
+        ByteArrayOutputStream stderr = new ByteArrayOutputStream()
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            // gradle/groovy does not properly escape the double quote for windows
+            script = script.replace('"', '\\"')
         }
-        return output.toString('UTF-8').trim()
+        File jrunscriptPath = new File(javaHome, 'bin/jrunscript')
+        ExecResult result = project.exec {
+            executable = jrunscriptPath
+            args '-e', script
+            standardOutput = stdout
+            errorOutput = stderr
+            ignoreExitValue = true
+        }
+        if (result.exitValue != 0) {
+            project.logger.error("STDOUT:")
+            stdout.toString('UTF-8').eachLine { line -> project.logger.error(line) }
+            project.logger.error("STDERR:")
+            stderr.toString('UTF-8').eachLine { line -> project.logger.error(line) }
+            result.rethrowFailure()
+        }
+        return stdout.toString('UTF-8').trim()
     }
 
     /** Return the configuration name used for finding transitive deps of the given dependency. */
@@ -464,7 +479,7 @@ class BuildPlugin implements Plugin<Project> {
                         'Build-Java-Version': project.javaVersion)
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {
                     logger.warn('Building without git revision id.')
-                    jarTask.manifest.attributes('Change': 'N/A')
+                    jarTask.manifest.attributes('Change': 'Unknown')
                 }
             }
         }
@@ -476,6 +491,7 @@ class BuildPlugin implements Plugin<Project> {
             jvm "${project.javaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', 'auto')
             ifNoTests 'fail'
+            onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
 
             // TODO: why are we not passing maxmemory to junit4?

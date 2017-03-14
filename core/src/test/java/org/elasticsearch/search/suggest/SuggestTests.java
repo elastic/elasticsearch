@@ -19,8 +19,10 @@
 
 package org.elasticsearch.search.suggest;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -46,6 +48,22 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.hamcrest.Matchers.equalTo;
 
 public class SuggestTests extends ESTestCase {
+
+    static NamedXContentRegistry getSuggestersRegistry() {
+        List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
+        namedXContents.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("term"),
+                (parser, context) -> TermSuggestion.fromXContent(parser, (String)context)));
+        namedXContents.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("phrase"),
+                (parser, context) -> PhraseSuggestion.fromXContent(parser, (String)context)));
+        namedXContents.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("completion"),
+                (parser, context) -> CompletionSuggestion.fromXContent(parser, (String)context)));
+        return new NamedXContentRegistry(namedXContents);
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return getSuggestersRegistry();
+    }
 
     public static Suggest createTestItem() {
         int numEntries = randomIntBetween(0, 5);

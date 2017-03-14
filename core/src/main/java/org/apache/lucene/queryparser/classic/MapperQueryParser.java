@@ -19,9 +19,6 @@
 
 package org.apache.lucene.queryparser.classic;
 
-import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -33,12 +30,14 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.GraphQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.automaton.RegExp;
@@ -58,6 +57,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
 /**
  * A query parser that uses the {@link MapperService} in order to build smarter
@@ -565,22 +567,16 @@ public class MapperQueryParser extends AnalyzingQueryParser {
 
     @Override
     protected Query getWildcardQuery(String field, String termStr) throws ParseException {
-        if (termStr.equals("*")) {
-            // we want to optimize for match all query for the "*:*", and "*" cases
-            if ("*".equals(field) || Objects.equals(field, this.field)) {
-                String actualField = field;
-                if (actualField == null) {
-                    actualField = this.field;
-                }
-                if (actualField == null) {
-                    return newMatchAllDocsQuery();
-                }
-                if ("*".equals(actualField) || "_all".equals(actualField)) {
-                    return newMatchAllDocsQuery();
-                }
-                // effectively, we check if a field exists or not
-                return FIELD_QUERY_EXTENSIONS.get(ExistsFieldQueryExtension.NAME).query(context, actualField);
+        if (termStr.equals("*") && field != null) {
+            if ("*".equals(field)) {
+                return newMatchAllDocsQuery();
             }
+            String actualField = field;
+            if (actualField == null) {
+                actualField = this.field;
+            }
+            // effectively, we check if a field exists or not
+            return FIELD_QUERY_EXTENSIONS.get(ExistsFieldQueryExtension.NAME).query(context, actualField);
         }
         Collection<String> fields = extractMultiFields(field);
         if (fields != null) {
@@ -618,6 +614,10 @@ public class MapperQueryParser extends AnalyzingQueryParser {
     }
 
     private Query getWildcardQuerySingle(String field, String termStr) throws ParseException {
+        if ("*".equals(termStr)) {
+            // effectively, we check if a field exists or not
+            return FIELD_QUERY_EXTENSIONS.get(ExistsFieldQueryExtension.NAME).query(context, field);
+        }
         String indexedNameField = field;
         currentFieldType = null;
         Analyzer oldAnalyzer = getAnalyzer();
@@ -747,23 +747,26 @@ public class MapperQueryParser extends AnalyzingQueryParser {
             MultiPhraseQuery.Builder builder = new MultiPhraseQuery.Builder((MultiPhraseQuery) q);
             builder.setSlop(slop);
             return builder.build();
-        } else if (q instanceof GraphQuery && ((GraphQuery) q).hasPhrase()) {
-            // we have a graph query that has at least one phrase sub-query
-            // re-build and set slop on all phrase queries
-            List<Query> oldQueries = ((GraphQuery) q).getQueries();
-            Query[] queries = new Query[oldQueries.size()];
-            for (int i = 0; i < queries.length; i++) {
-                Query oldQuery = oldQueries.get(i);
-                if (oldQuery instanceof PhraseQuery) {
-                    queries[i] = addSlopToPhrase((PhraseQuery) oldQuery, slop);
-                } else {
-                    queries[i] = oldQuery;
-                }
-            }
-
-            return new GraphQuery(queries);
+        } else if (q instanceof SpanQuery) {
+            return addSlopToSpan((SpanQuery) q, slop);
         } else {
             return q;
+        }
+    }
+
+    private Query addSlopToSpan(SpanQuery query, int slop) {
+        if (query instanceof SpanNearQuery) {
+            return new SpanNearQuery(((SpanNearQuery) query).getClauses(), slop,
+                ((SpanNearQuery) query).isInOrder());
+        } else if (query instanceof SpanOrQuery) {
+            SpanQuery[] clauses = new SpanQuery[((SpanOrQuery) query).getClauses().length];
+            int pos = 0;
+            for (SpanQuery clause : ((SpanOrQuery) query).getClauses()) {
+                clauses[pos++] = (SpanQuery) addSlopToSpan(clause, slop);
+            }
+            return new SpanOrQuery(clauses);
+        } else {
+            return query;
         }
     }
 

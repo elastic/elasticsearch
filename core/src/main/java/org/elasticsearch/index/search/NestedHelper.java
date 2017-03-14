@@ -23,6 +23,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -58,6 +59,8 @@ public final class NestedHelper {
             return mightMatchNestedDocs(((TermQuery) query).getTerm().field());
         } else if (query instanceof PointRangeQuery) {
             return mightMatchNestedDocs(((PointRangeQuery) query).getField());
+        } else if (query instanceof IndexOrDocValuesQuery) {
+            return mightMatchNestedDocs(((IndexOrDocValuesQuery) query).getIndexQuery());
         } else if (query instanceof BooleanQuery) {
             final BooleanQuery bq = (BooleanQuery) query;
             final boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
@@ -117,6 +120,8 @@ public final class NestedHelper {
             return mightMatchNonNestedDocs(((TermQuery) query).getTerm().field(), nestedPath);
         } else if (query instanceof PointRangeQuery) {
             return mightMatchNonNestedDocs(((PointRangeQuery) query).getField(), nestedPath);
+        } else if (query instanceof IndexOrDocValuesQuery) {
+            return mightMatchNonNestedDocs(((IndexOrDocValuesQuery) query).getIndexQuery(), nestedPath);
         } else if (query instanceof BooleanQuery) {
             final BooleanQuery bq = (BooleanQuery) query;
             final boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);

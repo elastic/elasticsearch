@@ -67,6 +67,10 @@ class RandomizedTestingTask extends DefaultTask implements ProgressLoggerFactory
     @Input
     String ifNoTests = 'ignore'
 
+    @Optional
+    @Input
+    String onNonEmptyWorkDirectory = 'fail'
+
     TestLoggingConfiguration testLoggingConfig = new TestLoggingConfiguration()
 
     BalancersConfiguration balancersConfig = new BalancersConfiguration(task: this)
@@ -193,6 +197,7 @@ class RandomizedTestingTask extends DefaultTask implements ProgressLoggerFactory
             shuffleOnSlave: shuffleOnSlave,
             leaveTemporary: leaveTemporary,
             ifNoTests: ifNoTests,
+            onNonEmptyWorkDirectory: onNonEmptyWorkDirectory,
             newenvironment: true
         ]
 

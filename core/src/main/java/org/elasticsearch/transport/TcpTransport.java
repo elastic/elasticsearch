@@ -26,7 +26,6 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
@@ -297,7 +296,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 DiscoveryNode node = entry.getKey();
                 NodeChannels channels = entry.getValue();
                 for (Channel channel : channels.getChannels()) {
-                    sendMessage(channel, pingHeader, e -> {
+                    internalSendMessage(channel, pingHeader, e -> {
                         if (e == null) {
                             successfulPings.inc();
                         } else {
@@ -980,7 +979,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      */
     protected abstract void closeChannels(List<Channel> channel) throws IOException;
 
-
     /**
      * Sends message to channel. The listener will be called with an exception if the send operation throws an exception. If the operation
      * is successful, the listener will be called with null.
@@ -1039,9 +1037,28 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions);
                 }
             };
-            sendMessage(targetChannel, message, onRequestSent);
+            internalSendMessage(targetChannel, message, onRequestSent);
         } finally {
             IOUtils.close(stream);
+        }
+    }
+
+    /**
+     * sends a message to the given channel, using the given callbacks.
+     */
+    private void internalSendMessage(Channel targetChannel, BytesReference message, Consumer<Exception> listener) {
+        AtomicBoolean hasBeenCalled = new AtomicBoolean(false);
+        Consumer<Exception> wrapped = (e) -> {
+            if (hasBeenCalled.compareAndSet(false, true)) {
+                listener.accept(e);
+            }
+        };
+        try {
+            sendMessage(targetChannel, message, wrapped);
+        } catch (Exception ex) {
+            // call listener to ensure that any resources are released
+            wrapped.accept(ex);
+            onException(targetChannel, ex);
         }
     }
 
@@ -1068,7 +1085,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             final BytesReference bytes = stream.bytes();
             final BytesReference header = buildHeader(requestId, status, nodeVersion, bytes.length());
             Consumer<Exception> onRequestSent = (e) -> transportServiceAdapter.onResponseSent(requestId, action, error);
-            sendMessage(channel, new CompositeBytesReference(header, bytes), onRequestSent);
+            internalSendMessage(channel, new CompositeBytesReference(header, bytes), onRequestSent);
         }
     }
 
@@ -1110,7 +1127,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions);
                 }
             };
-            sendMessage(channel, reference, onRequestSent);
+            internalSendMessage(channel, reference, onRequestSent);
         } finally {
             IOUtils.close(stream);
         }

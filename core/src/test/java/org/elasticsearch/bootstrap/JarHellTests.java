@@ -30,7 +30,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
@@ -62,7 +64,8 @@ public class JarHellTests extends ESTestCase {
 
     public void testDifferentJars() throws Exception {
         Path dir = createTempDir();
-        URL[] jars = {makeJar(dir, "foo.jar", null, "DuplicateClass.class"), makeJar(dir, "bar.jar", null, "DuplicateClass.class")};
+        Set<URL> jars = asSet(makeJar(dir, "foo.jar", null, "DuplicateClass.class"),
+                              makeJar(dir, "bar.jar", null, "DuplicateClass.class"));
         try {
             JarHell.checkJarHell(jars);
             fail("did not get expected exception");
@@ -74,17 +77,11 @@ public class JarHellTests extends ESTestCase {
         }
     }
 
-    public void testDuplicateClasspathLeniency() throws Exception {
-        Path dir = createTempDir();
-        URL jar = makeJar(dir, "foo.jar", null, "Foo.class");
-        URL[] jars = {jar, jar};
-        JarHell.checkJarHell(jars);
-    }
-
     public void testDirsOnClasspath() throws Exception {
         Path dir1 = createTempDir();
         Path dir2 = createTempDir();
-        URL[] dirs = {makeFile(dir1, "DuplicateClass.class"), makeFile(dir2, "DuplicateClass.class")};
+        Set<URL> dirs = asSet(makeFile(dir1, "DuplicateClass.class"),
+                              makeFile(dir2, "DuplicateClass.class"));
         try {
             JarHell.checkJarHell(dirs);
             fail("did not get expected exception");
@@ -99,7 +96,8 @@ public class JarHellTests extends ESTestCase {
     public void testDirAndJar() throws Exception {
         Path dir1 = createTempDir();
         Path dir2 = createTempDir();
-        URL[] dirs = {makeJar(dir1, "foo.jar", null, "DuplicateClass.class"), makeFile(dir2, "DuplicateClass.class")};
+        Set<URL> dirs = asSet(makeJar(dir1, "foo.jar", null, "DuplicateClass.class"),
+                              makeFile(dir2, "DuplicateClass.class"));
         try {
             JarHell.checkJarHell(dirs);
             fail("did not get expected exception");
@@ -114,7 +112,7 @@ public class JarHellTests extends ESTestCase {
     public void testWithinSingleJar() throws Exception {
         // the java api for zip file does not allow creating duplicate entries (good!) so
         // this bogus jar had to be constructed with ant
-        URL[] jars = {JarHellTests.class.getResource("duplicate-classes.jar")};
+        Set<URL> jars = Collections.singleton(JarHellTests.class.getResource("duplicate-classes.jar"));
         try {
             JarHell.checkJarHell(jars);
             fail("did not get expected exception");
@@ -127,7 +125,7 @@ public class JarHellTests extends ESTestCase {
     }
 
     public void testXmlBeansLeniency() throws Exception {
-        URL[] jars = {JarHellTests.class.getResource("duplicate-xmlbeans-classes.jar")};
+        Set<URL> jars = Collections.singleton(JarHellTests.class.getResource("duplicate-xmlbeans-classes.jar"));
         JarHell.checkJarHell(jars);
     }
 
@@ -145,7 +143,7 @@ public class JarHellTests extends ESTestCase {
         Attributes attributes = manifest.getMainAttributes();
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
         attributes.put(new Attributes.Name("X-Compile-Target-JDK"), targetVersion.toString());
-        URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
+        Set<URL> jars = Collections.singleton(makeJar(dir, "foo.jar", manifest, "Foo.class"));
         try {
             JarHell.checkJarHell(jars);
             fail("did not get expected exception");
@@ -161,7 +159,7 @@ public class JarHellTests extends ESTestCase {
         Attributes attributes = manifest.getMainAttributes();
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
         attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "bogus");
-        URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
+        Set<URL> jars = Collections.singleton(makeJar(dir, "foo.jar", manifest, "Foo.class"));
         try {
             JarHell.checkJarHell(jars);
             fail("did not get expected exception");
@@ -176,8 +174,7 @@ public class JarHellTests extends ESTestCase {
         Attributes attributes = manifest.getMainAttributes();
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
         attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "1.7");
-        URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
-
+        Set<URL> jars = Collections.singleton(makeJar(dir, "foo.jar", manifest, "Foo.class"));
         JarHell.checkJarHell(jars);
     }
 
@@ -188,7 +185,7 @@ public class JarHellTests extends ESTestCase {
         Attributes attributes = manifest.getMainAttributes();
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
         attributes.put(new Attributes.Name("X-Compile-Elasticsearch-Version"), Version.CURRENT.toString());
-        URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
+        Set<URL> jars = Collections.singleton(makeJar(dir, "foo.jar", manifest, "Foo.class"));
         JarHell.checkJarHell(jars);
     }
 
@@ -199,7 +196,7 @@ public class JarHellTests extends ESTestCase {
         Attributes attributes = manifest.getMainAttributes();
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
         attributes.put(new Attributes.Name("X-Compile-Elasticsearch-Version"), "1.0-bogus");
-        URL[] jars = {makeJar(dir, "foo.jar", manifest, "Foo.class")};
+        Set<URL> jars = Collections.singleton(makeJar(dir, "foo.jar", manifest, "Foo.class"));
         try {
             JarHell.checkJarHell(jars);
             fail("did not get expected exception");
@@ -242,8 +239,8 @@ public class JarHellTests extends ESTestCase {
         Path element1 = createTempDir();
         Path element2 = createTempDir();
 
-        URL expected[] = { element1.toUri().toURL(), element2.toUri().toURL() };
-        assertArrayEquals(expected, JarHell.parseClassPath(element1.toString() + ":" + element2.toString()));
+        Set<URL> expected = asSet(element1.toUri().toURL(), element2.toUri().toURL());
+        assertEquals(expected, JarHell.parseClassPath(element1.toString() + ":" + element2.toString()));
     }
 
     /**
@@ -271,8 +268,8 @@ public class JarHellTests extends ESTestCase {
         Path element1 = createTempDir();
         Path element2 = createTempDir();
 
-        URL expected[] = { element1.toUri().toURL(), element2.toUri().toURL() };
-        assertArrayEquals(expected, JarHell.parseClassPath(element1.toString() + ";" + element2.toString()));
+        Set<URL> expected = asSet(element1.toUri().toURL(), element2.toUri().toURL());
+        assertEquals(expected, JarHell.parseClassPath(element1.toString() + ";" + element2.toString()));
     }
 
     /**
@@ -298,13 +295,13 @@ public class JarHellTests extends ESTestCase {
         assumeTrue("test is designed for windows-like systems only", ";".equals(System.getProperty("path.separator")));
         assumeTrue("test is designed for windows-like systems only", "\\".equals(System.getProperty("file.separator")));
 
-        URL expected[] = {
+        Set<URL> expected = asSet(
             PathUtils.get("c:\\element1").toUri().toURL(),
             PathUtils.get("c:\\element2").toUri().toURL(),
             PathUtils.get("c:\\element3").toUri().toURL(),
-            PathUtils.get("c:\\element 4").toUri().toURL(),
-        };
-        URL actual[] = JarHell.parseClassPath("c:\\element1;c:\\element2;/c:/element3;/c:/element 4");
-        assertArrayEquals(expected, actual);
+            PathUtils.get("c:\\element 4").toUri().toURL()
+        );
+        Set<URL> actual = JarHell.parseClassPath("c:\\element1;c:\\element2;/c:/element3;/c:/element 4");
+        assertEquals(expected, actual);
     }
 }

@@ -17,6 +17,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 18543: Oink
 * 20912: Evil_Engineers
 * 21418: marathon
+* 21946: Honey Boo Boo Fan Club
 * 21974: Krispy Belgian Cookies
 * 22209: JTeam1
 * 22530: Evil_Engineers

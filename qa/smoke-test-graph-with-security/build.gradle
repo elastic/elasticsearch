@@ -27,7 +27,7 @@ integTestCluster {
                'bin/x-pack/users', 'useradd', 'no_graph_explorer', '-p', 'changeme', '-r', 'no_graph_explorer'
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}",
+    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
             dest: tmpFile.toString(),
             username: 'test_admin',
             password: 'changeme',

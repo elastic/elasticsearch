@@ -313,7 +313,7 @@ integTestCluster {
         // we use custom wait logic here as the elastic user is not available immediately and ant.get will fail when a 401 is returned
         HttpURLConnection httpURLConnection = null;
         try {
-          httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}").openConnection();
+          httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}&wait_for_status=yellow").openConnection();
           httpURLConnection.setRequestProperty("Authorization", "Basic " +
                   Base64.getEncoder().encodeToString("elastic:changeme".getBytes(StandardCharsets.UTF_8)));
           httpURLConnection.setRequestMethod("GET");

@@ -201,7 +201,7 @@ integTestCluster {
       // we use custom wait logic here for HTTPS
       HttpsURLConnection httpURLConnection = null;
       try {
-        httpURLConnection = (HttpsURLConnection) new URL("https://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}").openConnection();
+        httpURLConnection = (HttpsURLConnection) new URL("https://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}&wait_for_status=yellow").openConnection();
         httpURLConnection.setSSLSocketFactory(sslContext.getSocketFactory());
         httpURLConnection.setRequestProperty("Authorization", "Basic " +
                 Base64.getEncoder().encodeToString("test_user:changeme".getBytes(StandardCharsets.UTF_8)));

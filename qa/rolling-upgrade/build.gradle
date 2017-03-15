@@ -16,7 +16,7 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
         HttpURLConnection httpURLConnection = null;
         try {
             // TODO this sucks having to hardcode number of nodes, but node.config.numNodes isn't necessarily accurate for rolling
-            httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health?wait_for_nodes=2").openConnection();
+            httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health?wait_for_nodes=2&wait_for_status=yellow").openConnection();
             httpURLConnection.setRequestProperty("Authorization", "Basic " +
                     Base64.getEncoder().encodeToString("elastic:changeme".getBytes(StandardCharsets.UTF_8)));
             httpURLConnection.setRequestMethod("GET");

@@ -14,6 +14,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.Map;
 
@@ -68,5 +70,16 @@ public class RestRequestFilterTests extends ESTestCase {
         assertNotNull(second);
         assertEquals("bar", second.get("foo"));
         assertNull(second.get("third"));
+    }
+
+    public void testRemoteAddressWorks() throws IOException {
+        BytesReference content = new BytesArray("{\"root\": {\"second\": {\"third\": \"password\", \"foo\": \"bar\"}}}");
+        RestRequestFilter filter = () -> Collections.singleton("*.third");
+        InetSocketAddress address = new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 32768);
+        FakeRestRequest restRequest =
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON)
+                        .withRemoteAddress(address).build();
+        RestRequest filtered = filter.getFilteredRequest(restRequest);
+        assertEquals(address, filtered.getRemoteAddress());
     }
 }

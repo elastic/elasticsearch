@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.rest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
+import java.net.SocketAddress;
 import java.util.Map;
 import java.util.Set;
 
@@ -48,6 +50,18 @@ public interface RestRequestFilter {
                 @Override
                 public boolean hasContent() {
                     return true;
+                }
+
+                @Nullable
+                @Override
+                public SocketAddress getRemoteAddress() {
+                    return restRequest.getRemoteAddress();
+                }
+
+                @Nullable
+                @Override
+                public SocketAddress getLocalAddress() {
+                    return restRequest.getLocalAddress();
                 }
 
                 @Override

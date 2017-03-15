@@ -335,7 +335,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         boolean allEnabled = this.allEnabled;
         Map<String, ObjectMapper> fullPathObjectMappers = this.fullPathObjectMappers;
         FieldTypeLookup fieldTypes = this.fieldTypes;
-        Set<String> parentTypes = this.parentTypes;
+        Set<String> parentTypes = new HashSet<>(this.parentTypes);
         Map<String, DocumentMapper> mappers = new HashMap<>(this.mappers);
 
         Map<String, DocumentMapper> results = new LinkedHashMap<>(documentMappers.size() + 1);
@@ -413,9 +413,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
 
             if (oldMapper == null && newMapper.parentFieldMapper().active()) {
-                if (parentTypes == this.parentTypes) {
-                    parentTypes = new HashSet<>(this.parentTypes);
-                }
                 parentTypes.add(mapper.parentFieldMapper().type());
             }
 

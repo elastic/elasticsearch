@@ -21,6 +21,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -49,6 +50,7 @@ public class EvilBootstrapChecksTests extends ESTestCase {
         super.setUp();
     }
 
+    @SuppressForbidden(reason = "set or clear system property es.enforce.bootstrap.checks")
     @Override
     @After
     public void tearDown() throws Exception {
@@ -60,6 +62,7 @@ public class EvilBootstrapChecksTests extends ESTestCase {
         super.tearDown();
     }
 
+    @SuppressForbidden(reason = "set system property es.enforce.bootstrap.checks")
     public void testEnforceBootstrapChecks() throws NodeValidationException {
         System.setProperty(ES_ENFORCE_BOOTSTRAP_CHECKS, "true");
         final List<BootstrapCheck> checks = Collections.singletonList(
@@ -87,6 +90,7 @@ public class EvilBootstrapChecksTests extends ESTestCase {
         verifyNoMoreInteractions(logger);
     }
 
+    @SuppressForbidden(reason = "clear system property es.enforce.bootstrap.checks")
     public void testNonEnforcedBootstrapChecks() throws NodeValidationException {
         System.clearProperty(ES_ENFORCE_BOOTSTRAP_CHECKS);
         final Logger logger = mock(Logger.class);
@@ -95,6 +99,7 @@ public class EvilBootstrapChecksTests extends ESTestCase {
         verifyNoMoreInteractions(logger);
     }
 
+    @SuppressForbidden(reason = "set system property es.enforce.bootstrap.checks")
     public void testInvalidValue() {
         final String value = randomAsciiOfLength(8);
         System.setProperty(ES_ENFORCE_BOOTSTRAP_CHECKS, value);

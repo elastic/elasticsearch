@@ -15,7 +15,6 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 17620: JAH
 * 18109: Krispy Belgian Cookies
 * 18348: JAH
-* 18515: Group 1
 * 18543: Oink
 * 20912: Evil_Engineers
 * 21418: marathon
@@ -39,3 +38,4 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 23208: java ych
 * 23329: JAH
 * 23430: Honey Boo Boo Fan Club
+* 23436: Group 1

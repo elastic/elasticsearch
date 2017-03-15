@@ -223,7 +223,17 @@ public class UnicastZenPingTests extends ESTestCase {
                 return versionD;
             }
         };
+        zenPingC.start(new PingContextProvider() {
+            @Override
+            public DiscoveryNodes nodes() {
+                return DiscoveryNodes.builder().add(handleC.node).localNodeId("UZP_C").build();
+            }
 
+            @Override
+            public ClusterState clusterState() {
+                return stateMismatch;
+            }
+        });
         closeables.push(zenPingC);
 
         TestUnicastZenPing zenPingD = new TestUnicastZenPing(hostsSettingsMismatch, threadPool, handleD,

@@ -19,17 +19,9 @@
 
 package org.elasticsearch.discovery;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.function.Function;
-import java.util.function.Supplier;
-
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -40,6 +32,15 @@ import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * A module for loading classes for node discovery.
@@ -95,10 +96,12 @@ public class DiscoveryModule {
         if (discoverySupplier == null) {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
         }
+        Loggers.getLogger(getClass(), settings).info("using discovery type [{}]", discoveryType);
         discovery = Objects.requireNonNull(discoverySupplier.get());
     }
 
     public Discovery getDiscovery() {
         return discovery;
     }
+
 }

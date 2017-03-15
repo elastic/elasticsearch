@@ -72,8 +72,9 @@ public class SingleNodeDiscoveryTests extends ESTestCase {
             final DiscoveryNode node = transportService.getLocalNode();
             final ClusterService clusterService = createClusterService(threadPool, node);
             stack.push(clusterService);
-            final SingleNodeDiscovery no = new SingleNodeDiscovery(Settings.EMPTY, clusterService);
-            no.startInitialJoin();
+            final SingleNodeDiscovery discovery =
+                    new SingleNodeDiscovery(Settings.EMPTY, clusterService);
+            discovery.startInitialJoin();
             final DiscoveryNodes nodes = clusterService.state().nodes();
             assertThat(nodes.getSize(), equalTo(1));
             assertThat(nodes.getMasterNode().getId(), equalTo(node.getId()));

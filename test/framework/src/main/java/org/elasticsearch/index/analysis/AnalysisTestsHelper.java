@@ -25,13 +25,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.nio.file.Path;
-
-import static java.util.Collections.emptyList;
+import java.util.Arrays;
 
 public class AnalysisTestsHelper {
 
@@ -45,12 +45,12 @@ public class AnalysisTestsHelper {
     }
 
     public static ESTestCase.TestAnalysis createTestAnalysisFromSettings(
-            Settings settings) throws IOException {
+            Settings settings, AnalysisPlugin... plugins) throws IOException {
         if (settings.get(IndexMetaData.SETTING_VERSION_CREATED) == null) {
             settings = Settings.builder().put(settings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         }
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        AnalysisRegistry analysisRegistry = new AnalysisModule(new Environment(settings), emptyList()).getAnalysisRegistry();
+        AnalysisRegistry analysisRegistry = new AnalysisModule(new Environment(settings), Arrays.asList(plugins)).getAnalysisRegistry();
         return new ESTestCase.TestAnalysis(analysisRegistry.build(indexSettings),
             analysisRegistry.buildTokenFilterFactories(indexSettings),
             analysisRegistry.buildTokenizerFactories(indexSettings),

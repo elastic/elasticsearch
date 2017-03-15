@@ -10,6 +10,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 15115: Chicken Nugget trio
 * 15965: JTeam1
 * 16564: Oink
+* 16671: Honey Boo Boo Fan Club
 * 17597: 100
 * 17620: JAH
 * 18109: Krispy Belgian Cookies

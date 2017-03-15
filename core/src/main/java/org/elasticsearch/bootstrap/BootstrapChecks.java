@@ -56,7 +56,7 @@ final class BootstrapChecks {
     private BootstrapChecks() {
     }
 
-    final static String ES_ENFORCE_BOOTSTRAP_CHECKS = "es.enforce.bootstrap.checks";
+    static final String ES_ENFORCE_BOOTSTRAP_CHECKS = "es.enforce.bootstrap.checks";
 
     /**
      * Executes the bootstrap checks if the node has the transport protocol bound to a non-loopback interface. If the system property

@@ -590,7 +590,7 @@ public final class InternalTestCluster extends TestCluster {
             .put("node.name", name)
             .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), seed);
 
-        final boolean usingZenDiscovery = finalSettings.get(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey()).equals("zen");
+        final boolean usingZenDiscovery = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(finalSettings.build()).equals("zen");
         if (usingZenDiscovery && autoManageMinMasterNodes) {
             assert finalSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null :
                 "min master nodes may not be set when auto managed";

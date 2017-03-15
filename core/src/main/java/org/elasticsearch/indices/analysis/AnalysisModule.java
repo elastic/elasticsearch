@@ -25,7 +25,6 @@ import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.ASCIIFoldingTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.ApostropheFilterFactory;
@@ -205,7 +204,6 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<TokenFilterFactory>> tokenFilters = new NamedRegistry<>("token_filter");
         tokenFilters.register("stop", StopTokenFilterFactory::new);
         tokenFilters.register("reverse", ReverseTokenFilterFactory::new);
-        tokenFilters.register("asciifolding", ASCIIFoldingTokenFilterFactory::new);
         tokenFilters.register("length", LengthTokenFilterFactory::new);
         tokenFilters.register("lowercase", LowerCaseTokenFilterFactory::new);
         tokenFilters.register("uppercase", UpperCaseTokenFilterFactory::new);

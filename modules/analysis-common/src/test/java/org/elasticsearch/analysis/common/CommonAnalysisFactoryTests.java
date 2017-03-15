@@ -17,11 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.elasticsearch.AnalysisFactoryTestCase;
 
-public class AnalysisFactoryTests extends AnalysisFactoryTestCase {
-    // tests are inherited
-    // NOCOMMIT this should be dropped from core when there are no analyzers exposed there
+import java.util.HashMap;
+import java.util.Map;
+
+public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
+    @Override
+    protected Map<String, Class<?>> getTokenizers() {
+        Map<String, Class<?>> tokenizers = new HashMap<>(super.getTokenizers());
+        return tokenizers;
+    }
+
+    @Override
+    protected Map<String, Class<?>> getTokenFilters() {
+        Map<String, Class<?>> filters = new HashMap<>(super.getTokenFilters());
+        filters.put("asciifolding", ASCIIFoldingTokenFilterFactory.class);
+        return filters;
+    }
+
+    @Override
+    protected Map<String, Class<?>> getCharFilters() {
+        Map<String, Class<?>> filters = new HashMap<>(super.getCharFilters());
+        return filters;
+    }
 }

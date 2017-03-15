@@ -17,11 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
-import org.elasticsearch.AnalysisFactoryTestCase;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.Plugin;
 
-public class AnalysisFactoryTests extends AnalysisFactoryTestCase {
-    // tests are inherited
-    // NOCOMMIT this should be dropped from core when there are no analyzers exposed there
+import java.util.HashMap;
+import java.util.Map;
+
+public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
+    @Override
+    public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+        Map<String, AnalysisProvider<TokenFilterFactory>> filters = new HashMap<>();
+        filters.put("asciifolding", ASCIIFoldingTokenFilterFactory::new);
+        return filters;
+    }
 }

@@ -26,8 +26,8 @@ import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
 import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.index.analysis.ASCIIFoldingTokenFilterFactory;
 import org.elasticsearch.index.analysis.ApostropheFilterFactory;
 import org.elasticsearch.index.analysis.ArabicNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.ArabicStemTokenFilterFactory;
@@ -178,7 +178,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("apostrophe",                ApostropheFilterFactory.class)
         .put("arabicnormalization",       ArabicNormalizationFilterFactory.class)
         .put("arabicstem",                ArabicStemTokenFilterFactory.class)
-        .put("asciifolding",              ASCIIFoldingTokenFilterFactory.class)
+        .put("asciifolding",              Void.class)  // NOCOMMIT should this shouldn't be needed once we drop the dependency.
         .put("brazilianstem",             BrazilianStemTokenFilterFactory.class)
         .put("bulgarianstem",             StemmerTokenFilterFactory.class)
         .put("cjkbigram",                 CJKBigramFilterFactory.class)

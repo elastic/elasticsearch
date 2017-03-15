@@ -50,21 +50,15 @@ public class EvilBootstrapChecksTests extends ESTestCase {
         super.setUp();
     }
 
-    @SuppressForbidden(reason = "set or clear system property es.enforce.bootstrap.checks")
     @Override
     @After
     public void tearDown() throws Exception {
-        if (esEnforceBootstrapChecks == null) {
-            System.clearProperty(ES_ENFORCE_BOOTSTRAP_CHECKS);
-        } else {
-            System.setProperty(ES_ENFORCE_BOOTSTRAP_CHECKS, esEnforceBootstrapChecks);
-        }
+        setEsEnforceBootstrapChecks(esEnforceBootstrapChecks);
         super.tearDown();
     }
 
-    @SuppressForbidden(reason = "set system property es.enforce.bootstrap.checks")
     public void testEnforceBootstrapChecks() throws NodeValidationException {
-        System.setProperty(ES_ENFORCE_BOOTSTRAP_CHECKS, "true");
+        setEsEnforceBootstrapChecks("true");
         final List<BootstrapCheck> checks = Collections.singletonList(
                 new BootstrapCheck() {
                     @Override
@@ -90,19 +84,17 @@ public class EvilBootstrapChecksTests extends ESTestCase {
         verifyNoMoreInteractions(logger);
     }
 
-    @SuppressForbidden(reason = "clear system property es.enforce.bootstrap.checks")
     public void testNonEnforcedBootstrapChecks() throws NodeValidationException {
-        System.clearProperty(ES_ENFORCE_BOOTSTRAP_CHECKS);
+        setEsEnforceBootstrapChecks(null);
         final Logger logger = mock(Logger.class);
         // nothing should happen
         BootstrapChecks.check(false, emptyList(), logger);
         verifyNoMoreInteractions(logger);
     }
 
-    @SuppressForbidden(reason = "set system property es.enforce.bootstrap.checks")
     public void testInvalidValue() {
         final String value = randomAsciiOfLength(8);
-        System.setProperty(ES_ENFORCE_BOOTSTRAP_CHECKS, value);
+        setEsEnforceBootstrapChecks(value);
         final boolean enforceLimits = randomBoolean();
         final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
@@ -110,6 +102,15 @@ public class EvilBootstrapChecksTests extends ESTestCase {
         final Matcher<String> matcher = containsString(
                 "[es.enforce.bootstrap.checks] must be [true] but was [" + value + "]");
         assertThat(e, hasToString(matcher));
+    }
+
+    @SuppressForbidden(reason = "set or clear system property es.enforce.bootstrap.checks")
+    public void setEsEnforceBootstrapChecks(final String value) {
+        if (value == null) {
+            System.clearProperty(ES_ENFORCE_BOOTSTRAP_CHECKS);
+        } else {
+            System.setProperty(ES_ENFORCE_BOOTSTRAP_CHECKS, value);
+        }
     }
 
 }

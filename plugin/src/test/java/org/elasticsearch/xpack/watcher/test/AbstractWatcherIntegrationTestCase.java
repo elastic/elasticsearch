@@ -746,7 +746,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 builder.put("xpack.security.enabled", true)
                         .put("xpack.security.authc.realms.esusers.type", FileRealm.TYPE)
                         .put("xpack.security.authc.realms.esusers.order", 0)
-                        .put("xpack.security.authc.sign_user_header", false)
                         .put("xpack.security.audit.enabled", auditLogsEnabled)
                         .put(Environment.PATH_CONF_SETTING.getKey(), conf);
                         // security should always use one of its transports so if it is enabled explicitly declare one otherwise a local

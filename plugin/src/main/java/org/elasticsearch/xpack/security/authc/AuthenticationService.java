@@ -42,8 +42,6 @@ import static org.elasticsearch.xpack.security.Security.setting;
  */
 public class AuthenticationService extends AbstractComponent {
 
-    public static final Setting<Boolean> SIGN_USER_HEADER =
-            Setting.boolSetting(setting("authc.sign_user_header"), true, Property.NodeScope);
     public static final Setting<Boolean> RUN_AS_ENABLED =
             Setting.boolSetting(setting("authc.run_as.enabled"), true, Property.NodeScope);
     public static final String RUN_AS_USER_HEADER = "es-security-runas-user";
@@ -535,7 +533,6 @@ public class AuthenticationService extends AbstractComponent {
     }
 
     public static void addSettings(List<Setting<?>> settings) {
-        settings.add(SIGN_USER_HEADER);
         settings.add(RUN_AS_ENABLED);
     }
 }

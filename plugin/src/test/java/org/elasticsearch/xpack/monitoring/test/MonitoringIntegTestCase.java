@@ -471,7 +471,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                         .put("xpack.ml.autodetect_process", false)
                         .put("xpack.security.authc.realms.esusers.type", FileRealm.TYPE)
                         .put("xpack.security.authc.realms.esusers.order", 0)
-                        .put("xpack.security.authc.sign_user_header", false)
                         .put("xpack.security.audit.enabled", auditLogsEnabled)
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
                         .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4)

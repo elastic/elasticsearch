@@ -179,7 +179,7 @@ Example using Java:
 [source,java]
 ----
 client.admin().cluster().preparePutRepository("my_backup_java1")
-    .setType("azure").setSettings(Settings.settingsBuilder()
+    .setType("azure").setSettings(Settings.builder()
         .put(Storage.CONTAINER, "backup-container")
         .put(Storage.CHUNK_SIZE, new ByteSizeValue(32, ByteSizeUnit.MB))
     ).get();

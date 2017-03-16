@@ -276,7 +276,7 @@ The direct generators support the following parameters:
     filtered out using `confidence`. Three possible values can be specified:
     ** `missing`: Only generate suggestions for terms that are not in the
                  shard. This is the default.
-    ** `popular`: Only suggest terms that occur in more docs on the shard then
+    ** `popular`: Only suggest terms that occur in more docs on the shard than
                  the original term.
     ** `always`: Suggest any matching suggestions based on terms in the
                  suggest text.

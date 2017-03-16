@@ -31,7 +31,7 @@ public class CsvParserTests extends ESTestCase {
         InputStream inputStream = new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8));
 
         CsvPreference csvPref = new CsvPreference.Builder(
-                DataDescription.DEFAULT_QUOTE_CHAR,
+                '"',
                 ',',
                 new String(new char[]{DataDescription.LINE_ENDING})).build();
 

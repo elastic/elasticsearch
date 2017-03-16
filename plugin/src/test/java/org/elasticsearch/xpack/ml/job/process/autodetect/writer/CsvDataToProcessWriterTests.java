@@ -62,8 +62,8 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         }).when(autodetectProcess).writeRecord(any(String[].class));
 
         dataDescription = new DataDescription.Builder();
-        dataDescription.setFieldDelimiter(',');
         dataDescription.setFormat(DataFormat.DELIMITED);
+        dataDescription.setFieldDelimiter(',');
         dataDescription.setTimeFormat(DataDescription.EPOCH);
 
         Detector detector = new Detector.Builder("metric", "value").build();

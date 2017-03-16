@@ -57,10 +57,10 @@ public class ValidateJobConfigActionRequestTests extends AbstractStreamableXCont
             if (randomBoolean()) {
                 dataDescription.setFormat(DataDescription.DataFormat.DELIMITED);
                 if (randomBoolean()) {
-                    dataDescription.setFieldDelimiter(';');
+                    dataDescription.setFieldDelimiter(new Character(';'));
                 }
                 if (randomBoolean()) {
-                    dataDescription.setQuoteCharacter('\'');
+                    dataDescription.setQuoteCharacter(new Character('\''));
                 }
             } else {
                 dataDescription.setFormat(DataDescription.DataFormat.JSON);

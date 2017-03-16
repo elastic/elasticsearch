@@ -123,11 +123,10 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
     private final DataFormat dataFormat;
     private final String timeFieldName;
     private final String timeFormat;
-    private final char fieldDelimiter;
-    private final char quoteCharacter;
+    private final Character fieldDelimiter;
+    private final Character quoteCharacter;
 
-    public static final ObjectParser<Builder, Void> PARSER =
-            new ObjectParser<>(DATA_DESCRIPTION_FIELD.getPreferredName(), Builder::new);
+    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(DATA_DESCRIPTION_FIELD.getPreferredName(), Builder::new);
 
     static {
         PARSER.declareString(Builder::setFormat, FORMAT_FIELD);
@@ -137,7 +136,8 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
         PARSER.declareField(Builder::setQuoteCharacter, DataDescription::extractChar, QUOTE_CHARACTER_FIELD, ValueType.STRING);
     }
 
-    public DataDescription(DataFormat dataFormat, String timeFieldName, String timeFormat, char fieldDelimiter, char quoteCharacter) {
+    public DataDescription(DataFormat dataFormat, String timeFieldName, String timeFormat, Character fieldDelimiter,
+                           Character quoteCharacter) {
         this.dataFormat = dataFormat;
         this.timeFieldName = timeFieldName;
         this.timeFormat = timeFormat;
@@ -149,8 +149,8 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
         dataFormat = DataFormat.readFromStream(in);
         timeFieldName = in.readString();
         timeFormat = in.readString();
-        fieldDelimiter = (char) in.read();
-        quoteCharacter = (char) in.read();
+        fieldDelimiter = in.readBoolean() ? (char) in.read() : null;
+        quoteCharacter = in.readBoolean() ? (char) in.read() : null;
     }
 
     @Override
@@ -158,25 +158,41 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
         dataFormat.writeTo(out);
         out.writeString(timeFieldName);
         out.writeString(timeFormat);
-        out.write(fieldDelimiter);
-        out.write(quoteCharacter);
+        if (fieldDelimiter != null) {
+            out.writeBoolean(true);
+            out.write(fieldDelimiter);
+        } else {
+            out.writeBoolean(false);
+        }
+        if (quoteCharacter != null) {
+            out.writeBoolean(true);
+            out.write(quoteCharacter);
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FORMAT_FIELD.getPreferredName(), dataFormat);
+        if (dataFormat != DataFormat.JSON) {
+            builder.field(FORMAT_FIELD.getPreferredName(), dataFormat);
+        }
         builder.field(TIME_FIELD_NAME_FIELD.getPreferredName(), timeFieldName);
         builder.field(TIME_FORMAT_FIELD.getPreferredName(), timeFormat);
-        builder.field(FIELD_DELIMITER_FIELD.getPreferredName(), String.valueOf(fieldDelimiter));
-        builder.field(QUOTE_CHARACTER_FIELD.getPreferredName(), String.valueOf(quoteCharacter));
+        if (fieldDelimiter != null) {
+            builder.field(FIELD_DELIMITER_FIELD.getPreferredName(), String.valueOf(fieldDelimiter));
+        }
+        if (quoteCharacter != null) {
+            builder.field(QUOTE_CHARACTER_FIELD.getPreferredName(), String.valueOf(quoteCharacter));
+        }
         builder.endObject();
         return builder;
     }
 
     /**
      * The format of the data to be processed.
-     * Defaults to {@link DataDescription.DataFormat#DELIMITED}
+     * Defaults to {@link DataDescription.DataFormat#JSON}
      *
      * @return The data format
      */
@@ -196,8 +212,8 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
     /**
      * Either {@value #EPOCH}, {@value #EPOCH_MS} or a SimpleDateTime format string.
      * If not set (is <code>null</code> or an empty string) or set to
-     * {@value #EPOCH} (the default) then the date is assumed to be in
-     * seconds from the epoch.
+     * {@value #EPOCH_MS} (the default) then the date is assumed to be in
+     * milliseconds from the epoch.
      *
      * @return A String if set or <code>null</code>
      */
@@ -209,21 +225,21 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
      * If the data is in a delineated format with a header e.g. csv or tsv
      * this is the delimiter character used. This is only applicable if
      * {@linkplain #getFormat()} is {@link DataDescription.DataFormat#DELIMITED}.
-     * The default value is {@value #DEFAULT_DELIMITER}
+     * The default value for delimited format is {@value #DEFAULT_DELIMITER}.
      *
      * @return A char
      */
-    public char getFieldDelimiter() {
+    public Character getFieldDelimiter() {
         return fieldDelimiter;
     }
 
     /**
      * The quote character used in delineated formats.
-     * Defaults to {@value #DEFAULT_QUOTE_CHAR}
+     * The default value for delimited format is {@value #DEFAULT_QUOTE_CHAR}.
      *
      * @return The delineated format quote character
      */
-    public char getQuoteCharacter() {
+    public Character getQuoteCharacter() {
         return quoteCharacter;
     }
 
@@ -236,8 +252,7 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
      * @return True if the data should be transformed.
      */
     public boolean transform() {
-        return dataFormat == DataFormat.JSON ||
-                isTransformTime();
+        return dataFormat == DataFormat.JSON || isTransformTime();
     }
 
     /**
@@ -260,7 +275,7 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
         return EPOCH_MS.equals(timeFormat);
     }
 
-    private static char extractChar(XContentParser parser) throws IOException {
+    private static Character extractChar(XContentParser parser) throws IOException {
         if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
             String charStr = parser.text();
             if (charStr.length() != 1) {
@@ -287,7 +302,7 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
         DataDescription that = (DataDescription) other;
 
         return this.dataFormat == that.dataFormat &&
-                this.quoteCharacter == that.quoteCharacter &&
+                Objects.equals(this.quoteCharacter, that.quoteCharacter) &&
                 Objects.equals(this.timeFieldName, that.timeFieldName) &&
                 Objects.equals(this.timeFormat, that.timeFormat) &&
                 Objects.equals(this.fieldDelimiter, that.fieldDelimiter);
@@ -295,17 +310,16 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(dataFormat, quoteCharacter, timeFieldName,
-                timeFormat, fieldDelimiter);
+        return Objects.hash(dataFormat, quoteCharacter, timeFieldName, timeFormat, fieldDelimiter);
     }
 
     public static class Builder {
 
-        private DataFormat dataFormat = DataFormat.DELIMITED;
+        private DataFormat dataFormat = DataFormat.JSON;
         private String timeFieldName = DEFAULT_TIME_FIELD;
-        private String timeFormat = EPOCH;
-        private char fieldDelimiter = DEFAULT_DELIMITER;
-        private char quoteCharacter = DEFAULT_QUOTE_CHAR;
+        private String timeFormat = EPOCH_MS;
+        private Character fieldDelimiter;
+        private Character quoteCharacter;
 
         public void setFormat(DataFormat format) {
             dataFormat = ExceptionsHelper.requireNonNull(format, FORMAT_FIELD.getPreferredName() + " must not be null");
@@ -335,18 +349,24 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
             timeFormat = format;
         }
 
-        public void setFieldDelimiter(char delimiter) {
+        public void setFieldDelimiter(Character delimiter) {
             fieldDelimiter = delimiter;
         }
 
-        public void setQuoteCharacter(char value) {
+        public void setQuoteCharacter(Character value) {
             quoteCharacter = value;
         }
 
         public DataDescription build() {
-            return new DataDescription(dataFormat, timeFieldName, timeFormat, fieldDelimiter,quoteCharacter);
+            if (dataFormat == DataFormat.DELIMITED) {
+                if (fieldDelimiter == null) {
+                    fieldDelimiter = DEFAULT_DELIMITER;
+                }
+                if (quoteCharacter == null) {
+                    quoteCharacter = DEFAULT_QUOTE_CHAR;
+                }
+            }
+            return new DataDescription(dataFormat, timeFieldName, timeFormat, fieldDelimiter, quoteCharacter);
         }
-
     }
-
 }

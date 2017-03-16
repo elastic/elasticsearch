@@ -16,9 +16,33 @@ import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.core.Is.is;
 
 public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescription> {
+
+    public void testDefault() {
+        DataDescription dataDescription = new DataDescription.Builder().build();
+        assertThat(dataDescription.getFormat(), equalTo(DataFormat.JSON));
+        assertThat(dataDescription.getTimeField(), equalTo("time"));
+        assertThat(dataDescription.getTimeFormat(), equalTo("epoch_ms"));
+        assertThat(dataDescription.getFieldDelimiter(), is(nullValue()));
+        assertThat(dataDescription.getQuoteCharacter(), is(nullValue()));
+    }
+
+    public void testDefaultDelimited() {
+        DataDescription.Builder dataDescriptionBuilder = new DataDescription.Builder();
+        dataDescriptionBuilder.setFormat(DataFormat.DELIMITED);
+        DataDescription dataDescription = dataDescriptionBuilder.build();
+
+        assertThat(dataDescription.getFormat(), equalTo(DataFormat.DELIMITED));
+        assertThat(dataDescription.getTimeField(), equalTo("time"));
+        assertThat(dataDescription.getTimeFormat(), equalTo("epoch_ms"));
+        assertThat(dataDescription.getFieldDelimiter(), is('\t'));
+        assertThat(dataDescription.getQuoteCharacter(), is('"'));
+    }
 
     public void testVerify_GivenValidFormat() {
         DataDescription.Builder description = new DataDescription.Builder();

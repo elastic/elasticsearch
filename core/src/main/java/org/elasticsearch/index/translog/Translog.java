@@ -1385,9 +1385,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
             currentCommittingGeneration = current.getGeneration();
             foldGeneration();
-        } catch (final Exception e) {
-            IOUtils.closeWhileHandlingException(this); // tragic event
-            throw e;
         }
         return 0L;
     }

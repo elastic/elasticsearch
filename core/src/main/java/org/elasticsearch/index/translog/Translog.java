@@ -425,9 +425,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 ensureOpen();
                 location = current.add(bytes, operation.seqNo());
             }
-            if (shouldFoldGeneration(this) && foldingGeneration.compareAndSet(false, true)) {
+            if (shouldFoldGeneration() && foldingGeneration.compareAndSet(false, true)) {
                 // we have to check the condition again lest we could fold twice in a race
-                if (shouldFoldGeneration(this)) {
+                if (shouldFoldGeneration()) {
                     try (ReleasableLock ignored = writeLock.acquire()) {
                         this.foldGeneration(current.getGeneration());
                     }
@@ -460,12 +460,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * generation. This test is based on the size of the current generation compared to the
      * configured generation threshold size.
      *
-     * @param translog the translog
      * @return {@code true} if the current generation should be folded into a new generation
      */
-    private static boolean shouldFoldGeneration(final Translog translog) {
-        final long size = translog.current.sizeInBytes();
-        final long threshold = translog.indexSettings.getGenerationThresholdSize().getBytes();
+    private boolean shouldFoldGeneration() {
+        final long size = this.current.sizeInBytes();
+        final long threshold = this.indexSettings.getGenerationThresholdSize().getBytes();
         return size > threshold;
     }
 

@@ -284,6 +284,14 @@ public class XPackLicenseState {
     }
 
     /**
+     * @return whether custom role providers are allowed based on the license {@link OperationMode}
+     */
+    public boolean isCustomRoleProvidersAllowed() {
+        final Status localStatus = status;
+        return (localStatus.mode == OperationMode.PLATINUM || localStatus.mode == OperationMode.TRIAL) && localStatus.active;
+    }
+
+    /**
      * Determine if Watcher is available based on the current license.
      * <p>
      * Watcher is available if the license is active (hasn't expired) and of one of the following types:

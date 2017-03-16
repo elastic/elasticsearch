@@ -334,4 +334,15 @@ public class TestUtils {
             activeUpdates.add(active);
         }
     }
+
+    /**
+     * A license state that makes the {@link #update(License.OperationMode, boolean)}
+     * method public for use in tests.
+     */
+    public static class UpdatableLicenseState extends XPackLicenseState {
+        @Override
+        public void update(License.OperationMode mode, boolean active) {
+            super.update(mode, active);
+        }
+    }
 }

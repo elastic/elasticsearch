@@ -152,7 +152,7 @@ public class CompositeRolesStore extends AbstractComponent {
                 if (builtInRoleDescriptors.size() != filteredRoleNames.size()) {
                     final Set<String> missing = difference(filteredRoleNames, builtInRoleDescriptors);
                     assert missing.isEmpty() == false : "the missing set should not be empty if the sizes didn't match";
-                    if (!customRolesProviders.isEmpty()) {
+                    if (licenseState.isCustomRoleProvidersAllowed() && !customRolesProviders.isEmpty()) {
                         new IteratingActionListener<>(roleDescriptorActionListener, (rolesProvider, listener) -> {
                             // resolve descriptors with role provider
                             rolesProvider.accept(missing, ActionListener.wrap((resolvedDescriptors) -> {

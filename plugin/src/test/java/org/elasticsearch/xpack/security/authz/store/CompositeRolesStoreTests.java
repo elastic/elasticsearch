@@ -11,6 +11,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.license.License.OperationMode;
+import org.elasticsearch.license.TestUtils.UpdatableLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -317,6 +319,71 @@ public class CompositeRolesStoreTests extends ESTestCase {
         } catch (ExecutionException e) {
             assertEquals("fake failure", e.getCause().getMessage());
         }
+    }
+
+    public void testCustomRolesProvidersLicensing() {
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        when(fileRolesStore.roleDescriptors(anySetOf(String.class))).thenReturn(Collections.emptySet());
+        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doAnswer((invocationOnMock) -> {
+            ActionListener<Set<RoleDescriptor>> callback = (ActionListener<Set<RoleDescriptor>>) invocationOnMock.getArguments()[1];
+            callback.onResponse(Collections.emptySet());
+            return null;
+        }).when(nativeRolesStore).getRoleDescriptors(isA(String[].class), any(ActionListener.class));
+        final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
+
+        final InMemoryRolesProvider inMemoryProvider = new InMemoryRolesProvider((roles) -> {
+            Set<RoleDescriptor> descriptors = new HashSet<>();
+            if (roles.contains("roleA")) {
+                descriptors.add(new RoleDescriptor("roleA", null,
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder().privileges("READ").indices("foo").grantedFields("*").build()
+                    }, null));
+            }
+            return descriptors;
+        });
+
+        UpdatableLicenseState xPackLicenseState = new UpdatableLicenseState();
+        // these licenses don't allow custom role providers
+        xPackLicenseState.update(randomFrom(OperationMode.BASIC, OperationMode.GOLD, OperationMode.STANDARD), true);
+        CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
+            Settings.EMPTY, fileRolesStore, nativeRolesStore, reservedRolesStore,
+            Arrays.asList(inMemoryProvider), new ThreadContext(Settings.EMPTY), xPackLicenseState);
+
+        Set<String> roleNames = Sets.newHashSet("roleA");
+        PlainActionFuture<Role> future = new PlainActionFuture<>();
+        FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        compositeRolesStore.roles(roleNames, fieldPermissionsCache, future);
+        Role role = future.actionGet();
+
+        // no roles should've been populated, as the license doesn't permit custom role providers
+        assertEquals(0, role.indices().groups().length);
+
+        compositeRolesStore = new CompositeRolesStore(
+            Settings.EMPTY, fileRolesStore, nativeRolesStore, reservedRolesStore,
+            Arrays.asList(inMemoryProvider), new ThreadContext(Settings.EMPTY), xPackLicenseState);
+        // these licenses allow custom role providers
+        xPackLicenseState.update(randomFrom(OperationMode.PLATINUM, OperationMode.TRIAL), true);
+        roleNames = Sets.newHashSet("roleA");
+        future = new PlainActionFuture<>();
+        fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        compositeRolesStore.roles(roleNames, fieldPermissionsCache, future);
+        role = future.actionGet();
+
+        // roleA should've been populated by the custom role provider, because the license allows it
+        assertEquals(1, role.indices().groups().length);
+
+        // license expired, don't allow custom role providers
+        compositeRolesStore = new CompositeRolesStore(
+            Settings.EMPTY, fileRolesStore, nativeRolesStore, reservedRolesStore,
+            Arrays.asList(inMemoryProvider), new ThreadContext(Settings.EMPTY), xPackLicenseState);
+        xPackLicenseState.update(randomFrom(OperationMode.PLATINUM, OperationMode.TRIAL), false);
+        roleNames = Sets.newHashSet("roleA");
+        future = new PlainActionFuture<>();
+        fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        compositeRolesStore.roles(roleNames, fieldPermissionsCache, future);
+        role = future.actionGet();
+        assertEquals(0, role.indices().groups().length);
     }
 
     private static class InMemoryRolesProvider implements BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>> {

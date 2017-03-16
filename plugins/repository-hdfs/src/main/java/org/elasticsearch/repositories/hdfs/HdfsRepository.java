@@ -19,22 +19,20 @@
 package org.elasticsearch.repositories.hdfs;
 
 import java.io.IOException;
-import java.lang.reflect.Constructor;
 import java.net.URI;
 import java.security.AccessController;
-import java.security.Principal;
 import java.security.PrivilegedAction;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
-
-import javax.security.auth.Subject;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
+import org.apache.hadoop.security.SecurityUtil;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.log4j.Logger;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -50,6 +48,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 public final class HdfsRepository extends BlobStoreRepository {
+
+    private static final Logger LOGGER = Logger.getLogger(HdfsRepository.class);
 
     private final BlobPath basePath = BlobPath.cleanPath();
     private final ByteSizeValue chunkSize;
@@ -118,23 +118,33 @@ public final class HdfsRepository extends BlobStoreRepository {
             cfg.set(entry.getKey(), entry.getValue());
         }
 
-        // create a hadoop user. if we want some auth, it must be done different anyway, and tested.
-        Subject subject;
-        try {
-            Class<?> clazz = Class.forName("org.apache.hadoop.security.User");
-            Constructor<?> ctor = clazz.getConstructor(String.class);
-            ctor.setAccessible(true);
-            Principal principal = (Principal) ctor.newInstance(System.getProperty("user.name"));
-            subject = new Subject(false, Collections.singleton(principal), Collections.emptySet(), Collections.emptySet());
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException(e);
+        // Initialize the UGI with the configuration.
+        UserGroupInformation.setConfiguration(cfg);
+
+        // Debugging
+        UserGroupInformation.AuthenticationMethod method = SecurityUtil.getAuthenticationMethod(cfg);
+        LOGGER.info("Using Hadoop authentication method : [" + method + "]");
+        if (UserGroupInformation.isSecurityEnabled()) {
+            LOGGER.info("Hadoop Security Is [ENABLED]");
+        } else {
+            LOGGER.info("Hadoop Security is [DISABLED]");
         }
 
-        // disable FS cache
+        // Create a hadoop user
+        // UserGroupInformation (UGI) instance is just a Hadoop specific wrapper
+        // around a Java Subject
+        UserGroupInformation ugi;
+        try {
+            ugi = UserGroupInformation.getCurrentUser();
+        } catch (IOException e) {
+            throw new RuntimeException("Could not retrieve the current user information", e);
+        }
+
+        // Disable FS cache
         cfg.setBoolean("fs.hdfs.impl.disable.cache", true);
 
-        // create the filecontext with our user
-        return Subject.doAs(subject, (PrivilegedAction<FileContext>) () -> {
+        // Create the filecontext with our user information
+        return ugi.doAs((PrivilegedAction<FileContext>) () -> {
             try {
                 AbstractFileSystem fs = AbstractFileSystem.get(uri, cfg);
                 return FileContext.getFileContext(fs, cfg);

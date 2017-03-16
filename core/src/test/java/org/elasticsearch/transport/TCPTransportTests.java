@@ -175,7 +175,7 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void sendMessage(Object o, BytesReference reference, Consumer listener) {
+                protected void sendMessage(Object o, BytesReference reference, ActionListener listener) {
                     try {
                         StreamInput streamIn = reference.streamInput();
                         streamIn.skip(TcpHeader.MARKER_BYTES_SIZE);

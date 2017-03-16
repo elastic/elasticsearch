@@ -239,7 +239,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected void sendMessage(MockChannel mockChannel, BytesReference reference, Consumer<Exception> listener) {
+    protected void sendMessage(MockChannel mockChannel, BytesReference reference, ActionListener<MockChannel> listener) {
         try {
             synchronized (mockChannel) {
                 final Socket socket = mockChannel.activeChannel;
@@ -247,9 +247,9 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
                 reference.writeTo(outputStream);
                 outputStream.flush();
             }
-            listener.accept(null);
+            listener.onResponse(mockChannel);
         } catch (IOException e) {
-            listener.accept(e);
+            listener.onFailure(e);
             onException(mockChannel, e);
         }
     }

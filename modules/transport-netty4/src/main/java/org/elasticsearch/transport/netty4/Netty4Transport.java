@@ -396,17 +396,17 @@ public class Netty4Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected void sendMessage(Channel channel, BytesReference reference, Consumer<Exception> listener) {
+    protected void sendMessage(Channel channel, BytesReference reference, ActionListener<Channel> listener) {
         final ChannelFuture future = channel.writeAndFlush(Netty4Utils.toByteBuf(reference));
         future.addListener(f -> {
             if (f.isSuccess()) {
-                listener.accept(null);
+                listener.onResponse(channel);
             } else {
                 Throwable cause = f.cause();
                 // If the Throwable is an Error something has gone very wrong and Netty4MessageChannelHandler is
                 // going to cause that to bubble up and kill the process.
                 if (cause instanceof Exception) {
-                    listener.accept((Exception) cause);
+                    listener.onFailure((Exception) cause);
                 }
             }
         });

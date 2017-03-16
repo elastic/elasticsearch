@@ -16,10 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.indices;
+package org.elasticsearch.analysis.common;
 
-import org.apache.lucene.analysis.MockTokenFilter;
-import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
@@ -29,29 +27,22 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
-import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 
 /**
- * Tests for {@link TransportAnalyzeAction}. See the more "intense" version of this test in the {@code common-analysis} module.
+ * More "intense" version of a unit test with the same name that is in core. This one has access to the analyzers in this module.
  */
 public class TransportAnalyzeActionTests extends ESTestCase {
-
     private IndexAnalyzers indexAnalyzers;
     private AnalysisRegistry registry;
     private Environment environment;
@@ -59,33 +50,29 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Settings settings = Settings.builder().put(
+                Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
 
         Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
-                .put("index.analysis.analyzer.custom_analyzer.filter", "mock").build();
+                .put("index.analysis.filter.wordDelimiter.type", "word_delimiter")
+                .put("index.analysis.filter.wordDelimiter.split_on_numerics", false)
+                .put("index.analysis.analyzer.custom_analyzer.tokenizer", "whitespace")
+                .putArray("index.analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter")
+                .put("index.analysis.analyzer.custom_analyzer.tokenizer", "whitespace")
+                .putArray("index.analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter")
+                .put("index.analysis.tokenizer.trigram.type", "ngram")
+                .put("index.analysis.tokenizer.trigram.min_gram", 3)
+                .put("index.analysis.tokenizer.trigram.max_gram", 3)
+                .put("index.analysis.filter.synonym.type", "synonym")
+                .putArray("index.analysis.filter.synonym.synonyms", "kimchy => shay")
+                .put("index.analysis.filter.synonym.tokenizer", "trigram")
+                .put("index.analysis.filter.synonym.min_gram", 3)
+                .put("index.analysis.filter.synonym.max_gram", 3).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
         environment = new Environment(settings);
-        AnalysisPlugin plugin = new AnalysisPlugin() {
-            class MockFactory extends AbstractTokenFilterFactory {
-                MockFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-                    super(indexSettings, name, settings);
-                }
-
-                @Override
-                public TokenStream create(TokenStream tokenStream) {
-                    return new MockTokenFilter(tokenStream, MockTokenFilter.ENGLISH_STOPSET);
-                }
-            }
-
-            @Override
-            public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
-                return singletonMap("mock", MockFactory::new);
-            }
-        };
-        registry = new AnalysisModule(environment, singletonList(plugin)).getAnalysisRegistry();
+        registry = new AnalysisModule(environment, singletonList(new CommonAnalysisPlugin())).getAnalysisRegistry();
         indexAnalyzers = registry.build(idxSettings);
     }
 
@@ -102,7 +89,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.addTokenFilter("lowercase");
         request.addTokenFilter("word_delimiter");
         request.text("the qu1ck brown fox");
-        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, randomBoolean() ? indexAnalyzers : null, registry, environment);
+        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, randomBoolean() ? indexAnalyzers : null, registry,
+                environment);
         tokens = analyze.getTokens();
         assertEquals(6, tokens.size());
         assertEquals("qu", tokens.get(1).getTerm());
@@ -115,7 +103,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.addTokenFilter("lowercase");
         request.addTokenFilter("word_delimiter");
         request.text("<p>the qu1ck brown fox</p>");
-        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, randomBoolean() ? indexAnalyzers : null, registry, environment);
+        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, randomBoolean() ? indexAnalyzers : null, registry,
+                environment);
         tokens = analyze.getTokens();
         assertEquals(6, tokens.size());
         assertEquals("the", tokens.get(0).getTerm());
@@ -159,43 +148,51 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     }
 
     public void testWithIndexAnalyzers() throws IOException {
-        AnalyzeRequest request = new AnalyzeRequest();
-        request.text("the quick brown fox");
 
+        AnalyzeRequest request = new AnalyzeRequest();
+        request.analyzer("standard");
+        request.text("the quick brown fox");
         request.analyzer("custom_analyzer");
+        request.text("the qu1ck brown fox");
         AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers, registry, environment);
         List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
-        assertEquals(3, tokens.size());
-        assertEquals("quick", tokens.get(0).getTerm());
-        assertEquals("brown", tokens.get(1).getTerm());
-        assertEquals("fox", tokens.get(2).getTerm());
+        assertEquals(4, tokens.size());
 
-        request.analyzer("standard");
+        request.analyzer("whitespace");
+        request.text("the qu1ck brown fox-dog");
         analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers, registry, environment);
         tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
-        assertEquals("the", tokens.get(0).getTerm());
-        assertEquals("quick", tokens.get(1).getTerm());
-        assertEquals("brown", tokens.get(2).getTerm());
-        assertEquals("fox", tokens.get(3).getTerm());
+
+        request.analyzer("custom_analyzer");
+        request.text("the qu1ck brown fox-dog");
+        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers, registry, environment);
+        tokens = analyze.getTokens();
+        assertEquals(5, tokens.size());
 
         request.analyzer(null);
-        request.tokenizer("standard");
+        request.tokenizer("whitespace");
+        request.addTokenFilter("lowercase");
+        request.addTokenFilter("wordDelimiter");
+        request.text("the qu1ck brown fox-dog");
         analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers, registry, environment);
         tokens = analyze.getTokens();
-        assertEquals(4, tokens.size());
+        assertEquals(5, tokens.size());
         assertEquals("the", tokens.get(0).getTerm());
-        assertEquals("quick", tokens.get(1).getTerm());
+        assertEquals("qu1ck", tokens.get(1).getTerm());
         assertEquals("brown", tokens.get(2).getTerm());
         assertEquals("fox", tokens.get(3).getTerm());
+        assertEquals("dog", tokens.get(4).getTerm());
 
-        request.addTokenFilter("mock");
+        request.analyzer(null);
+        request.tokenizer("trigram");
+        request.addTokenFilter("synonym");
+        request.text("kimchy");
         analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers, registry, environment);
         tokens = analyze.getTokens();
-        assertEquals(3, tokens.size());
-        assertEquals("quick", tokens.get(0).getTerm());
-        assertEquals("brown", tokens.get(1).getTerm());
-        assertEquals("fox", tokens.get(2).getTerm());
+        assertEquals(2, tokens.size());
+        assertEquals("sha", tokens.get(0).getTerm());
+        assertEquals("hay", tokens.get(1).getTerm());
     }
 
     public void testGetIndexAnalyserWithoutIndexAnalyzers() throws IOException {

@@ -24,31 +24,26 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.analysis.MockTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
-import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -169,8 +164,8 @@ public class AnalysisRegistryTests extends ESTestCase {
         /* The snake_case version of the name should not filter out any stopwords while the
          * camelCase version will filter out English stopwords. */
         AnalysisPlugin plugin = new AnalysisPlugin() {
-            class WordDelimiterFactory extends AbstractTokenFilterFactory {
-                public WordDelimiterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+            class MockFactory extends AbstractTokenFilterFactory {
+                MockFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
                     super(indexSettings, name, settings);
                 }
 
@@ -185,7 +180,7 @@ public class AnalysisRegistryTests extends ESTestCase {
             @Override
             public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
                 Map<String, AnalysisProvider<TokenFilterFactory>> filters = new HashMap<>();
-                filters.put("mock", WordDelimiterFactory::new);
+                filters.put("mock", MockFactory::new);
                 return filters;
             }
         };

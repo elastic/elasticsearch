@@ -34,7 +34,9 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     @Override
     protected Map<String, Class<?>> getTokenFilters() {
         Map<String, Class<?>> filters = new HashMap<>(super.getTokenFilters());
-        filters.put("asciifolding", ASCIIFoldingTokenFilterFactory.class);
+        filters.put("asciifolding",          ASCIIFoldingTokenFilterFactory.class);
+        filters.put("worddelimiter",         WordDelimiterTokenFilterFactory.class);
+        filters.put("worddelimitergraph",    WordDelimiterGraphTokenFilterFactory.class);
         return filters;
     }
 

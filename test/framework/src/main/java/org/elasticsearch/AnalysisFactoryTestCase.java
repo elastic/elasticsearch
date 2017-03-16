@@ -175,7 +175,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("apostrophe",                ApostropheFilterFactory.class)
         .put("arabicnormalization",       ArabicNormalizationFilterFactory.class)
         .put("arabicstem",                ArabicStemTokenFilterFactory.class)
-        .put("asciifolding",              Void.class)  // NOCOMMIT should this shouldn't be needed once we drop the dependency.
+        .put("asciifolding",              Void.class)  // TODO remove this when core no longer depends on analysis-common 
         .put("brazilianstem",             BrazilianStemTokenFilterFactory.class)
         .put("bulgarianstem",             StemmerTokenFilterFactory.class)
         .put("cjkbigram",                 CJKBigramFilterFactory.class)
@@ -250,8 +250,8 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("turkishlowercase",          LowerCaseTokenFilterFactory.class)
         .put("type",                      KeepTypesFilterFactory.class)
         .put("uppercase",                 UpperCaseTokenFilterFactory.class)
-        .put("worddelimiter",             Void.class)  // NOCOMMIT should this shouldn't be needed once we drop the dependency.
-        .put("worddelimitergraph",        Void.class)  // NOCOMMIT should this shouldn't be needed once we drop the dependency.
+        .put("worddelimiter",             Void.class)  // TODO remove this when core no longer depends on analysis-common
+        .put("worddelimitergraph",        Void.class)  // TODO remove this when core no longer depends on analysis-common
         .put("flattengraph",              FlattenGraphTokenFilterFactory.class)
 
         // TODO: these tokenfilters are not yet exposed: useful?

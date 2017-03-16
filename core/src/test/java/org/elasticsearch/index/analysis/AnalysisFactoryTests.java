@@ -22,6 +22,5 @@ package org.elasticsearch.index.analysis;
 import org.elasticsearch.AnalysisFactoryTestCase;
 
 public class AnalysisFactoryTests extends AnalysisFactoryTestCase {
-    // tests are inherited
-    // NOCOMMIT this should be dropped from core when there are no analyzers exposed there
+    // tests are inherited and nothing needs to be defined here
 }

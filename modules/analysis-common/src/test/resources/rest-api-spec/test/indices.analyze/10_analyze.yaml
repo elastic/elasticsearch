@@ -1,10 +1,6 @@
-# Will be performed before each test as a part of the test setup
-#
-setup:
-  - do:
-      ping: {}
+# The rest tests for the indices.analyze action live in the common-analysis
+# module because they depend on many analyzers not in core.
 
----
 "Basic test":
     - do:
         indices.analyze:

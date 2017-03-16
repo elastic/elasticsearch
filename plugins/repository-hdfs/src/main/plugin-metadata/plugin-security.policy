@@ -36,9 +36,18 @@ grant {
   permission javax.security.auth.AuthPermission "doAs";
   permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
 
+  // hdfs client opens socket connections for to access repository
+  permission java.net.SocketPermission "*", "connect";
+
   // Retrieval of private hadoop credentials from any Subject in cases where authentication is enabled
   permission javax.security.auth.PrivateCredentialPermission "org.apache.hadoop.security.Credentials * \"*\"", "read";
 
-  // hdfs client opens socket connections for to access repository
-  permission java.net.SocketPermission "*", "connect";
+  // Needed for constructing login contexts in the UGI
+  permission java.lang.RuntimePermission "setContextClassLoader";
+
+  // Unix login context
+  permission java.lang.RuntimePermission "loadLibrary.jaas_unix";
+
+  // Ability for Hadoop UGI and LoginContexts to add principals for JAAS login contexts
+  permission javax.security.auth.AuthPermission "modifyPrincipals";
 };

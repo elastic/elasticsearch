@@ -68,7 +68,8 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals(Collections.singletonMap("flushed", true), responseEntityToMap(response));
 
-        response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_close");
+        response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_close",
+                Collections.singletonMap("timeout", "20s"));
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals(Collections.singletonMap("closed", true), responseEntityToMap(response));
 
@@ -147,7 +148,8 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals(Collections.singletonMap("stopped", true), responseEntityToMap(response));
 
-        response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_close");
+        response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_close",
+                Collections.singletonMap("timeout", "20s"));
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals(Collections.singletonMap("closed", true), responseEntityToMap(response));
 

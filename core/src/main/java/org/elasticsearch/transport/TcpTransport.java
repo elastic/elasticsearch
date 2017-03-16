@@ -997,8 +997,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected abstract void closeChannels(List<Channel> channel) throws IOException;
 
     /**
-     * Sends message to channel. The listener will be called with an exception if the send operation throws an exception. If the operation
-     * is successful, the listener will be called with null.
+     * Sends message to channel. The listener's onResponse method will be called when the send is complete unless an exception
+     * is thrown during the send. If an exception is thrown, the listener's onException method will be called.
      * @param channel the destination channel
      * @param reference the byte reference for the message
      * @param listener the listener to call when the operation has completed
@@ -1048,25 +1048,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             BytesReference message = buildMessage(requestId, status, node.getVersion(), request, stream, bStream);
             final TransportRequestOptions finalOptions = options;
             // this might be called in a different thread
-            ActionListener<Channel> onRequestSent = new ActionListener<Channel>() {
-                @Override
-                public void onResponse(Channel c) {
-                    try {
-                        toRelease.close();
-                    } finally {
-                        transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        toRelease.close();
-                    } finally {
-                        transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions);
-                    }
-                }
-            };
+            SendListener onRequestSent = new SendListener(toRelease,
+                () -> transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions));
             internalSendMessage(targetChannel, message, onRequestSent);
         } finally {
             IOUtils.close(stream);
@@ -1124,17 +1107,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             status = TransportStatus.setError(status);
             final BytesReference bytes = stream.bytes();
             final BytesReference header = buildHeader(requestId, status, nodeVersion, bytes.length());
-            internalSendMessage(channel, new CompositeBytesReference(header, bytes), new ActionListener<Channel>() {
-                @Override
-                public void onResponse(Channel channel) {
-                    transportServiceAdapter.onResponseSent(requestId, action, error);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    transportServiceAdapter.onResponseSent(requestId, action, error);
-                }
-            });
+            SendListener onResponseSent = new SendListener(null,
+                () -> transportServiceAdapter.onResponseSent(requestId, action, error));
+            internalSendMessage(channel, new CompositeBytesReference(header, bytes), onResponseSent);
         }
     }
 
@@ -1170,26 +1145,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
             final TransportResponseOptions finalOptions = options;
             // this might be called in a different thread
-            ActionListener<Channel> onRequestSent = new ActionListener<Channel>() {
-                @Override
-                public void onResponse(Channel channel) {
-                    try {
-                        toRelease.close();
-                    } finally {
-                        transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        toRelease.close();
-                    } finally {
-                        transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions);
-                    }
-                }
-            };
-            internalSendMessage(channel, reference, onRequestSent);
+            SendListener listener = new SendListener(toRelease,
+                () -> transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions));
+            internalSendMessage(channel, reference, listener);
         } finally {
             IOUtils.close(stream);
         }
@@ -1666,6 +1624,40 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected final void ensureOpen() {
         if (lifecycle.started() == false) {
             throw new IllegalStateException("transport has been stopped");
+        }
+    }
+
+    private class SendListener implements ActionListener<Channel> {
+
+        private final Releasable optionalReleasable;
+        private final Runnable transportAdaptorCallback;
+
+        private SendListener(Releasable optionalReleasable, Runnable transportAdaptorCallback) {
+
+            this.optionalReleasable = optionalReleasable;
+            this.transportAdaptorCallback = transportAdaptorCallback;
+        }
+
+        @Override
+        public void onResponse(Channel channel) {
+            try {
+                if (this.optionalReleasable != null) {
+                    optionalReleasable.close();
+                }
+            } finally {
+                transportAdaptorCallback.run();
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            try {
+                if (this.optionalReleasable != null) {
+                    optionalReleasable.close();
+                }
+            } finally {
+                transportAdaptorCallback.run();
+            }
         }
     }
 }

@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -187,7 +186,8 @@ public class UpdateProcessAction extends
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutodetectProcessManager processManager) {
             super(settings, NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                    Request::new, Response::new, MachineLearning.THREAD_POOL_NAME, processManager);
+                    Request::new, Response::new, ThreadPool.Names.SAME, processManager);
+            // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
         }
 
         @Override
@@ -199,15 +199,18 @@ public class UpdateProcessAction extends
 
         @Override
         protected void innerTaskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener, ClusterState state) {
-            threadPool.executor(MachineLearning.THREAD_POOL_NAME).execute(() -> {
-                try {
-                    processManager.writeUpdateProcessMessage(request.getJobId(), request.getDetectorUpdates(),
-                            request.getModelPlotConfig());
-                    listener.onResponse(new Response());
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            try {
+                processManager.writeUpdateProcessMessage(request.getJobId(), request.getDetectorUpdates(),
+                        request.getModelPlotConfig(), e -> {
+                            if (e == null) {
+                                listener.onResponse(new Response());
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        });
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
         }
     }
 }

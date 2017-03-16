@@ -8,17 +8,16 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
-import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWriterFactory;
-import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -37,10 +35,11 @@ import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 public class AutodetectCommunicator implements Closeable {
 
@@ -52,19 +51,20 @@ public class AutodetectCommunicator implements Closeable {
     private final AutodetectProcess autodetectProcess;
     private final AutoDetectResultProcessor autoDetectResultProcessor;
     private final Consumer<Exception> handler;
-
-    final AtomicReference<CountDownLatch> inUse = new AtomicReference<>();
+    private final ExecutorService autodetectWorkerExecutor;
     private final NamedXContentRegistry xContentRegistry;
 
-    AutodetectCommunicator(Job job, AutodetectProcess process, DataCountsReporter dataCountsReporter,
-                           AutoDetectResultProcessor autoDetectResultProcessor, Consumer<Exception> handler,
-                           NamedXContentRegistry xContentRegistry) {
+    AutodetectCommunicator(Job job, AutodetectProcess process,
+            DataCountsReporter dataCountsReporter,
+            AutoDetectResultProcessor autoDetectResultProcessor, Consumer<Exception> handler,
+            NamedXContentRegistry xContentRegistry, ExecutorService autodetectWorkerExecutor) {
         this.job = job;
         this.autodetectProcess = process;
         this.dataCountsReporter = dataCountsReporter;
         this.autoDetectResultProcessor = autoDetectResultProcessor;
         this.handler = handler;
         this.xContentRegistry = xContentRegistry;
+        this.autodetectWorkerExecutor = autodetectWorkerExecutor;
     }
 
     public void writeJobInputHeader() throws IOException {
@@ -77,9 +77,9 @@ public class AutodetectCommunicator implements Closeable {
                 dataCountsReporter, xContentRegistry);
     }
 
-    public DataCounts writeToJob(InputStream inputStream, XContentType xContentType,
-            DataLoadParams params) throws IOException {
-        return checkAndRun(() -> Messages.getMessage(Messages.JOB_DATA_CONCURRENT_USE_UPLOAD, job.getId()), () -> {
+    public void writeToJob(InputStream inputStream, XContentType xContentType,
+            DataLoadParams params, BiConsumer<DataCounts, Exception> handler) throws IOException {
+        submitOperation(() -> {
             if (params.isResettingBuckets()) {
                 autodetectProcess.writeResetBucketsControlMessage(params);
             }
@@ -89,7 +89,7 @@ public class AutodetectCommunicator implements Closeable {
                     DataCounts results = autoDetectWriter.write(countingStream, xContentType);
             autoDetectWriter.flush();
             return results;
-        }, false);
+        }, handler);
     }
 
     @Override
@@ -104,38 +104,49 @@ public class AutodetectCommunicator implements Closeable {
      * @param reason    The reason for closing the job
      */
     public void close(boolean restart, String reason) throws IOException {
-        checkAndRun(() -> Messages.getMessage(Messages.JOB_DATA_CONCURRENT_USE_CLOSE, job.getId()), () -> {
-            LOGGER.info("[{}] job closing, reason [{}]", job.getId(), reason);
+        Future<?> future = autodetectWorkerExecutor.submit(() -> {
+            checkProcessIsAlive();
             dataCountsReporter.close();
             autodetectProcess.close();
             autoDetectResultProcessor.awaitCompletion();
             handler.accept(restart ? new ElasticsearchException(reason) : null);
             LOGGER.info("[{}] job closed", job.getId());
             return null;
-        }, true);
+        });
+        try {
+            future.get();
+            autodetectWorkerExecutor.shutdown();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException e) {
+            throw ExceptionsHelper.convertToElastic(e);
+        }
     }
 
 
-    public void writeUpdateModelPlotMessage(ModelPlotConfig config) throws IOException {
-        checkAndRun(() -> Messages.getMessage(Messages.JOB_DATA_CONCURRENT_USE_UPDATE, job.getId()), () -> {
-            autodetectProcess.writeUpdateModelPlotMessage(config);
+    public void writeUpdateProcessMessage(ModelPlotConfig config, List<JobUpdate.DetectorUpdate> updates,
+                                          BiConsumer<Void, Exception> handler) throws IOException {
+        submitOperation(() -> {
+            if (config != null) {
+                autodetectProcess.writeUpdateModelPlotMessage(config);
+            }
+            if (updates != null) {
+                for (JobUpdate.DetectorUpdate update : updates) {
+                    if (update.getRules() != null) {
+                        autodetectProcess.writeUpdateDetectorRulesMessage(update.getIndex(), update.getRules());
+                    }
+                }
+            }
             return null;
-        }, false);
+        }, handler);
     }
 
-    public void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) throws IOException {
-        checkAndRun(() -> Messages.getMessage(Messages.JOB_DATA_CONCURRENT_USE_UPDATE, job.getId()), () -> {
-            autodetectProcess.writeUpdateDetectorRulesMessage(detectorIndex, rules);
-            return null;
-        }, false);
-    }
-
-    public void flushJob(InterimResultsParams params) throws IOException {
-        checkAndRun(() -> Messages.getMessage(Messages.JOB_DATA_CONCURRENT_USE_FLUSH, job.getId()), () -> {
+    public void flushJob(InterimResultsParams params, BiConsumer<Void, Exception> handler) throws IOException {
+        submitOperation(() -> {
             String flushId = autodetectProcess.flushJob(params);
             waitFlushToCompletion(flushId);
             return null;
-        }, false);
+        }, handler);
     }
 
     private void waitFlushToCompletion(String flushId) throws IOException {
@@ -166,7 +177,7 @@ public class AutodetectCommunicator implements Closeable {
             ParameterizedMessage message =
                     new ParameterizedMessage("[{}] Unexpected death of autodetect: {}", job.getId(), autodetectProcess.readError());
             LOGGER.error(message);
-            throw ExceptionsHelper.serverError(message.getFormattedMessage());
+            throw new ElasticsearchException(message.getFormattedMessage());
         }
     }
 
@@ -182,33 +193,19 @@ public class AutodetectCommunicator implements Closeable {
         return dataCountsReporter.runningTotalStats();
     }
 
-    private <T> T checkAndRun(Supplier<String> errorMessage, CheckedSupplier<T, IOException> callback, boolean wait) throws IOException {
-        CountDownLatch latch = new CountDownLatch(1);
-        if (inUse.compareAndSet(null, latch)) {
-            try {
-                checkProcessIsAlive();
-                return callback.get();
-            } finally {
-                latch.countDown();
-                inUse.set(null);
+    private <T> void submitOperation(CheckedSupplier<T, IOException> operation, BiConsumer<T, Exception> handler) throws IOException {
+        autodetectWorkerExecutor.execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                handler.accept(null, e);
             }
-        } else {
-            if (wait) {
-                latch = inUse.get();
-                if (latch != null) {
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new ElasticsearchStatusException(errorMessage.get(), RestStatus.TOO_MANY_REQUESTS);
-                    }
-                }
+
+            @Override
+            protected void doRun() throws Exception {
                 checkProcessIsAlive();
-                return callback.get();
-            } else {
-                throw new ElasticsearchStatusException(errorMessage.get(), RestStatus.TOO_MANY_REQUESTS);
+                handler.accept(operation.get(), null);
             }
-        }
+        });
     }
 
 }

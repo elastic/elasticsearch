@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
@@ -225,7 +224,7 @@ public class StopDatafeedAction
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                ClusterService clusterService, InternalClient client) {
             super(settings, StopDatafeedAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                    indexNameExpressionResolver, Request::new, Response::new, MachineLearning.THREAD_POOL_NAME);
+                    indexNameExpressionResolver, Request::new, Response::new, ThreadPool.Names.MANAGEMENT);
             this.client = client;
         }
 

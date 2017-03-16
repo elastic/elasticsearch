@@ -137,7 +137,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
             ((Runnable) invocation.getArguments()[0]).run();
             return null;
         }).when(executorService).submit(any(Runnable.class));
-        when(threadPool.executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME)).thenReturn(executorService);
+        when(threadPool.executor(MachineLearning.DATAFEED_THREAD_POOL_NAME)).thenReturn(executorService);
         when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(executorService);
         when(client.execute(same(PostDataAction.INSTANCE), any())).thenReturn(jobDataFuture);
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
@@ -166,7 +166,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
         datafeedJobRunner.run(task, handler);
 
-        verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
+        verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
         verify(client, never()).execute(same(PostDataAction.INSTANCE), eq(new PostDataAction.Request("foo")));
         verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
@@ -188,7 +188,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
         datafeedJobRunner.run(task, handler);
 
-        verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
+        verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
         verify(client).execute(same(PostDataAction.INSTANCE),
                 eq(createExpectedPostDataRequest("job_id", contentBytes, xContentType)));
@@ -218,7 +218,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
         datafeedJobRunner.run(task, handler);
 
-        verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
+        verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
         verify(client, never()).execute(same(PostDataAction.INSTANCE), eq(new PostDataAction.Request("foo")));
         verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
@@ -254,7 +254,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         DatafeedJobRunner.Holder holder = datafeedJobRunner.createJobDatafeed(datafeedConfig, job, 100, 100, handler, task);
         datafeedJobRunner.doDatafeedRealtime(10L, "foo", holder);
 
-        verify(threadPool, times(11)).schedule(any(), eq(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME), any());
+        verify(threadPool, times(11)).schedule(any(), eq(MachineLearning.DATAFEED_THREAD_POOL_NAME), any());
         verify(auditor, times(1)).warning(eq("job_id"), anyString());
         verify(client, never()).execute(same(PostDataAction.INSTANCE), any());
         verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
@@ -279,7 +279,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         task = spyDatafeedTask(task);
         datafeedJobRunner.run(task, handler);
 
-        verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
+        verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
         if (cancelled) {
             task.stop("test");
             verify(handler).accept(null);
@@ -287,7 +287,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
             verify(client).execute(same(PostDataAction.INSTANCE),
                     eq(createExpectedPostDataRequest("job_id", contentBytes, xContentType)));
             verify(client).execute(same(FlushJobAction.INSTANCE), any());
-            verify(threadPool, times(1)).schedule(eq(new TimeValue(480100)), eq(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME), any());
+            verify(threadPool, times(1)).schedule(eq(new TimeValue(480100)), eq(MachineLearning.DATAFEED_THREAD_POOL_NAME), any());
         }
     }
 

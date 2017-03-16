@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -241,7 +240,8 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutodetectProcessManager processManager) {
             super(settings, PostDataAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                    Request::new, Response::new, MachineLearning.THREAD_POOL_NAME, processManager);
+                    Request::new, Response::new, ThreadPool.Names.SAME, processManager);
+            // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
         }
 
         @Override
@@ -256,9 +256,14 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
             TimeRange timeRange = TimeRange.builder().startTime(request.getResetStart()).endTime(request.getResetEnd()).build();
             DataLoadParams params = new DataLoadParams(timeRange, Optional.ofNullable(request.getDataDescription()));
             try {
-                DataCounts dataCounts = processManager.processData(request.getJobId(),
-                        request.content.streamInput(), request.getXContentType(), params);
-                listener.onResponse(new Response(dataCounts));
+                processManager.processData(request.getJobId(),
+                        request.content.streamInput(), request.getXContentType(), params, (dataCounts, e) -> {
+                    if (dataCounts != null) {
+                        listener.onResponse(new Response(dataCounts));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                });
             } catch (Exception e) {
                 listener.onFailure(e);
             }

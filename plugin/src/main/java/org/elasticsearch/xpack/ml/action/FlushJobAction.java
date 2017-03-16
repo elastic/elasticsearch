@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
@@ -244,7 +243,8 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                 AutodetectProcessManager processManager) {
             super(settings, FlushJobAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                    FlushJobAction.Request::new, FlushJobAction.Response::new, MachineLearning.THREAD_POOL_NAME, processManager);
+                    FlushJobAction.Request::new, FlushJobAction.Response::new, ThreadPool.Names.SAME, processManager);
+            // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
         }
 
         @Override
@@ -270,8 +270,13 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
                 timeRangeBuilder.endTime(request.getEnd());
             }
             paramsBuilder.forTimeRange(timeRangeBuilder.build());
-            processManager.flushJob(request.getJobId(), paramsBuilder.build());
-            listener.onResponse(new Response(true));
+            processManager.flushJob(request.getJobId(), paramsBuilder.build(), e ->  {
+                if (e == null) {
+                    listener.onResponse(new Response(true));
+                } else {
+                    listener.onFailure(e);
+                }
+            });
         }
     }
 }

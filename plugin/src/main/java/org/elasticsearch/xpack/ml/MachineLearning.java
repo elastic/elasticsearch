@@ -148,9 +148,9 @@ import static java.util.Collections.emptyList;
 public class MachineLearning implements ActionPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_xpack/ml/";
-    public static final String THREAD_POOL_NAME = NAME;
-    public static final String DATAFEED_RUNNER_THREAD_POOL_NAME = NAME + "_datafeed_runner";
-    public static final String AUTODETECT_PROCESS_THREAD_POOL_NAME = NAME + "_autodetect_process";
+    public static final String DATAFEED_THREAD_POOL_NAME = NAME + "_datafeed";
+    public static final String AUTODETECT_THREAD_POOL_NAME = NAME + "_autodetect";
+    public static final String NORMALIZER_THREAD_POOL_NAME = NAME + "_normalizer";
 
     public static final Setting<Boolean> AUTODETECT_PROCESS =
             Setting.boolSetting("xpack.ml.autodetect_process", true, Property.NodeScope);
@@ -294,7 +294,7 @@ public class MachineLearning implements ActionPlugin {
                                         executorService) -> new MultiplyingNormalizerProcess(settings, 1.0);
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
-                threadPool.executor(MachineLearning.THREAD_POOL_NAME));
+                threadPool.executor(MachineLearning.NORMALIZER_THREAD_POOL_NAME));
         AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(settings, internalClient, threadPool,
                 jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, xContentRegistry);
@@ -438,17 +438,20 @@ public class MachineLearning implements ActionPlugin {
             return emptyList();
         }
         int maxNumberOfJobs = AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.get(settings);
-        FixedExecutorBuilder ml = new FixedExecutorBuilder(settings, THREAD_POOL_NAME,
-                maxNumberOfJobs * 2, 1000, "xpack.ml.thread_pool");
+        // 4 threads: for cpp logging, result processing, state processing and
+        // AutodetectProcessManager worker thread:
+        FixedExecutorBuilder autoDetect = new FixedExecutorBuilder(settings, AUTODETECT_THREAD_POOL_NAME,
+                maxNumberOfJobs * 4, 4, "xpack.ml.autodetect_thread_pool");
 
-        // 3 threads: for c++ logging, result processing, state processing
-        FixedExecutorBuilder autoDetect = new FixedExecutorBuilder(settings, AUTODETECT_PROCESS_THREAD_POOL_NAME,
-                maxNumberOfJobs * 3, 200, "xpack.ml.autodetect_process_thread_pool");
+        // 3 threads: normalization (cpp logging, result handling) and
+        // renormalization (ShortCircuitingRenormalizer):
+        FixedExecutorBuilder renormalizer = new FixedExecutorBuilder(settings, NORMALIZER_THREAD_POOL_NAME,
+                maxNumberOfJobs * 3, 200, "xpack.ml.normalizer_thread_pool");
 
         // TODO: if datafeed and non datafeed jobs are considered more equal and the datafeed and
         // autodetect process are created at the same time then these two different TPs can merge.
-        FixedExecutorBuilder datafeed = new FixedExecutorBuilder(settings, DATAFEED_RUNNER_THREAD_POOL_NAME,
+        FixedExecutorBuilder datafeed = new FixedExecutorBuilder(settings, DATAFEED_THREAD_POOL_NAME,
                 maxNumberOfJobs, 200, "xpack.ml.datafeed_thread_pool");
-        return Arrays.asList(ml, autoDetect, datafeed);
+        return Arrays.asList(autoDetect, renormalizer, datafeed);
     }
 }

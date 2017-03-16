@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
@@ -52,10 +53,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class AutodetectProcessManager extends AbstractComponent {
@@ -133,16 +141,16 @@ public class AutodetectProcessManager extends AbstractComponent {
      * @param input  Data input stream
      * @param xContentType  the {@link XContentType} of the input
      * @param params Data processing parameters
-     * @return Count of records, fields, bytes, etc written
+     * @param handler   Delegate error or datacount results (Count of records, fields, bytes, etc written)
      */
-    public DataCounts processData(String jobId, InputStream input, XContentType xContentType,
-            DataLoadParams params) {
+    public void processData(String jobId, InputStream input, XContentType xContentType,
+            DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
         if (communicator == null) {
             throw new IllegalStateException("[" + jobId + "] Cannot process data: no active autodetect process for job");
         }
         try {
-            return communicator.writeToJob(input, xContentType, params);
+            communicator.writeToJob(input, xContentType, params, handler);
             // TODO check for errors from autodetect
         } catch (IOException e) {
             String msg = String.format(Locale.ROOT, "Exception writing to process for job %s", jobId);
@@ -165,7 +173,7 @@ public class AutodetectProcessManager extends AbstractComponent {
      * @param params Parameters about whether interim results calculation
      *               should occur and for which period of time
      */
-    public void flushJob(String jobId, InterimResultsParams params) {
+    public void flushJob(String jobId, InterimResultsParams params, Consumer<Exception> handler) {
         logger.debug("Flushing job {}", jobId);
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
         if (communicator == null) {
@@ -174,7 +182,15 @@ public class AutodetectProcessManager extends AbstractComponent {
             throw new IllegalArgumentException(message);
         }
         try {
-            communicator.flushJob(params);
+            communicator.flushJob(params, (aVoid, e) -> {
+                if (e == null) {
+                    handler.accept(null);
+                } else {
+                    String msg = String.format(Locale.ROOT, "[%s] exception while flushing job", jobId);
+                    logger.error(msg);
+                    handler.accept(ExceptionsHelper.serverError(msg, e));
+                }
+            });
             // TODO check for errors from autodetect
         } catch (IOException ioe) {
             String msg = String.format(Locale.ROOT, "[%s] exception while flushing job", jobId);
@@ -183,25 +199,21 @@ public class AutodetectProcessManager extends AbstractComponent {
         }
     }
 
-    public void writeUpdateProcessMessage(String jobId, List<JobUpdate.DetectorUpdate> updates, ModelPlotConfig config)
-            throws IOException {
+    public void writeUpdateProcessMessage(String jobId, List<JobUpdate.DetectorUpdate> updates, ModelPlotConfig config,
+                                          Consumer<Exception> handler) throws IOException {
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
         if (communicator == null) {
             logger.debug("Cannot update model debug config: no active autodetect process for job {}", jobId);
+            handler.accept(null);
             return;
         }
-
-        if (config != null) {
-            communicator.writeUpdateModelPlotMessage(config);
-        }
-
-        if (updates != null) {
-            for (JobUpdate.DetectorUpdate update : updates) {
-                if (update.getRules() != null) {
-                    communicator.writeUpdateDetectorRulesMessage(update.getIndex(), update.getRules());
-                }
+        communicator.writeUpdateProcessMessage(config, updates, (aVoid, e) -> {
+            if (e == null) {
+                handler.accept(null);
+            } else {
+                handler.accept(e);
             }
-        }
+        });
         // TODO check for errors from autodetects
     }
 
@@ -257,22 +269,25 @@ public class AutodetectProcessManager extends AbstractComponent {
 
         Job job = jobManager.getJobOrThrowIfUnknown(jobId);
         // A TP with no queue, so that we fail immediately if there are no threads available
-        ExecutorService executorService = threadPool.executor(MachineLearning.AUTODETECT_PROCESS_THREAD_POOL_NAME);
+        ExecutorService autoDetectExecutorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
         try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, job,
                 autodetectParams.dataCounts(), jobDataCountsPersister)) {
             ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobProvider, new JobRenormalizedResultsPersister(settings, client),
                     normalizerFactory);
+            ExecutorService renormalizerExecutorService =  threadPool.executor(MachineLearning.NORMALIZER_THREAD_POOL_NAME);
             Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdater,
-                    threadPool.executor(MachineLearning.THREAD_POOL_NAME), job.getAnalysisConfig().getUsePerPartitionNormalization());
+                    renormalizerExecutorService, job.getAnalysisConfig().getUsePerPartitionNormalization());
 
             AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams.modelSnapshot(),
                     autodetectParams.quantiles(), autodetectParams.filters(), ignoreDowntime,
-                    executorService, () -> setJobState(jobTask, JobState.FAILED));
+                    autoDetectExecutorService, () -> setJobState(jobTask, JobState.FAILED));
             boolean usePerPartitionNormalization = job.getAnalysisConfig().getUsePerPartitionNormalization();
             AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
                     client, jobId, renormalizer, jobResultsPersister, autodetectParams.modelSizeStats());
+            ExecutorService autodetectWorkerExecutor;
             try {
-                executorService.submit(() -> processor.process(process, usePerPartitionNormalization));
+                autodetectWorkerExecutor = createAutodetectExecutorService(autoDetectExecutorService);
+                autoDetectExecutorService.submit(() -> processor.process(process, usePerPartitionNormalization));
             } catch (EsRejectedExecutionException e) {
                 // If submitting the operation to read the results from the process fails we need to close
                 // the process too, so that other submitted operations to threadpool are stopped.
@@ -284,7 +299,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                 throw e;
             }
             return new AutodetectCommunicator(job, process, dataCountsReporter, processor,
-                    handler, xContentRegistry);
+                    handler, xContentRegistry, autodetectWorkerExecutor);
         }
     }
 
@@ -375,5 +390,82 @@ public class AutodetectProcessManager extends AbstractComponent {
             return Optional.empty();
         }
         return Optional.of(new Tuple<>(communicator.getDataCounts(), communicator.getModelSizeStats()));
+    }
+
+    ExecutorService createAutodetectExecutorService(ExecutorService executorService) {
+        AutodetectWorkerExecutorService autoDetectWorkerExecutor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
+        executorService.submit(autoDetectWorkerExecutor::start);
+        return autoDetectWorkerExecutor;
+    }
+
+    /*
+     * The autodetect native process can only handle a single operation at a time. In order to guarantee that, all
+     * operations are initially added to a queue and a worker thread from ml autodetect threadpool will process each
+     * operation at a time.
+     */
+    class AutodetectWorkerExecutorService extends AbstractExecutorService {
+
+        private final ThreadContext contextHolder;
+        private final CountDownLatch awaitTermination = new CountDownLatch(1);
+        private final BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>(100);
+
+        private volatile boolean running = true;
+
+        AutodetectWorkerExecutorService(ThreadContext contextHolder) {
+            this.contextHolder = contextHolder;
+        }
+
+        @Override
+        public void shutdown() {
+            running = false;
+        }
+
+        @Override
+        public List<Runnable> shutdownNow() {
+            throw new UnsupportedOperationException("not supported");
+        }
+
+        @Override
+        public boolean isShutdown() {
+            return running == false;
+        }
+
+        @Override
+        public boolean isTerminated() {
+            return awaitTermination.getCount() == 0;
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+            return awaitTermination.await(timeout, unit);
+        }
+
+        @Override
+        public void execute(Runnable command) {
+            boolean added = queue.offer(contextHolder.preserveContext(command));
+            if (added == false) {
+                throw new ElasticsearchStatusException("Unable to submit operation", RestStatus.TOO_MANY_REQUESTS);
+            }
+        }
+
+        void start() {
+            try {
+                while (running) {
+                    Runnable runnable = queue.poll(500, TimeUnit.MILLISECONDS);
+                    if (runnable != null) {
+                        try {
+                            runnable.run();
+                        } catch (Exception e) {
+                            logger.error("error handeling job operation", e);
+                        }
+                    }
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                awaitTermination.countDown();
+            }
+        }
+
     }
 }

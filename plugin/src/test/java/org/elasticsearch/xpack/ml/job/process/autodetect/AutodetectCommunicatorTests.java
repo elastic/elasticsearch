@@ -6,16 +6,13 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -25,18 +22,16 @@ import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Date;
-import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -51,27 +46,8 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class))) {
             communicator.writeToJob(new ByteArrayInputStream(new byte[0]),
-                    randomFrom(XContentType.values()), params);
+                    randomFrom(XContentType.values()), params, (dataCounts, e) -> {});
             Mockito.verify(process).writeResetBucketsControlMessage(params);
-        }
-    }
-
-    public void tesWriteUpdateModelPlotMessage() throws IOException {
-        AutodetectProcess process = mockAutodetectProcessWithOutputStream();
-        try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class))) {
-            ModelPlotConfig config = new ModelPlotConfig();
-            communicator.writeUpdateModelPlotMessage(config);
-            Mockito.verify(process).writeUpdateModelPlotMessage(config);
-        }
-    }
-
-    public void testWriteUpdateDetectorRulesMessage() throws IOException {
-        AutodetectProcess process = mockAutodetectProcessWithOutputStream();
-        try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class))) {
-
-            List<DetectionRule> rules = Collections.singletonList(mock(DetectionRule.class));
-            communicator.writeUpdateDetectorRulesMessage(1, rules);
-            Mockito.verify(process).writeUpdateDetectorRulesMessage(1, rules);
         }
     }
 
@@ -82,7 +58,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         when(processor.waitForFlushAcknowledgement(anyString(), any())).thenReturn(true);
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, processor)) {
             InterimResultsParams params = InterimResultsParams.builder().build();
-            communicator.flushJob(params);
+            communicator.flushJob(params, (aVoid, e) -> {});
             Mockito.verify(process).flushJob(params);
         }
     }
@@ -93,8 +69,9 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         when(process.readError()).thenReturn("Mock process is dead");
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class));
         InterimResultsParams params = InterimResultsParams.builder().build();
-        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, () -> communicator.flushJob(params));
-        assertEquals("[foo] Unexpected death of autodetect: Mock process is dead", e.getMessage());
+        Exception[] holder = new ElasticsearchException[1];
+        communicator.flushJob(params, (aVoid, e1) -> holder[0] = e1);
+        assertEquals("[foo] Unexpected death of autodetect: Mock process is dead", holder[0].getMessage());
     }
 
     public void testFlushJob_givenFlushWaitReturnsTrueOnSecondCall() throws IOException {
@@ -106,7 +83,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         InterimResultsParams params = InterimResultsParams.builder().build();
 
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, autoDetectResultProcessor)) {
-            communicator.flushJob(params);
+            communicator.flushJob(params, (aVoid, e) -> {});
         }
 
         verify(autoDetectResultProcessor, times(2)).waitForFlushAcknowledgement(anyString(), eq(Duration.ofSeconds(1)));
@@ -146,6 +123,12 @@ public class AutodetectCommunicatorTests extends ESTestCase {
     private AutodetectCommunicator createAutodetectCommunicator(AutodetectProcess autodetectProcess,
                                                                 AutoDetectResultProcessor autoDetectResultProcessor) throws IOException {
         ExecutorService executorService = mock(ExecutorService.class);
+        when(executorService.submit(any(Callable.class))).thenReturn(mock(Future.class));
+        doAnswer(invocationOnMock -> {
+            Callable runnable = (Callable) invocationOnMock.getArguments()[0];
+            runnable.call();
+            return mock(Future.class);
+        }).when(executorService).submit(any(Callable.class));
         doAnswer(invocation -> {
             ((Runnable) invocation.getArguments()[0]).run();
             return null;
@@ -153,76 +136,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         DataCountsReporter dataCountsReporter = mock(DataCountsReporter.class);
         return new AutodetectCommunicator(createJobDetails(), autodetectProcess,
                 dataCountsReporter, autoDetectResultProcessor, e -> {
-                }, new NamedXContentRegistry(Collections.emptyList()));
+                }, new NamedXContentRegistry(Collections.emptyList()), executorService);
     }
 
-    public void testWriteToJobInUse() throws IOException {
-        InputStream in = mock(InputStream.class);
-        when(in.read(any(byte[].class), anyInt(), anyInt())).thenReturn(-1);
-        AutodetectProcess process = mockAutodetectProcessWithOutputStream();
-        AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class));
-        XContentType xContentType = randomFrom(XContentType.values());
-
-        communicator.inUse.set(new CountDownLatch(1));
-        expectThrows(ElasticsearchStatusException.class,
-                () -> communicator.writeToJob(in, xContentType, mock(DataLoadParams.class)));
-
-        communicator.inUse.set(null);
-        communicator.writeToJob(in, xContentType,
-                new DataLoadParams(TimeRange.builder().build(), Optional.empty()));
-    }
-
-    public void testFlushInUse() throws IOException {
-        AutodetectProcess process = mockAutodetectProcessWithOutputStream();
-        AutoDetectResultProcessor resultProcessor = mock(AutoDetectResultProcessor.class);
-        when(resultProcessor.waitForFlushAcknowledgement(any(), any())).thenReturn(true);
-        AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
-
-        communicator.inUse.set(new CountDownLatch(1));
-        InterimResultsParams params = mock(InterimResultsParams.class);
-        expectThrows(ElasticsearchStatusException.class, () -> communicator.flushJob(params));
-
-        communicator.inUse.set(null);
-        communicator.flushJob(params);
-    }
-
-    public void testCloseInUse() throws Exception {
-        AutodetectProcess process = mockAutodetectProcessWithOutputStream();
-        AutoDetectResultProcessor resultProcessor = mock(AutoDetectResultProcessor.class);
-        when(resultProcessor.waitForFlushAcknowledgement(any(), any())).thenReturn(true);
-        AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
-
-        CountDownLatch latch = mock(CountDownLatch.class);
-        communicator.inUse.set(latch);
-        communicator.close();
-        verify(latch, times(1)).await();
-
-        communicator.inUse.set(null);
-        communicator.close();
-    }
-
-    public void testWriteUpdateModelPlotConfigMessageInUse() throws Exception {
-        AutodetectProcess process = mockAutodetectProcessWithOutputStream();
-        AutoDetectResultProcessor resultProcessor = mock(AutoDetectResultProcessor.class);
-        AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
-
-        communicator.inUse.set(new CountDownLatch(1));
-        expectThrows(ElasticsearchStatusException.class, () -> communicator.writeUpdateModelPlotMessage(mock(ModelPlotConfig.class)));
-
-        communicator.inUse.set(null);
-        communicator.writeUpdateModelPlotMessage(mock(ModelPlotConfig.class));
-    }
-
-    public void testWriteUpdateDetectorRulesMessageInUse() throws Exception {
-        AutodetectProcess process = mockAutodetectProcessWithOutputStream();
-        AutoDetectResultProcessor resultProcessor = mock(AutoDetectResultProcessor.class);
-        AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
-
-        List<DetectionRule> rules = Collections.singletonList(mock(DetectionRule.class));
-        communicator.inUse.set(new CountDownLatch(1));
-        expectThrows(ElasticsearchStatusException.class, () -> communicator.writeUpdateDetectorRulesMessage(0, rules));
-
-        communicator.inUse.set(null);
-        communicator.writeUpdateDetectorRulesMessage(0, rules);
-    }
 }

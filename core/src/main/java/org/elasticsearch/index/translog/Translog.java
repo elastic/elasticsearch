@@ -425,10 +425,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 ensureOpen();
                 location = current.add(bytes, operation.seqNo());
             }
-            try (ReleasableLock ignored = writeLock.acquire()) {
-                if (shouldFoldGeneration(this) && foldingGeneration.compareAndSet(false, true)) {
-                    // we have to check the condition again lest we could fold twice in a race
-                    if (shouldFoldGeneration(this)) {
+            if (shouldFoldGeneration(this) && foldingGeneration.compareAndSet(false, true)) {
+                // we have to check the condition again lest we could fold twice in a race
+                if (shouldFoldGeneration(this)) {
+                    try (ReleasableLock ignored = writeLock.acquire()) {
                         this.foldGeneration(current.getGeneration());
                     }
                     final boolean wasFoldingGeneration = foldingGeneration.getAndSet(false);

@@ -34,6 +34,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
+import org.elasticsearch.discovery.zen.PendingClusterStateStats;
+import org.elasticsearch.discovery.zen.PendingClusterStatesQueue;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -78,7 +80,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
 
     @Override
     public DiscoveryStats stats() {
-        return null;
+        return new DiscoveryStats((PendingClusterStateStats) null);
     }
 
     @Override

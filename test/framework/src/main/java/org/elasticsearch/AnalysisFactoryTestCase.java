@@ -20,13 +20,11 @@
 package org.elasticsearch;
 
 import org.apache.lucene.analysis.en.PorterStemFilterFactory;
-import org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilterFactory;
 import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
 import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.index.analysis.ApostropheFilterFactory;
 import org.elasticsearch.index.analysis.ArabicNormalizationFilterFactory;
@@ -92,7 +90,6 @@ import org.elasticsearch.index.analysis.TruncateTokenFilterFactory;
 import org.elasticsearch.index.analysis.UAX29URLEmailTokenizerFactory;
 import org.elasticsearch.index.analysis.UpperCaseTokenFilterFactory;
 import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
-import org.elasticsearch.index.analysis.WordDelimiterTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
 import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
@@ -253,8 +250,8 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("turkishlowercase",          LowerCaseTokenFilterFactory.class)
         .put("type",                      KeepTypesFilterFactory.class)
         .put("uppercase",                 UpperCaseTokenFilterFactory.class)
-        .put("worddelimiter",             WordDelimiterTokenFilterFactory.class)
-        .put("worddelimitergraph",        WordDelimiterGraphFilterFactory.class)
+        .put("worddelimiter",             Void.class)  // NOCOMMIT should this shouldn't be needed once we drop the dependency.
+        .put("worddelimitergraph",        Void.class)  // NOCOMMIT should this shouldn't be needed once we drop the dependency.
         .put("flattengraph",              FlattenGraphTokenFilterFactory.class)
 
         // TODO: these tokenfilters are not yet exposed: useful?

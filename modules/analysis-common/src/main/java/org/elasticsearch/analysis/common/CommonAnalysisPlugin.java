@@ -32,6 +32,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
         Map<String, AnalysisProvider<TokenFilterFactory>> filters = new HashMap<>();
         filters.put("asciifolding", ASCIIFoldingTokenFilterFactory::new);
+        filters.put("word_delimiter", WordDelimiterTokenFilterFactory::new);
+        filters.put("word_delimiter_graph", WordDelimiterGraphTokenFilterFactory::new);
         return filters;
     }
 }

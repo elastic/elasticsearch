@@ -41,7 +41,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
             .put("index.analysis.filter.my_word_delimiter.type", type)
             .put("index.analysis.filter.my_word_delimiter.catenate_all", "true")
             .put("index.analysis.filter.my_word_delimiter.preserve_original", "true")
-            .build());
+            .build(), new CommonAnalysisPlugin());
 
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";

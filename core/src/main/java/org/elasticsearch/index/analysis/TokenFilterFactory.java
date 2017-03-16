@@ -26,4 +26,8 @@ public interface TokenFilterFactory {
     String name();
 
     TokenStream create(TokenStream tokenStream);
+
+    default boolean breaksFastVectorHighlighter() {
+        return false;
+    }
 }

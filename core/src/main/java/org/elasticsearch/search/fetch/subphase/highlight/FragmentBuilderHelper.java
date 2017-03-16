@@ -26,15 +26,9 @@ import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo.SubInfo;
 import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
-import org.elasticsearch.index.analysis.EdgeNGramTokenFilterFactory;
-import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
-import org.elasticsearch.index.analysis.NGramTokenFilterFactory;
-import org.elasticsearch.index.analysis.NGramTokenizerFactory;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.WordDelimiterTokenFilterFactory;
 import org.elasticsearch.index.mapper.FieldMapper;
 
 import java.util.Comparator;
@@ -91,8 +85,7 @@ public final class FragmentBuilderHelper {
             final CustomAnalyzer a = (CustomAnalyzer) analyzer;
             TokenFilterFactory[] tokenFilters = a.tokenFilters();
             for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
-                if (tokenFilterFactory instanceof WordDelimiterTokenFilterFactory
-                        || tokenFilterFactory instanceof EdgeNGramTokenFilterFactory) {
+                if (tokenFilterFactory.breaksFastVectorHighlighter()) {
                     return true;
                 }
             }

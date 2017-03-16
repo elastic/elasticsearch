@@ -21,10 +21,13 @@ package org.elasticsearch.index.analysis;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
+import org.apache.lucene.analysis.MockTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
+import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +35,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
+import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
@@ -45,6 +50,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -144,51 +150,74 @@ public class AnalysisRegistryTests extends ESTestCase {
                 "instead for index [index]");
     }
 
+    /**
+     * Tests that {@code camelCase} filter names and {@code snake_case} filter names don't collide.
+     */
     public void testConfigureCamelCaseTokenFilter() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("index.analysis.filter.wordDelimiter.type", "word_delimiter")
-                .put("index.analysis.filter.wordDelimiter.split_on_numerics", false)
-                .put("index.analysis.analyzer.custom_analyzer.tokenizer", "whitespace")
-                .putArray("index.analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter")
-                .put("index.analysis.analyzer.custom_analyzer_1.tokenizer", "whitespace")
-                .putArray("index.analysis.analyzer.custom_analyzer_1.filter", "lowercase", "word_delimiter").build();
+                .put("index.analysis.filter.testFilter.type", "mock")
+                .put("index.analysis.filter.test_filter.type", "mock")
+                .put("index.analysis.analyzer.custom_analyzer_with_camel_case.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.custom_analyzer_with_camel_case.filter", "lowercase", "testFilter")
+                .put("index.analysis.analyzer.custom_analyzer_with_snake_case.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.custom_analyzer_with_snake_case.filter", "lowercase", "test_filter").build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
 
-        IndexAnalyzers indexAnalyzers = new AnalysisModule(new Environment(settings), emptyList()).getAnalysisRegistry()
+        /* The snake_case version of the name should not filter out any stopwords while the
+         * camelCase version will filter out English stopwords. */
+        AnalysisPlugin plugin = new AnalysisPlugin() {
+            class WordDelimiterFactory extends AbstractTokenFilterFactory {
+                public WordDelimiterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+                    super(indexSettings, name, settings);
+                }
+
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    if (name().equals("test_filter")) {
+                        return new MockTokenFilter(tokenStream, MockTokenFilter.EMPTY_STOPSET);
+                    }
+                    return new MockTokenFilter(tokenStream, MockTokenFilter.ENGLISH_STOPSET);
+                }
+            }
+            @Override
+            public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+                Map<String, AnalysisProvider<TokenFilterFactory>> filters = new HashMap<>();
+                filters.put("mock", WordDelimiterFactory::new);
+                return filters;
+            }
+        };
+        IndexAnalyzers indexAnalyzers = new AnalysisModule(new Environment(settings), singletonList(plugin)).getAnalysisRegistry()
                 .build(idxSettings);
-        try (NamedAnalyzer custom_analyser = indexAnalyzers.get("custom_analyzer")) {
+
+        // This shouldn't contain English stopwords
+        try (NamedAnalyzer custom_analyser = indexAnalyzers.get("custom_analyzer_with_camel_case")) {
             assertNotNull(custom_analyser);
-            TokenStream tokenStream = custom_analyser.tokenStream("foo", "J2SE j2ee");
+            TokenStream tokenStream = custom_analyser.tokenStream("foo", "has a foo");
             tokenStream.reset();
             CharTermAttribute charTermAttribute = tokenStream.addAttribute(CharTermAttribute.class);
-            List<String> token = new ArrayList<>();
-            while(tokenStream.incrementToken()) {
-                token.add(charTermAttribute.toString());
-            }
-            assertEquals(token.toString(), 2, token.size());
-            assertEquals("j2se", token.get(0));
-            assertEquals("j2ee", token.get(1));
+            assertTrue(tokenStream.incrementToken());
+            assertEquals("has", charTermAttribute.toString());
+            assertTrue(tokenStream.incrementToken());
+            assertEquals("foo", charTermAttribute.toString());
+            assertFalse(tokenStream.incrementToken());
         }
 
-        try (NamedAnalyzer custom_analyser = indexAnalyzers.get("custom_analyzer_1")) {
+        // This *should* contain English stopwords
+        try (NamedAnalyzer custom_analyser = indexAnalyzers.get("custom_analyzer_with_snake_case")) {
             assertNotNull(custom_analyser);
-            TokenStream tokenStream = custom_analyser.tokenStream("foo", "J2SE j2ee");
+            TokenStream tokenStream = custom_analyser.tokenStream("foo", "has a foo");
             tokenStream.reset();
             CharTermAttribute charTermAttribute = tokenStream.addAttribute(CharTermAttribute.class);
-            List<String> token = new ArrayList<>();
-            while(tokenStream.incrementToken()) {
-                token.add(charTermAttribute.toString());
-            }
-            assertEquals(token.toString(), 6, token.size());
-            assertEquals("j", token.get(0));
-            assertEquals("2", token.get(1));
-            assertEquals("se", token.get(2));
-            assertEquals("j", token.get(3));
-            assertEquals("2", token.get(4));
-            assertEquals("ee", token.get(5));
+            assertTrue(tokenStream.incrementToken());
+            assertEquals("has", charTermAttribute.toString());
+            assertTrue(tokenStream.incrementToken());
+            assertEquals("a", charTermAttribute.toString());
+            assertTrue(tokenStream.incrementToken());
+            assertEquals("foo", charTermAttribute.toString());
+            assertFalse(tokenStream.incrementToken());
         }
     }
 

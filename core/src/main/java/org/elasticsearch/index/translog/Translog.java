@@ -127,6 +127,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final TranslogConfig config;
     private final LongSupplier globalCheckpointSupplier;
     private final String translogUUID;
+    private final AtomicBoolean foldingGeneration = new AtomicBoolean();
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
@@ -398,8 +399,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
         return newFile;
     }
-
-    final AtomicBoolean foldingGeneration = new AtomicBoolean();
 
     /**
      * Adds an operation to the transaction log.

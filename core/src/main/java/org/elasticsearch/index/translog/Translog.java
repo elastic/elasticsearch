@@ -429,7 +429,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 // we have to check the condition again lest we could fold twice in a race
                 if (shouldFoldGeneration()) {
                     try (ReleasableLock ignored = writeLock.acquire()) {
-                        this.foldGeneration(current.getGeneration());
+                        this.foldGeneration();
                     }
                     final boolean wasFoldingGeneration = foldingGeneration.getAndSet(false);
                     assert wasFoldingGeneration;
@@ -1352,23 +1352,22 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * Fold the current translog generation into a new generation. This does not commit the
      * translog. The translog write lock must be held by the current thread.
      *
-     * @param generation the current translog generation
      * @throws IOException if an I/O exception occurred during any file operations
      */
-    void foldGeneration(final long generation) throws IOException {
+    void foldGeneration() throws IOException {
         assert writeLock.isHeldByCurrentThread();
         try {
             final TranslogReader reader = current.closeIntoReader();
             readers.add(reader);
             final Path checkpoint = location.resolve(CHECKPOINT_FILE_NAME);
-            assert Checkpoint.read(checkpoint).generation == generation;
+            assert Checkpoint.read(checkpoint).generation == current.getGeneration();
             final Path generationCheckpoint =
-                    location.resolve(getCommitCheckpointFileName(generation));
+                    location.resolve(getCommitCheckpointFileName(current.getGeneration()));
             Files.copy(checkpoint, generationCheckpoint);
             IOUtils.fsync(generationCheckpoint, false);
             IOUtils.fsync(generationCheckpoint.getParent(), true);
             // create a new translog file; this will sync it and update the checkpoint data;
-            current = createWriter(generation + 1);
+            current = createWriter(current.getGeneration() + 1);
             logger.trace("current translog set to [{}]", current.getGeneration());
         } catch (final Exception e) {
             IOUtils.closeWhileHandlingException(this); // tragic event
@@ -1384,9 +1383,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 throw new IllegalStateException("already committing a translog with generation: " +
                         currentCommittingGeneration);
             }
-            final long generation = current.getGeneration();
-            currentCommittingGeneration = generation;
-            foldGeneration(generation);
+            currentCommittingGeneration = current.getGeneration();
+            foldGeneration();
         } catch (final Exception e) {
             IOUtils.closeWhileHandlingException(this); // tragic event
             throw e;

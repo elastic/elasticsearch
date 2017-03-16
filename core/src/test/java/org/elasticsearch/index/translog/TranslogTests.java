@@ -2101,7 +2101,7 @@ public class TranslogTests extends ESTestCase {
                 totalOperations++;
             }
             try (ReleasableLock ignored = translog.writeLock.acquire()) {
-                translog.foldGeneration(generation + i);
+                translog.foldGeneration();
             }
             assertThat(translog.currentFileGeneration(), equalTo(generation + i + 1));
             assertThat(translog.totalOperations(), equalTo(totalOperations));

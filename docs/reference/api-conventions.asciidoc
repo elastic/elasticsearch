@@ -507,8 +507,8 @@ the unit, like `2d` for 2 days.  The supported units are:
 === Byte size units
 
 Whenever the byte size of data needs to be specified, eg when setting a buffer size
-parameter, the value must specify the unit, like `10kb` for 10 kilobytes.  The
-supported units are:
+parameter, the value must specify the unit, like `10kb` for 10 kilobytes. Note that
+these units use powers of 1024, so `1kb` means 1024 bytes. The supported units are:
 
 [horizontal]
 `b`::   Bytes

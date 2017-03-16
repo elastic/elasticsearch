@@ -37,9 +37,9 @@ Script fields can work on fields that are not stored (`my_field_name` in
 the above case), and allow to return custom values to be returned (the
 evaluated value of the script).
 
-Script fields can also access the actual `_source` document indexed and
-extract specific elements to be returned from it (can be an "object"
-type). Here is an example:
+Script fields can also access the actual `_source` document and
+extract specific elements to be returned from it by using `params._source`.
+Here is an example:
 
 [source,js]
 --------------------------------------------------
@@ -50,22 +50,24 @@ GET /_search
         },
         "script_fields" : {
             "test1" : {
-                "script" : "_source.obj1.obj2"
+                "script" : "params['_source']['message']"
             }
         }
     }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 Note the `_source` keyword here to navigate the json-like model.
 
 It's important to understand the difference between
-`doc['my_field'].value` and `_source.my_field`. The first, using the doc
-keyword, will cause the terms for that field to be loaded to memory
-(cached), which will result in faster execution, but more memory
+`doc['my_field'].value` and `params['_source']['my_field']`. The first,
+using the doc keyword, will cause the terms for that field to be loaded to
+memory (cached), which will result in faster execution, but more memory
 consumption. Also, the `doc[...]` notation only allows for simple valued
 fields (can't return a json object from it) and make sense only on
-non-analyzed or single term based fields.
+non-analyzed or single term based fields.  However, using `doc` is
+still the recommended way to access values from the document, if at all
+possible, because `_source` must be loaded and parsed every time it's used.
+Using `_source` is very slow.
 
-The `_source` on the other hand causes the source to be loaded, parsed,
-and then only the relevant part of the json is returned.

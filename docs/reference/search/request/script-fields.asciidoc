@@ -38,7 +38,7 @@ the above case), and allow to return custom values to be returned (the
 evaluated value of the script).
 
 Script fields can also access the actual `_source` document and
-extract specific elements to be returned from it by using `params.['_source']`.
+extract specific elements to be returned from it by using `params['_source']`.
 Here is an example:
 
 [source,js]

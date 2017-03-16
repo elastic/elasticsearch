@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.PingContextProvider;
@@ -31,8 +32,11 @@ import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
@@ -40,11 +44,13 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Stack;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(
+        scope = ESIntegTestCase.Scope.TEST,
         numDataNodes = 1,
         numClientNodes = 0,
         supportsDedicatedMasters = false,
@@ -57,25 +63,29 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 .builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("discovery.type", "single-node")
+                // TODO: do not use such a restrictive ephemeral port range
+                .put("transport.tcp.port", "49152-49156")
                 .build();
     }
 
-    public void testDoesNotPing() throws IOException, InterruptedException, ExecutionException {
-        final Settings empty = Settings.EMPTY;
+    public void testDoesNotRespondToZenPings() throws Exception {
+        final Settings settings =
+                Settings.builder().put("cluster.name", internalCluster().getClusterName()).build();
         final Version version = Version.CURRENT;
         final Stack<Closeable> closeables = new Stack<>();
         final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
         try {
             final MockTransportService pingTransport =
-                    MockTransportService.createNewService(empty, version, threadPool, null);
+                    MockTransportService.createNewService(settings, version, threadPool, null);
             pingTransport.start();
             closeables.push(pingTransport);
             final TransportService nodeTransport =
                     internalCluster().getInstance(TransportService.class);
+            // try to ping the single node directly
             final UnicastHostsProvider provider =
                     () -> Collections.singletonList(nodeTransport.getLocalNode());
             final UnicastZenPing unicastZenPing =
-                    new UnicastZenPing(empty, threadPool, pingTransport, provider);
+                    new UnicastZenPing(settings, threadPool, pingTransport, provider);
             final DiscoveryNodes nodes =
                     DiscoveryNodes.builder().add(pingTransport.getLocalNode()).build();
             final ClusterName clusterName = new ClusterName(internalCluster().getClusterName());
@@ -88,7 +98,12 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
 
                 @Override
                 public DiscoveryNodes nodes() {
-                    return DiscoveryNodes.builder().add(nodeTransport.getLocalNode()).build();
+                    return DiscoveryNodes
+                            .builder()
+                            .add(nodeTransport.getLocalNode())
+                            .add(pingTransport.getLocalNode())
+                            .localNodeId(pingTransport.getLocalNode().getId())
+                            .build();
                 }
             });
             closeables.push(unicastZenPing);
@@ -101,6 +116,53 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 IOUtils.closeWhileHandlingException(closeables.pop());
             }
             terminate(threadPool);
+        }
+    }
+
+    public void testSingleNodesDoNotDiscoverEachOther() throws IOException, InterruptedException {
+        final NodeConfigurationSource configurationSource = new NodeConfigurationSource() {
+            @Override
+            public Settings nodeSettings(int nodeOrdinal) {
+                return Settings
+                        .builder()
+                        .put("discovery.type", "single-node")
+                        .put("http.enabled", false)
+                        .put("transport.type", "mock-socket-network")
+                        /*
+                         * We align the port ranges of the two as then with zen discovery these two
+                         * nodes would find each other.
+                         */
+                        // TODO: do not use such a restrictive ephemeral port range
+                        .put("transport.tcp.port", "49152-49156")
+                        .build();
+            }
+        };
+        try (InternalTestCluster other =
+                new InternalTestCluster(
+                        randomLong(),
+                        createTempDir(),
+                        false,
+                        false,
+                        1,
+                        1,
+                        internalCluster().getClusterName(),
+                        configurationSource,
+                        0,
+                        false,
+                        "other",
+                        Collections.singletonList(MockTcpTransportPlugin.class),
+                        Function.identity())) {
+            other.beforeTest(random(), 0);
+            final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
+            final ClusterState second = other.getInstance(ClusterService.class).state();
+            assertThat(first.nodes().getSize(), equalTo(1));
+            assertThat(second.nodes().getSize(), equalTo(1));
+            assertThat(
+                    first.nodes().getMasterNodeId(),
+                    not(equalTo(second.nodes().getMasterNodeId())));
+            assertThat(
+                    first.metaData().clusterUUID(),
+                    not(equalTo(second.metaData().clusterUUID())));
         }
     }
 

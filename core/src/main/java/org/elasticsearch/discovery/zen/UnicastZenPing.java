@@ -474,6 +474,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
             Stream.concat(pingingRound.getSeedNodes().stream(), nodesFromResponses.stream())
                 .collect(Collectors.toMap(DiscoveryNode::getAddress, Function.identity(), (n1, n2) -> n1));
 
+
         // resolve what we can via the latest cluster state
         final Set<DiscoveryNode> nodesToPing = uniqueNodesByAddress.values().stream()
             .map(node -> {

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.transforms;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -27,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -197,7 +197,6 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
     }
 
     public void testIsolated() throws Exception {
-
         Settings.Builder settings = Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
@@ -213,7 +212,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         params.putAll(DomainSplitFunction.params);
         for (TestConfiguration testConfig : tests) {
             params.put("host", testConfig.hostName);
-            String mapAsJson = new ObjectMapper().writeValueAsString(params);
+            String mapAsJson = jsonBuilder().map(params).string();
+            logger.info("params={}", mapAsJson);
 
             StringEntity body = new StringEntity("{\n" +
                     "    \"query\" : {\n" +

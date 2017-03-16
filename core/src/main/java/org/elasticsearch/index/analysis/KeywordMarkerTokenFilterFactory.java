@@ -37,13 +37,13 @@ import java.util.regex.Pattern;
  *
  * The {@link SetKeywordMarkerFilter} uses a set of keywords to denote which tokens
  * should be excluded from stemming.  This filter is created if the settings include
- * `keywords`, which contains the list of keywords, or `keywords_path`, which
- * contains a path to a file in the config directory with the keywords.
+ * {@code keywords, which contains the list of keywords, or {@code `keywords_path`},
+ * which contains a path to a file in the config directory with the keywords.
  *
  * The {@link PatternKeywordMarkerFilter} uses a regular expression pattern to match
  * against tokens that should be excluded from stemming.  This filter is created if
- * the settings include `keywords_pattern`, which contains the regular expression to
- * match against.
+ * the settings include {@code keywords_pattern}, which contains the regular expression
+ * to match against.
  */
 public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory {
 

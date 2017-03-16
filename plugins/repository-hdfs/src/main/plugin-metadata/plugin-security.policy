@@ -50,4 +50,9 @@ grant {
 
   // Ability for Hadoop UGI and LoginContexts to add principals for JAAS login contexts
   permission javax.security.auth.AuthPermission "modifyPrincipals";
+
+  // Kerberos permissions
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.security.krb5";
+  permission java.security.SecurityPermission "putProviderProperty.SaslPlainServer";
+  permission java.security.SecurityPermission "insertProvider.SaslPlainServer";
 };

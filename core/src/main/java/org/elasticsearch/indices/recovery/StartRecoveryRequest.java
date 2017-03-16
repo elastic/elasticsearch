@@ -19,60 +19,42 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.Version;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-/**
- * Represents a request for starting a peer recovery.
- */
-public class StartRecoveryRequest extends TransportRequest {
+public abstract class StartRecoveryRequest extends TransportRequest {
 
     private long recoveryId;
     private ShardId shardId;
     private DiscoveryNode sourceNode;
     private DiscoveryNode targetNode;
-    private Store.MetadataSnapshot metadataSnapshot;
-    private boolean primaryRelocation;
-    private long startingSeqNo;
 
-    public StartRecoveryRequest() {
+    StartRecoveryRequest() {
     }
 
     /**
      * Construct a request for starting a peer recovery.
      *
-     * @param shardId           the shard ID to recover
-     * @param sourceNode        the source node to remover from
-     * @param targetNode        the target node to recover to
-     * @param metadataSnapshot  the Lucene metadata
-     * @param primaryRelocation whether or not the recovery is a primary relocation
-     * @param recoveryId        the recovery ID
-     * @param startingSeqNo     the starting sequence number
+     * @param shardId    the shard ID to recover
+     * @param sourceNode the source node to remover from
+     * @param targetNode the target node to recover to
+     * @param recoveryId the recovery ID
      */
     public StartRecoveryRequest(final ShardId shardId,
                                 final DiscoveryNode sourceNode,
                                 final DiscoveryNode targetNode,
-                                final Store.MetadataSnapshot metadataSnapshot,
-                                final boolean primaryRelocation,
-                                final long recoveryId,
-                                final long startingSeqNo) {
+                                final long recoveryId) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
-        this.metadataSnapshot = metadataSnapshot;
-        this.primaryRelocation = primaryRelocation;
-        this.startingSeqNo = startingSeqNo;
     }
 
     public long recoveryId() {
@@ -91,18 +73,6 @@ public class StartRecoveryRequest extends TransportRequest {
         return targetNode;
     }
 
-    public boolean isPrimaryRelocation() {
-        return primaryRelocation;
-    }
-
-    public Store.MetadataSnapshot metadataSnapshot() {
-        return metadataSnapshot;
-    }
-
-    public long startingSeqNo() {
-        return startingSeqNo;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -110,13 +80,6 @@ public class StartRecoveryRequest extends TransportRequest {
         shardId = ShardId.readShardId(in);
         sourceNode = new DiscoveryNode(in);
         targetNode = new DiscoveryNode(in);
-        metadataSnapshot = new Store.MetadataSnapshot(in);
-        primaryRelocation = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            startingSeqNo = in.readLong();
-        } else {
-            startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
-        }
     }
 
     @Override
@@ -126,11 +89,31 @@ public class StartRecoveryRequest extends TransportRequest {
         shardId.writeTo(out);
         sourceNode.writeTo(out);
         targetNode.writeTo(out);
-        metadataSnapshot.writeTo(out);
-        out.writeBoolean(primaryRelocation);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            out.writeLong(startingSeqNo);
-        }
     }
 
+    /**
+     * checks the source's shard routing to see if recovery can start and throws the appropriate
+     * exception if not.
+     *
+     * @param sourceRouting source routing entry
+     * @param logger        logger to log any debug info on
+     */
+    public void validateSourceRouting(ShardRouting sourceRouting, Logger logger) {}
+
+    public void validateTargetRouting(ShardRouting targetRouting, Logger logger) {
+        if (targetRouting == null) {
+            logger.debug(
+                "delaying recovery of {} as it is not listed as assigned to target node {}",
+                shardId(), targetNode());
+            throw new DelayRecoveryException(
+                "source node does not have the shard listed in its state as allocated on the node");
+        }
+        if (!targetRouting.initializing()) {
+            logger.debug("delaying recovery of {} as it is not listed as initializing on the " +
+                    "target node {}. known shards state is [{}]",
+                shardId(), targetNode(), targetRouting.state());
+            throw new DelayRecoveryException("source node has the state of the target shard to " +
+                "be [" + targetRouting.state() + "], expecting to be [initializing]");
+        }
+    }
 }

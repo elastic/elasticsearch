@@ -34,9 +34,9 @@ import java.util.function.Supplier;
 public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
 
     private final IndexShard shard;
-    private final StartRecoveryRequest request;
+    private final StartFullRecoveryRequest request;
 
-    SharedFSRecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, StartRecoveryRequest request,
+    SharedFSRecoverySourceHandler(IndexShard shard, FullRecoveryTargetHandler recoveryTarget, StartFullRecoveryRequest request,
                                   Supplier<Long> currentClusterStateVersionSupplier,
                                   Function<String, Releasable> delayNewRecoveries, Settings nodeSettings) {
         super(shard, recoveryTarget, request, currentClusterStateVersionSupplier, delayNewRecoveries, -1, nodeSettings);

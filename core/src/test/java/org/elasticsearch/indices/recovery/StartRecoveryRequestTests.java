@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -35,14 +34,13 @@ import java.io.ByteArrayOutputStream;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
 
 public class StartRecoveryRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         final Version targetNodeVersion = randomVersion(random());
-        final StartRecoveryRequest outRequest = new StartRecoveryRequest(
+        final StartFullRecoveryRequest outRequest = new StartFullRecoveryRequest(
                 new ShardId("test", "_na_", 0),
                 new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
@@ -59,7 +57,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
         final ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
         in.setVersion(targetNodeVersion);
-        final StartRecoveryRequest inRequest = new StartRecoveryRequest();
+        final StartFullRecoveryRequest inRequest = new StartFullRecoveryRequest();
         inRequest.readFrom(in);
 
         assertThat(outRequest.shardId(), equalTo(inRequest.shardId()));

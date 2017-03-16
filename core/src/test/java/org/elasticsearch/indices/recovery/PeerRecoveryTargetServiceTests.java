@@ -36,7 +36,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
     public void testGetStartingSeqNo() throws Exception {
         IndexShard replica = newShard(false);
-        RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
+        FullRecoveryTarget recoveryTarget = new FullRecoveryTarget(replica, null, null, null);
         try {
             recoveryEmptyReplica(replica);
             int docs = randomIntBetween(1, 10);

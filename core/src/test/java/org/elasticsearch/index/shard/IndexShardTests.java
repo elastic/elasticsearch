@@ -86,7 +86,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogTests;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.indices.recovery.FullRecoveryTarget;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -1230,7 +1230,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
         IndexShard replica = newShard(primary.shardId(), false, "n2", metaData, null);
         recoverReplica(replica, primary, (shard, discoveryNode) ->
-            new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
+            new FullRecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
                 public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
@@ -1278,7 +1278,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(replica.isActive());
         recoverReplica(replica, primary, (shard, discoveryNode) ->
-            new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
+            new FullRecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
                 public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {

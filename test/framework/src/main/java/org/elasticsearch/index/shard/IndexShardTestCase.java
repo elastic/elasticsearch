@@ -66,8 +66,8 @@ import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.elasticsearch.indices.recovery.StartRecoveryRequest;
+import org.elasticsearch.indices.recovery.FullRecoveryTarget;
+import org.elasticsearch.indices.recovery.StartFullRecoveryRequest;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -379,7 +379,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     /** recovers a replica from the given primary **/
     protected void recoverReplica(IndexShard replica, IndexShard primary) throws IOException {
         recoverReplica(replica, primary,
-            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener, version -> {
+            (r, sourceNode) -> new FullRecoveryTarget(r, sourceNode, recoveryListener, version -> {
             }),
             true);
     }
@@ -389,12 +389,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * target is to assert things in the various stages of recovery.
      * @param replica                the recovery target shard
      * @param primary                the recovery source shard
-     * @param targetSupplier         supplies an instance of {@link RecoveryTarget}
+     * @param targetSupplier         supplies an instance of {@link FullRecoveryTarget}
      * @param markAsRecovering       set to {@code false} if the replica is marked as recovering
      */
     protected final void recoverReplica(final IndexShard replica,
                                         final IndexShard primary,
-                                        final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
+                                        final BiFunction<IndexShard, DiscoveryNode, FullRecoveryTarget> targetSupplier,
                                         final boolean markAsRecovering) throws IOException {
         final DiscoveryNode pNode = getFakeDiscoNode(primary.routingEntry().currentNodeId());
         final DiscoveryNode rNode = getFakeDiscoNode(replica.routingEntry().currentNodeId());
@@ -404,7 +404,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             assertEquals(replica.state(), IndexShardState.RECOVERING);
         }
         replica.prepareForIndexRecovery();
-        final RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
+        final FullRecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
 
         final Store.MetadataSnapshot snapshot = getMetadataSnapshotOrEmpty(replica);
         final long startingSeqNo;
@@ -414,8 +414,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
             startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
         }
 
-        final StartRecoveryRequest request =
-            new StartRecoveryRequest(replica.shardId(), pNode, rNode, snapshot, false, 0, startingSeqNo);
+        final StartFullRecoveryRequest request =
+            new StartFullRecoveryRequest(replica.shardId(), pNode, rNode, snapshot, false, 0, startingSeqNo);
         final RecoverySourceHandler recovery = new RecoverySourceHandler(
             primary,
             recoveryTarget,

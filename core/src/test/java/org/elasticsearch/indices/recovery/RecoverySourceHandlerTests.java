@@ -49,7 +49,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.SegmentsStats;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -98,7 +97,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Settings settings = Settings.builder().put("indices.recovery.concurrent_streams", 1).
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
-        final StartRecoveryRequest request = new StartRecoveryRequest(
+        final StartFullRecoveryRequest request = new StartFullRecoveryRequest(
             shardId,
             new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -154,7 +153,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         final int fileChunkSizeInBytes = recoverySettings.getChunkSize().bytesAsInt();
         final long startingSeqNo = randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : randomIntBetween(0, 16);
-        final StartRecoveryRequest request = new StartRecoveryRequest(
+        final StartFullRecoveryRequest request = new StartFullRecoveryRequest(
             shardId,
             new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -164,7 +163,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
         final IndexShard shard = mock(IndexShard.class);
         when(shard.state()).thenReturn(IndexShardState.STARTED);
-        final RecoveryTargetHandler recoveryTarget = mock(RecoveryTargetHandler.class);
+        final FullRecoveryTargetHandler recoveryTarget = mock(FullRecoveryTargetHandler.class);
         final RecoverySourceHandler handler =
             new RecoverySourceHandler(shard, recoveryTarget, request, () -> 0L, e -> () -> {}, fileChunkSizeInBytes, Settings.EMPTY);
         final List<Translog.Operation> operations = new ArrayList<>();
@@ -221,8 +220,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Settings settings = Settings.builder().put("indices.recovery.concurrent_streams", 1).
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
-        final StartRecoveryRequest request =
-            new StartRecoveryRequest(
+        final StartFullRecoveryRequest request =
+            new StartFullRecoveryRequest(
                 shardId,
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -290,8 +289,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Settings settings = Settings.builder().put("indices.recovery.concurrent_streams", 1).
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
-        final StartRecoveryRequest request =
-            new StartRecoveryRequest(
+        final StartFullRecoveryRequest request =
+            new StartFullRecoveryRequest(
                 shardId,
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -356,8 +355,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         final boolean attemptSequenceNumberBasedRecovery = randomBoolean();
         final boolean isTranslogReadyForSequenceNumberBasedRecovery = attemptSequenceNumberBasedRecovery && randomBoolean();
-        final StartRecoveryRequest request =
-            new StartRecoveryRequest(
+        final StartFullRecoveryRequest request =
+            new StartFullRecoveryRequest(
                 shardId,
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -376,7 +375,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final AtomicBoolean phase2Called = new AtomicBoolean();
         final RecoverySourceHandler handler = new RecoverySourceHandler(
             shard,
-            mock(RecoveryTargetHandler.class),
+            mock(FullRecoveryTargetHandler.class),
             request,
             () -> 0L,
             e -> () -> {},
@@ -415,8 +414,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         final boolean attemptSequenceNumberBasedRecovery = randomBoolean();
         final boolean isTranslogReadyForSequenceNumberBasedRecovery = attemptSequenceNumberBasedRecovery && randomBoolean();
-        final StartRecoveryRequest request =
-            new StartRecoveryRequest(
+        final StartFullRecoveryRequest request =
+            new StartFullRecoveryRequest(
                 shardId,
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -466,7 +465,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
         final RecoverySourceHandler handler = new RecoverySourceHandler(
             shard,
-            mock(RecoveryTargetHandler.class),
+            mock(FullRecoveryTargetHandler.class),
             request,
             currentClusterStateVersionSupplier,
             delayNewRecoveries,

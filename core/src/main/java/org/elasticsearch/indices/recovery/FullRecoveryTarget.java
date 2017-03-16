@@ -36,7 +36,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
@@ -49,7 +48,6 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -58,16 +56,15 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
+ * Represents a recovery where the current node is the target node of the recovery.
+ * To track recoveries in a central place, instances of
  * this class are created through {@link RecoveriesCollection}.
  */
-public class RecoveryTarget extends AbstractRefCounted implements RecoveryTargetHandler {
+public class FullRecoveryTarget extends AbstractRefCounted implements FullRecoveryTargetHandler {
 
     private final Logger logger;
 
@@ -107,10 +104,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      *                                          version; necessary for primary relocation so that new primary knows about all other ongoing
      *                                          replica recoveries when replicating documents (see {@link RecoverySourceHandler})
      */
-    public RecoveryTarget(final IndexShard indexShard,
-                   final DiscoveryNode sourceNode,
-                   final PeerRecoveryTargetService.RecoveryListener listener,
-                   final Callback<Long> ensureClusterStateVersionCallback) {
+    public FullRecoveryTarget(final IndexShard indexShard,
+                              final DiscoveryNode sourceNode,
+                              final PeerRecoveryTargetService.RecoveryListener listener,
+                              final Callback<Long> ensureClusterStateVersionCallback) {
         super("recovery_status");
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
@@ -132,8 +129,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      *
      * @return a copy of this recovery target
      */
-    public RecoveryTarget retryCopy() {
-        return new RecoveryTarget(indexShard, sourceNode, listener, ensureClusterStateVersionCallback);
+    public FullRecoveryTarget retryCopy() {
+        return new FullRecoveryTarget(indexShard, sourceNode, listener, ensureClusterStateVersionCallback);
     }
 
     public long recoveryId() {
@@ -357,32 +354,49 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         }
     }
 
-    /*** Implementation of {@link RecoveryTargetHandler } */
-
-    @Override
+    /**
+     * Prepares the target to receive translog operations, after all file have been copied
+     *
+     * @param totalTranslogOps total translog operations expected to be sent
+     * @param maxUnsafeAutoIdTimestamp the max timestamp that is used to de-optimize documents with auto-generated IDs in the engine.
+     * This is used to ensure we don't add duplicate documents when we assume an append only case based on auto-generated IDs
+     */
     public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
         indexShard().skipTranslogRecovery(maxUnsafeAutoIdTimestamp);
     }
 
-    @Override
+    /**
+     * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, and
+     * updates the global checkpoint.
+     *
+     * @param globalCheckpoint the global checkpoint on the recovery source
+     */
     public void finalizeRecovery(final long globalCheckpoint) {
         indexShard().updateGlobalCheckpointOnReplica(globalCheckpoint);
         final IndexShard indexShard = indexShard();
         indexShard.finalizeRecovery();
     }
 
-    @Override
+    /***
+     * @return the allocation id of the target shard.
+     */
     public String getTargetAllocationId() {
         return indexShard().routingEntry().allocationId().getId();
     }
 
-    @Override
+    /**
+     * Blockingly waits for cluster state with at least clusterStateVersion to be available
+     */
     public void ensureClusterStateVersion(long clusterStateVersion) {
         ensureClusterStateVersionCallback.handle(clusterStateVersion);
     }
 
-    @Override
+    /**
+     * Index a set of translog operations on the target
+     * @param operations operations to index
+     * @param totalTranslogOps current number of total operations expected to be indexed
+     */
     public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws TranslogRecoveryPerformer
             .BatchOperationException {
         final RecoveryState.Translog translog = state().getTranslog();
@@ -391,7 +405,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         indexShard().performBatchRecovery(operations);
     }
 
-    @Override
+    /**
+     * Notifies the target of the files it is going to receive
+     */
     public void receiveFileInfo(List<String> phase1FileNames,
                                 List<Long> phase1FileSizes,
                                 List<String> phase1ExistingFileNames,
@@ -409,7 +425,12 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     }
 
-    @Override
+    /**
+     * After all source files has been sent over, this command is sent to the target so it can clean any local
+     * files that are not part of the source store
+     * @param totalTranslogOps an update number of translog operations that will be replayed later on
+     * @param sourceMetaData meta data of the source store
+     */
     public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
         // first, we go and move files that were created with the recovery id suffix to
@@ -445,7 +466,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         }
     }
 
-    @Override
+    /** writes a partial file chunk to the target store */
     public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
                                boolean lastChunk, int totalTranslogOps) throws IOException {
         final Store store = store();

@@ -591,7 +591,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, numDocs);
 
         String[] recoveryActions = new String[]{
-                PeerRecoverySourceService.Actions.START_RECOVERY,
+                PeerRecoverySourceService.Actions.START_FULL_RECOVERY,
                 PeerRecoveryTargetService.Actions.FILES_INFO,
                 PeerRecoveryTargetService.Actions.FILE_CHUNK,
                 PeerRecoveryTargetService.Actions.CLEAN_FILES,
@@ -704,7 +704,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
                                        TransportRequestOptions options) throws IOException {
                 logger.info("--> sending request {} on {}", action, connection.getNode());
-                if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action) && count.incrementAndGet() == 1) {
+                if (PeerRecoverySourceService.Actions.START_FULL_RECOVERY.equals(action) && count.incrementAndGet() == 1) {
                     // ensures that it's considered as valid recovery attempt by source
                     try {
                         awaitBusy(() -> client(blueNodeName).admin().cluster().prepareState().setLocal(true).get()

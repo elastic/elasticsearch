@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
-public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
+public class RemoteRecoveryTargetHandler implements FullRecoveryTargetHandler {
 
     private final TransportService transportService;
     private final long recoveryId;

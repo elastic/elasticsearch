@@ -81,11 +81,11 @@ public class RecoverySourceHandler {
     private final String indexName;
     private final int shardId;
     // Request containing source and target node information
-    private final StartRecoveryRequest request;
+    private final StartFullRecoveryRequest request;
     private final Supplier<Long> currentClusterStateVersionSupplier;
     private final Function<String, Releasable> delayNewRecoveries;
     private final int chunkSizeInBytes;
-    private final RecoveryTargetHandler recoveryTarget;
+    private final FullRecoveryTargetHandler recoveryTarget;
 
     protected final RecoveryResponse response;
 
@@ -105,8 +105,8 @@ public class RecoverySourceHandler {
         }
     };
 
-    public RecoverySourceHandler(final IndexShard shard, RecoveryTargetHandler recoveryTarget,
-                                 final StartRecoveryRequest request,
+    public RecoverySourceHandler(final IndexShard shard, FullRecoveryTargetHandler recoveryTarget,
+                                 final StartFullRecoveryRequest request,
                                  final Supplier<Long> currentClusterStateVersionSupplier,
                                  Function<String, Releasable> delayNewRecoveries,
                                  final int fileChunkSizeInBytes,

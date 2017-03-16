@@ -27,13 +27,9 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.BulkShardResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkActionTests;
-import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
-import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -63,7 +59,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.indices.recovery.FullRecoveryTarget;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -278,17 +274,17 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         public void recoverReplica(IndexShard replica) throws IOException {
-            recoverReplica(replica, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener, version -> {}));
+            recoverReplica(replica, (r, sourceNode) -> new FullRecoveryTarget(r, sourceNode, recoveryListener, version -> {}));
         }
 
-        public void recoverReplica(IndexShard replica, BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier)
+        public void recoverReplica(IndexShard replica, BiFunction<IndexShard, DiscoveryNode, FullRecoveryTarget> targetSupplier)
             throws IOException {
             recoverReplica(replica, targetSupplier, true);
         }
 
         public void recoverReplica(
             IndexShard replica,
-            BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
+            BiFunction<IndexShard, DiscoveryNode, FullRecoveryTarget> targetSupplier,
             boolean markAsRecovering) throws IOException {
             ESIndexLevelReplicationTestCase.this.recoverReplica(replica, primary, targetSupplier, markAsRecovering);
             updateAllocationIDsOnPrimary();
@@ -298,7 +294,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             return getDiscoveryNode(primary.routingEntry().currentNodeId());
         }
 
-        public Future<Void> asyncRecoverReplica(IndexShard replica, BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier)
+        public Future<Void> asyncRecoverReplica(IndexShard replica, BiFunction<IndexShard, DiscoveryNode, FullRecoveryTarget> targetSupplier)
             throws IOException {
             FutureTask<Void> task = new FutureTask<>(() -> {
                 recoverReplica(replica, targetSupplier);

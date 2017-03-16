@@ -156,14 +156,14 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
     }
 
     private void retryRecovery(final long recoveryId, final TimeValue retryAfter, final TimeValue activityTimeout) {
-        RecoveryTarget newTarget = onGoingRecoveries.resetRecovery(recoveryId, activityTimeout);
+        FullRecoveryTarget newTarget = onGoingRecoveries.resetRecovery(recoveryId, activityTimeout);
         if (newTarget != null) {
             threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(newTarget.recoveryId()));
         }
     }
 
     private void doRecovery(final long recoveryId) {
-        final StartRecoveryRequest request;
+        final StartFullRecoveryRequest request;
         final CancellableThreads cancellableThreads;
         final RecoveryState.Timer timer;
 
@@ -172,7 +172,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 logger.trace("not running recovery with id [{}] - can not find it (probably finished)", recoveryId);
                 return;
             }
-            final RecoveryTarget recoveryTarget = recoveryRef.target();
+            final FullRecoveryTarget recoveryTarget = recoveryRef.target();
             cancellableThreads = recoveryTarget.cancellableThreads();
             timer = recoveryTarget.state().getTimer();
             try {
@@ -193,7 +193,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             logger.trace("{} starting recovery from {}", request.shardId(), request.sourceNode());
             final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
             cancellableThreads.execute(() -> responseHolder.set(
-                    transportService.submitRequest(request.sourceNode(), PeerRecoverySourceService.Actions.START_RECOVERY, request,
+                    transportService.submitRequest(request.sourceNode(), PeerRecoverySourceService.Actions.START_FULL_RECOVERY, request,
                             new FutureTransportResponseHandler<RecoveryResponse>() {
                                 @Override
                                 public RecoveryResponse newInstance() {
@@ -295,7 +295,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
      * @param recoveryTarget the target of the recovery
      * @return a snapshot of the store metadata
      */
-    private Store.MetadataSnapshot getStoreMetadataSnapshot(final RecoveryTarget recoveryTarget) {
+    private Store.MetadataSnapshot getStoreMetadataSnapshot(final FullRecoveryTarget recoveryTarget) {
         try {
             if (recoveryTarget.indexShard().indexSettings().isOnSharedFilesystem()) {
                 // we are not going to copy any files, so don't bother listing files, potentially running into concurrency issues with the
@@ -320,8 +320,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
      * @param recoveryTarget the target of the recovery
      * @return a start recovery request
      */
-    private StartRecoveryRequest getStartRecoveryRequest(final RecoveryTarget recoveryTarget) {
-        final StartRecoveryRequest request;
+    private StartFullRecoveryRequest getStartRecoveryRequest(final FullRecoveryTarget recoveryTarget) {
+        final StartFullRecoveryRequest request;
         logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
 
         final Store.MetadataSnapshot metadataSnapshot = getStoreMetadataSnapshot(recoveryTarget);
@@ -344,7 +344,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 recoveryTarget.sourceNode());
         }
 
-        request = new StartRecoveryRequest(
+        request = new StartFullRecoveryRequest(
             recoveryTarget.shardId(),
             recoveryTarget.sourceNode(),
             clusterService.localNode(),
@@ -362,7 +362,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
      * @return the starting sequence number or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO} if obtaining the starting sequence number
      * failed
      */
-    public static long getStartingSeqNo(final RecoveryTarget recoveryTarget) {
+    public static long getStartingSeqNo(final FullRecoveryTarget recoveryTarget) {
         try {
             final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.indexShard().shardPath().resolveTranslog());
             final SeqNoStats seqNoStats = recoveryTarget.store().loadSeqNoStats(globalCheckpoint);
@@ -431,7 +431,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             try (RecoveryRef recoveryRef =
                          onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
                 final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
-                final RecoveryTarget recoveryTarget = recoveryRef.target();
+                final FullRecoveryTarget recoveryTarget = recoveryRef.target();
                 try {
                     recoveryTarget.indexTranslogOperations(request.operations(), request.totalTranslogOps());
                     channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -565,7 +565,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel) throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                final RecoveryTarget recoveryTarget = recoveryRef.target();
+                final FullRecoveryTarget recoveryTarget = recoveryRef.target();
                 final RecoveryState.Index indexState = recoveryTarget.state().getIndex();
                 if (request.sourceThrottleTimeInNanos() != RecoveryState.Index.UNKNOWN) {
                     indexState.addSourceThrottling(request.sourceThrottleTimeInNanos());

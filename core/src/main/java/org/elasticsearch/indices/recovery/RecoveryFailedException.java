@@ -29,11 +29,11 @@ import java.io.IOException;
 
 public class RecoveryFailedException extends ElasticsearchException {
 
-    public RecoveryFailedException(StartRecoveryRequest request, Throwable cause) {
+    public RecoveryFailedException(StartFullRecoveryRequest request, Throwable cause) {
         this(request, null, cause);
     }
 
-    public RecoveryFailedException(StartRecoveryRequest request, @Nullable String extraInfo, Throwable cause) {
+    public RecoveryFailedException(StartFullRecoveryRequest request, @Nullable String extraInfo, Throwable cause) {
         this(request.shardId(), request.sourceNode(), request.targetNode(), extraInfo, cause);
     }
 

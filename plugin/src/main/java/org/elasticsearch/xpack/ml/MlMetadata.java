@@ -81,6 +81,10 @@ public class MlMetadata implements MetaData.Custom {
         return datafeeds.get(datafeedId);
     }
 
+    public Optional<DatafeedConfig> getDatafeedByJobId(String jobId) {
+        return datafeeds.values().stream().filter(s -> s.getJobId().equals(jobId)).findFirst();
+    }
+
     @Override
     public Version getMinimalSupportedVersion() {
         return Version.V_5_4_0_UNRELEASED;

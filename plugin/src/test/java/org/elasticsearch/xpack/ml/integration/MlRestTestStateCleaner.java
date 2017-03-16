@@ -84,8 +84,8 @@ public class MlRestTestStateCleaner {
                     logger.error("Got status code " + statusCode + " when closing job " + jobId);
                 }
             } catch (Exception e) {
-                if (e.getMessage().contains("cannot close job, expected job state [opened], but got [closed]")
-                        || e.getMessage().contains("cannot close job, expected job state [opened], but got [closing]")) {
+                if (e.getMessage().contains("expected job state [opened], but got [closed]")
+                        || e.getMessage().contains("expected job state [opened], but got [closing]")) {
                     logger.debug("job [" + jobId + "] has already been closed", e);
                 } else {
                     logger.warn("failed to close job [" + jobId + "]", e);

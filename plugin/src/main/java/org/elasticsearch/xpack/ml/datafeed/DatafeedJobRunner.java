@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
 import org.elasticsearch.xpack.persistent.PersistentTasks.Assignment;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
 
@@ -338,19 +339,26 @@ public class DatafeedJobRunner extends AbstractComponent {
         }
 
         private void closeJob() {
-            CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(datafeed.getJobId());
-            client.execute(CloseJobAction.INSTANCE, closeJobRequest, new ActionListener<CloseJobAction.Response>() {
+            DatafeedStateObserver observer = new DatafeedStateObserver(threadPool, clusterService);
+            observer.waitForState(datafeed.getId(), TimeValue.timeValueSeconds(20), DatafeedState.STOPPED, e1 -> {
+                if (e1 == null) {
+                    CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(datafeed.getJobId());
+                    client.execute(CloseJobAction.INSTANCE, closeJobRequest, new ActionListener<CloseJobAction.Response>() {
 
-                @Override
-                public void onResponse(CloseJobAction.Response response) {
-                    if (!response.isClosed()) {
-                        logger.error("[{}] job close action was not acknowledged", datafeed.getJobId());
-                    }
-                }
+                        @Override
+                        public void onResponse(CloseJobAction.Response response) {
+                            if (!response.isClosed()) {
+                                logger.error("[{}] job close action was not acknowledged", datafeed.getJobId());
+                            }
+                        }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("[" + datafeed.getJobId() + "] failed to  auto-close job", e);
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error("[" + datafeed.getJobId() + "] failed to  auto-close job", e);
+                        }
+                    });
+                } else {
+                    logger.error("Cannot auto close job [" + datafeed.getJobId() + "]", e1);
                 }
             });
         }

@@ -38,6 +38,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlMetadata;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -49,7 +51,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Predicate;
+import java.util.Optional;
 
 public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobAction.Response, CloseJobAction.RequestBuilder> {
 
@@ -285,25 +287,26 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         }
 
         PersistentTasks tasks = state.getMetaData().custom(PersistentTasks.TYPE);
-        if (tasks != null) {
-            Predicate<PersistentTask<?>> p = t -> {
-                OpenJobAction.Request storedRequest = (OpenJobAction.Request) t.getRequest();
-                return storedRequest.getJobId().equals(jobId);
-            };
-            for (PersistentTask<?> task : tasks.findTasks(OpenJobAction.NAME, p)) {
-                OpenJobAction.Request storedRequest = (OpenJobAction.Request) task.getRequest();
-                if (storedRequest.getJobId().equals(jobId)) {
-                    JobState jobState = (JobState) task.getStatus();
-                    if (jobState.isAnyOf(JobState.OPENED, JobState.FAILED) == false) {
-                        throw new ElasticsearchStatusException("cannot close job, expected job state [{}], but got [{}]",
-                                RestStatus.CONFLICT, JobState.OPENED, jobState);
-                    }
-                    return task;
-                }
+        Optional<DatafeedConfig> datafeed = mlMetadata.getDatafeedByJobId(jobId);
+        if (datafeed.isPresent()) {
+            DatafeedState datafeedState = MlMetadata.getDatafeedState(datafeed.get().getId(), tasks);
+            if (datafeedState != DatafeedState.STOPPED) {
+                throw new ElasticsearchStatusException("cannot close job [{}], datafeed hasn't been stopped",
+                        RestStatus.CONFLICT, jobId);
             }
         }
-        throw new ElasticsearchStatusException("cannot close job, expected job state [{}], but got [{}]",
-                RestStatus.CONFLICT, JobState.OPENED, JobState.CLOSED);
+
+        PersistentTask<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
+        if (jobTask != null) {
+            JobState jobState = (JobState) jobTask.getStatus();
+            if (jobState.isAnyOf(JobState.OPENED, JobState.FAILED) == false) {
+                throw new ElasticsearchStatusException("cannot close job [{}], expected job state [{}], but got [{}]",
+                        RestStatus.CONFLICT, jobId, JobState.OPENED, jobState);
+            }
+            return jobTask;
+        }
+        throw new ElasticsearchStatusException("cannot close job [{}], expected job state [{}], but got [{}]",
+                RestStatus.CONFLICT, jobId, JobState.OPENED, JobState.CLOSED);
     }
 
     static ClusterState moveJobToClosingState(String jobId, ClusterState currentState) {

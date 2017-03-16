@@ -45,7 +45,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESToke
         ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.my_word_delimiter.type", type)
-                .build());
+                .build(), new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
         String[] expected = new String[]{"Power", "Shot", "500", "42", "wi", "fi", "wi",
@@ -61,7 +61,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESToke
                 .put("index.analysis.filter.my_word_delimiter.type", type)
                 .put("index.analysis.filter.my_word_delimiter.catenate_words", "true")
                 .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "false")
-                .build());
+                .build(), new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
         String[] expected = new String[]{"PowerShot", "500", "42", "wifi", "wifi", "4000", "j", "2", "se", "ONeil"};
@@ -76,7 +76,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESToke
                 .put("index.analysis.filter.my_word_delimiter.type", type)
                 .put("index.analysis.filter.my_word_delimiter.generate_number_parts", "false")
                 .put("index.analysis.filter.my_word_delimiter.catenate_numbers", "true")
-                .build());
+                .build(), new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
         String[] expected = new String[]{"Power", "Shot", "50042", "wi", "fi", "wi", "fi", "4000", "j", "2",
@@ -93,7 +93,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESToke
                 .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "false")
                 .put("index.analysis.filter.my_word_delimiter.generate_number_parts", "false")
                 .put("index.analysis.filter.my_word_delimiter.catenate_all", "true")
-                .build());
+                .build(), new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
         String[] expected = new String[]{"PowerShot", "50042", "wifi", "wifi4000", "j2se", "ONeil"};
@@ -107,7 +107,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESToke
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.my_word_delimiter.type", type)
                 .put("index.analysis.filter.my_word_delimiter.split_on_case_change", "false")
-                .build());
+                .build(), new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot";
         String[] expected = new String[]{"PowerShot"};
@@ -121,7 +121,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESToke
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.my_word_delimiter.type", type)
                 .put("index.analysis.filter.my_word_delimiter.preserve_original", "true")
-                .build());
+                .build(), new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
         String[] expected = new String[]{"PowerShot", "Power", "Shot", "500-42", "500", "42", "wi-fi", "wi", "fi",
@@ -136,7 +136,7 @@ public abstract class BaseWordDelimiterTokenFilterFactoryTestCase extends ESToke
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.my_word_delimiter.type", type)
                 .put("index.analysis.filter.my_word_delimiter.stem_english_possessive", "false")
-                .build());
+                .build(), new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot 500-42 wi-fi wi-fi-4000 j2se O'Neil's";
         String[] expected = new String[]{"Power", "Shot", "500", "42", "wi", "fi", "wi", "fi", "4000", "j", "2",

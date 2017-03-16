@@ -63,7 +63,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
             .put("index.analysis.filter.my_word_delimiter.type", type)
             .put("index.analysis.filter.my_word_delimiter.catenate_words", "true")
             .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "true")
-            .build());
+            .build(), new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot";
         int[] expectedIncr = new int[]{1, 0, 1};

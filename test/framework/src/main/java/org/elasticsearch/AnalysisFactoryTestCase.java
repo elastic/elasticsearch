@@ -175,7 +175,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("apostrophe",                ApostropheFilterFactory.class)
         .put("arabicnormalization",       ArabicNormalizationFilterFactory.class)
         .put("arabicstem",                ArabicStemTokenFilterFactory.class)
-        .put("asciifolding",              Void.class)  // TODO remove this when core no longer depends on analysis-common 
+        .put("asciifolding",              Void.class)  // TODO remove this when core no longer depends on analysis-common
         .put("brazilianstem",             BrazilianStemTokenFilterFactory.class)
         .put("bulgarianstem",             StemmerTokenFilterFactory.class)
         .put("cjkbigram",                 CJKBigramFilterFactory.class)

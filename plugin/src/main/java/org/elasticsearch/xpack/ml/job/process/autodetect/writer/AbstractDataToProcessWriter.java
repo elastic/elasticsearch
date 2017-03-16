@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.DataStreamDiagnostics;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,6 +42,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     private final Logger logger;
     private final DateTransformer dateTransformer;
     private final DataStreamDiagnostics diagnostics;
+    private long latencySeconds;
 
     protected Map<String, Integer> inFieldIndexes;
     protected List<InputOutputMap> inputOutputMap;
@@ -60,6 +61,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         this.dataCountsReporter = Objects.requireNonNull(dataCountsReporter);
         this.logger = Objects.requireNonNull(logger);
         this.diagnostics = new DataStreamDiagnostics(this.dataCountsReporter, this.analysisConfig, this.logger);
+        this.latencySeconds = analysisConfig.getLatency().seconds();
 
         Date date = dataCountsReporter.getLatestRecordTime();
         latestEpochMsThisUpload = 0;
@@ -141,7 +143,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         record[TIME_FIELD_OUT_INDEX] = Long.toString(epochMs / MS_IN_SECOND);
 
         // Records have epoch seconds timestamp so compare for out of order in seconds
-        if (epochMs / MS_IN_SECOND < latestEpochMs / MS_IN_SECOND - analysisConfig.getLatency()) {
+        if (epochMs / MS_IN_SECOND < latestEpochMs / MS_IN_SECOND - latencySeconds) {
             // out of order
             dataCountsReporter.reportOutOfOrderRecord(numberOfFieldsRead);
 

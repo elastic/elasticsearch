@@ -219,7 +219,7 @@ public class DeleteExpiredDataIT extends SecurityIntegTestCase {
         Detector.Builder detector = new Detector.Builder();
         detector.setFunction("count");
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
-        analysisConfig.setBucketSpan(3600L);
+        analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
         Job.Builder jobBuilder = new Job.Builder(id);

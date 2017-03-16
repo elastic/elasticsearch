@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.process;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
@@ -35,9 +36,9 @@ public class ProcessCtrlTests extends ESTestCase {
         Detector.Builder detectorBuilder = new Detector.Builder("metric", "value");
         detectorBuilder.setPartitionFieldName("foo");
         AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Collections.singletonList(detectorBuilder.build()));
-        acBuilder.setBatchSpan(100L);
-        acBuilder.setBucketSpan(120L);
-        acBuilder.setLatency(360L);
+        acBuilder.setBatchSpan(TimeValue.timeValueSeconds(100));
+        acBuilder.setBucketSpan(TimeValue.timeValueSeconds(120));
+        acBuilder.setLatency(TimeValue.timeValueSeconds(360));
         acBuilder.setPeriod(20L);
         acBuilder.setSummaryCountFieldName("summaryField");
         acBuilder.setOverlappingBuckets(true);

@@ -7,7 +7,7 @@ setup:
             "job_id":"job-1",
             "description":"Job 1",
             "analysis_config" : {
-                "bucket_span":300,
+                "bucket_span": "300s",
                 "detectors" :[{"function":"count"}]
             },
             "data_description" : {
@@ -25,7 +25,7 @@ setup:
             "job_id":"job-2",
             "description":"Job 2",
             "analysis_config" : {
-                "bucket_span":600,
+                "bucket_span": "600s",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {

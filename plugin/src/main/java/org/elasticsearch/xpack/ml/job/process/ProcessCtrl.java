@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
@@ -25,6 +26,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.stream.Collectors;
 
 
 /**
@@ -208,7 +210,7 @@ public class ProcessCtrl {
             // Persist model state every few hours even if the job isn't closed
             long persistInterval = (job.getBackgroundPersistInterval() == null) ?
                     (DEFAULT_BASE_PERSIST_INTERVAL + intervalStagger) :
-                        job.getBackgroundPersistInterval();
+                        job.getBackgroundPersistInterval().getSeconds();
                     command.add(PERSIST_INTERVAL_ARG + persistInterval);
         }
 
@@ -232,6 +234,16 @@ public class ProcessCtrl {
         boolean useDefault = dataDescription == null
                 || Strings.isNullOrEmpty(dataDescription.getTimeField());
         return useDefault ? DataDescription.DEFAULT_TIME_FIELD : dataDescription.getTimeField();
+    }
+
+    private static void addIfNotNull(TimeValue timeValue, String argKey, List<String> command) {
+        addIfNotNull(timeValue == null ? null : timeValue.getSeconds(), argKey, command);
+    }
+
+    private static void addIfNotNull(List<TimeValue> timeValues, String argKey, List<String> command) {
+        if (timeValues != null) {
+            addIfNotNull(timeValues.stream().map(v -> v.getSeconds()).collect(Collectors.toList()), argKey, command);
+        }
     }
 
     private static <T> void addIfNotNull(T object, String argKey, List<String> command) {

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.config;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
@@ -94,10 +95,10 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         Date date = new Date();
         Job.Builder jobDetails1 = new Job.Builder("foo");
         jobDetails1.setAnalysisConfig(createAnalysisConfig());
-        jobDetails1.setBackgroundPersistInterval(10000L);
+        jobDetails1.setBackgroundPersistInterval(TimeValue.timeValueSeconds(10000L));
         jobDetails1.setCreateTime(date);
         Job.Builder jobDetails2 = new Job.Builder("foo");
-        jobDetails2.setBackgroundPersistInterval(8000L);
+        jobDetails2.setBackgroundPersistInterval(TimeValue.timeValueSeconds(8000L));
         jobDetails2.setAnalysisConfig(createAnalysisConfig());
         jobDetails2.setCreateTime(date);
         assertFalse(jobDetails1.build().equals(jobDetails2.build()));
@@ -305,9 +306,9 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     }
 
     public void testVerify_GivenLowBackgroundPersistInterval() {
-        String errorMessage = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "backgroundPersistInterval", 3600, 3599);
+        String errorMessage = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "background_persist_interval", 3600, 3599);
         Job.Builder builder = buildJobBuilder("foo");
-        builder.setBackgroundPersistInterval(3599L);
+        builder.setBackgroundPersistInterval(TimeValue.timeValueSeconds(3599L));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
         assertEquals(errorMessage, e.getMessage());
     }
@@ -381,21 +382,12 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         if (randomBoolean()) {
             builder.setLastDataTime(new Date(randomNonNegativeLong()));
         }
-        AnalysisConfig.Builder analysisConfig = createAnalysisConfig();
-        analysisConfig.setBucketSpan(100L);
-        builder.setAnalysisConfig(analysisConfig);
+        builder.setAnalysisConfig(AnalysisConfigTests.createRandomized());
         builder.setAnalysisLimits(new AnalysisLimits(randomNonNegativeLong(), randomNonNegativeLong()));
         if (randomBoolean()) {
             DataDescription.Builder dataDescription = new DataDescription.Builder();
             dataDescription.setFormat(randomFrom(DataDescription.DataFormat.values()));
             builder.setDataDescription(dataDescription);
-        }
-        String[] outputs;
-        AnalysisConfig ac = analysisConfig.build();
-        if (randomBoolean()) {
-            outputs = new String[] {ac.getDetectors().get(0).getFieldName(), ac.getDetectors().get(0).getOverFieldName()};
-        } else {
-            outputs = new String[] {ac.getDetectors().get(0).getFieldName()};
         }
         if (randomBoolean()) {
             builder.setModelDebugConfig(new ModelDebugConfig(randomBoolean(), randomAsciiOfLength(10)));
@@ -404,7 +396,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             builder.setRenormalizationWindowDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            builder.setBackgroundPersistInterval(randomNonNegativeLong());
+            builder.setBackgroundPersistInterval(TimeValue.timeValueHours(randomIntBetween(1, 24)));
         }
         if (randomBoolean()) {
             builder.setModelSnapshotRetentionDays(randomNonNegativeLong());

@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
@@ -86,7 +87,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         assertTrue(putJobResponse.isAcknowledged());
         DatafeedConfig.Builder configBuilder = createDatafeedBuilder("data_feed_id", job.getId(), Collections.singletonList("*"));
-        configBuilder.setFrequency(120);
+        configBuilder.setFrequency(TimeValue.timeValueMinutes(2));
         DatafeedConfig config = configBuilder.build();
         PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(config);
         PutDatafeedAction.Response putDatadeedResponse = client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).actionGet();

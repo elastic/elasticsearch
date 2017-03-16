@@ -32,7 +32,7 @@ setup:
             "result_type": "record",
             "timestamp": "2016-06-01T00:00:00Z",
             "anomaly_score": 60.0,
-            "bucket_span": 1,
+            "bucket_span": "1s",
             "by_field_value": "A by field",
             "partition_field_value": "A partition field",
             "over_field_value": "An over field",
@@ -55,7 +55,7 @@ setup:
             "job_id": "custom-all-test-2",
             "result_type": "record",
             "timestamp": "2016-06-01T00:00:00Z",
-            "bucket_span": 1,
+            "bucket_span": "1s",
             "by_field_value": "A by field"
           }
 

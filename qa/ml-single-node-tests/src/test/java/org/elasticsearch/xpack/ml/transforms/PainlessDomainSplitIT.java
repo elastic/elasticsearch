@@ -263,7 +263,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         String job = "{\n" +
                 "      \"description\":\"Domain splitting\",\n" +
                 "      \"analysis_config\" : {\n" +
-                "          \"bucket_span\":3600,\n" +
+                "          \"bucket_span\":\"3600s\",\n" +
                 "          \"detectors\" :[{\"function\":\"count\", \"by_field_name\" : \"domain_split\"}]\n" +
                 "      },\n" +
                 "      \"data_description\" : {\n" +

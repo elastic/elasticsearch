@@ -21,7 +21,7 @@ public final class DatafeedJobValidator {
      */
     public static void validate(DatafeedConfig datafeedConfig, Job job) {
         AnalysisConfig analysisConfig = job.getAnalysisConfig();
-        if (analysisConfig.getLatency() != null && analysisConfig.getLatency() > 0) {
+        if (analysisConfig.getLatency() != null && analysisConfig.getLatency().seconds() > 0) {
             throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY));
         }
         if (datafeedConfig.hasAggregations() && Strings.isNullOrEmpty(analysisConfig.getSummaryCountFieldName())) {

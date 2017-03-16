@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
@@ -34,10 +35,10 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             builder.setJobId(randomAsciiOfLength(10));
         }
         if (randomBoolean()) {
-            builder.setQueryDelay(randomNonNegativeLong());
+            builder.setQueryDelay(TimeValue.timeValueMillis(randomIntBetween(1, Integer.MAX_VALUE)));
         }
         if (randomBoolean()) {
-            builder.setFrequency(randomNonNegativeLong());
+            builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, Integer.MAX_VALUE)));
         }
         if (randomBoolean()) {
             builder.setIndexes(DatafeedConfigTests.randomStringList(1, 10));
@@ -122,8 +123,8 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         update.setJobId("bar");
         update.setIndexes(Arrays.asList("i_2"));
         update.setTypes(Arrays.asList("t_2"));
-        update.setQueryDelay(42L);
-        update.setFrequency(142L);
+        update.setQueryDelay(TimeValue.timeValueSeconds(42));
+        update.setFrequency(TimeValue.timeValueSeconds(142));
         update.setQuery(QueryBuilders.termQuery("a", "b"));
         update.setScriptFields(Arrays.asList(new SearchSourceBuilder.ScriptField("a", new Script("b"), false)));
         update.setScrollSize(8000);
@@ -135,8 +136,8 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         assertThat(updatedDatafeed.getJobId(), equalTo("bar"));
         assertThat(updatedDatafeed.getIndexes(), equalTo(Arrays.asList("i_2")));
         assertThat(updatedDatafeed.getTypes(), equalTo(Arrays.asList("t_2")));
-        assertThat(updatedDatafeed.getQueryDelay(), equalTo(42L));
-        assertThat(updatedDatafeed.getFrequency(), equalTo(142L));
+        assertThat(updatedDatafeed.getQueryDelay(), equalTo(TimeValue.timeValueSeconds(42)));
+        assertThat(updatedDatafeed.getFrequency(), equalTo(TimeValue.timeValueSeconds(142)));
         assertThat(updatedDatafeed.getQuery(), equalTo(QueryBuilders.termQuery("a", "b")));
         assertThat(updatedDatafeed.hasAggregations(), is(false));
         assertThat(updatedDatafeed.getScriptFields(),

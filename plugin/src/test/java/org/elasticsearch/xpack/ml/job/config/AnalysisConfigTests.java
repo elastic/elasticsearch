@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.config;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
@@ -19,11 +20,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
-
 public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisConfig> {
 
     @Override
     protected AnalysisConfig createTestInstance() {
+        return createRandomized().build();
+    }
+
+    public static AnalysisConfig.Builder createRandomized() {
         List<Detector> detectors = new ArrayList<>();
         int numDetectors = randomIntBetween(1, 10);
         for (int i = 0; i < numDetectors; i++) {
@@ -31,13 +35,12 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         }
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(detectors);
 
-
         if (randomBoolean()) {
-            builder.setBatchSpan(randomNonNegativeLong());
+            builder.setBatchSpan(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
         }
-        long bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN;
+        TimeValue bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN;
         if (randomBoolean()) {
-            bucketSpan = randomIntBetween(1, 1_000_000);
+            bucketSpan = TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000));
             builder.setBucketSpan(bucketSpan);
         }
         if (randomBoolean()) {
@@ -48,13 +51,13 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             builder.setInfluencers(Arrays.asList(generateRandomStringArray(10, 10, false)));
         }
         if (randomBoolean()) {
-            builder.setLatency(randomNonNegativeLong());
+            builder.setLatency(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
         }
         if (randomBoolean()) {
             int numBucketSpans = randomIntBetween(0, 10);
-            List<Long> multipleBucketSpans = new ArrayList<>();
+            List<TimeValue> multipleBucketSpans = new ArrayList<>();
             for (int i = 2; i <= numBucketSpans; i++) {
-                multipleBucketSpans.add(bucketSpan * i);
+                multipleBucketSpans.add(TimeValue.timeValueSeconds(bucketSpan.getSeconds() * i));
             }
             builder.setMultipleBucketSpans(multipleBucketSpans);
         }
@@ -69,7 +72,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         }
 
         builder.setUsePerPartitionNormalization(false);
-        return builder.build();
+        return builder;
     }
 
     @Override
@@ -219,12 +222,13 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertEquals("summaryCount", ac.getSummaryCountFieldName());
 
         builder = createConfigBuilder();
-        builder.setBucketSpan(1000L);
-        builder.setMultipleBucketSpans(Arrays.asList(5000L, 10000L, 24000L));
+        builder.setBucketSpan(TimeValue.timeValueSeconds(1000));
+        builder.setMultipleBucketSpans(Arrays.asList(
+                TimeValue.timeValueSeconds(5000), TimeValue.timeValueSeconds(10000), TimeValue.timeValueSeconds(24000)));
         ac = builder.build();
-        assertTrue(ac.getMultipleBucketSpans().contains(5000L));
-        assertTrue(ac.getMultipleBucketSpans().contains(10000L));
-        assertTrue(ac.getMultipleBucketSpans().contains(24000L));
+        assertTrue(ac.getMultipleBucketSpans().contains(TimeValue.timeValueSeconds(5000)));
+        assertTrue(ac.getMultipleBucketSpans().contains(TimeValue.timeValueSeconds(10000)));
+        assertTrue(ac.getMultipleBucketSpans().contains(TimeValue.timeValueSeconds(24000)));
     }
 
 
@@ -256,11 +260,11 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
 
     public void testEquals_GivenDifferentBatchSpan() {
         AnalysisConfig.Builder builder = createConfigBuilder();
-        builder.setBatchSpan(86400L);
+        builder.setBatchSpan(TimeValue.timeValueHours(3));
         AnalysisConfig config1 = builder.build();
 
         builder = createConfigBuilder();
-        builder.setBatchSpan(0L);
+        builder.setBatchSpan(TimeValue.timeValueHours(4));
         AnalysisConfig config2 = builder.build();
 
         assertFalse(config1.equals(config2));
@@ -270,11 +274,11 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
 
     public void testEquals_GivenDifferentBucketSpan() {
         AnalysisConfig.Builder builder = createConfigBuilder();
-        builder.setBucketSpan(1800L);
+        builder.setBucketSpan(TimeValue.timeValueSeconds(1800));
         AnalysisConfig config1 = builder.build();
 
         builder = createConfigBuilder();
-        builder.setBucketSpan(3600L);
+        builder.setBucketSpan(TimeValue.timeValueHours(1));
         AnalysisConfig config2 = builder.build();
 
         assertFalse(config1.equals(config2));
@@ -322,11 +326,11 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
 
     public void testEquals_GivenDifferentLatency() {
         AnalysisConfig.Builder builder = createConfigBuilder();
-        builder.setLatency(1800L);
+        builder.setLatency(TimeValue.timeValueSeconds(1800));
         AnalysisConfig config1 = builder.build();
 
         builder = createConfigBuilder();
-        builder.setLatency(3600L);
+        builder.setLatency(TimeValue.timeValueSeconds(1801));
         AnalysisConfig config2 = builder.build();
 
         assertFalse(config1.equals(config2));
@@ -387,16 +391,6 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertFalse(config2.equals(config1));
     }
 
-    public void testBucketSpanOrDefault() {
-        AnalysisConfig config1  = new AnalysisConfig.Builder(
-                Collections.singletonList(new Detector.Builder("min", "count").build())).build();
-        assertEquals(AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN, config1.getBucketSpanOrDefault());
-        AnalysisConfig.Builder builder = createConfigBuilder();
-        builder.setBucketSpan(100L);
-        config1 = builder.build();
-        assertEquals(100L, config1.getBucketSpanOrDefault());
-    }
-
     public void testExtractReferencedLists() {
         DetectionRule rule1 =
                 new DetectionRule(null, null, Connective.OR, Arrays.asList(RuleCondition.createCategorical("foo", "filter1")));
@@ -417,12 +411,12 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     private static AnalysisConfig createFullyPopulatedConfig() {
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(
                 Collections.singletonList(new Detector.Builder("min", "count").build()));
-        builder.setBatchSpan(86400L);
-        builder.setBucketSpan(3600L);
+        builder.setBucketSpan(TimeValue.timeValueHours(1));
+        builder.setBatchSpan(TimeValue.timeValueHours(24));
         builder.setCategorizationFieldName("cat");
         builder.setCategorizationFilters(Arrays.asList("foo"));
         builder.setInfluencers(Arrays.asList("myInfluencer"));
-        builder.setLatency(3600L);
+        builder.setLatency(TimeValue.timeValueSeconds(3600));
         builder.setPeriod(100L);
         builder.setSummaryCountFieldName("sumCount");
         return builder.build();
@@ -471,71 +465,34 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         } catch (IllegalArgumentException e) {
             assertEquals("Unknown function 'made_up_function'", e.getMessage());
         }
-
-        builder = new Detector.Builder("distinct_count", "somefield");
-        AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Collections.singletonList(builder.build()));
-        acBuilder.setBatchSpan(-1L);
-        try {
-            acBuilder.build();
-            assertTrue(false); // shouldn't get here
-        } catch (IllegalArgumentException e) {
-            assertEquals("batch_span cannot be less than 0. Value = -1", e.getMessage());
-        }
-
-        acBuilder.setBatchSpan(10L);
-        acBuilder.setBucketSpan(-1L);
-        try {
-            acBuilder.build();
-            assertTrue(false); // shouldn't get here
-        } catch (IllegalArgumentException e) {
-            assertEquals("bucket_span cannot be less than 0. Value = -1", e.getMessage());
-        }
-
-        acBuilder.setBucketSpan(3600L);
-        acBuilder.setPeriod(-1L);
-        try {
-            acBuilder.build();
-            assertTrue(false); // shouldn't get here
-        } catch (IllegalArgumentException e) {
-            assertEquals("period cannot be less than 0. Value = -1", e.getMessage());
-        }
-
-        acBuilder.setPeriod(1L);
-        acBuilder.setLatency(-1L);
-        try {
-            acBuilder.build();
-            assertTrue(false); // shouldn't get here
-        } catch (IllegalArgumentException e) {
-            assertEquals("latency cannot be less than 0. Value = -1", e.getMessage());
-        }
     }
 
     public void testVerify_GivenNegativeBucketSpan() {
         AnalysisConfig.Builder config = createValidConfig();
-        config.setBucketSpan(-1L);
+        config.setBucketSpan(TimeValue.timeValueSeconds(-1));
 
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> config.build());
 
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "bucket_span", 0, -1), e.getMessage());
+        assertEquals("bucket_span cannot be less or equal than 0. Value = -1", e.getMessage());
     }
 
     public void testVerify_GivenNegativeBatchSpan() {
         AnalysisConfig.Builder analysisConfig = createValidConfig();
-        analysisConfig.setBatchSpan(-1L);
+        analysisConfig.setBatchSpan(TimeValue.timeValueSeconds(-1));
 
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> analysisConfig.build());
 
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "batch_span", 0, -1), e.getMessage());
+        assertEquals("batch_span cannot be less or equal than 0. Value = -1", e.getMessage());
     }
 
 
     public void testVerify_GivenNegativeLatency() {
         AnalysisConfig.Builder analysisConfig = createValidConfig();
-        analysisConfig.setLatency(-1L);
+        analysisConfig.setLatency(TimeValue.timeValueSeconds(-1));
 
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> analysisConfig.build());
 
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "latency", 0, -1), e.getMessage());
+        assertEquals("latency cannot be less than 0. Value = -1", e.getMessage());
     }
 
 
@@ -584,8 +541,8 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         if (onByDefault) {
             // Test overlappingBuckets unset
             AnalysisConfig.Builder analysisConfig = createValidConfig();
-            analysisConfig.setBucketSpan(5000L);
-            analysisConfig.setBatchSpan(0L);
+            analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(5000L));
+            analysisConfig.setBatchSpan(TimeValue.ZERO);
             detectors = new ArrayList<>();
             detector = new Detector.Builder("count", null).build();
             detectors.add(detector);
@@ -597,8 +554,8 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
 
             // Test overlappingBuckets unset
             analysisConfig = createValidConfig();
-            analysisConfig.setBucketSpan(5000L);
-            analysisConfig.setBatchSpan(0L);
+            analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(5000L));
+            analysisConfig.setBatchSpan(TimeValue.ZERO);
             detectors = new ArrayList<>();
             detector = new Detector.Builder("count", null).build();
             detectors.add(detector);
@@ -610,8 +567,8 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
 
             // Test overlappingBuckets unset
             analysisConfig = createValidConfig();
-            analysisConfig.setBucketSpan(5000L);
-            analysisConfig.setBatchSpan(0L);
+            analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(5000L));
+            analysisConfig.setBatchSpan(TimeValue.ZERO);
             detectors = new ArrayList<>();
             detector = new Detector.Builder("count", null).build();
             detectors.add(detector);
@@ -626,8 +583,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
 
         // Test overlappingBuckets set
         AnalysisConfig.Builder analysisConfig = createValidConfig();
-        analysisConfig.setBucketSpan(5000L);
-        analysisConfig.setBatchSpan(0L);
+        analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(5000L));
         detectors = new ArrayList<>();
         detector = new Detector.Builder("count", null).build();
         detectors.add(detector);
@@ -640,8 +596,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
 
         // Test overlappingBuckets set
         analysisConfig = createValidConfig();
-        analysisConfig.setBucketSpan(5000L);
-        analysisConfig.setBatchSpan(0L);
+        analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(5000L));
         analysisConfig.setOverlappingBuckets(true);
         detectors = new ArrayList<>();
         detector = new Detector.Builder("count", null).build();
@@ -655,8 +610,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
 
         // Test overlappingBuckets set
         analysisConfig = createValidConfig();
-        analysisConfig.setBucketSpan(5000L);
-        analysisConfig.setBatchSpan(0L);
+        analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(5000L));
         analysisConfig.setOverlappingBuckets(false);
         detectors = new ArrayList<>();
         detector = new Detector.Builder("count", null).build();
@@ -671,37 +625,54 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
 
     public void testMultipleBucketsConfig() {
         AnalysisConfig.Builder ac = createValidConfig();
-        ac.setMultipleBucketSpans(Arrays.asList(10L, 15L, 20L, 25L, 30L, 35L));
+        ac.setMultipleBucketSpans(Arrays.asList(
+                TimeValue.timeValueSeconds(10L),
+                TimeValue.timeValueSeconds(15L),
+                TimeValue.timeValueSeconds(20L),
+                TimeValue.timeValueSeconds(25L),
+                TimeValue.timeValueSeconds(30L),
+                TimeValue.timeValueSeconds(35L)));
         List<Detector> detectors = new ArrayList<>();
         Detector detector = new Detector.Builder("count", null).build();
         detectors.add(detector);
         ac.setDetectors(detectors);
 
-        ac.setBucketSpan(4L);
+        ac.setBucketSpan(TimeValue.timeValueSeconds(4L));
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, ac::build);
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE, 10, 4), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE, "10s", "4s"), e.getMessage());
 
-        ac.setBucketSpan(5L);
+        ac.setBucketSpan(TimeValue.timeValueSeconds(5L));
         ac.build();
 
         AnalysisConfig.Builder ac2 = createValidConfig();
-        ac2.setBucketSpan(5L);
+        ac2.setBucketSpan(TimeValue.timeValueSeconds(5L));
         ac2.setDetectors(detectors);
-        ac2.setMultipleBucketSpans(Arrays.asList(10L, 15L, 20L, 25L, 30L));
+        ac2.setMultipleBucketSpans(Arrays.asList(
+                TimeValue.timeValueSeconds(10L),
+                TimeValue.timeValueSeconds(15L),
+                TimeValue.timeValueSeconds(20L),
+                TimeValue.timeValueSeconds(25L),
+                TimeValue.timeValueSeconds(30L)));
         assertFalse(ac.equals(ac2));
-        ac2.setMultipleBucketSpans(Arrays.asList(10L, 15L, 20L, 25L, 30L, 35L));
+        ac2.setMultipleBucketSpans(Arrays.asList(
+                TimeValue.timeValueSeconds(10L),
+                TimeValue.timeValueSeconds(15L),
+                TimeValue.timeValueSeconds(20L),
+                TimeValue.timeValueSeconds(25L),
+                TimeValue.timeValueSeconds(30L),
+                TimeValue.timeValueSeconds(35L)));
 
-        ac.setBucketSpan(222L);
+        ac.setBucketSpan(TimeValue.timeValueSeconds(222L));
         ac.setMultipleBucketSpans(Arrays.asList());
         ac.build();
 
-        ac.setMultipleBucketSpans(Arrays.asList(222L));
+        ac.setMultipleBucketSpans(Arrays.asList(TimeValue.timeValueSeconds(222L)));
         e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> ac.build());
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE, 222, 222), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE, "3.7m", "3.7m"), e.getMessage());
 
-        ac.setMultipleBucketSpans(Arrays.asList(-444L, -888L));
+        ac.setMultipleBucketSpans(Arrays.asList(TimeValue.timeValueSeconds(-444L), TimeValue.timeValueSeconds(-888L)));
         e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> ac.build());
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE, -444, 222), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE, -444, "3.7m"), e.getMessage());
     }
 
 
@@ -793,9 +764,9 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         Detector detector = new Detector.Builder("count", null).build();
         detectors.add(detector);
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
-        analysisConfig.setBucketSpan(3600L);
-        analysisConfig.setBatchSpan(0L);
-        analysisConfig.setLatency(0L);
+        analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
+        analysisConfig.setBatchSpan(TimeValue.timeValueHours(2));
+        analysisConfig.setLatency(TimeValue.ZERO);
         analysisConfig.setPeriod(0L);
         return analysisConfig;
     }

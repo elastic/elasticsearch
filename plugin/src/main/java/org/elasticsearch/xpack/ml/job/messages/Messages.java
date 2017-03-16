@@ -97,8 +97,6 @@ public final class Messages {
     public static final String JOB_CONFIG_MISSING_ANALYSISCONFIG = "An analysis_config must be set";
     public static final String JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE =
             "Multiple bucket_span ''{0}'' must be a multiple of the main bucket_span ''{1}''";
-    public static final String JOB_CONFIG_MULTIPLE_BUCKETSPANS_REQUIRE_BUCKETSPAN =
-            "Multiple bucket_spans require a bucket_span to be specified";
     public static final String JOB_CONFIG_NO_ANALYSIS_FIELD_NOT_COUNT =
             "Unless the function is 'count' one of field_name, by_field_name or over_field_name must be set";
     public static final String JOB_CONFIG_NO_DETECTORS = "No detectors configured";

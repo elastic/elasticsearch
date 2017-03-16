@@ -10,6 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,8 +42,10 @@ public class DatafeedUpdate implements Writeable, ToXContent {
         PARSER.declareString(Builder::setJobId, Job.ID);
         PARSER.declareStringArray(Builder::setIndexes, DatafeedConfig.INDEXES);
         PARSER.declareStringArray(Builder::setTypes, DatafeedConfig.TYPES);
-        PARSER.declareLong(Builder::setQueryDelay, DatafeedConfig.QUERY_DELAY);
-        PARSER.declareLong(Builder::setFrequency, DatafeedConfig.FREQUENCY);
+        PARSER.declareString((builder, val) -> builder.setQueryDelay(
+                TimeValue.parseTimeValue(val, DatafeedConfig.QUERY_DELAY.getPreferredName())), DatafeedConfig.QUERY_DELAY);
+        PARSER.declareString((builder, val) -> builder.setFrequency(
+                TimeValue.parseTimeValue(val, DatafeedConfig.FREQUENCY.getPreferredName())), DatafeedConfig.FREQUENCY);
         PARSER.declareObject(Builder::setQuery,
                 (p, c) -> new QueryParseContext(p).parseInnerQueryBuilder(), DatafeedConfig.QUERY);
         PARSER.declareObject(Builder::setAggregations, (p, c) -> AggregatorFactories.parseAggregators(new QueryParseContext(p)),
@@ -64,8 +67,8 @@ public class DatafeedUpdate implements Writeable, ToXContent {
 
     private final String id;
     private final String jobId;
-    private final Long queryDelay;
-    private final Long frequency;
+    private final TimeValue queryDelay;
+    private final TimeValue frequency;
     private final List<String> indexes;
     private final List<String> types;
     private final QueryBuilder query;
@@ -75,7 +78,7 @@ public class DatafeedUpdate implements Writeable, ToXContent {
     private final Boolean source;
     private final ChunkingConfig chunkingConfig;
 
-    private DatafeedUpdate(String id, String jobId, Long queryDelay, Long frequency, List<String> indexes, List<String> types,
+    private DatafeedUpdate(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indexes, List<String> types,
                            QueryBuilder query, AggregatorFactories.Builder aggregations, List<SearchSourceBuilder.ScriptField> scriptFields,
                            Integer scrollSize, Boolean source, ChunkingConfig chunkingConfig) {
         this.id = id;
@@ -95,8 +98,8 @@ public class DatafeedUpdate implements Writeable, ToXContent {
     public DatafeedUpdate(StreamInput in) throws IOException {
         this.id = in.readString();
         this.jobId = in.readOptionalString();
-        this.queryDelay = in.readOptionalLong();
-        this.frequency = in.readOptionalLong();
+        this.queryDelay = in.readOptionalWriteable(TimeValue::new);
+        this.frequency = in.readOptionalWriteable(TimeValue::new);
         if (in.readBoolean()) {
             this.indexes = in.readList(StreamInput::readString);
         } else {
@@ -130,8 +133,8 @@ public class DatafeedUpdate implements Writeable, ToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeOptionalString(jobId);
-        out.writeOptionalLong(queryDelay);
-        out.writeOptionalLong(frequency);
+        out.writeOptionalWriteable(queryDelay);
+        out.writeOptionalWriteable(frequency);
         if (indexes != null) {
             out.writeBoolean(true);
             out.writeStringList(indexes);
@@ -162,8 +165,12 @@ public class DatafeedUpdate implements Writeable, ToXContent {
         builder.startObject();
         builder.field(DatafeedConfig.ID.getPreferredName(), id);
         addOptionalField(builder, Job.ID, jobId);
-        addOptionalField(builder, DatafeedConfig.QUERY_DELAY, queryDelay);
-        addOptionalField(builder, DatafeedConfig.FREQUENCY, frequency);
+        if (queryDelay != null) {
+            builder.field(DatafeedConfig.QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
+        }
+        if (frequency != null) {
+            builder.field(DatafeedConfig.FREQUENCY.getPreferredName(), frequency.getStringRep());
+        }
         addOptionalField(builder, DatafeedConfig.INDEXES, indexes);
         addOptionalField(builder, DatafeedConfig.TYPES, types);
         addOptionalField(builder, DatafeedConfig.QUERY, query);
@@ -280,8 +287,8 @@ public class DatafeedUpdate implements Writeable, ToXContent {
 
         private String id;
         private String jobId;
-        private Long queryDelay;
-        private Long frequency;
+        private TimeValue queryDelay;
+        private TimeValue frequency;
         private List<String> indexes;
         private List<String> types;
         private QueryBuilder query;
@@ -329,11 +336,11 @@ public class DatafeedUpdate implements Writeable, ToXContent {
             this.types = types;
         }
 
-        public void setQueryDelay(long queryDelay) {
+        public void setQueryDelay(TimeValue queryDelay) {
             this.queryDelay = queryDelay;
         }
 
-        public void setFrequency(long frequency) {
+        public void setFrequency(TimeValue frequency) {
             this.frequency = frequency;
         }
 

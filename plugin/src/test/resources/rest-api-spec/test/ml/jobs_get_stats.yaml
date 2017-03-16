@@ -7,7 +7,7 @@ setup:
             "job_id":"job-stats-test",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
@@ -29,7 +29,7 @@ setup:
             "job_id":"datafeed-job",
             "description":"A job with a datafeed",
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {

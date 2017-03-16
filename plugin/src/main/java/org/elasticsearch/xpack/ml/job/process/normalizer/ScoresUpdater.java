@@ -59,18 +59,9 @@ public class ScoresUpdater {
         this.jobProvider = Objects.requireNonNull(jobProvider);
         updatesPersister = Objects.requireNonNull(jobRenormalizedResultsPersister);
         this.normalizerFactory = Objects.requireNonNull(normalizerFactory);
-        bucketSpan = getBucketSpanOrDefault(job.getAnalysisConfig());
+        bucketSpan = ((Long) job.getAnalysisConfig().getBucketSpan().seconds()).intValue();
         normalizationWindow = getNormalizationWindowOrDefault(job);
         perPartitionNormalization = getPerPartitionNormalizationOrDefault(job.getAnalysisConfig());
-    }
-
-    private static int getBucketSpanOrDefault(AnalysisConfig analysisConfig) {
-        if (analysisConfig != null && analysisConfig.getBucketSpan() != null) {
-            return analysisConfig.getBucketSpan().intValue();
-        }
-        // A bucketSpan value of 0 will result to the default
-        // bucketSpan value being used in the back-end.
-        return 0;
     }
 
     private long getNormalizationWindowOrDefault(Job job) {

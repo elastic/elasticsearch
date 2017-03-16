@@ -5,7 +5,7 @@
         body:  >
           {
             "analysis_config": {
-              "bucket_span": 3600,
+              "bucket_span": "1h",
               "detectors": [{"function": "metric", "field_name": "responsetime", "by_field_name": "airline"}]
             },
             "data_description": {
@@ -25,7 +25,7 @@
         body:  >
           {
             "analysis_config": {
-              "bucket_span": 3600,
+              "bucket_span": "1h",
               "detectors": [{"function": "metric", "field_name": "responsetime", "by_field_name": "airline"}]
             },
             "data_description": {
@@ -44,7 +44,7 @@
           {
             "job_id": "farequote",
             "analysis_config": {
-              "bucket_span": 3600,
+              "bucket_span": "1h",
               "detectors": [{"function": "metric", "field_name": "responsetime", "by_field_name": "airline"}]
             },
             "data_description": {
@@ -65,7 +65,7 @@
           {
             "job_id": "_",
             "analysis_config": {
-              "bucket_span": 3600,
+              "bucket_span": "1h",
               "detectors": [{"function": "metric", "field_name": "responsetime", "by_field_name": "airline"}]
             },
             "data_description": {

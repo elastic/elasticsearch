@@ -30,7 +30,7 @@ public class MlPluginDisabledIT extends ESRestTestCase {
         xContentBuilder.field("description", "Analysis of response time by airline");
 
         xContentBuilder.startObject("analysis_config");
-        xContentBuilder.field("bucket_span", 3600);
+        xContentBuilder.field("bucket_span", "3600s");
         xContentBuilder.startArray("detectors");
         xContentBuilder.startObject();
         xContentBuilder.field("function", "metric");

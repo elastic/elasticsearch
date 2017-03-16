@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.test.ESTestCase;
@@ -24,8 +25,8 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         String errorMessage = Messages.getMessage(Messages.DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY);
         Job.Builder builder = buildJobBuilder("foo");
         AnalysisConfig.Builder ac = createAnalysisConfig();
-        ac.setBucketSpan(1800L);
-        ac.setLatency(3600L);
+        ac.setBucketSpan(TimeValue.timeValueSeconds(1800));
+        ac.setLatency(TimeValue.timeValueSeconds(3600));
         builder.setAnalysisConfig(ac);
         Job job = builder.build();
         DatafeedConfig datafeedConfig = createValidDatafeedConfig().build();
@@ -39,8 +40,8 @@ public class DatafeedJobValidatorTests extends ESTestCase {
     public void testVerify_GivenZeroLatency() {
         Job.Builder builder = buildJobBuilder("foo");
         AnalysisConfig.Builder ac = createAnalysisConfig();
-        ac.setBucketSpan(1800L);
-        ac.setLatency(0L);
+        ac.setBucketSpan(TimeValue.timeValueSeconds(1800));
+        ac.setLatency(TimeValue.ZERO);
         builder.setAnalysisConfig(ac);
         Job job = builder.build();
         DatafeedConfig datafeedConfig = createValidDatafeedConfig().build();
@@ -51,8 +52,8 @@ public class DatafeedJobValidatorTests extends ESTestCase {
     public void testVerify_GivenNoLatency() {
         Job.Builder builder = buildJobBuilder("foo");
         AnalysisConfig.Builder ac = createAnalysisConfig();
-        ac.setBatchSpan(1800L);
-        ac.setBucketSpan(100L);
+        ac.setBatchSpan(TimeValue.timeValueSeconds(1800));
+        ac.setBucketSpan(TimeValue.timeValueSeconds(100));
         builder.setAnalysisConfig(ac);
         Job job = builder.build();
         DatafeedConfig datafeedConfig = createValidDatafeedConfig().build();
@@ -66,7 +67,7 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         Job.Builder builder = buildJobBuilder("foo");
         AnalysisConfig.Builder ac = createAnalysisConfig();
         ac.setSummaryCountFieldName(null);
-        ac.setBucketSpan(1800L);
+        ac.setBucketSpan(TimeValue.timeValueSeconds(1800));
         builder.setAnalysisConfig(ac);
         Job job = builder.build();
         DatafeedConfig datafeedConfig = createValidDatafeedConfigWithAggs().build();
@@ -83,7 +84,7 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         Job.Builder builder = buildJobBuilder("foo");
         AnalysisConfig.Builder ac = createAnalysisConfig();
         ac.setSummaryCountFieldName("");
-        ac.setBucketSpan(1800L);
+        ac.setBucketSpan(TimeValue.timeValueSeconds(1800));
         builder.setAnalysisConfig(ac);
         Job job = builder.build();
         DatafeedConfig datafeedConfig = createValidDatafeedConfigWithAggs().build();
@@ -97,8 +98,8 @@ public class DatafeedJobValidatorTests extends ESTestCase {
     public void testVerify_GivenAggsAndSummaryCountField() throws IOException {
         Job.Builder builder = buildJobBuilder("foo");
         AnalysisConfig.Builder ac = createAnalysisConfig();
-        ac.setBucketSpan(1800L);
         ac.setSummaryCountFieldName("some_count");
+        ac.setBucketSpan(TimeValue.timeValueSeconds(1800));
         builder.setAnalysisConfig(ac);
         Job job = builder.build();
         DatafeedConfig datafeedConfig = createValidDatafeedConfigWithAggs().build();

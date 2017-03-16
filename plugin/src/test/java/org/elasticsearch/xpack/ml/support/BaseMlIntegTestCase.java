@@ -142,7 +142,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         Detector.Builder d = new Detector.Builder("metric", "responsetime");
         d.setByFieldName("by_field_name");
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
-        analysisConfig.setBucketSpan(3600L);
+        analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
 
         Job.Builder builder = new Job.Builder();
         builder.setId(id);
@@ -176,8 +176,8 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     public static DatafeedConfig.Builder createDatafeedBuilder(String datafeedId, String jobId, List<String> indexes) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
-        builder.setQueryDelay(1);
-        builder.setFrequency(2);
+        builder.setQueryDelay(TimeValue.timeValueSeconds(1));
+        builder.setFrequency(TimeValue.timeValueSeconds(2));
         builder.setIndexes(indexes);
         builder.setTypes(Collections.singletonList("type"));
         return builder;

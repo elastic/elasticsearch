@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.ml.job.config;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
-
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -57,7 +57,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             update.setRenormalizationWindowDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            update.setBackgroundPersistInterval(randomNonNegativeLong());
+            update.setBackgroundPersistInterval(TimeValue.timeValueHours(randomIntBetween(1, 24)));
         }
         if (randomBoolean()) {
             update.setModelSnapshotRetentionDays(randomNonNegativeLong());
@@ -109,7 +109,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         updateBuilder.setDetectorUpdates(detectorUpdates);
         updateBuilder.setModelDebugConfig(modelDebugConfig);
         updateBuilder.setAnalysisLimits(analysisLimits);
-        updateBuilder.setBackgroundPersistInterval(randomNonNegativeLong());
+        updateBuilder.setBackgroundPersistInterval(TimeValue.timeValueHours(randomIntBetween(1, 24)));
         updateBuilder.setResultsRetentionDays(randomNonNegativeLong());
         updateBuilder.setModelSnapshotRetentionDays(randomNonNegativeLong());
         updateBuilder.setRenormalizationWindowDays(randomNonNegativeLong());

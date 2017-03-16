@@ -11,14 +11,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.MlStrings;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
@@ -30,6 +31,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This class represents a configured and created Job. The creation time is set
@@ -72,7 +74,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("job_details", Builder::new);
 
     public static final int MAX_JOB_ID_LENGTH = 64;
-    public static final long MIN_BACKGROUND_PERSIST_INTERVAL = 3600;
+    public static final TimeValue MIN_BACKGROUND_PERSIST_INTERVAL = TimeValue.timeValueHours(1);
 
     static {
         PARSER.declareString(Builder::setId, ID);
@@ -108,7 +110,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         PARSER.declareObject(Builder::setDataDescription, DataDescription.PARSER, DATA_DESCRIPTION);
         PARSER.declareObject(Builder::setModelDebugConfig, ModelDebugConfig.PARSER, MODEL_DEBUG_CONFIG);
         PARSER.declareLong(Builder::setRenormalizationWindowDays, RENORMALIZATION_WINDOW_DAYS);
-        PARSER.declareLong(Builder::setBackgroundPersistInterval, BACKGROUND_PERSIST_INTERVAL);
+        PARSER.declareString((builder, val) -> builder.setBackgroundPersistInterval(
+                TimeValue.parseTimeValue(val, BACKGROUND_PERSIST_INTERVAL.getPreferredName())), BACKGROUND_PERSIST_INTERVAL);
         PARSER.declareLong(Builder::setResultsRetentionDays, RESULTS_RETENTION_DAYS);
         PARSER.declareLong(Builder::setModelSnapshotRetentionDays, MODEL_SNAPSHOT_RETENTION_DAYS);
         PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), CUSTOM_SETTINGS, ValueType.OBJECT);
@@ -128,7 +131,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     private final DataDescription dataDescription;
     private final ModelDebugConfig modelDebugConfig;
     private final Long renormalizationWindowDays;
-    private final Long backgroundPersistInterval;
+    private final TimeValue backgroundPersistInterval;
     private final Long modelSnapshotRetentionDays;
     private final Long resultsRetentionDays;
     private final Map<String, Object> customSettings;
@@ -138,7 +141,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     private Job(String jobId, String description, Date createTime, Date finishedTime, Date lastDataTime,
                AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
-               ModelDebugConfig modelDebugConfig, Long renormalizationWindowDays, Long backgroundPersistInterval,
+               ModelDebugConfig modelDebugConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
                Long modelSnapshotRetentionDays, Long resultsRetentionDays, Map<String, Object> customSettings,
                String modelSnapshotId, String resultsIndexName, boolean deleted) {
 
@@ -172,7 +175,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         dataDescription = in.readOptionalWriteable(DataDescription::new);
         modelDebugConfig = in.readOptionalWriteable(ModelDebugConfig::new);
         renormalizationWindowDays = in.readOptionalLong();
-        backgroundPersistInterval = in.readOptionalLong();
+        backgroundPersistInterval = in.readOptionalWriteable(TimeValue::new);
         modelSnapshotRetentionDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
         customSettings = in.readMap();
@@ -299,11 +302,11 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     }
 
     /**
-     * The background persistence interval in seconds
+     * The background persistence interval
      *
-     * @return background persistence interval in seconds
+     * @return background persistence interval
      */
-    public Long getBackgroundPersistInterval() {
+    public TimeValue getBackgroundPersistInterval() {
         return backgroundPersistInterval;
     }
 
@@ -377,7 +380,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         out.writeOptionalWriteable(dataDescription);
         out.writeOptionalWriteable(modelDebugConfig);
         out.writeOptionalLong(renormalizationWindowDays);
-        out.writeOptionalLong(backgroundPersistInterval);
+        out.writeOptionalWriteable(backgroundPersistInterval);
         out.writeOptionalLong(modelSnapshotRetentionDays);
         out.writeOptionalLong(resultsRetentionDays);
         out.writeMap(customSettings);
@@ -424,7 +427,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             builder.field(RENORMALIZATION_WINDOW_DAYS.getPreferredName(), renormalizationWindowDays);
         }
         if (backgroundPersistInterval != null) {
-            builder.field(BACKGROUND_PERSIST_INTERVAL.getPreferredName(), backgroundPersistInterval);
+            builder.field(BACKGROUND_PERSIST_INTERVAL.getPreferredName(), backgroundPersistInterval.getStringRep());
         }
         if (modelSnapshotRetentionDays != null) {
             builder.field(MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
@@ -506,7 +509,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         private Date lastDataTime;
         private ModelDebugConfig modelDebugConfig;
         private Long renormalizationWindowDays;
-        private Long backgroundPersistInterval;
+        private TimeValue backgroundPersistInterval;
         private Long modelSnapshotRetentionDays;
         private Long resultsRetentionDays;
         private Map<String, Object> customSettings;
@@ -612,7 +615,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             return this;
         }
 
-        public Builder setBackgroundPersistInterval(Long backgroundPersistInterval) {
+        public Builder setBackgroundPersistInterval(TimeValue backgroundPersistInterval) {
             this.backgroundPersistInterval = backgroundPersistInterval;
             return this;
         }
@@ -663,8 +666,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MISSING_ANALYSISCONFIG));
             }
 
+            checkValidBackgroundPersistInterval();
             checkValueNotLessThan(0, "renormalizationWindowDays", renormalizationWindowDays);
-            checkValueNotLessThan(MIN_BACKGROUND_PERSIST_INTERVAL, "backgroundPersistInterval", backgroundPersistInterval);
             checkValueNotLessThan(0, "modelSnapshotRetentionDays", modelSnapshotRetentionDays);
             checkValueNotLessThan(0, "resultsRetentionDays", resultsRetentionDays);
 
@@ -693,6 +696,14 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                     dataDescription, modelDebugConfig, renormalizationWindowDays, backgroundPersistInterval,
                     modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
                     resultsIndexName, deleted);
+        }
+
+        private void checkValidBackgroundPersistInterval() {
+            if (backgroundPersistInterval != null) {
+                TimeUtils.checkMultiple(backgroundPersistInterval, TimeUnit.SECONDS, BACKGROUND_PERSIST_INTERVAL);
+                checkValueNotLessThan(MIN_BACKGROUND_PERSIST_INTERVAL.getSeconds(), BACKGROUND_PERSIST_INTERVAL.getPreferredName(),
+                        backgroundPersistInterval.getSeconds());
+            }
         }
     }
 }

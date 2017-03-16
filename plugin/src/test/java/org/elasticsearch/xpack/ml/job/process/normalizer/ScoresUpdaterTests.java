@@ -13,6 +13,7 @@ import java.util.Date;
 import java.util.Deque;
 import java.util.List;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.Detector;
@@ -73,7 +74,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         List<Detector> detectors = new ArrayList<>();
         detectors.add(mock(Detector.class));
         AnalysisConfig.Builder configBuilder = new AnalysisConfig.Builder(detectors);
-        configBuilder.setBucketSpan(DEFAULT_BUCKET_SPAN);
+        configBuilder.setBucketSpan(TimeValue.timeValueSeconds(DEFAULT_BUCKET_SPAN));
         jobBuilder.setAnalysisConfig(configBuilder);
         jobBuilder.setCreateTime(new Date());
 
@@ -386,7 +387,7 @@ public class ScoresUpdaterTests extends ESTestCase {
     }
 
     private void verifyNormalizerWasInvoked(int times) throws IOException {
-        int bucketSpan = job.getAnalysisConfig() == null ? 0 : job.getAnalysisConfig().getBucketSpan().intValue();
+        int bucketSpan = job.getAnalysisConfig() == null ? 0 : ((Long) job.getAnalysisConfig().getBucketSpan().seconds()).intValue();
         verify(normalizer, times(times)).normalize(
                 eq(bucketSpan), eq(false), anyListOf(Normalizable.class),
                 eq(QUANTILES_STATE));

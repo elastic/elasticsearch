@@ -294,7 +294,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
 
     public static Job.Builder createDatafeedJob() {
         AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "field").build()));
-        acBuilder.setBucketSpan(3600L);
+        acBuilder.setBucketSpan(TimeValue.timeValueHours(1));
         acBuilder.setDetectors(Arrays.asList(new Detector.Builder("metric", "field").build()));
 
         Job.Builder builder = new Job.Builder("job_id");

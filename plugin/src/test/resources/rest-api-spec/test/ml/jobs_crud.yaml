@@ -23,7 +23,7 @@
           {
             "description":"Analysis of response time by airline",
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
@@ -68,7 +68,7 @@
             "job_id":"a_different_id",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
@@ -87,7 +87,7 @@
             "job_id":"a_different_id",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "3600s",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
@@ -107,7 +107,7 @@
             "job_id":"farequote",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "3600000ms",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
@@ -127,7 +127,7 @@
             "job_id":"farequote",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
@@ -145,7 +145,7 @@
             "job_id":"farequote",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
@@ -163,7 +163,7 @@
             "job_id":"farequote",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
@@ -197,7 +197,7 @@
               "model_memory_limit": 10
             },
             "renormalization_window_days": 1,
-            "background_persist_interval": 7200,
+            "background_persist_interval": "2h",
             "model_snapshot_retention_days": 3,
             "results_retention_days": 4,
             "custom_settings": {
@@ -229,7 +229,7 @@
               "model_memory_limit": 20
             },
             "renormalization_window_days": 10,
-            "background_persist_interval": 10800,
+            "background_persist_interval": "3h",
             "model_snapshot_retention_days": 30,
             "results_retention_days": 40,
             "categorization_filters" : ["cat3.*"],
@@ -246,7 +246,7 @@
   - match: { analysis_config.detectors.0.detector_rules.0.target_field_name: "airline" }
   - match: { analysis_config.detectors.1.detector_description: "updated description" }
   - match: { renormalization_window_days: 10 }
-  - match: { background_persist_interval: 10800 }
+  - match: { background_persist_interval: "3h" }
   - match: { model_snapshot_retention_days: 30 }
   - match: { results_retention_days: 40 }
 
@@ -269,7 +269,7 @@
             "job_id":"datafeed-job",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {

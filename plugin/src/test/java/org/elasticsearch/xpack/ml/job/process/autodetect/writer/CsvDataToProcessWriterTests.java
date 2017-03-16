@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
@@ -140,7 +141,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
 
     public void testWrite_GivenTimeFormatIsEpochAndSomeTimestampsWithinLatencySomeOutOfOrder() throws IOException {
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "value").build()));
-        builder.setLatency(2L);
+        builder.setLatency(TimeValue.timeValueSeconds(2));
         analysisConfig = builder.build();
 
         StringBuilder input = new StringBuilder();
@@ -173,7 +174,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
 
     public void testWrite_NullByte() throws IOException {
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "value").build()));
-        builder.setLatency(0L);
+        builder.setLatency(TimeValue.ZERO);
         analysisConfig = builder.build();
 
         StringBuilder input = new StringBuilder();
@@ -210,7 +211,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
 
     public void testWrite_EmptyInput() throws IOException {
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "value").build()));
-        builder.setLatency(0L);
+        builder.setLatency(TimeValue.ZERO);
         analysisConfig = builder.build();
 
         when(dataCountsReporter.incrementalStats()).thenReturn(new DataCounts("foo"));

@@ -53,8 +53,8 @@ public class DataStreamDiagnostics {
     public DataStreamDiagnostics(DataCountsReporter dataCountsReporter, AnalysisConfig analysisConfig, Logger logger) {
         this.dataCountsReporter = dataCountsReporter;
         this.logger = logger;
-        bucketSpan = analysisConfig.getBucketSpanOrDefault();
-        latency = analysisConfig.getLatency();
+        bucketSpan = analysisConfig.getBucketSpan().seconds();
+        latency = analysisConfig.getLatency().seconds();
     }
 
     /**

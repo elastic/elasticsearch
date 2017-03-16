@@ -11,6 +11,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -18,23 +19,21 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.utils.DomainSplitFunction;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.MlStrings;
+import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Datafeed configuration options. Describes where to proactively pull input
@@ -75,8 +74,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         PARSER.declareString(Builder::setJobId, Job.ID);
         PARSER.declareStringArray(Builder::setIndexes, INDEXES);
         PARSER.declareStringArray(Builder::setTypes, TYPES);
-        PARSER.declareLong(Builder::setQueryDelay, QUERY_DELAY);
-        PARSER.declareLong(Builder::setFrequency, FREQUENCY);
+        PARSER.declareString((builder, val) ->
+                builder.setQueryDelay(TimeValue.parseTimeValue(val, QUERY_DELAY.getPreferredName())), QUERY_DELAY);
+        PARSER.declareString((builder, val) ->
+                builder.setFrequency(TimeValue.parseTimeValue(val, FREQUENCY.getPreferredName())), FREQUENCY);
         PARSER.declareObject(Builder::setQuery,
                 (p, c) -> new QueryParseContext(p).parseInnerQueryBuilder(), QUERY);
         PARSER.declareObject(Builder::setAggregations, (p, c) -> AggregatorFactories.parseAggregators(new QueryParseContext(p)),
@@ -99,14 +100,14 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     private final String jobId;
 
     /**
-     * The delay in seconds before starting to query a period of time
+     * The delay before starting to query a period of time
      */
-    private final Long queryDelay;
+    private final TimeValue queryDelay;
 
     /**
-     * The frequency in seconds with which queries are executed
+     * The frequency with which queries are executed
      */
-    private final Long frequency;
+    private final TimeValue frequency;
 
     private final List<String> indexes;
     private final List<String> types;
@@ -117,7 +118,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     private final boolean source;
     private final ChunkingConfig chunkingConfig;
 
-    private DatafeedConfig(String id, String jobId, Long queryDelay, Long frequency, List<String> indexes, List<String> types,
+    private DatafeedConfig(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indexes, List<String> types,
                            QueryBuilder query, AggregatorFactories.Builder aggregations, List<SearchSourceBuilder.ScriptField> scriptFields,
                            Integer scrollSize, boolean source, ChunkingConfig chunkingConfig) {
         this.id = id;
@@ -137,8 +138,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     public DatafeedConfig(StreamInput in) throws IOException {
         this.id = in.readString();
         this.jobId = in.readString();
-        this.queryDelay = in.readOptionalLong();
-        this.frequency = in.readOptionalLong();
+        this.queryDelay = in.readOptionalWriteable(TimeValue::new);
+        this.frequency = in.readOptionalWriteable(TimeValue::new);
         if (in.readBoolean()) {
             this.indexes = in.readList(StreamInput::readString);
         } else {
@@ -169,11 +170,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         return jobId;
     }
 
-    public Long getQueryDelay() {
+    public TimeValue getQueryDelay() {
         return queryDelay;
     }
 
-    public Long getFrequency() {
+    public TimeValue getFrequency() {
         return frequency;
     }
 
@@ -220,8 +221,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeString(jobId);
-        out.writeOptionalLong(queryDelay);
-        out.writeOptionalLong(frequency);
+        out.writeOptionalWriteable(queryDelay);
+        out.writeOptionalWriteable(frequency);
         if (indexes != null) {
             out.writeBoolean(true);
             out.writeStringList(indexes);
@@ -258,9 +259,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(ID.getPreferredName(), id);
         builder.field(Job.ID.getPreferredName(), jobId);
-        builder.field(QUERY_DELAY.getPreferredName(), queryDelay);
+        builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
         if (frequency != null) {
-            builder.field(FREQUENCY.getPreferredName(), frequency);
+            builder.field(FREQUENCY.getPreferredName(), frequency.getStringRep());
         }
         builder.field(INDEXES.getPreferredName(), indexes);
         builder.field(TYPES.getPreferredName(), types);
@@ -330,12 +331,12 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     public static class Builder {
 
         private static final int DEFAULT_SCROLL_SIZE = 1000;
-        private static final long DEFAULT_ELASTICSEARCH_QUERY_DELAY = 60L;
+        private static final TimeValue DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(1);
 
         private String id;
         private String jobId;
-        private Long queryDelay = DEFAULT_ELASTICSEARCH_QUERY_DELAY;
-        private Long frequency;
+        private TimeValue queryDelay = DEFAULT_QUERY_DELAY;
+        private TimeValue frequency;
         private List<String> indexes = Collections.emptyList();
         private List<String> types = Collections.emptyList();
         private QueryBuilder query = QueryBuilders.matchAllQuery();
@@ -385,21 +386,13 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.types = ExceptionsHelper.requireNonNull(types, TYPES.getPreferredName());
         }
 
-        public void setQueryDelay(long queryDelay) {
-            if (queryDelay < 0) {
-                String msg = Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE,
-                        DatafeedConfig.QUERY_DELAY.getPreferredName(), queryDelay);
-                throw new IllegalArgumentException(msg);
-            }
+        public void setQueryDelay(TimeValue queryDelay) {
+            TimeUtils.checkNonNegativeMultiple(queryDelay, TimeUnit.MILLISECONDS, QUERY_DELAY);
             this.queryDelay = queryDelay;
         }
 
-        public void setFrequency(long frequency) {
-            if (frequency <= 0) {
-                String msg = Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE,
-                        DatafeedConfig.FREQUENCY.getPreferredName(), frequency);
-                throw new IllegalArgumentException(msg);
-            }
+        public void setFrequency(TimeValue frequency) {
+            TimeUtils.checkPositiveMultiple(frequency, TimeUnit.SECONDS, FREQUENCY);
             this.frequency = frequency;
         }
 

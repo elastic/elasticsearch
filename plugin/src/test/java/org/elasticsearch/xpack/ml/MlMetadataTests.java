@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -49,14 +50,13 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         for (int i = 0; i < numJobs; i++) {
             Job job = JobTests.createRandomizedJob();
             if (randomBoolean()) {
+                AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(job.getAnalysisConfig());
+                analysisConfig.setLatency(TimeValue.ZERO);
                 DatafeedConfig datafeedConfig = DatafeedConfigTests.createRandomizedDatafeedConfig(job.getId());
                 if (datafeedConfig.hasAggregations()) {
-                    AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(job.getAnalysisConfig().getDetectors());
                     analysisConfig.setSummaryCountFieldName("doc_count");
-                    Job.Builder jobBuilder = new Job.Builder(job);
-                    jobBuilder.setAnalysisConfig(analysisConfig);
-                    job = jobBuilder.build();
                 }
+                job = new Job.Builder(job).setAnalysisConfig(analysisConfig).build();
                 builder.putJob(job, false);
                 builder.putDatafeed(datafeedConfig);
             } else {
@@ -226,7 +226,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
     public void testPutDatafeed_failBecauseJobIsNotCompatibleForDatafeed() {
         Job.Builder job1 = createDatafeedJob();
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(job1.build().getAnalysisConfig());
-        analysisConfig.setLatency(3600L);
+        analysisConfig.setLatency(TimeValue.timeValueHours(1));
         job1.setAnalysisConfig(analysisConfig);
         DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
         MlMetadata.Builder builder = new MlMetadata.Builder();

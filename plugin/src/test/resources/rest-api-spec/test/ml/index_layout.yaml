@@ -13,7 +13,7 @@ setup:
             "job_id":"farequote",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
@@ -33,7 +33,7 @@ setup:
             "job_id":"farequote2",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
@@ -260,7 +260,7 @@ setup:
             "job_id":"farequote",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "1h",
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {

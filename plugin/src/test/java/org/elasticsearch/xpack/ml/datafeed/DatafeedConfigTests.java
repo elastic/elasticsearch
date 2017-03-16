@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
@@ -62,10 +63,10 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             builder.setScrollSize(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            builder.setFrequency(randomNonNegativeLong());
+            builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
         }
         if (randomBoolean()) {
-            builder.setQueryDelay(randomNonNegativeLong());
+            builder.setQueryDelay(TimeValue.timeValueMillis(randomIntBetween(1, 1_000_000)));
         }
         if (randomBoolean()) {
             builder.setSource(randomBoolean());
@@ -107,7 +108,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         DatafeedConfig.Builder expectedDatafeedConfig = new DatafeedConfig.Builder("datafeed1", "job1");
         expectedDatafeedConfig.setIndexes(Arrays.asList("index"));
         expectedDatafeedConfig.setTypes(Arrays.asList("type"));
-        expectedDatafeedConfig.setQueryDelay(60L);
+        expectedDatafeedConfig.setQueryDelay(TimeValue.timeValueMinutes(1));
         expectedDatafeedConfig.setScrollSize(1000);
         DatafeedConfig.Builder defaultedDatafeedConfig = new DatafeedConfig.Builder("datafeed1", "job1");
         defaultedDatafeedConfig.setIndexes(Arrays.asList("index"));
@@ -119,7 +120,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testEquals_GivenDifferentQueryDelay() {
         DatafeedConfig.Builder b1 = createFullyPopulated();
         DatafeedConfig.Builder b2 = createFullyPopulated();
-        b2.setQueryDelay(120L);
+        b2.setQueryDelay(TimeValue.timeValueMinutes(2));
 
         DatafeedConfig sc1 = b1.build();
         DatafeedConfig sc2 = b2.build();
@@ -141,7 +142,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testEquals_GivenDifferentFrequency() {
         DatafeedConfig.Builder b1 = createFullyPopulated();
         DatafeedConfig.Builder b2 = createFullyPopulated();
-        b2.setFrequency(120L);
+        b2.setFrequency(TimeValue.timeValueSeconds(90));
 
         DatafeedConfig sc1 = b1.build();
         DatafeedConfig sc2 = b2.build();
@@ -191,11 +192,11 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         DatafeedConfig.Builder sc = new DatafeedConfig.Builder("datafeed1", "job1");
         sc.setIndexes(Arrays.asList("myIndex"));
         sc.setTypes(Arrays.asList("myType1", "myType2"));
-        sc.setFrequency(60L);
+        sc.setFrequency(TimeValue.timeValueSeconds(60));
         sc.setScrollSize(5000);
         sc.setQuery(QueryBuilders.matchAllQuery());
         sc.setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("foo")));
-        sc.setQueryDelay(90L);
+        sc.setQueryDelay(TimeValue.timeValueMillis(900));
         return sc;
     }
 
@@ -233,20 +234,22 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
     public void testCheckValid_GivenNegativeQueryDelay() throws IOException {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
-        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> conf.setQueryDelay(-10L));
-        assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "query_delay", -10L), e.getMessage());
+        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class,
+                () -> conf.setQueryDelay(TimeValue.timeValueMillis(-10)));
+        assertEquals("query_delay cannot be less than 0. Value = -10", e.getMessage());
     }
 
     public void testCheckValid_GivenZeroFrequency() throws IOException {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
-        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> conf.setFrequency(0L));
-        assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "frequency", 0L), e.getMessage());
+        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> conf.setFrequency(TimeValue.ZERO));
+        assertEquals("frequency cannot be less or equal than 0. Value = 0s", e.getMessage());
     }
 
     public void testCheckValid_GivenNegativeFrequency() throws IOException {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
-        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> conf.setFrequency(-600L));
-        assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "frequency", -600L), e.getMessage());
+        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class,
+                () -> conf.setFrequency(TimeValue.timeValueMinutes(-1)));
+        assertEquals("frequency cannot be less or equal than 0. Value = -1", e.getMessage());
     }
 
     public void testCheckValid_GivenNegativeScrollSize() throws IOException {

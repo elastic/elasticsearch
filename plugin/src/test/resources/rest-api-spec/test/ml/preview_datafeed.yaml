@@ -80,7 +80,7 @@ setup:
         body:  >
           {
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "1h",
                 "detectors" :[{"function":"sum","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
@@ -124,7 +124,7 @@ setup:
         body:  >
           {
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "1h",
                 "summary_count_field_name": "doc_count",
                 "detectors" :[{"function":"sum","field_name":"responsetime","by_field_name":"airline"}]
             },
@@ -192,7 +192,7 @@ setup:
         body:  >
           {
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "3600s",
                 "summary_count_field_name": "dc_airline",
                 "detectors" :[{"function":"count"}]
             },
@@ -246,7 +246,7 @@ setup:
         body:  >
           {
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "3600s",
                 "summary_count_field_name": "event_rate",
                 "detectors" :[{"function":"mean","field_name":"responsetime","by_field_name":"airline"}]
             },
@@ -329,7 +329,7 @@ setup:
         body:  >
           {
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "1h",
                 "detectors" :[{"function":"sum","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
@@ -361,7 +361,7 @@ setup:
         body:  >
           {
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "1h",
                 "detectors" :[{"function":"sum","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {

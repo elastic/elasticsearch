@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.ml.job.config.DefaultFrequency;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
@@ -90,9 +89,9 @@ public class DatafeedJobRunner extends AbstractComponent {
         Job job = mlMetadata.getJobs().get(datafeed.getJobId());
         gatherInformation(job.getId(), (buckets, dataCounts) -> {
             long latestFinalBucketEndMs = -1L;
-            Duration bucketSpan = Duration.ofSeconds(job.getAnalysisConfig().getBucketSpan());
+            TimeValue bucketSpan = job.getAnalysisConfig().getBucketSpan();
             if (buckets.results().size() == 1) {
-                latestFinalBucketEndMs = buckets.results().get(0).getTimestamp().getTime() + bucketSpan.toMillis() - 1;
+                latestFinalBucketEndMs = buckets.results().get(0).getTimestamp().getTime() + bucketSpan.millis() - 1;
             }
             long latestRecordTimeMs = -1L;
             if (dataCounts.getLatestRecordTimeStamp() != null) {
@@ -200,7 +199,7 @@ public class DatafeedJobRunner extends AbstractComponent {
     Holder createJobDatafeed(DatafeedConfig datafeed, Job job, long finalBucketEndMs, long latestRecordTimeMs,
                                       Consumer<Exception> handler, StartDatafeedAction.DatafeedTask task) {
         Duration frequency = getFrequencyOrDefault(datafeed, job);
-        Duration queryDelay = Duration.ofSeconds(datafeed.getQueryDelay());
+        Duration queryDelay = Duration.ofMillis(datafeed.getQueryDelay().millis());
         DataExtractorFactory dataExtractorFactory = createDataExtractorFactory(datafeed, job);
         DatafeedJob datafeedJob =  new DatafeedJob(job.getId(), buildDataDescription(job), frequency.toMillis(), queryDelay.toMillis(),
                 dataExtractorFactory, client, auditor, currentTimeSupplier, finalBucketEndMs, latestRecordTimeMs);
@@ -249,9 +248,9 @@ public class DatafeedJobRunner extends AbstractComponent {
     }
 
     private static Duration getFrequencyOrDefault(DatafeedConfig datafeed, Job job) {
-        Long frequency = datafeed.getFrequency();
-        Long bucketSpan = job.getAnalysisConfig().getBucketSpan();
-        return frequency == null ? DefaultFrequency.ofBucketSpan(bucketSpan) : Duration.ofSeconds(frequency);
+        TimeValue frequency = datafeed.getFrequency();
+        TimeValue bucketSpan = job.getAnalysisConfig().getBucketSpan();
+        return frequency == null ? DefaultFrequency.ofBucketSpan(bucketSpan.seconds()) : Duration.ofSeconds(frequency.seconds());
     }
 
     private TimeValue computeNextDelay(long next) {

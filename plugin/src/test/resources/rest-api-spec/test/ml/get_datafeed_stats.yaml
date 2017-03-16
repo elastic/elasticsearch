@@ -6,7 +6,7 @@ setup:
           {
             "job_id":"job-1",
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "1h",
                 "detectors" :[{"function":"count"}]
             },
             "data_description" : {
@@ -23,7 +23,7 @@ setup:
           {
             "job_id":"job-2",
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "1h",
                 "detectors" :[{"function":"count"}]
             },
             "data_description" : {

@@ -127,7 +127,7 @@ setup:
             "job_id":"farequote2",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
-                "bucket_span":3600,
+                "bucket_span": "3600s",
                 "detectors" :[{"function":"mean","field_name":"airline",
                   "detector_rules": [
                     {

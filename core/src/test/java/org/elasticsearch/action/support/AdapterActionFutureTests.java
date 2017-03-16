@@ -81,7 +81,6 @@ public class AdapterActionFutureTests extends ESTestCase {
         } catch (final IllegalStateException e) {
             assertTrue(Thread.currentThread().isInterrupted());
         }
-
     }
 
 }

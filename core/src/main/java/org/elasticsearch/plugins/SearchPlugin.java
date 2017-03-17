@@ -44,8 +44,10 @@ import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.MovAvgPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.moving.MovFunctionPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.MovAvgModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.MovModel;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.suggest.Suggester;
@@ -82,6 +84,13 @@ public interface SearchPlugin {
      * model trends in data.
      */
     default List<SearchExtensionSpec<MovAvgModel, MovAvgModel.AbstractModelParser>> getMovingAverageModels() {
+        return emptyList();
+    }
+    /**
+     * The new {@link MovModel}s defined by this plugin. {@linkplain MovModel}s are used by the {@link MovFunctionPipelineAggregator} to
+     * execute functions on windows of data.
+     */
+    default List<SearchExtensionSpec<MovModel, MovModel.AbstractModelParser>> getMovingFunctionModels() {
         return emptyList();
     }
     /**

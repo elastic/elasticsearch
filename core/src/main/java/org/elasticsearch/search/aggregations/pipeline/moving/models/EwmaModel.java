@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline.movavg.models;
+package org.elasticsearch.search.aggregations.pipeline.moving.models;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -31,6 +30,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
+
 
 /**
  * Calculate a exponentially weighted moving average
@@ -90,7 +90,7 @@ public class EwmaModel extends MovAvgModel {
     }
 
     @Override
-    protected <T extends Number> double[] doPredict(Collection<T> values, int numPredictions) {
+    protected double[] doPredict(Collection<Double> values, int numPredictions) {
         double[] predictions = new double[numPredictions];
 
         // EWMA just emits the same final prediction repeatedly.
@@ -100,16 +100,16 @@ public class EwmaModel extends MovAvgModel {
     }
 
     @Override
-    public <T extends Number> double next(Collection<T> values) {
+    public double next(Collection<Double> values) {
         double avg = 0;
         boolean first = true;
 
-        for (T v : values) {
+        for (Double v : values) {
             if (first) {
-                avg = v.doubleValue();
+                avg = v;
                 first = false;
             } else {
-                avg = (v.doubleValue() * alpha) + (avg * (1 - alpha));
+                avg = (v * alpha) + (avg * (1 - alpha));
             }
         }
         return avg;
@@ -117,8 +117,8 @@ public class EwmaModel extends MovAvgModel {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME);
-        builder.startObject(MovAvgPipelineAggregationBuilder.SETTINGS.getPreferredName());
+        builder.field(MovModel.MODEL.getPreferredName(), NAME);
+        builder.startObject(MovModel.SETTINGS.getPreferredName());
         builder.field("alpha", alpha);
         builder.endObject();
         return builder;
@@ -150,7 +150,7 @@ public class EwmaModel extends MovAvgModel {
         return Objects.equals(alpha, other.alpha);
     }
 
-    public static class EWMAModelBuilder implements MovAvgModelBuilder {
+    public static class EWMAModelBuilder implements MovModelBuilder {
 
         private double alpha = DEFAULT_ALPHA;
 
@@ -170,8 +170,8 @@ public class EwmaModel extends MovAvgModel {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME);
-            builder.startObject(MovAvgPipelineAggregationBuilder.SETTINGS.getPreferredName());
+            builder.field(MovModel.MODEL.getPreferredName(), NAME);
+            builder.startObject(MovModel.SETTINGS.getPreferredName());
             builder.field("alpha", alpha);
 
             builder.endObject();

@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline.movavg;
+package org.elasticsearch.search.aggregations.pipeline.moving;
 
 import org.elasticsearch.common.collect.EvictingQueue;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.MovAvgModel;
 
 /**
  * A cost minimizer which will fit a MovAvgModel to the data.

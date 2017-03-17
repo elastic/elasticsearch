@@ -17,14 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline.movavg.models;
+package org.elasticsearch.search.aggregations.pipeline.moving.models;
 
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -74,7 +73,7 @@ public class LinearModel extends MovAvgModel {
     }
 
     @Override
-    protected  <T extends Number> double[] doPredict(Collection<T> values, int numPredictions) {
+    protected double[] doPredict(Collection<Double> values, int numPredictions) {
         double[] predictions = new double[numPredictions];
 
         // EWMA just emits the same final prediction repeatedly.
@@ -84,13 +83,13 @@ public class LinearModel extends MovAvgModel {
     }
 
     @Override
-    public <T extends Number> double next(Collection<T> values) {
+    public double next(Collection<Double> values) {
         double avg = 0;
         long totalWeight = 1;
         long current = 1;
 
-        for (T v : values) {
-            avg += v.doubleValue() * current;
+        for (Double v : values) {
+            avg += v * current;
             totalWeight += current;
             current += 1;
         }
@@ -99,7 +98,7 @@ public class LinearModel extends MovAvgModel {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME);
+        builder.field(MovModel.MODEL.getPreferredName(), NAME);
         return builder;
     }
 
@@ -111,10 +110,10 @@ public class LinearModel extends MovAvgModel {
         }
     };
 
-    public static class LinearModelBuilder implements MovAvgModelBuilder {
+    public static class LinearModelBuilder implements MovModelBuilder {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME);
+            builder.field(MovModel.MODEL.getPreferredName(), NAME);
             return builder;
         }
 

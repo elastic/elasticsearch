@@ -206,14 +206,21 @@ import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSu
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.derivative.InternalDerivative;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.EwmaModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltLinearModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.MovAvgPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.moving.MovAvgPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.moving.MovFunctionPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.moving.MovFunctionPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.EwmaModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.HoltLinearModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.HoltWintersModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.LinearModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.MaxModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.MedianModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.MinModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.MovAvgModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.MovModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.SimpleModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.SumModel;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -269,6 +276,8 @@ public class SearchModule {
             "significance_heuristic");
     private final ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageModelParserRegistry = new ParseFieldRegistry<>(
             "moving_avg_model");
+    private final ParseFieldRegistry<MovModel.AbstractModelParser> movingFunctionModelParserRegistry = new ParseFieldRegistry<>(
+        "moving_function_model");
 
     private final List<FetchSubPhase> fetchSubPhases = new ArrayList<>();
 
@@ -288,6 +297,7 @@ public class SearchModule {
         registerValueFormats();
         registerSignificanceHeuristics(plugins);
         registerMovingAverageModels(plugins);
+        registerMovingFunctionModels(plugins);
         registerAggregations(plugins);
         registerPipelineAggregations(plugins);
         registerFetchSubPhases(plugins);
@@ -322,6 +332,13 @@ public class SearchModule {
      */
     public ParseFieldRegistry<MovAvgModel.AbstractModelParser> getMovingAverageModelParserRegistry() {
         return movingAverageModelParserRegistry;
+    }
+
+    /**
+     * The registry of {@link MovModel}s.
+     */
+    public ParseFieldRegistry<MovModel.AbstractModelParser> getMovingFunctionModelParserRegistry() {
+        return movingFunctionModelParserRegistry;
     }
 
     private void registerAggregations(List<SearchPlugin> plugins) {
@@ -480,6 +497,12 @@ public class SearchModule {
                 MovAvgPipelineAggregationBuilder::new,
                 MovAvgPipelineAggregator::new,
                 (n, c) -> MovAvgPipelineAggregationBuilder.parse(movingAverageModelParserRegistry, n, c))
+                    /* Uses InternalHistogram for buckets */);
+        registerPipelineAggregation(new PipelineAggregationSpec(
+                MovFunctionPipelineAggregationBuilder.NAME,
+                MovFunctionPipelineAggregationBuilder::new,
+                MovFunctionPipelineAggregator::new,
+                (n, c) -> MovFunctionPipelineAggregationBuilder.parse(movingFunctionModelParserRegistry, n, c))
                     /* Uses InternalHistogram for buckets */);
         registerPipelineAggregation(new PipelineAggregationSpec(
                 CumulativeSumPipelineAggregationBuilder.NAME,
@@ -658,6 +681,21 @@ public class SearchModule {
         movingAverageModelParserRegistry.register(movAvgModel.getParser(), movAvgModel.getName());
         namedWriteables.add(
                 new NamedWriteableRegistry.Entry(MovAvgModel.class, movAvgModel.getName().getPreferredName(), movAvgModel.getReader()));
+    }
+
+    private void registerMovingFunctionModels(List<SearchPlugin> plugins) {
+        registerMovingFunctionModel(new SearchExtensionSpec<>(MaxModel.NAME, MaxModel::new, MaxModel.PARSER));
+        registerMovingFunctionModel(new SearchExtensionSpec<>(MinModel.NAME, MinModel::new, MinModel.PARSER));
+        registerMovingFunctionModel(new SearchExtensionSpec<>(MedianModel.NAME, MedianModel::new, MedianModel.PARSER));
+        registerMovingFunctionModel(new SearchExtensionSpec<>(SumModel.NAME, SumModel::new, SumModel.PARSER));
+
+        registerFromPlugin(plugins, SearchPlugin::getMovingFunctionModels, this::registerMovingFunctionModel);
+    }
+
+    private void registerMovingFunctionModel(SearchExtensionSpec<MovModel, MovModel.AbstractModelParser> movModel) {
+        movingFunctionModelParserRegistry.register(movModel.getParser(), movModel.getName());
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(MovModel.class, movModel.getName().getPreferredName(), movModel.getReader()));
     }
 
     private void registerFetchSubPhases(List<SearchPlugin> plugins) {

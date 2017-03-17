@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline.movavg;
+package org.elasticsearch.search.aggregations.pipeline.moving;
 
 import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,7 +33,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.HistogramFactory;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.MovAvgModel;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -124,6 +124,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
 
                 // Some models (e.g. HoltWinters) have certain preconditions that must be met
                 if (model.hasValue(values.size())) {
+
                     double movavg = model.next(values);
 
                     List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {

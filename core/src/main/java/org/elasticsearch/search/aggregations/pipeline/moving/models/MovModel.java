@@ -17,39 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline.movavg.models;
+package org.elasticsearch.search.aggregations.pipeline.moving.models;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 
-public abstract class MovAvgModel implements NamedWriteable, ToXContent {
+public abstract class MovModel implements NamedWriteable, ToXContent {
 
-    /**
-     * Should this model be fit to the data via a cost minimizing algorithm by default?
-     */
-    public boolean minimizeByDefault() {
-        return false;
-    }
-
-    /**
-     * Returns if the model can be cost minimized.  Not all models have parameters
-     * which can be tuned / optimized.
-     */
-    public abstract boolean canBeMinimized();
-
-    /**
-     * Generates a "neighboring" model, where one of the tunable parameters has been
-     * randomly mutated within the allowed range.  Used for minimization
-     */
-    public abstract MovAvgModel neighboringModel();
+    public static final ParseField MODEL = new ParseField("model");
+    public static final ParseField FUNCTION = new ParseField("function");
+    public static final ParseField WINDOW = new ParseField("window");
+    public static final ParseField SETTINGS = new ParseField("settings");
 
     /**
      * Checks to see this model can produce a new value, without actually running the algo.
@@ -67,50 +53,10 @@ public abstract class MovAvgModel implements NamedWriteable, ToXContent {
     /**
      * Returns the next value in the series, according to the underlying smoothing model
      *
-     * @param values    Collection of numerics to movingAvg, usually windowed
-     * @param <T>       Type of numeric
+     * @param values    Collection of numerics to movingFn, usually windowed
      * @return          Returns a double, since most smoothing methods operate on floating points
      */
-    public abstract <T extends Number> double next(Collection<T> values);
-
-    /**
-     * Predicts the next `n` values in the series.
-     *
-     * @param values            Collection of numerics to movingAvg, usually windowed
-     * @param numPredictions    Number of newly generated predictions to return
-     * @param <T>               Type of numeric
-     * @return                  Returns an array of doubles, since most smoothing methods operate on floating points
-     */
-    public <T extends Number> double[] predict(Collection<T> values, int numPredictions) {
-        assert(numPredictions >= 1);
-
-        // If there are no values, we can't do anything.  Return an array of NaNs.
-        if (values.isEmpty()) {
-            return emptyPredictions(numPredictions);
-        }
-
-        return doPredict(values, numPredictions);
-    }
-
-    /**
-     * Calls to the model-specific implementation which actually generates the predictions
-     *
-     * @param values            Collection of numerics to movingAvg, usually windowed
-     * @param numPredictions    Number of newly generated predictions to return
-     * @param <T>               Type of numeric
-     * @return                  Returns an array of doubles, since most smoothing methods operate on floating points
-     */
-    protected abstract <T extends Number> double[] doPredict(Collection<T> values, int numPredictions);
-
-    /**
-     * Returns an empty set of predictions, filled with NaNs
-     * @param numPredictions Number of empty predictions to generate
-     */
-    protected double[] emptyPredictions(int numPredictions) {
-        double[] predictions = new double[numPredictions];
-        Arrays.fill(predictions, Double.NaN);
-        return predictions;
-    }
+    public abstract double next(Collection<Double> values);
 
     /**
      * Write the model to the output stream
@@ -124,13 +70,18 @@ public abstract class MovAvgModel implements NamedWriteable, ToXContent {
      * Clone the model, returning an exact copy
      */
     @Override
-    public abstract MovAvgModel clone();
+    public abstract MovModel clone();
 
-    @Override
-    public abstract int hashCode();
+    public int hashCode() {
+        return 0;
+    }
 
-    @Override
-    public abstract boolean equals(Object obj);
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        return getClass() == obj.getClass();
+    }
 
     /**
      * Abstract class which also provides some concrete parsing functionality.
@@ -141,10 +92,10 @@ public abstract class MovAvgModel implements NamedWriteable, ToXContent {
          *
          * @param settings           Map of settings, extracted from the request
          * @param pipelineName       Name of the parent pipeline agg
-         * @param windowSize         Size of the window for this moving avg
+         * @param windowSize         Size of the window for this moving model
          * @return                   A fully built moving average model
          */
-        public abstract MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName,
+        public abstract MovModel parse(@Nullable Map<String, Object> settings, String pipelineName,
                                           int windowSize) throws ParseException;
 
 
@@ -172,11 +123,11 @@ public abstract class MovAvgModel implements NamedWriteable, ToXContent {
                 }
 
                 throw new ParseException("Parameter [" + name + "] must be between 0-1 inclusive.  Provided"
-                        + "value was [" + v + "]", 0);
+                    + "value was [" + v + "]", 0);
             }
 
             throw new ParseException("Parameter [" + name + "] must be a double, type `"
-                    + value.getClass().getSimpleName() + "` provided instead", 0);
+                + value.getClass().getSimpleName() + "` provided instead", 0);
         }
 
         /**
@@ -201,7 +152,7 @@ public abstract class MovAvgModel implements NamedWriteable, ToXContent {
             }
 
             throw new ParseException("Parameter [" + name + "] must be an integer, type `"
-                    + value.getClass().getSimpleName() + "` provided instead", 0);
+                + value.getClass().getSimpleName() + "` provided instead", 0);
         }
 
         /**
@@ -226,7 +177,7 @@ public abstract class MovAvgModel implements NamedWriteable, ToXContent {
             }
 
             throw new ParseException("Parameter [" + name + "] must be a boolean, type `"
-                    + value.getClass().getSimpleName() + "` provided instead", 0);
+                + value.getClass().getSimpleName() + "` provided instead", 0);
         }
 
         protected void checkUnrecognizedParams(@Nullable Map<String, Object> settings) throws ParseException {
@@ -235,9 +186,4 @@ public abstract class MovAvgModel implements NamedWriteable, ToXContent {
             }
         }
     }
-
 }
-
-
-
-

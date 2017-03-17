@@ -33,18 +33,17 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregationHelperTests;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.derivative.Derivative;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.EwmaModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltLinearModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelBuilder;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.EwmaModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.HoltLinearModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.HoltWintersModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.LinearModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.MovModelBuilder;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.SimpleModel;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -61,6 +60,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.movingAvg;
+import static org.elasticsearch.test.hamcrest.DoubleMatcher.nearlyEqual;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -1183,13 +1183,13 @@ public class MovAvgIT extends ESIntegTestCase {
      * These models are all minimizable, so they should not throw exceptions
      */
     public void testCheckIfTunableCanBeMinimized() {
-        MovAvgModelBuilder[] builders = new MovAvgModelBuilder[]{
+        MovModelBuilder[] builders = new MovModelBuilder[]{
                 new EwmaModel.EWMAModelBuilder(),
                 new HoltLinearModel.HoltLinearModelBuilder(),
                 new HoltWintersModel.HoltWintersModelBuilder()
         };
 
-        for (MovAvgModelBuilder builder : builders) {
+        for (MovModelBuilder builder : builders) {
             try {
                 client()
                         .prepareSearch("idx").setTypes("type")
@@ -1309,32 +1309,11 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    /**
-     * Better floating point comparisons courtesy of https://github.com/brazzy/floating-point-gui.de
-     *
-     * Snippet adapted to use doubles instead of floats
-     */
-    private static boolean nearlyEqual(double a, double b, double epsilon) {
-        final double absA = Math.abs(a);
-        final double absB = Math.abs(b);
-        final double diff = Math.abs(a - b);
-
-        if (a == b) { // shortcut, handles infinities
-            return true;
-        } else if (a == 0 || b == 0 || diff < Double.MIN_NORMAL) {
-            // a or b is zero or both are extremely close to it
-            // relative error is less meaningful here
-            return diff < (epsilon * Double.MIN_NORMAL);
-        } else { // use relative error
-            return diff / Math.min((absA + absB), Double.MAX_VALUE) < epsilon;
-        }
-    }
-
-    private MovAvgModelBuilder randomModelBuilder() {
+    private MovModelBuilder randomModelBuilder() {
         return randomModelBuilder(0);
     }
 
-    private MovAvgModelBuilder randomModelBuilder(double padding) {
+    private MovModelBuilder randomModelBuilder(double padding) {
         int rand = randomIntBetween(0,3);
 
         // HoltWinters is excluded from random generation, because it's "cold start" behavior makes

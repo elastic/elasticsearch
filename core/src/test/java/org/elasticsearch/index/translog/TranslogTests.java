@@ -2149,4 +2149,40 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
+    public void testRollGenerationBetweenPrepareCommitAndCommit() throws IOException {
+        final long generation = translog.currentFileGeneration();
+        int seqNo = 0;
+
+        final int operationsBefore = randomIntBetween(1, 256);
+        for (int i = 0; i < operationsBefore; i++) {
+            translog.add(new Translog.NoOp(seqNo++, 0, "test"));
+        }
+
+        translog.prepareCommit();
+        assertThat(translog.currentFileGeneration(), equalTo(generation + 1));
+        for (long g = generation; g <= generation + 1; g++) {
+            assertFileIsPresent(translog, g);
+        }
+
+        final int operationsBetween = randomIntBetween(1, 256);
+        for (int i = 0; i < operationsBetween; i++) {
+            translog.add(new Translog.NoOp(seqNo++, 0, "test"));
+        }
+
+        try (ReleasableLock ignored = translog.writeLock.acquire()) {
+            translog.rollGeneration();
+        }
+        assertThat(translog.currentFileGeneration(), equalTo(generation + 2));
+        for (long g = generation; g <= generation + 2; g++) {
+            assertFileIsPresent(translog, g);
+        }
+
+        translog.commit();
+
+        for (long g = generation; g < generation + 2; g++) {
+            assertFileDeleted(translog, g);
+        }
+        assertFileIsPresent(translog, generation + 2);
+    }
+
 }

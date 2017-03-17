@@ -55,6 +55,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1388,26 +1389,30 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
             if (currentCommittingGeneration != NOT_SET_GENERATION) {
-                throw new IllegalStateException("already committing a translog with generation: " +
+                final String message = String.format(
+                        Locale.ROOT,
+                        "already committing a translog with generation [%d]",
                         currentCommittingGeneration);
+                throw new IllegalStateException(message);
             }
             currentCommittingGeneration = current.getGeneration();
             rollGeneration();
         }
-        return 0L;
+        return 0;
     }
 
     @Override
     public long commit() throws IOException {
-        try (ReleasableLock lock = writeLock.acquire()) {
+        try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
             if (currentCommittingGeneration == NOT_SET_GENERATION) {
                 prepareCommit();
             }
             assert currentCommittingGeneration != NOT_SET_GENERATION;
-            assert readers.stream().filter(r -> r.getGeneration() == currentCommittingGeneration).findFirst().isPresent()
-                    : "reader list doesn't contain committing generation [" + currentCommittingGeneration + "]";
-            lastCommittedTranslogFileGeneration = current.getGeneration(); // this is important - otherwise old files will not be cleaned up
+            assert readers.stream().anyMatch(r -> r.getGeneration() == currentCommittingGeneration)
+                    : "readers missing committing generation [" + currentCommittingGeneration + "]";
+            // set the last committed generation otherwise old files will not be cleaned up
+            lastCommittedTranslogFileGeneration = current.getGeneration();
             currentCommittingGeneration = NOT_SET_GENERATION;
             trimUnreferencedReaders();
         }

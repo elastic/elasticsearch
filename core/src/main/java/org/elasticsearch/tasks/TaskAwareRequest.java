@@ -36,15 +36,16 @@ public interface TaskAwareRequest {
     void setParentTask(TaskId taskId);
 
     /**
-     * Get a reference to the task that created this request. Implementers should default to {@link TaskId#EMPTY_TASK_ID},
-     * meaning "there is no parent".
+     * Get a reference to the task that created this request. Implementers should default to
+     * {@link TaskId#EMPTY_TASK_ID}, meaning "there is no parent".
      */
     TaskId getParentTask();
 
     /**
      * Returns the task object that should be used to keep track of the processing of the request.
      *
-     * A request can override this method and return null to avoid being tracked by the task manager.
+     * A request can override this method and return null to avoid being tracked by the task
+     * manager.
      */
     default Task createTask(long id, String type, String action, TaskId parentTaskId) {
         return new Task(id, type, action, getDescription(), parentTaskId);

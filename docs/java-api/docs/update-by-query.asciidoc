@@ -1,8 +1,6 @@
 [[docs-update-by-query]]
 == Update By Query API
 
-experimental[The update-by-query API is new and should still be considered experimental.  The API may change in ways that are not backwards compatible]
-
 The simplest usage of `updateByQuery` updates each
 document in an index without changing the source. This usage enables
 <<picking-up-a-new-property,picking up a new property>> or another online

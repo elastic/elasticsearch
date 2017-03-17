@@ -95,7 +95,7 @@ setup:
 
   - do:
       indices.exists:
-        index: ".ml-anomalies-farequote"
+        index: ".ml-state"
   - is_true: ''
 
   - do:
@@ -105,6 +105,11 @@ setup:
 
   - do:
       indices.refresh: {}
+
+  - do:
+      count:
+        index: .ml-state
+  - gt: {count: 0}
 
   - do:
       count:
@@ -163,10 +168,6 @@ setup:
         job_id: "farequote"
   - match: { acknowledged: true }
 
-  # TODO: delete_job is asynchronous and returns before all job results are deleted - ideally
-  # we'd have a way to wait for delete_job to finish its work, but for now just assert some
-  # other things before refreshing the indexes to give time for delete_job to do its work
-
   - do:
       indices.exists:
         index: ".ml-anomalies-shared"
@@ -174,6 +175,11 @@ setup:
 
   - do:
       indices.refresh: {}
+
+  - do:
+      count:
+        index: .ml-state
+  - match: {count: 2}
 
   - do:
       count:
@@ -221,10 +227,6 @@ setup:
         job_id: "farequote2"
   - match: { acknowledged: true }
 
-  # TODO: delete_job is asynchronous and returns before all job results are deleted - ideally
-  # we'd have a way to wait for delete_job to finish its work, but for now just assert some
-  # other things before refreshing the indexes to give time for delete_job to do its work
-
   - do:
       indices.exists:
         index: ".ml-anomalies-shared"
@@ -242,6 +244,11 @@ setup:
 
   - do:
       indices.refresh: {}
+
+  - do:
+      count:
+        index: .ml-state
+  - match: {count: 0}
 
   - do:
       count:
@@ -330,10 +337,6 @@ setup:
         job_id: "farequote"
   - match: { acknowledged: true }
 
-  # TODO: delete_job is asynchronous and returns before all job results are deleted - ideally
-  # we'd have a way to wait for delete_job to finish its work, but for now just assert some
-  # other things before refreshing the indexes to give time for delete_job to do its work
-
   - do:
       indices.exists:
         index: ".ml-anomalies-shared"
@@ -346,11 +349,21 @@ setup:
 
   - do:
       indices.exists:
+        index: ".ml-state"
+  - is_true: ''
+
+  - do:
+      indices.exists:
         index: "foo"
   - is_true: ''
 
   - do:
       indices.refresh: {}
+
+  - do:
+      count:
+        index: .ml-state
+  - match: {count: 0}
 
   - do:
       count:

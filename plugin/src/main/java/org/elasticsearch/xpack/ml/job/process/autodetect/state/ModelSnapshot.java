@@ -19,8 +19,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
@@ -299,7 +297,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
     }
 
     public static ModelSnapshot fromJson(BytesReference bytesReference) {
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, bytesReference)) {
+        try (XContentParser parser = XContentFactory.xContent(bytesReference).createParser(NamedXContentRegistry.EMPTY, bytesReference)) {
             return PARSER.apply(parser, null);
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parse modelSnapshot", e);

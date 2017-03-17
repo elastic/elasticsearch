@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AdapterActionFutureTests extends ESTestCase {
 
@@ -76,11 +77,14 @@ public class AdapterActionFutureTests extends ESTestCase {
 
         barrier.await();
 
+        final AtomicBoolean interrupted = new AtomicBoolean();
         try {
             runnable.run();
         } catch (final IllegalStateException e) {
-            assertTrue(Thread.currentThread().isInterrupted());
+            interrupted.set(Thread.currentThread().isInterrupted());
         }
+        // we check this here instead of in the catch block to ensure that the catch block executed
+        assertTrue(interrupted.get());
 
         thread.join();
     }

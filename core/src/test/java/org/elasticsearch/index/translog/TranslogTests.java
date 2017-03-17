@@ -2089,33 +2089,33 @@ public class TranslogTests extends ESTestCase {
         assertEquals(delete, serializedDelete);
     }
 
-    public void testFoldGeneration() throws IOException {
+    public void testRollGeneration() throws IOException {
         final long generation = translog.currentFileGeneration();
-        final int folds = randomIntBetween(1, 16);
+        final int rolls = randomIntBetween(1, 16);
         int totalOperations = 0;
         int seqNo = 0;
-        for (int i = 0; i < folds; i++) {
+        for (int i = 0; i < rolls; i++) {
             final int operations = randomIntBetween(1, 128);
             for (int j = 0; j < operations; j++) {
                 translog.add(new Translog.NoOp(seqNo++, 0, "test"));
                 totalOperations++;
             }
             try (ReleasableLock ignored = translog.writeLock.acquire()) {
-                translog.foldGeneration();
+                translog.rollGeneration();
             }
             assertThat(translog.currentFileGeneration(), equalTo(generation + i + 1));
             assertThat(translog.totalOperations(), equalTo(totalOperations));
         }
-        for (int i = 0; i <= folds; i++) {
+        for (int i = 0; i <= rolls; i++) {
             assertFileIsPresent(translog, generation + i);
         }
         translog.commit();
-        assertThat(translog.currentFileGeneration(), equalTo(generation + folds + 1));
+        assertThat(translog.currentFileGeneration(), equalTo(generation + rolls + 1));
         assertThat(translog.totalOperations(), equalTo(0));
-        for (int i = 0; i <= folds; i++) {
+        for (int i = 0; i <= rolls; i++) {
             assertFileDeleted(translog, generation + i);
         }
-        assertFileIsPresent(translog, generation + folds + 1);
+        assertFileIsPresent(translog, generation + rolls + 1);
     }
 
     public void testGenerationThreshold() throws IOException {
@@ -2126,24 +2126,24 @@ public class TranslogTests extends ESTestCase {
                 .put("index.translog.generation_threshold_size", generationThreshold + "b")
                 .build();
         long seqNo = 0;
-        long folds = 0;
+        long rolls = 0;
         final TranslogConfig config = getTranslogConfig(translogDir, settings);
         try (Translog translog =
                      new Translog(config, null, () -> SequenceNumbersService.UNASSIGNED_SEQ_NO)) {
             final long generation = translog.currentFileGeneration();
             for (int i = 0; i < randomIntBetween(32, 128); i++) {
-                assertThat(translog.currentFileGeneration(), equalTo(generation + folds));
+                assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
                 final Location location = translog.add(new Translog.NoOp(seqNo++, 0, "test"));
                 if (location.translogLocation + location.size > generationThreshold) {
-                    folds++;
-                    assertThat(translog.currentFileGeneration(), equalTo(generation + folds));
-                    for (int j = 0; j < folds; j++) {
+                    rolls++;
+                    assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
+                    for (int j = 0; j < rolls; j++) {
                         assertFileIsPresent(translog, generation + j);
                     }
                 }
             }
 
-            for (int j = 0; j < folds; j++) {
+            for (int j = 0; j < rolls; j++) {
                 assertFileIsPresent(translog, generation + j);
             }
         }

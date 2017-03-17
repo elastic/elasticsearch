@@ -127,7 +127,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final TranslogConfig config;
     private final LongSupplier globalCheckpointSupplier;
     private final String translogUUID;
-    private final AtomicBoolean foldingGeneration = new AtomicBoolean();
+    private final AtomicBoolean rollingGeneration = new AtomicBoolean();
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
@@ -424,14 +424,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 ensureOpen();
                 location = current.add(bytes, operation.seqNo());
             }
-            if (shouldFoldGeneration() && foldingGeneration.compareAndSet(false, true)) {
-                // we have to check the condition again lest we could fold twice in a race
-                if (shouldFoldGeneration()) {
+            if (shouldRollGeneration() && rollingGeneration.compareAndSet(false, true)) {
+                // we have to check the condition again lest we could roll twice in a race
+                if (shouldRollGeneration()) {
                     try (ReleasableLock ignored = writeLock.acquire()) {
-                        this.foldGeneration();
+                        this.rollGeneration();
                     }
-                    final boolean wasFoldingGeneration = foldingGeneration.getAndSet(false);
-                    assert wasFoldingGeneration;
+                    final boolean wasRolling = rollingGeneration.getAndSet(false);
+                    assert wasRolling;
                 }
             }
             return location;
@@ -455,13 +455,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Tests whether or not the current generation of the translog should be folded into a new
+     * Tests whether or not the current generation of the translog should be rolled into a new
      * generation. This test is based on the size of the current generation compared to the
      * configured generation threshold size.
      *
-     * @return {@code true} if the current generation should be folded into a new generation
+     * @return {@code true} if the current generation should be rolled into a new generation
      */
-    private boolean shouldFoldGeneration() {
+    private boolean shouldRollGeneration() {
         final long size = this.current.sizeInBytes();
         final long threshold = this.indexSettings.getGenerationThresholdSize().getBytes();
         return size > threshold;
@@ -1348,12 +1348,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Fold the current translog generation into a new generation. This does not commit the
+     * Roll the current translog generation into a new generation. This does not commit the
      * translog. The translog write lock must be held by the current thread.
      *
      * @throws IOException if an I/O exception occurred during any file operations
      */
-    void foldGeneration() throws IOException {
+    void rollGeneration() throws IOException {
         assert writeLock.isHeldByCurrentThread();
         try {
             final TranslogReader reader = current.closeIntoReader();
@@ -1383,7 +1383,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                         currentCommittingGeneration);
             }
             currentCommittingGeneration = current.getGeneration();
-            foldGeneration();
+            rollGeneration();
         }
         return 0L;
     }

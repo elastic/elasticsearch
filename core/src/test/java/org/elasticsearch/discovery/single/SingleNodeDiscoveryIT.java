@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.single;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -44,6 +45,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Stack;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -68,6 +70,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 .build();
     }
 
+    @Repeat(iterations = 128)
     public void testDoesNotRespondToZenPings() throws Exception {
         final Settings settings =
                 Settings.builder().put("cluster.name", internalCluster().getClusterName()).build();
@@ -84,8 +87,15 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             // try to ping the single node directly
             final UnicastHostsProvider provider =
                     () -> Collections.singletonList(nodeTransport.getLocalNode());
+            final CountDownLatch latch = new CountDownLatch(1);
             final UnicastZenPing unicastZenPing =
-                    new UnicastZenPing(settings, threadPool, pingTransport, provider);
+                    new UnicastZenPing(settings, threadPool, pingTransport, provider) {
+                        @Override
+                        protected void finishPingingRound(PingingRound pingingRound) {
+                            latch.countDown();
+                            super.finishPingingRound(pingingRound);
+                        }
+                    };
             final DiscoveryNodes nodes =
                     DiscoveryNodes.builder().add(pingTransport.getLocalNode()).build();
             final ClusterName clusterName = new ClusterName(internalCluster().getClusterName());
@@ -109,6 +119,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             closeables.push(unicastZenPing);
             final CompletableFuture<ZenPing.PingCollection> responses = new CompletableFuture<>();
             unicastZenPing.ping(responses::complete, TimeValue.timeValueSeconds(3));
+            latch.await();
             responses.get();
             assertThat(responses.get().size(), equalTo(0));
         } finally {

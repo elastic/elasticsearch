@@ -22,14 +22,19 @@ import java.io.IOException;
 import java.net.URI;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.ServiceLoader;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
+import org.apache.hadoop.hdfs.protocolPB.ClientNamenodeProtocolPB;
+import org.apache.hadoop.security.KerberosInfo;
+import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.log4j.Logger;
@@ -122,13 +127,13 @@ public final class HdfsRepository extends BlobStoreRepository {
         UserGroupInformation.setConfiguration(cfg);
 
         // Debugging
-        UserGroupInformation.AuthenticationMethod method = SecurityUtil.getAuthenticationMethod(cfg);
-        LOGGER.info("Using Hadoop authentication method : [" + method + "]");
         if (UserGroupInformation.isSecurityEnabled()) {
             LOGGER.info("Hadoop Security Is [ENABLED]");
         } else {
             LOGGER.info("Hadoop Security is [DISABLED]");
         }
+        UserGroupInformation.AuthenticationMethod method = SecurityUtil.getAuthenticationMethod(cfg);
+        LOGGER.info("Using Hadoop authentication method : [" + method + "]");
 
         // Create a hadoop user
         // UserGroupInformation (UGI) instance is just a Hadoop specific wrapper
@@ -138,6 +143,43 @@ public final class HdfsRepository extends BlobStoreRepository {
             ugi = UserGroupInformation.getCurrentUser();
         } catch (IOException e) {
             throw new RuntimeException("Could not retrieve the current user information", e);
+        }
+
+        // Check that you can load the correct services
+        KerberosInfo kerberosInfo = ClientNamenodeProtocolPB.class.getAnnotation(KerberosInfo.class);
+        if (kerberosInfo != null) {
+            LOGGER.info("Found Kerberos Info Annotation on ClientNamenodeProtocolPB.class: [" + kerberosInfo.toString() + "]");
+        } else {
+            LOGGER.warn("Could not locate Kerberos Info Annotation on ClientNamenodeProtocolPB.class!");
+            LOGGER.warn("Found following Annotations: [" + Arrays.toString(ClientNamenodeProtocolPB.class.getAnnotations()) + "]");
+        }
+
+        kerberosInfo = SecurityUtil.getKerberosInfo(ClientNamenodeProtocolPB.class, cfg);
+        if (kerberosInfo != null) {
+            LOGGER.info("Found Kerberos Info Annotation on ClientNamenodeProtocolPB.class using Configuration : [" + kerberosInfo.toString() + "]");
+        } else {
+            LOGGER.warn("Could not locate Kerberos Info Annotation on ClientNamenodeProtocolPB.class using Configuration!");
+            ServiceLoader<SecurityInfo> loader = ServiceLoader.load(SecurityInfo.class);
+            for (SecurityInfo securityInfo : loader) {
+                LOGGER.warn("Using Loader : [" + securityInfo.getClass() + "] -- [" + securityInfo.toString() + "]");
+            }
+            loader = ServiceLoader.load(SecurityInfo.class, HdfsRepository.class.getClassLoader());
+            LOGGER.warn("Could find the service in the classloader for HdfsRepository");
+            for (SecurityInfo securityInfo : loader) {
+                LOGGER.warn("Could use : [" + securityInfo.getClass() + "] -- [" + securityInfo.toString() + "]");
+            }
+            LOGGER.warn("Displaying Classloader Hierarchy for Context:");
+            ClassLoader ctx = Thread.currentThread().getContextClassLoader();
+            do {
+                LOGGER.warn("+- [" + ctx + "]");
+                ctx = ctx.getParent();
+            } while (ctx != null);
+            LOGGER.warn("Displaying Classloader Hierarchy for HdfsRepository:");
+            ClassLoader repo = HdfsRepository.class.getClassLoader();
+            do {
+                LOGGER.warn("+- [" + repo + "]");
+                repo = repo.getParent();
+            } while (repo != null);
         }
 
         // Disable FS cache

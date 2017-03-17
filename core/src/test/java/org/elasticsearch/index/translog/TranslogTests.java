@@ -2160,9 +2160,8 @@ public class TranslogTests extends ESTestCase {
 
         translog.prepareCommit();
         assertThat(translog.currentFileGeneration(), equalTo(generation + 1));
-        for (long g = generation; g <= generation + 1; g++) {
-            assertFileIsPresent(translog, g);
-        }
+        assertFileIsPresent(translog, generation);
+        assertFileIsPresent(translog, generation + 1);
 
         final int operationsBetween = randomIntBetween(1, 256);
         for (int i = 0; i < operationsBetween; i++) {
@@ -2173,15 +2172,14 @@ public class TranslogTests extends ESTestCase {
             translog.rollGeneration();
         }
         assertThat(translog.currentFileGeneration(), equalTo(generation + 2));
-        for (long g = generation; g <= generation + 2; g++) {
-            assertFileIsPresent(translog, g);
-        }
+        assertFileIsPresent(translog, generation);
+        assertFileIsPresent(translog, generation + 1);
+        assertFileIsPresent(translog, generation + 2);
 
         translog.commit();
 
-        for (long g = generation; g < generation + 2; g++) {
-            assertFileDeleted(translog, g);
-        }
+        assertFileDeleted(translog, generation);
+        assertFileDeleted(translog, generation + 1);
         assertFileIsPresent(translog, generation + 2);
     }
 

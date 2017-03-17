@@ -6,6 +6,14 @@
         index: _all
 
 ---
+"no query fails":
+  - do:
+      catch: /query is missing/
+      delete_by_query:
+        index: _all
+        body: {}
+
+---
 "invalid conflicts fails":
   - do:
       index:

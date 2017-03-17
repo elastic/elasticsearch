@@ -38,6 +38,8 @@
   <suppress files="client[/\\]rest[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]RestClientMultipleHostsTests.java" checks="LineLength" />
   <suppress files="client[/\\]rest[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]RestClientSingleHostIntegTests.java" checks="LineLength" />
   <suppress files="client[/\\]rest[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]RestClientSingleHostTests.java" checks="LineLength" />
+  <suppress files="client[/\\]test[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]RestClientTestCase.java" checks="LineLength" />
+  <suppress files="client[/\\]test[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]RestClientTestUtil.java" checks="LineLength" />
   <suppress files="client[/\\]rest[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]RestClientTests.java" checks="LineLength" />
   <suppress files="client[/\\]rest[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]SyncResponseListenerTests.java" checks="LineLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]Request.java" checks="LineLength" />
@@ -53,6 +55,10 @@
   <suppress files="client[/\\]sniffer[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]sniff[/\\]SnifferBuilder.java" checks="LineLength" />
   <suppress files="client[/\\]sniffer[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]sniff[/\\]Sniffer.java" checks="LineLength" />
   <suppress files="client[/\\]sniffer[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]sniff[/\\]SniffOnFailureListener.java" checks="LineLength" />
+  <suppress files="client[/\\]sniffer[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]sniff[/\\]ElasticsearchHostsSnifferTests.java" checks="LineLength" />
+  <suppress files="client[/\\]sniffer[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]sniff[/\\]MockHostsSniffer.java" checks="LineLength" />
+  <suppress files="client[/\\]sniffer[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]sniff[/\\]SnifferBuilderTests.java" checks="LineLength" />
+  <suppress files="client[/\\]sniffer[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]sniff[/\\]SniffOnFailureListenerTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]apache[/\\]lucene[/\\]analysis[/\\]PrefixAnalyzer.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]apache[/\\]lucene[/\\]analysis[/\\]miscellaneous[/\\]UniqueTokenFilter.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]apache[/\\]lucene[/\\]queries[/\\]BlendedTermQuery.java" checks="LineLength" />

@@ -20,7 +20,7 @@ sudo bin/elasticsearch-plugin -h
 .Running as root
 =====================
 If Elasticsearch was installed using the deb or rpm package then run
-`/usr/share/elasticsearch-plugin` as `root` so it can write to the appropriate files on disk.
+`/usr/share/elasticsearch/bin/elasticsearch-plugin` as `root` so it can write to the appropriate files on disk.
 Otherwise run `bin/elasticsearch-plugin` as the user that owns all of the Elasticsearch
 files.
 =====================

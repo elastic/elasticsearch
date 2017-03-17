@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.single;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -70,7 +69,6 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 .build();
     }
 
-    @Repeat(iterations = 128)
     public void testDoesNotRespondToZenPings() throws Exception {
         final Settings settings =
                 Settings.builder().put("cluster.name", internalCluster().getClusterName()).build();

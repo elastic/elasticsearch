@@ -23,12 +23,15 @@ import java.text.CharacterIterator;
 import java.util.Locale;
 
 /**
- * A custom break iterator that scans text to find break-delimited passages bounded by a provided {@code maxLen}.
- * This scanner uses two level of {@link BreakIterator} to bound passage size "close" to {@maxLen}.
- * This is useful to "bound" {@link BreakIterator}s like `sentence` that can create big outliers on
- * semi-structured text.
+ * A custom break iterator that scans text to find break-delimited passages bounded by
+ * a provided maximum length. This class delegates the boundary search to a first level
+ * break iterator. When this break iterator finds a passage greater than the maximum length
+ * a secondary break iterator is used to re-split the passage at the first boundary after
+ * maximum length.
+ * This is useful to split passages created by {@link BreakIterator}s like `sentence` that
+ * can create big outliers on semi-structured text.
  *
- * @warning This break iterator is designed to work with the {@link UnifiedHighlighter} only.
+ * WARNING: This break iterator is designed to work with the {@link UnifiedHighlighter}.
  **/
 public class BoundedBreakIteratorScanner extends BreakIterator {
     private final BreakIterator mainBreak;
@@ -39,9 +42,11 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
     private int windowStart = -1;
     private int windowEnd = -1;
     private int innerStart = -1;
-    private int innerEnd = -1;
+    private int innerEnd = 0;
 
-    private BoundedBreakIteratorScanner(BreakIterator mainBreak, BreakIterator innerBreak, int maxLen) {
+    private BoundedBreakIteratorScanner(BreakIterator mainBreak,
+                                        BreakIterator innerBreak,
+                                        int maxLen) {
         this.mainBreak = mainBreak;
         this.innerBreak = innerBreak;
         this.maxLen = maxLen;
@@ -71,12 +76,18 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
         windowStart = -1;
         windowEnd = -1;
         innerStart = -1;
-        innerEnd = -1;
+        innerEnd = 0;
     }
 
+    /**
+     * Must be called with increasing offset. See {@link FieldHighlighter} for usage.
+     */
     @Override
     public int preceding(int offset) {
-        assert(offset > lastPrecedingOffset);
+        if (offset < lastPrecedingOffset) {
+            throw new IllegalArgumentException("offset < lastPrecedingOffset: " +
+                "usage doesn't look like UnifiedHighlighter");
+        }
         if (offset > windowStart && offset < windowEnd) {
             innerStart = innerEnd;
             innerEnd = windowEnd;
@@ -89,26 +100,35 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
             // the current split is too big,
             // so starting from the current term we try to find boundaries on the left first
             if (offset - maxLen > innerStart) {
-                innerStart = Math.max(innerStart, innerBreak.preceding(offset - maxLen));
+                innerStart = Math.max(innerStart,
+                    innerBreak.preceding(offset - maxLen));
             }
             // and then we try to expand the passage to the right with the remaining size
             int remaining = Math.max(0, maxLen - (offset - innerStart));
             if (offset + remaining < windowEnd) {
-                innerEnd = Math.min(windowEnd, innerBreak.following(offset + remaining));
+                innerEnd = Math.min(windowEnd,
+                    innerBreak.following(offset + remaining));
             }
         }
         lastPrecedingOffset = offset - 1;
         return innerStart;
     }
 
+    /**
+     * Can be invoked only after a call to preceding(offset+1).
+     * See {@link FieldHighlighter} for usage.
+     */
     @Override
     public int following(int offset) {
-        assert(offset == lastPrecedingOffset && innerEnd != -1);
+        if (offset != lastPrecedingOffset || innerEnd == -1) {
+            throw new IllegalArgumentException("offset != lastPrecedingOffset: " +
+                "usage doesn't look like UnifiedHighlighter");
+        }
         return innerEnd;
     }
 
     /**
-     * Returns a {@link BreakIterator#getSentenceInstance(Locale)} bounded to {@code maxLen}.
+     * Returns a {@link BreakIterator#getSentenceInstance(Locale)} bounded to maxLen.
      * Secondary boundaries are found using a {@link BreakIterator#getWordInstance(Locale)}.
      */
     public static BreakIterator getSentence(Locale locale, int maxLen) {
@@ -117,14 +137,16 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
         return new BoundedBreakIteratorScanner(sBreak, wBreak, maxLen);
     }
 
-    @Override
-    public int first() {
-        return 0;
-    }
 
     @Override
     public int current() {
-        return 0;
+        // Returns the last offset of the current split
+        return this.innerEnd;
+    }
+
+    @Override
+    public int first() {
+        throw new IllegalStateException("first() should not be called in this context");
     }
 
     @Override
@@ -134,16 +156,16 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
 
     @Override
     public int last() {
-        throw new IllegalStateException("last should not be called in this context");
+        throw new IllegalStateException("last() should not be called in this context");
     }
 
     @Override
     public int next(int n) {
-        throw new IllegalStateException("next(n) should not be call");
+        throw new IllegalStateException("next(n) should not be called in this context");
     }
 
     @Override
     public int previous() {
-        throw new IllegalStateException("previous should not be call");
+        throw new IllegalStateException("previous() should not be called in this context");
     }
 }

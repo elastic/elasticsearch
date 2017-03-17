@@ -1,3 +1,22 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.apache.lucene.search.uhighlight;
 
 import org.elasticsearch.test.ESTestCase;
@@ -13,9 +32,14 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BoundedBreakIteratorScannerTests extends ESTestCase {
+    private static final String[] WORD_BOUNDARIES =
+        new String[] { " ", "  ",  "\t", "#", "\n" };
+    private static final String[] SENTENCE_BOUNDARIES =
+        new String[] { "! ", "? ", ". ", ".\n", ".\n\n" };
+
     private void testRandomAsciiTextCase(BreakIterator bi, int maxLen) {
         // Generate a random set of unique terms with ascii character
-        int maxSize = randomIntBetween(5, 20);
+        int maxSize = randomIntBetween(5, 100);
         String[] vocabulary = new String[maxSize];
         for (int i = 0; i < maxSize; i++) {
             if (rarely()) {
@@ -25,7 +49,8 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
             }
         }
 
-        // Generate a random text made of random terms separated with word-boundaries and sentence-boundaries.
+        // Generate a random text made of random terms separated with word-boundaries
+        // and sentence-boundaries.
         StringBuilder text = new StringBuilder();
         List<Integer> offsetList = new ArrayList<> ();
         List<Integer> sizeList = new ArrayList<> ();
@@ -37,13 +62,12 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
             int numTerms = randomIntBetween(5, 10);
             for (int j = 0; j < numTerms; j++) {
                 int termId = randomIntBetween(0, vocabulary.length - 1);
-                String term = vocabulary[termId].toLowerCase();
+                String term = vocabulary[termId].toLowerCase(Locale.ROOT);
                 if (j == 0) {
                     // capitalize the first letter of the first term in the sentence
-                    term = term.substring(0, 1).toUpperCase() + term.substring(1);
+                    term = term.substring(0, 1).toUpperCase(Locale.ROOT) + term.substring(1);
                 } else {
-                    // word boundary
-                    String sep = randomFrom(" ", "  ",  "\t", "#", "\n");
+                    String sep = randomFrom(WORD_BOUNDARIES);
                     text.append(sep);
                 }
                 maxTermLen = Math.max(term.length(), maxTermLen);
@@ -51,8 +75,7 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
                 sizeList.add(term.length());
                 text.append(term);
             }
-            // sentence boundary
-            String boundary = randomFrom("! ", "? ", ". ", ".\n", ".\n\n");
+            String boundary = randomFrom(SENTENCE_BOUNDARIES);
             text.append(boundary);
         }
 
@@ -81,12 +104,14 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
             int startPos = Arrays.binarySearch(offsets, start);
             int endPos = Arrays.binarySearch(offsets, end);
             if (startPos < 0) {
-                int lastWordEnd = offsets[Math.abs(startPos)-2] + sizes[Math.abs(startPos)-2];
+                int lastWordEnd =
+                    offsets[Math.abs(startPos)-2] + sizes[Math.abs(startPos)-2];
                 assertThat(start, greaterThanOrEqualTo(lastWordEnd));
             }
             if (endPos < 0) {
                 if (Math.abs(endPos)-2 < offsets.length) {
-                    int lastWordEnd = offsets[Math.abs(endPos) - 2] + sizes[Math.abs(endPos) - 2];
+                    int lastWordEnd =
+                        offsets[Math.abs(endPos) - 2] + sizes[Math.abs(endPos) - 2];
                     assertThat(end, greaterThanOrEqualTo(lastWordEnd));
                 }
                 // advance the position to the end of the current passage
@@ -104,8 +129,10 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
     public void testBoundedSentence() {
         for (int i = 0; i < 20; i++) {
             int maxLen = randomIntBetween(10, 500);
-            testRandomAsciiTextCase(BoundedBreakIteratorScanner.getSentence(Locale.ROOT, maxLen),
-                maxLen);
+            testRandomAsciiTextCase(
+                BoundedBreakIteratorScanner.getSentence(Locale.ROOT, maxLen),
+                maxLen
+            );
         }
     }
 }

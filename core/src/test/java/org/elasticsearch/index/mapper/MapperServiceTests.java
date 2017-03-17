@@ -38,6 +38,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
@@ -187,6 +188,22 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         e = expectThrows( MapperParsingException.class,
             () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false));
         assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: "));
+    }
+
+    public void testMergeParentTypesSame() {
+        // Verifies that a merge (absent a DocumentMapper change)
+        // doesn't change the parentTypes reference.
+        // The collection was being rewrapped with each merge
+        // in v5.2 resulting in eventual StackOverflowErrors.
+        // https://github.com/elastic/elasticsearch/issues/23604
+
+        IndexService indexService1 = createIndex("index1");
+        MapperService mapperService = indexService1.mapperService();
+        Set<String> parentTypes = mapperService.getParentTypes();
+
+        Map<String, Map<String, Object>> mappings = new HashMap<>();
+        mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false);
+        assertSame(parentTypes, mapperService.getParentTypes());
     }
 
     public void testOtherDocumentMappersOnlyUpdatedWhenChangingFieldType() throws IOException {

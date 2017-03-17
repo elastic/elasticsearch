@@ -23,6 +23,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.tasks.TaskId;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -45,6 +47,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * </ul>
  */
 public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQueryRequest> implements IndicesRequest.Replaceable {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(DeleteByQueryRequest.class));
 
     public DeleteByQueryRequest() {
     }
@@ -74,6 +78,9 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         }
         if (getSearchRequest() == null || getSearchRequest().source() == null) {
             e = addValidationError("source is missing", e);
+        } else if (getSearchRequest().source().query() == null) {
+            DEPRECATION_LOGGER.deprecated("A request to _delete_by_query without an explicit " +
+                    "query is deprecated. Specify a query explicitly instead.");
         }
         return e;
     }

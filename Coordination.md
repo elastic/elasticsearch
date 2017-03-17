@@ -27,6 +27,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 21974: Krispy Belgian Cookies
 * 22209: JTeam1
 * 22530: Evil_Engineers
+* 22552: Your Choice
 * 22573: The code less traveled
 * 22621: Group 1
 * 22640: marathon

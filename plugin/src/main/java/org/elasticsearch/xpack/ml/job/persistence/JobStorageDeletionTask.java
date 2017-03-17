@@ -24,8 +24,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
-import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -156,13 +156,13 @@ public class JobStorageDeletionTask extends Task {
     }
 
     private void deleteCategorizerState(String jobId, Client client, ActionListener<Boolean> finishedHandler) {
-        SearchRequest searchRequest = new SearchRequest();
+        SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexName());
         DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
-        PrefixQueryBuilder query = new PrefixQueryBuilder(UidFieldMapper.NAME, Uid.createUid(CategorizerState.TYPE, jobId));
-        searchRequest.source(new SearchSourceBuilder().query(query));
-        searchRequest.indicesOptions(JobProvider.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
         request.setSlices(5);
 
+        searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        WildcardQueryBuilder query = new WildcardQueryBuilder(UidFieldMapper.NAME, Uid.createUid(CategorizerState.TYPE, jobId + "#*"));
+        searchRequest.source(new SearchSourceBuilder().query(query));
         client.execute(MlDeleteByQueryAction.INSTANCE, request, new ActionListener<BulkByScrollResponse>() {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {

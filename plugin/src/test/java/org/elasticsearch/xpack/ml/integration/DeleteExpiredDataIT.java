@@ -169,7 +169,6 @@ public class DeleteExpiredDataIT extends SecurityIntegTestCase {
             assertThat(getRecords(job.getId()).size(), equalTo(1));
             List<ModelSnapshot> modelSnapshots = getModelSnapshots(job.getId());
             assertThat(modelSnapshots.size(), equalTo(2));
-
         }
 
         long totalModelSizeStatsBeforeDelete = client().prepareSearch("*").setTypes("result")

@@ -163,6 +163,23 @@ setup:
                   job_id: farequote2
   - match: {count: 4}
 
+# Put some categorizer state
+  - do:
+      index:
+        index: .ml-state
+        type: categorizer_state
+        id: farequote2#1
+        body:
+          key: value
+
+  - do:
+       index:
+         index: .ml-state
+         type: categorizer_state
+         id: farequote2#2
+         body:
+           key: value
+
   - do:
       xpack.ml.delete_job:
         job_id: "farequote"
@@ -179,7 +196,7 @@ setup:
   - do:
       count:
         index: .ml-state
-  - match: {count: 2}
+  - match: {count: 4}
 
   - do:
       count:

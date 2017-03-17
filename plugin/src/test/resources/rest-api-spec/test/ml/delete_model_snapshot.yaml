@@ -51,7 +51,7 @@ setup:
       index:
         index:  .ml-state
         type:   model_state
-        id:     "foo-inactive-snapshot_1"
+        id:     "foo-inactive-snapshot#1"
         body: >
           {
             "state": "a"
@@ -61,7 +61,7 @@ setup:
       index:
         index:  .ml-state
         type:   model_state
-        id:     "foo-inactive-snapshot_2"
+        id:     "foo-inactive-snapshot#2"
         body: >
           {
             "state": "b"

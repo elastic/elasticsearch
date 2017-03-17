@@ -114,7 +114,7 @@ public class JobDataDeleter {
         // too big and has no mappings.
         // Note: state docs are 1-based
         for (int i = 1; i <= docCount; ++i) {
-            String stateId = snapshotDocId + '_' + i;
+            String stateId = snapshotDocId + '#' + i;
             bulkRequestBuilder.add(client.prepareDelete(stateIndexName, ModelState.TYPE.getPreferredName(), stateId));
             ++deletedModelStateCount;
         }

@@ -55,4 +55,7 @@ grant {
   permission java.lang.RuntimePermission "accessClassInPackage.sun.security.krb5";
   permission java.security.SecurityPermission "putProviderProperty.SaslPlainServer";
   permission java.security.SecurityPermission "insertProvider.SaslPlainServer";
+
+  // Kerberos Ticket permissions
+  permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KerberosTicket * \"*\"", "read";
 };

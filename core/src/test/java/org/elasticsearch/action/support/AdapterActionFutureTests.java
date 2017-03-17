@@ -75,13 +75,14 @@ public class AdapterActionFutureTests extends ESTestCase {
         });
         thread.start();
 
+        final AtomicBoolean interrupted = new AtomicBoolean();
+
         barrier.await();
 
-        final AtomicBoolean interrupted = new AtomicBoolean();
         try {
             runnable.run();
         } catch (final IllegalStateException e) {
-            interrupted.set(Thread.currentThread().isInterrupted());
+            interrupted.set(Thread.interrupted());
         }
         // we check this here instead of in the catch block to ensure that the catch block executed
         assertTrue(interrupted.get());

@@ -97,20 +97,21 @@ public class RestControllerTests extends ESTestCase {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         Set<String> headers = new HashSet<>(Arrays.asList("header.1", "header.2"));
         final RestController restController = new RestController(Settings.EMPTY, headers, null, null, circuitBreakerService);
-        threadContext.putHeader("header.3", "true");
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("true"));
         restHeaders.put("header.2", Collections.singletonList("true"));
         restHeaders.put("header.3", Collections.singletonList("false"));
         restController.dispatchRequest(new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build(), null, null,
-                threadContext, (RestRequest request, RestChannel channel, NodeClient client) -> {
+            threadContext, (RestRequest request, RestChannel channel, NodeClient client) -> {
                 assertEquals("true", threadContext.getHeader("header.1"));
                 assertEquals("true", threadContext.getHeader("header.2"));
                 assertNull(threadContext.getHeader("header.3"));
             });
-        assertNull(threadContext.getHeader("header.1"));
-        assertNull(threadContext.getHeader("header.2"));
-        assertEquals("true", threadContext.getHeader("header.3"));
+        // the rest controller relies on the caller to stash the context, so we should expect these values here as we didn't stash the
+        // context in this test
+        assertEquals("true", threadContext.getHeader("header.1"));
+        assertEquals("true", threadContext.getHeader("header.2"));
+        assertNull(threadContext.getHeader("header.3"));
     }
 
     public void testCanTripCircuitBreaker() throws Exception {

@@ -96,7 +96,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                     } else if (ClusterStateAction.NAME.equals(action)) {
                         TransportResponseHandler transportResponseHandler = transportServiceAdapter.onResponseReceived(requestId);
                         ClusterState clusterState = getMockClusterState(node);
-                        transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState));
+                        transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState, 0L));
                     } else {
                         throw new UnsupportedOperationException("Mock transport does not understand action " + action);
                     }

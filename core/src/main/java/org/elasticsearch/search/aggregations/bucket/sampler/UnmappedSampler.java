@@ -31,7 +31,7 @@ import java.util.Map;
 public class UnmappedSampler extends InternalSampler {
     public static final String NAME = "unmapped_sampler";
 
-    public UnmappedSampler(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    UnmappedSampler(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, 0, InternalAggregations.EMPTY, pipelineAggregators, metaData);
     }
 

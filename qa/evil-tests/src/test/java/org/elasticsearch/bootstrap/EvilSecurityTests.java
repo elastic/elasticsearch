@@ -22,7 +22,6 @@ package org.elasticsearch.bootstrap;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -73,6 +72,7 @@ public class EvilSecurityTests extends ESTestCase {
 
     /** test generated permissions for all configured paths */
     @SuppressWarnings("deprecation") // needs to check settings for deprecated path
+    @SuppressForbidden(reason = "to create FilePermission object")
     public void testEnvironmentPaths() throws Exception {
         Path path = createTempDir();
         // make a fake ES home and ensure we only grant permissions to that.
@@ -217,7 +217,7 @@ public class EvilSecurityTests extends ESTestCase {
             assumeNoException("test cannot create symbolic links with security manager enabled", e);
         }
         Permissions permissions = new Permissions();
-        Security.addPath(permissions, "testing", link, "read");
+        FilePermissionUtils.addDirectoryPath(permissions, "testing", link, "read");
         assertExactPermissions(new FilePermission(link.toString(), "read"), permissions);
         assertExactPermissions(new FilePermission(link.resolve("foo").toString(), "read"), permissions);
         assertExactPermissions(new FilePermission(target.toString(), "read"), permissions);
@@ -227,6 +227,7 @@ public class EvilSecurityTests extends ESTestCase {
     /**
      * checks exact file permissions, meaning those and only those for that path.
      */
+    @SuppressForbidden(reason = "to create FilePermission object")
     static void assertExactPermissions(FilePermission expected, PermissionCollection actual) {
         String target = expected.getName(); // see javadocs
         Set<String> permissionSet = asSet(expected.getActions().split(","));
@@ -246,6 +247,7 @@ public class EvilSecurityTests extends ESTestCase {
     /**
      * checks that this path has no permissions
      */
+    @SuppressForbidden(reason = "to create FilePermission object")
     static void assertNoPermissions(Path path, PermissionCollection actual) {
         String target = path.toString();
         assertFalse(actual.implies(new FilePermission(target, "read")));

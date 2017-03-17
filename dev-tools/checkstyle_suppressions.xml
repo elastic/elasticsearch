@@ -5,17 +5,6 @@
 
 <suppressions>
   <!-- On Windows, Checkstyle matches files using \ path separator -->
-  <suppress files="qa[/\\]smoke-test-plugins-ssl[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]smoketest[/\\]SmokeTestMonitoringWithSecurityIT.java" checks="LineLength" />
-  <suppress files="qa[/\\]smoke-test-plugins-ssl[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]smoketest[/\\]SmokeTestPluginsSslClientYamlTestSuiteIT.java" checks="LineLength" />
-  <suppress files="license-tools[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]license[/\\]licensor[/\\]LicenseSigner.java" checks="LineLength" />
-  <suppress files="license-tools[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]license[/\\]licensor[/\\]tools[/\\]KeyPairGeneratorTool.java" checks="LineLength" />
-  <suppress files="license-tools[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]license[/\\]licensor[/\\]tools[/\\]LicenseGeneratorTool.java" checks="LineLength" />
-  <suppress files="license-tools[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]license[/\\]licensor[/\\]tools[/\\]LicenseVerificationTool.java" checks="LineLength" />
-  <suppress files="license-tools[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]license[/\\]licensor[/\\]LicenseVerificationTests.java" checks="LineLength" />
-  <suppress files="license-tools[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]license[/\\]licensor[/\\]TestUtils.java" checks="LineLength" />
-  <suppress files="license-tools[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]license[/\\]licensor[/\\]tools[/\\]KeyPairGenerationToolTests.java" checks="LineLength" />
-  <suppress files="license-tools[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]license[/\\]licensor[/\\]tools[/\\]LicenseGenerationToolTests.java" checks="LineLength" />
-  <suppress files="license-tools[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]license[/\\]licensor[/\\]tools[/\\]LicenseVerificationToolTests.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]common[/\\]network[/\\]InetAddressHelper.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]license[/\\]CryptUtils.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]license[/\\]DateUtils.java" checks="LineLength" />
@@ -1404,6 +1393,8 @@
   <suppress files="qa[/\\]smoke-test-monitoring-with-security[/\\]insufficient-rights[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]smoketest[/\\]SmokeTestMonitoringWithSecurityClientYamlTestSuiteIT.java" checks="LineLength" />
   <suppress files="qa[/\\]smoke-test-monitoring-with-security[/\\]sufficient-rights[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]smoketest[/\\]SmokeTestMonitoringWithSecurityClientYamlTestSuiteIT.java" checks="LineLength" />
   <suppress files="qa[/\\]smoke-test-plugins[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]smoketest[/\\]XSmokeTestPluginsClientYamlTestSuiteIT.java" checks="LineLength" />
+  <suppress files="qa[/\\]smoke-test-plugins-ssl[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]smoketest[/\\]SmokeTestMonitoringWithSecurityIT.java" checks="LineLength" />
+  <suppress files="qa[/\\]smoke-test-plugins-ssl[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]smoketest[/\\]SmokeTestPluginsSslClientYamlTestSuiteIT.java" checks="LineLength" />
   <suppress files="qa[/\\]smoke-test-security-with-mustache[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]smoketest[/\\]SmokeTestSecurityWithMustacheClientYamlTestSuiteIT.java" checks="LineLength" />
   <suppress files="qa[/\\]smoke-test-watcher-with-mustache[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]smoketest[/\\]SmokeTestWatchesWithMustacheClientYamlTestSuiteTestCase.java" checks="LineLength" />
   <suppress files="qa[/\\]smoke-test-watcher-with-mustache[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]smoketest[/\\]WatcherTemplateIT.java" checks="LineLength" />

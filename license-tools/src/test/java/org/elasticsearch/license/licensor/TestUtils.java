@@ -22,6 +22,7 @@ import org.joda.time.format.DateTimeFormatter;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.UUID;
+
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
@@ -34,8 +35,10 @@ public class TestUtils {
     public static final String PUBLIC_KEY_RESOURCE = "/public.key";
     public static final String PRIVATE_KEY_RESOURCE = "/private.key";
 
-    private static final FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
-    private static final DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter);
+    private static final FormatDateTimeFormatter formatDateTimeFormatter =
+            Joda.forPattern("yyyy-MM-dd");
+    private static final DateMathParser dateMathParser =
+            new DateMathParser(formatDateTimeFormatter);
     private static final DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
 
     public static String dumpLicense(License license) throws Exception {
@@ -78,12 +81,30 @@ public class TestUtils {
         if (datesInMillis) {
             long issueDateInMillis = dateMath("now", now);
             long expiryDateInMillis = dateMath("now+10d/d", now);
-            return new LicenseSpec(version, uid, feature, issueDateInMillis, expiryDateInMillis, type, subscriptionType, issuedTo, issuer,
+            return new LicenseSpec(
+                    version,
+                    uid,
+                    feature,
+                    issueDateInMillis,
+                    expiryDateInMillis,
+                    type,
+                    subscriptionType,
+                    issuedTo,
+                    issuer,
                     maxNodes);
         } else {
             String issueDate = dateMathString("now", now);
             String expiryDate = dateMathString("now+10d/d", now);
-            return new LicenseSpec(version, uid, feature, issueDate, expiryDate, type, subscriptionType, issuedTo, issuer, maxNodes);
+            return new LicenseSpec(
+                    version,
+                    uid,
+                    feature,
+                    issueDate,
+                    expiryDate, type,
+                    subscriptionType,
+                    issuedTo,
+                    issuer,
+                    maxNodes);
         }
     }
 
@@ -122,18 +143,23 @@ public class TestUtils {
         MatcherAssert.assertThat(license.type(), equalTo(spec.type));
         MatcherAssert.assertThat(license.maxNodes(), equalTo(spec.maxNodes));
         if (spec.issueDate != null) {
-            MatcherAssert.assertThat(license.issueDate(), equalTo(DateUtils.beginningOfTheDay(spec.issueDate)));
+            MatcherAssert.assertThat(
+                    license.issueDate(),
+                    equalTo(DateUtils.beginningOfTheDay(spec.issueDate)));
         } else {
             MatcherAssert.assertThat(license.issueDate(), equalTo(spec.issueDateInMillis));
         }
         if (spec.expiryDate != null) {
-            MatcherAssert.assertThat(license.expiryDate(), equalTo(DateUtils.endOfTheDay(spec.expiryDate)));
+            MatcherAssert.assertThat(
+                    license.expiryDate(),
+                    equalTo(DateUtils.endOfTheDay(spec.expiryDate)));
         } else {
             MatcherAssert.assertThat(license.expiryDate(), equalTo(spec.expiryDateInMillis));
         }
     }
 
-    public static License generateSignedLicense(TimeValue expiryDuration, Path pubKeyPath, Path priKeyPath) throws Exception {
+    public static License generateSignedLicense(
+            TimeValue expiryDuration, Path pubKeyPath, Path priKeyPath) throws Exception {
         long issue = System.currentTimeMillis();
         int version = ESTestCase.randomIntBetween(License.VERSION_START, License.VERSION_CURRENT);
         String type = version < License.VERSION_NO_FEATURE_TYPE ?
@@ -170,8 +196,17 @@ public class TestUtils {
         public final String issuer;
         public final int maxNodes;
 
-        public LicenseSpec(int version, String uid, String feature, long issueDateInMillis, long expiryDateInMillis, String type,
-                           String subscriptionType, String issuedTo, String issuer, int maxNodes) {
+        public LicenseSpec(
+                int version,
+                String uid,
+                String feature,
+                long issueDateInMillis,
+                long expiryDateInMillis,
+                String type,
+                String subscriptionType,
+                String issuedTo,
+                String issuer,
+                int maxNodes) {
             this.version = version;
             this.feature = feature;
             this.issueDateInMillis = issueDateInMillis;
@@ -186,8 +221,17 @@ public class TestUtils {
             this.maxNodes = maxNodes;
         }
 
-        public LicenseSpec(int version, String uid, String feature, String issueDate, String expiryDate, String type,
-                           String subscriptionType, String issuedTo, String issuer, int maxNodes) {
+        public LicenseSpec(
+                int version,
+                String uid,
+                String feature,
+                String issueDate,
+                String expiryDate,
+                String type,
+                String subscriptionType,
+                String issuedTo,
+                String issuer,
+                int maxNodes) {
             this.version = version;
             this.feature = feature;
             this.issueDate = issueDate;
@@ -202,4 +246,5 @@ public class TestUtils {
             this.maxNodes = maxNodes;
         }
     }
+
 }

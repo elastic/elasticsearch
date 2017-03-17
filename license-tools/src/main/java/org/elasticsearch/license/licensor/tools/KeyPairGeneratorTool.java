@@ -44,8 +44,8 @@ public class KeyPairGeneratorTool extends Command {
     @Override
     protected void printAdditionalHelp(Terminal terminal) {
         terminal.println("This tool generates and saves a key pair to the provided publicKeyPath");
-        terminal.println("and privateKeyPath. The tool checks the existence of the provided key paths");
-        terminal.println("and will not override if any existing keys are found.");
+        terminal.println("and privateKeyPath. The tool checks the existence of the provided key");
+        terminal.println("paths and will not override if any existing keys are found.");
         terminal.println("");
     }
 
@@ -67,12 +67,17 @@ public class KeyPairGeneratorTool extends Command {
         Files.write(privateKeyPath, writeEncryptedPrivateKey(keyPair.getPrivate()));
         Files.write(publicKeyPath, writeEncryptedPublicKey(keyPair.getPublic()));
 
-        terminal.println(Terminal.Verbosity.VERBOSE, "generating key pair [public key: " + publicKeyPath + ", private key: "
-            + privateKeyPath + "]");
+        terminal.println(
+                Terminal.Verbosity.VERBOSE,
+                "generating key pair [public key: "
+                        + publicKeyPath
+                        + ", private key: "
+                        + privateKeyPath + "]");
     }
 
     @SuppressForbidden(reason = "Parsing command line path")
     private static Path parsePath(String path) {
         return PathUtils.get(path);
     }
+
 }

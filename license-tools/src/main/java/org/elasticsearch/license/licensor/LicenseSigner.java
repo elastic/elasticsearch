@@ -25,10 +25,11 @@ import java.security.Signature;
 import java.security.SignatureException;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Map;
 
 /**
- * Responsible for generating a license signature according to
- * the signature spec and sign it with the provided encrypted private key
+ * Responsible for generating a license signature according to the signature spec and sign it with
+ * the provided encrypted private key
  */
 public class LicenseSigner {
 
@@ -44,15 +45,18 @@ public class LicenseSigner {
     }
 
     /**
-     * Generates a signature for the <code>licenseSpec</code>.
-     * Signature structure:
+     * Generates a signature for the {@code licenseSpec}. Signature structure:
+     * <code>
      * | VERSION | MAGIC | PUB_KEY_DIGEST | SIGNED_LICENSE_CONTENT |
+     * </code>
      *
      * @return a signed License
      */
     public License sign(License licenseSpec) throws IOException {
         XContentBuilder contentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
-        licenseSpec.toXContent(contentBuilder, new ToXContent.MapParams(Collections.singletonMap(License.LICENSE_SPEC_VIEW_MODE, "true")));
+        final Map<String, String> licenseSpecViewMode =
+                Collections.singletonMap(License.LICENSE_SPEC_VIEW_MODE, "true");
+        licenseSpec.toXContent(contentBuilder, new ToXContent.MapParams(licenseSpecViewMode));
         final byte[] signedContent;
         try {
             final Signature rsa = Signature.getInstance("SHA512withRSA");
@@ -63,7 +67,10 @@ public class LicenseSigner {
                 rsa.update(ref.bytes, ref.offset, ref.length);
             }
             signedContent = rsa.sign();
-        } catch (InvalidKeyException | IOException | NoSuchAlgorithmException | SignatureException e) {
+        } catch (InvalidKeyException
+                | IOException
+                | NoSuchAlgorithmException
+                | SignatureException e) {
             throw new IllegalStateException(e);
         }
         final byte[] magic = new byte[MAGIC_LENGTH];

@@ -16,9 +16,8 @@ import org.junit.Before;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class LicenseVerificationTests extends ESTestCase {
+
     protected Path pubKeyPath = null;
     protected Path priKeyPath = null;
 
@@ -35,12 +34,15 @@ public class LicenseVerificationTests extends ESTestCase {
     }
 
     public void testGeneratedLicenses() throws Exception {
-        assertThat(LicenseVerifier.verifyLicense(TestUtils.generateSignedLicense(TimeValue.timeValueHours(2 * 24), pubKeyPath, priKeyPath),
-                Files.readAllBytes(pubKeyPath)), equalTo(true));
+        final TimeValue fortyEightHours = TimeValue.timeValueHours(2 * 24);
+        final License license =
+                TestUtils.generateSignedLicense(fortyEightHours, pubKeyPath, priKeyPath);
+        assertTrue(LicenseVerifier.verifyLicense(license, Files.readAllBytes(pubKeyPath)));
     }
 
     public void testLicenseTampering() throws Exception {
-        License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(2), pubKeyPath, priKeyPath);
+        final TimeValue twoHours = TimeValue.timeValueHours(2);
+        License license = TestUtils.generateSignedLicense(twoHours, pubKeyPath, priKeyPath);
 
         final License tamperedLicense = License.builder()
                 .fromLicenseSpec(license, license.signature())
@@ -48,17 +50,18 @@ public class LicenseVerificationTests extends ESTestCase {
                 .validate()
                 .build();
 
-        assertThat(LicenseVerifier.verifyLicense(tamperedLicense, Files.readAllBytes(pubKeyPath)), equalTo(false));
+        assertFalse(LicenseVerifier.verifyLicense(tamperedLicense, Files.readAllBytes(pubKeyPath)));
     }
 
     public void testRandomLicenseVerification() throws Exception {
         TestUtils.LicenseSpec licenseSpec = TestUtils.generateRandomLicenseSpec(
                 randomIntBetween(License.VERSION_START, License.VERSION_CURRENT));
         License generatedLicense = generateSignedLicense(licenseSpec, pubKeyPath, priKeyPath);
-        assertThat(LicenseVerifier.verifyLicense(generatedLicense, Files.readAllBytes(pubKeyPath)), equalTo(true));
+        assertTrue(LicenseVerifier.verifyLicense(generatedLicense, Files.readAllBytes(pubKeyPath)));
     }
 
-    private static License generateSignedLicense(TestUtils.LicenseSpec spec, Path pubKeyPath, Path priKeyPath) throws Exception {
+    private static License generateSignedLicense(
+            TestUtils.LicenseSpec spec, Path pubKeyPath, Path priKeyPath) throws Exception {
         LicenseSigner signer = new LicenseSigner(priKeyPath, pubKeyPath);
         License.Builder builder = License.builder()
                 .uid(spec.uid)
@@ -82,4 +85,5 @@ public class LicenseVerificationTests extends ESTestCase {
         builder.version(spec.version);
         return signer.sign(builder.build());
     }
+
 }

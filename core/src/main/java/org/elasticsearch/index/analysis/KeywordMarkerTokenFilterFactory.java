@@ -37,7 +37,7 @@ import java.util.regex.Pattern;
  *
  * The {@link SetKeywordMarkerFilter} uses a set of keywords to denote which tokens
  * should be excluded from stemming.  This filter is created if the settings include
- * {@code keywords, which contains the list of keywords, or {@code `keywords_path`},
+ * {@code keywords}, which contains the list of keywords, or {@code `keywords_path`},
  * which contains a path to a file in the config directory with the keywords.
  *
  * The {@link PatternKeywordMarkerFilter} uses a regular expression pattern to match
@@ -68,8 +68,9 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
         } else {
             Set<?> rules = Analysis.getWordSet(env, indexSettings.getIndexVersionCreated(), settings, "keywords");
             if (rules == null) {
-                throw new IllegalArgumentException("keyword filter requires either `keywords`, `keywords_path`, " +
-                                                   "or `keywords_pattern` to be configured");
+                throw new IllegalArgumentException(
+                    "keyword filter requires either `keywords`, `keywords_path`, " +
+                    "or `keywords_pattern` to be configured");
             }
             // a set of keywords (or a path to them) is specified
             keywordLookup = new CharArraySet(rules, ignoreCase);

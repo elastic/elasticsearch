@@ -19,6 +19,15 @@
   <suppress files="benchmarks[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]benchmark[/\\]routing[/\\]allocation[/\\]Allocators.java" checks="LineLength" />
   <suppress files="buildSrc[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]test[/\\]NamingConventionsCheck.java" checks="LineLength" />
   <suppress files="buildSrc[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]test[/\\]NamingConventionsCheckBadClasses.java" checks="LineLength" />
+  <suppress files="client[/\\]rest[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]DeadHostState.java" checks="LineLength" />
+  <suppress files="client[/\\]rest[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]HeapBufferedAsyncResponseConsumer.java" checks="LineLength" />
+  <suppress files="client[/\\]rest[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]HttpAsyncResponseConsumerFactory.java" checks="LineLength" />
+  <suppress files="client[/\\]rest[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]RequestLogger.java" checks="LineLength" />
+  <suppress files="client[/\\]rest[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]ResponseException.java" checks="LineLength" />
+  <suppress files="client[/\\]rest[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]Response.java" checks="LineLength" />
+  <suppress files="client[/\\]rest[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]ResponseListener.java" checks="LineLength" />
+  <suppress files="client[/\\]rest[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]RestClientBuilder.java" checks="LineLength" />
+  <suppress files="client[/\\]rest[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]RestClient.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]apache[/\\]lucene[/\\]analysis[/\\]PrefixAnalyzer.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]apache[/\\]lucene[/\\]analysis[/\\]miscellaneous[/\\]UniqueTokenFilter.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]apache[/\\]lucene[/\\]queries[/\\]BlendedTermQuery.java" checks="LineLength" />

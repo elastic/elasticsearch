@@ -420,16 +420,25 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.seek(end);
             final ReleasablePagedBytesReference bytes = out.bytes();
             final Location location;
+            final boolean shouldRollGeneration;
             try (ReleasableLock ignored = readLock.acquire()) {
                 ensureOpen();
                 location = current.add(bytes, operation.seqNo());
+                // check if we should roll under the read lock
+                shouldRollGeneration =
+                        shouldRollGeneration() && rollingGeneration.compareAndSet(false, true);
             }
-            if (shouldRollGeneration() && rollingGeneration.compareAndSet(false, true)) {
-                // we have to check the condition again lest we could roll twice in a race
-                if (shouldRollGeneration()) {
-                    try (ReleasableLock ignored = writeLock.acquire()) {
+            if (shouldRollGeneration) {
+                try (ReleasableLock ignored = writeLock.acquire()) {
+                    /*
+                     * We have to check the condition again lest we could roll twice if another
+                     * thread committed the translog (which rolls the generation )between us
+                     * releasing the read lock and acquiring the write lock.
+                     */
+                    if (shouldRollGeneration()) {
                         this.rollGeneration();
                     }
+                } finally {
                     final boolean wasRolling = rollingGeneration.getAndSet(false);
                     assert wasRolling;
                 }

@@ -119,9 +119,9 @@ public class DeleteExpiredDataIT extends SecurityIntegTestCase {
     }
 
     public void testDeleteExpiredData() throws Exception {
-        jobs.add(newJobBuilder("no-retention").build());
-        jobs.add(newJobBuilder("results-retention").setResultsRetentionDays(1L).build());
-        jobs.add(newJobBuilder("snapshots-retention").setModelSnapshotRetentionDays(2L).build());
+        jobs.add(newJobBuilder("no-retention").setResultsRetentionDays(null).setModelSnapshotRetentionDays(null).build());
+        jobs.add(newJobBuilder("results-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(null).build());
+        jobs.add(newJobBuilder("snapshots-retention").setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L).build());
         jobs.add(newJobBuilder("results-and-snapshots-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(2L).build());
 
         long now = System.currentTimeMillis();

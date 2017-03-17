@@ -510,7 +510,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         private ModelDebugConfig modelDebugConfig;
         private Long renormalizationWindowDays;
         private TimeValue backgroundPersistInterval;
-        private Long modelSnapshotRetentionDays;
+        private Long modelSnapshotRetentionDays = 1L;
         private Long resultsRetentionDays;
         private Map<String, Object> customSettings;
         private String modelSnapshotId;

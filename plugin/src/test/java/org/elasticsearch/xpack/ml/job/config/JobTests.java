@@ -21,6 +21,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class JobTests extends AbstractSerializingTestCase<Job> {
 
     @Override
@@ -53,7 +55,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertNull(job.getModelDebugConfig());
         assertNull(job.getRenormalizationWindowDays());
         assertNull(job.getBackgroundPersistInterval());
-        assertNull(job.getModelSnapshotRetentionDays());
+        assertThat(job.getModelSnapshotRetentionDays(), equalTo(1L));
         assertNull(job.getResultsRetentionDays());
         assertNotNull(job.allFields());
         assertFalse(job.allFields().isEmpty());

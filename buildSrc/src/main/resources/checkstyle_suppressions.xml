@@ -49,6 +49,10 @@
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]RequestTests.java" checks="LineLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]RestHighLevelClientExtTests.java" checks="LineLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]RestHighLevelClientTests.java" checks="LineLength" />
+  <suppress files="client[/\\]sniffer[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]sniff[/\\]ElasticsearchHostsSniffer.java" checks="LineLength" />
+  <suppress files="client[/\\]sniffer[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]sniff[/\\]SnifferBuilder.java" checks="LineLength" />
+  <suppress files="client[/\\]sniffer[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]sniff[/\\]Sniffer.java" checks="LineLength" />
+  <suppress files="client[/\\]sniffer[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]sniff[/\\]SniffOnFailureListener.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]apache[/\\]lucene[/\\]analysis[/\\]PrefixAnalyzer.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]apache[/\\]lucene[/\\]analysis[/\\]miscellaneous[/\\]UniqueTokenFilter.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]apache[/\\]lucene[/\\]queries[/\\]BlendedTermQuery.java" checks="LineLength" />

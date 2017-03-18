@@ -8,6 +8,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 10096: jk
 * 10441: The Best Engineers, The Best
 * 12315: Oink
+* 12620: global elite
 * 13260: jk
 * 15115: Chicken Nugget trio
 * 15295: The Best Engineers, The Best

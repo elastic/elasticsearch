@@ -121,7 +121,7 @@ public class FsProbeTests extends ESTestCase {
                 "available",
                 () -> new FsInfo.Path("/foo/baz", null, 0, 0, randomNonNegativeLong()));
 
-        // even after overflowing, it should not be negative
+        // even after overflowing these should not be negative
         assertThat(pathStats.total, greaterThan(0L));
         assertThat(pathStats.free, greaterThan(0L));
         assertThat(pathStats.available, greaterThan(0L));

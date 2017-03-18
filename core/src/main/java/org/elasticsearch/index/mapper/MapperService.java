@@ -110,7 +110,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private volatile Map<String, DocumentMapper> mappers = emptyMap();
 
     private volatile FieldTypeLookup fieldTypes;
-    private volatile Map<String, ObjectMapper> fullPathObjectMappers = new HashMap<>();
+    private volatile Map<String, ObjectMapper> fullPathObjectMappers = emptyMap();
     private boolean hasNested = false; // updated dynamically to true when a nested object is added
     private boolean allEnabled = false; // updated dynamically to true when _all is enabled
 

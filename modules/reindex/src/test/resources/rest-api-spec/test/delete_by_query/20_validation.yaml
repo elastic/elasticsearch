@@ -10,8 +10,8 @@
 
   - skip:
       features: "warnings"
-      version: " - 5.2.99"
-      reason: warning headers were introduced in 5.0.1 and their format changed in 5.3.0
+      version: " - 5.3.99"
+      reason: deprecation logging for DBQ without explicit query was introduced in 5.4.0
 
   - do:
       warnings:

@@ -22,11 +22,9 @@ import java.io.IOException;
 import java.net.URI;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.ServiceLoader;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.AbstractFileSystem;
@@ -34,7 +32,6 @@ import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.apache.hadoop.hdfs.protocolPB.ClientNamenodeProtocolPB;
 import org.apache.hadoop.security.KerberosInfo;
-import org.apache.hadoop.security.SecurityInfo;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.log4j.Logger;
@@ -123,6 +120,24 @@ public final class HdfsRepository extends BlobStoreRepository {
             cfg.set(entry.getKey(), entry.getValue());
         }
 
+        // Eagerly load the SecurityUtil with the plugin's classloader set as the
+        // context class loader. SecurityUtil is used all over Hadoop for random
+        // stuff, but the most important thing in our case is that it creates a
+        // ServiceLoader that loads implementations that allow us to use Kerberos
+        // and Token authentication. It loads this from the current Thread's
+        // context class loader, which in our case may not be installed.
+        ClassLoader oldCCL = Thread.currentThread().getContextClassLoader();
+        try {
+            Thread.currentThread().setContextClassLoader(HdfsRepository.class.getClassLoader());
+            KerberosInfo info = SecurityUtil.getKerberosInfo(ClientNamenodeProtocolPB.class, cfg);
+            // Make sure that the correct class loader was installed.
+            if (info == null) {
+                throw new RuntimeException("Could not initialize SecurityUtil");
+            }
+        } finally {
+            Thread.currentThread().setContextClassLoader(oldCCL);
+        }
+
         // Initialize the UGI with the configuration.
         UserGroupInformation.setConfiguration(cfg);
 
@@ -143,43 +158,6 @@ public final class HdfsRepository extends BlobStoreRepository {
             ugi = UserGroupInformation.getCurrentUser();
         } catch (IOException e) {
             throw new RuntimeException("Could not retrieve the current user information", e);
-        }
-
-        // Check that you can load the correct services
-        KerberosInfo kerberosInfo = ClientNamenodeProtocolPB.class.getAnnotation(KerberosInfo.class);
-        if (kerberosInfo != null) {
-            LOGGER.info("Found Kerberos Info Annotation on ClientNamenodeProtocolPB.class: [" + kerberosInfo.toString() + "]");
-        } else {
-            LOGGER.warn("Could not locate Kerberos Info Annotation on ClientNamenodeProtocolPB.class!");
-            LOGGER.warn("Found following Annotations: [" + Arrays.toString(ClientNamenodeProtocolPB.class.getAnnotations()) + "]");
-        }
-
-        kerberosInfo = SecurityUtil.getKerberosInfo(ClientNamenodeProtocolPB.class, cfg);
-        if (kerberosInfo != null) {
-            LOGGER.info("Found Kerberos Info Annotation on ClientNamenodeProtocolPB.class using Configuration : [" + kerberosInfo.toString() + "]");
-        } else {
-            LOGGER.warn("Could not locate Kerberos Info Annotation on ClientNamenodeProtocolPB.class using Configuration!");
-            ServiceLoader<SecurityInfo> loader = ServiceLoader.load(SecurityInfo.class);
-            for (SecurityInfo securityInfo : loader) {
-                LOGGER.warn("Using Loader : [" + securityInfo.getClass() + "] -- [" + securityInfo.toString() + "]");
-            }
-            loader = ServiceLoader.load(SecurityInfo.class, HdfsRepository.class.getClassLoader());
-            LOGGER.warn("Could find the service in the classloader for HdfsRepository");
-            for (SecurityInfo securityInfo : loader) {
-                LOGGER.warn("Could use : [" + securityInfo.getClass() + "] -- [" + securityInfo.toString() + "]");
-            }
-            LOGGER.warn("Displaying Classloader Hierarchy for Context:");
-            ClassLoader ctx = Thread.currentThread().getContextClassLoader();
-            do {
-                LOGGER.warn("+- [" + ctx + "]");
-                ctx = ctx.getParent();
-            } while (ctx != null);
-            LOGGER.warn("Displaying Classloader Hierarchy for HdfsRepository:");
-            ClassLoader repo = HdfsRepository.class.getClassLoader();
-            do {
-                LOGGER.warn("+- [" + repo + "]");
-                repo = repo.getParent();
-            } while (repo != null);
         }
 
         // Disable FS cache

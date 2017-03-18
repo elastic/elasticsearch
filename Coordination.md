@@ -12,7 +12,6 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 15115: Chicken Nugget trio
 * 15295: The Best Engineers, The Best
 * 15816: Group 1
-* 15965: JTeam1
 * 16564: Oink
 * 16641: Your Choice
 * 16671: Honey Boo Boo Fan Club
@@ -23,6 +22,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 18543: Oink
 * 20912: Evil_Engineers
 * 21418: marathon
+* 21862: JTeam1
 * 21946: Honey Boo Boo Fan Club
 * 21974: Krispy Belgian Cookies
 * 22209: JTeam1

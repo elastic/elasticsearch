@@ -150,7 +150,7 @@ public class FsProbeTests extends ESTestCase {
                 getter.apply(pathToAdd),
                 getter.apply(pathStats),
                 field,
-                getter.apply(pathToAdd) + getter.apply(pathStats));
+                getter.apply(pathStats) + getter.apply(pathToAdd));
         assertThat(getter.apply(pathStats) + getter.apply(pathToAdd), lessThan(0L));
         pathStats.add(pathToAdd);
     }

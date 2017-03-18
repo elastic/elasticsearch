@@ -433,7 +433,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 try (ReleasableLock ignored = writeLock.acquire()) {
                     /*
                      * We have to check the condition again lest we could roll twice if another
-                     * thread committed the translog (which rolls the generation )between us
+                     * thread committed the translog (which rolls the generation) between us
                      * releasing the read lock and acquiring the write lock.
                      */
                     if (shouldRollGeneration()) {

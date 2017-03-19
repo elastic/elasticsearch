@@ -136,8 +136,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
 
         public void add(Path path) {
             total = FsProbe.adjustForHugeFilesystems(addLong(total, path.total));
-            free = addLong(free, path.free);
-            available = addLong(available, path.available);
+            free = FsProbe.adjustForHugeFilesystems(addLong(free, path.free));
+            available = FsProbe.adjustForHugeFilesystems(addLong(available, path.available));
             if (path.spins != null && path.spins.booleanValue()) {
                 // Spinning is contagious!
                 spins = Boolean.TRUE;

@@ -153,7 +153,7 @@ public class ByteSizeValueTests extends ESTestCase {
     }
 
     public void testCompareEquality() {
-        long firstRandom = randomPositiveLong();
+        long firstRandom = randomNonNegativeLong();
         ByteSizeUnit randomUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue firstByteValue = new ByteSizeValue(firstRandom, randomUnit);
         ByteSizeValue secondByteValue = new ByteSizeValue(firstRandom, randomUnit);
@@ -161,8 +161,8 @@ public class ByteSizeValueTests extends ESTestCase {
     }
 
     public void testCompareValue() {
-        long firstRandom = randomPositiveLong();
-        long secondRandom = randomValueOtherThan(firstRandom, ESTestCase::randomPositiveLong);
+        long firstRandom = randomNonNegativeLong();
+        long secondRandom = randomValueOtherThan(firstRandom, ESTestCase::randomNonNegativeLong);
         ByteSizeUnit unit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue firstByteValue = new ByteSizeValue(firstRandom, unit);
         ByteSizeValue secondByteValue = new ByteSizeValue(secondRandom, unit);
@@ -171,7 +171,7 @@ public class ByteSizeValueTests extends ESTestCase {
     }
 
     public void testCompareUnits() {
-        long number = randomPositiveLong();
+        long number = randomNonNegativeLong();
         ByteSizeUnit randomUnit = randomValueOtherThan(ByteSizeUnit.PB, ()->randomFrom(ByteSizeUnit.values()));
         ByteSizeValue firstByteValue = new ByteSizeValue(number, randomUnit);
         ByteSizeValue secondByteValue = new ByteSizeValue(number, ByteSizeUnit.PB);
@@ -192,7 +192,7 @@ public class ByteSizeValueTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        ByteSizeValue byteSizeValue = new ByteSizeValue(randomPositiveLong(), randomFrom(ByteSizeUnit.values()));
+        ByteSizeValue byteSizeValue = new ByteSizeValue(randomNonNegativeLong(), randomFrom(ByteSizeUnit.values()));
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             byteSizeValue.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {

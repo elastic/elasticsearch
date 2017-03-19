@@ -48,7 +48,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     @Before
     public void setupProperties() {
         type = RandomPicks.randomFrom(random(), RangeType.values());
-        nowInMillis = randomPositiveLong();
+        nowInMillis = randomNonNegativeLong();
         if (type == RangeType.DATE) {
             addModifier(new Modifier("format", true) {
                 @Override

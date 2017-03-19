@@ -161,7 +161,7 @@ public class GetResultTests extends ESTestCase {
                 getResult.isExists(), getResult.internalSourceRef(), getResult.getFields()));
         mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), randomUnicodeOfLength(15), getResult.getVersion(),
                 getResult.isExists(), getResult.internalSourceRef(), getResult.getFields()));
-        mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(), randomPositiveLong(),
+        mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(), randomNonNegativeLong(),
                 getResult.isExists(), getResult.internalSourceRef(), getResult.getFields()));
         mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(),
                 getResult.isExists() == false, getResult.internalSourceRef(), getResult.getFields()));
@@ -182,7 +182,7 @@ public class GetResultTests extends ESTestCase {
         Map<String, GetField> fields = null;
         Map<String, GetField> expectedFields = null;
         if (frequently()) {
-            version = randomPositiveLong();
+            version = randomNonNegativeLong();
             exists = true;
             if (frequently()) {
                 source = RandomObjects.randomSource(random());

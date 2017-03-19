@@ -472,7 +472,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextInt();
     }
 
-    public static long randomPositiveLong() {
+    public static long randomNonNegativeLong() {
         long randomLong;
         do {
             randomLong = randomLong();

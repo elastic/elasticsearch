@@ -46,7 +46,7 @@ public class QueryRewriteContextTests extends ESTestCase {
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 1)
         );
-        final long nowInMills = randomPositiveLong();
+        final long nowInMills = randomNonNegativeLong();
         IndexSettings indexSettings = new IndexSettings(indexMetadata.build(),
                 Settings.builder().put(ScriptSettings.LEGACY_SCRIPT_SETTING, defaultLegacyScriptLanguage).build());
         QueryRewriteContext queryRewriteContext = new QueryRewriteContext(indexSettings, null, null, xContentRegistry(),

@@ -31,7 +31,7 @@ public class CompletionsStatsTests extends ESTestCase {
 
     public void testSerialize() throws IOException {
         FieldMemoryStats map = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();
-        CompletionStats stats = new CompletionStats(randomPositiveLong(), map == null ? null :
+        CompletionStats stats = new CompletionStats(randomNonNegativeLong(), map == null ? null :
             map);
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);

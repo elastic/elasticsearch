@@ -70,7 +70,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 ((DateFieldType) ft).setDateTimeFormatter(Joda.forPattern("date_optional_time", Locale.CANADA));
             }
         });
-        nowInMillis = randomPositiveLong();
+        nowInMillis = randomNonNegativeLong();
     }
 
     public void testIsFieldWithinQueryEmptyReader() throws IOException {

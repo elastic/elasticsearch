@@ -61,7 +61,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             values[d] = new long[randomBoolean() ? randomBoolean() ? 0 : 1 : between(2, 100)];
             dates[d] = new ReadableDateTime[values[d].length];
             for (int i = 0; i < values[d].length; i++) {
-                dates[d][i] = new DateTime(randomPositiveLong(), DateTimeZone.UTC);
+                dates[d][i] = new DateTime(randomNonNegativeLong(), DateTimeZone.UTC);
                 values[d][i] = dates[d][i].getMillis();
             }
         }

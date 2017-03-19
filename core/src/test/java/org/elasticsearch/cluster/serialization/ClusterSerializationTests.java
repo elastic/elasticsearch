@@ -44,7 +44,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 
 import java.util.Collections;
 
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -111,7 +110,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
                 SnapshotDeletionsInProgress.newInstance(
                     new SnapshotDeletionsInProgress.Entry(
                         new Snapshot("repo1", new SnapshotId("snap1", UUIDs.randomBase64UUID())),
-                        randomPositiveLong(), randomPositiveLong())
+                        randomNonNegativeLong(), randomNonNegativeLong())
                 ));
         if (includeRestore) {
             builder.putCustom(RestoreInProgress.TYPE,

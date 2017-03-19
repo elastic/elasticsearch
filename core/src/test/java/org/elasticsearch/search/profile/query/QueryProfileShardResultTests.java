@@ -43,7 +43,7 @@ public class QueryProfileShardResultTests extends ESTestCase {
             queryProfileResults.add(ProfileResultTests.createTestItem(1));
         }
         CollectorResult profileCollector = CollectorResultTests.createTestItem(2);
-        long rewriteTime = randomPositiveLong();
+        long rewriteTime = randomNonNegativeLong();
         if (randomBoolean()) {
             rewriteTime = rewriteTime % 1000; // make sure to often test this with small values too
         }

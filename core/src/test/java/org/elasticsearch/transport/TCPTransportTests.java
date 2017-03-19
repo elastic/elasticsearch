@@ -256,11 +256,11 @@ public class TCPTransportTests extends ESTestCase {
 
         final boolean connectionTimeoutSet = randomBoolean();
         if (connectionTimeoutSet) {
-            builder.setConnectTimeout(TimeValue.timeValueMillis(randomPositiveLong()));
+            builder.setConnectTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
         }
         final boolean connectionHandshakeSet = randomBoolean();
         if (connectionHandshakeSet) {
-            builder.setHandshakeTimeout(TimeValue.timeValueMillis(randomPositiveLong()));
+            builder.setHandshakeTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
         }
 
         final ConnectionProfile profile = builder.build();

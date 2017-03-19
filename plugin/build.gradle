@@ -176,7 +176,11 @@ licenseHeaders {
 }
 
 configurations {
-  nativeBundle
+  nativeBundle {
+    // Check for new native code on every build, otherwise builds can
+    // fail for 24 hours after a change to the C++ output format
+    resolutionStrategy.cacheChangingModulesFor 0, 'seconds'
+  }
 }
 
 if (findProject(':machine-learning-cpp') != null) {
@@ -214,7 +218,9 @@ dependencies {
 
   // ml deps
   compile 'net.sf.supercsv:super-csv:2.4.0'
-  nativeBundle "org.elasticsearch.ml:ml-cpp:${project.version}@zip"
+  nativeBundle ("org.elasticsearch.ml:ml-cpp:${project.version}@zip") {
+    changing = true
+  }
   testCompile 'org.ini4j:ini4j:0.5.2'
 
   // common test deps

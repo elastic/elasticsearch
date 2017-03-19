@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugins;
 
+import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -56,19 +57,19 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         execute(terminal, arg, env);
     }
 
-    /**
-    * Remove the plugin named {@code plugin named}.
+/**
+    * Remove the plugin named pluginName.
     *
     * @param terminal       the Terminal to use for input/output
-    * @param pluginName     the name of the plugin to remove.
-    * @param env            the environment for the local node, which may be used for the local settings and path
+    * @param pluginName     the name of the plugin to remove
+    * @param env            the environment for the local node
     *
-    * @throws UserException if plugin name is null.
-    * @throws UserException if plugin directory does not exist. Returns command usage info on printing the plugin list
-    * @throws UserException if plugin bin directory does not exist
-    * @throws OIException   if the plugin is no longer available to delete or permission is denied.
+    * @throws IOException   if the plugin is no longer available to delete or permission is denied
+    * @throws UserException if plugin name is null
+    * @throws UserException if plugin directory does not exist
+    * @throws UserException if the plugin bin directory is not a directory
     */
-    void execute(Terminal terminal, String pluginName, Environment env) throws Exception {
+    void execute(Terminal terminal, String pluginName, Environment env) throws IOException, UserException {
         if (pluginName == null) {
             throw new UserException(ExitCodes.USAGE, "plugin name is required");
         }

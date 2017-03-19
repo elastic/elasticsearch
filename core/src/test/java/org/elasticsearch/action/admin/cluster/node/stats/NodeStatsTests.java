@@ -298,9 +298,14 @@ public class NodeStatsTests extends ESTestCase {
                         randomNonNegativeLong(),
                         new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())));
         }
-        ProcessStats processStats = frequently() ? new ProcessStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-                new ProcessStats.Cpu(randomShort(), randomNonNegativeLong()),
-                new ProcessStats.Mem(randomNonNegativeLong())) : null;
+        ProcessStats processStats = frequently()
+                ? new ProcessStats(
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        new ProcessStats.Cpu(randomShort(), randomNonNegativeLong()),
+                        new ProcessStats.Mem(randomNonNegativeLong()))
+                : null;
         JvmStats jvmStats = null;
         if (frequently()) {
             int numMemoryPools = randomIntBetween(0, 10);
@@ -320,13 +325,30 @@ public class NodeStatsTests extends ESTestCase {
             int numBufferPools = randomIntBetween(0, 10);
             List<JvmStats.BufferPool> bufferPoolList = new ArrayList<>();
             for (int i = 0; i < numBufferPools; i++) {
-                bufferPoolList.add(new JvmStats.BufferPool(randomAsciiOfLengthBetween(3, 10), randomNonNegativeLong(), randomNonNegativeLong(),
-                        randomNonNegativeLong()));
+                bufferPoolList.add(
+                        new JvmStats.BufferPool(
+                                randomAsciiOfLengthBetween(3, 10),
+                                randomNonNegativeLong(),
+                                randomNonNegativeLong(),
+                                randomNonNegativeLong()));
             }
             JvmStats.Classes classes = new JvmStats.Classes(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
-            jvmStats = frequently() ? new JvmStats(randomNonNegativeLong(), randomNonNegativeLong(), new JvmStats.Mem(randomNonNegativeLong(),
-                    randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), memoryPools), threads,
-                    garbageCollectors, randomBoolean() ? Collections.emptyList() : bufferPoolList, classes) : null;
+            jvmStats = frequently()
+                    ? new JvmStats(
+                            randomNonNegativeLong(),
+                            randomNonNegativeLong(),
+                            new JvmStats.Mem(
+                                    randomNonNegativeLong(),
+                                    randomNonNegativeLong(),
+                                    randomNonNegativeLong(),
+                                    randomNonNegativeLong(),
+                                    randomNonNegativeLong(),
+                                    memoryPools),
+                            threads,
+                            garbageCollectors,
+                            randomBoolean() ? Collections.emptyList() : bufferPoolList,
+                            classes)
+                    : null;
         }
         ThreadPoolStats threadPoolStats = null;
         if (frequently()) {
@@ -347,8 +369,16 @@ public class NodeStatsTests extends ESTestCase {
                 FsInfo.DeviceStats previousDeviceStats = randomBoolean() ? null :
                         new FsInfo.DeviceStats(randomInt(), randomInt(), randomAsciiOfLengthBetween(3, 10),
                                 randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), null);
-                deviceStatsArray[i] = new FsInfo.DeviceStats(randomInt(), randomInt(), randomAsciiOfLengthBetween(3, 10),
-                        randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), previousDeviceStats);
+                deviceStatsArray[i] =
+                        new FsInfo.DeviceStats(
+                                randomInt(),
+                                randomInt(),
+                                randomAsciiOfLengthBetween(3, 10),
+                                randomNonNegativeLong(),
+                                randomNonNegativeLong(),
+                                randomNonNegativeLong(),
+                                randomNonNegativeLong(),
+                                previousDeviceStats);
             }
             FsInfo.IoStats ioStats = new FsInfo.IoStats(deviceStatsArray);
             int numPaths = randomIntBetween(0, 10);

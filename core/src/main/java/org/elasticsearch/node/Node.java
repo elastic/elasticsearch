@@ -166,7 +166,8 @@ public class Node implements Closeable {
 
     public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING =
         Setting.boolSetting("node.portsfile", false, Property.NodeScope);
-    public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, Property.NodeScope);
+    public static final Setting<Boolean> NODE_DATA_SETTING = 
+        Setting.boolSetting("node.data", true, Property.NodeScope);
     public static final Setting<Boolean> NODE_MASTER_SETTING =
         Setting.boolSetting("node.master", true, Property.NodeScope);
     public static final Setting<Boolean> NODE_INGEST_SETTING =
@@ -179,8 +180,11 @@ public class Node implements Closeable {
     * and {@link #NODE_MASTER_SETTING} must also be false.
     *
     */
-    public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = Setting.boolSetting("node.local_storage", true, Property.NodeScope);
-    public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
+    public static final Setting<Boolean> NODE_LOCAL_STORAGE_SETTING = 
+        Setting.boolSetting("node.local_storage", true, Property.NodeScope);
+    public static final Setting<String> NODE_NAME_SETTING = 
+        Setting.simpleString("node.name", Property.NodeScope);
+    
     public static final Setting<Settings> NODE_ATTRIBUTES = Setting.groupSetting("node.attr.", (settings) -> {
         Map<String, String> settingsMap = settings.getAsMap();
         for (Map.Entry<String, String> entry : settingsMap.entrySet()) {
@@ -311,28 +315,37 @@ public class Node implements Closeable {
 
             final List<Setting<?>> additionalSettings = new ArrayList<>();
             final List<String> additionalSettingsFilter = new ArrayList<>();
+            
             additionalSettings.addAll(pluginsService.getPluginSettings());
             additionalSettingsFilter.addAll(pluginsService.getPluginSettingsFilter());
+            
             for (final ExecutorBuilder<?> builder : threadPool.builders()) {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
             client = new NodeClient(settings, threadPool);
-            final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
-            final ScriptModule scriptModule = ScriptModule.create(settings, this.environment, resourceWatcherService,
-                pluginsService.filterPlugins(ScriptPlugin.class));
+            
+            final ResourceWatcherService resourceWatcherService = 
+                new ResourceWatcherService(settings, threadPool);
+            final ScriptModule scriptModule = 
+                ScriptModule.create(settings, this.environment, resourceWatcherService,pluginsService.filterPlugins(ScriptPlugin.class));
+           
             AnalysisModule analysisModule = new AnalysisModule(this.environment, pluginsService.filterPlugins(AnalysisPlugin.class));
             additionalSettings.addAll(scriptModule.getSettings());
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
             final SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
+            
             scriptModule.registerClusterSettingsListeners(settingsModule.getClusterSettings());
             resourcesToClose.add(resourceWatcherService);
+            
             final NetworkService networkService = new NetworkService(settings,
                 getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class)));
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool,
                 localNodeFactory::getNode);
+            
             clusterService.addListener(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
+            
             final IngestService ingestService = new IngestService(settings, threadPool, this.environment,
                 scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(), pluginsService.filterPlugins(IngestPlugin.class));
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
@@ -399,15 +412,20 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(Plugin.class).stream()
                 .map(Plugin::getCustomMetaDataUpgrader)
                 .collect(Collectors.toList());
-            final RestController restController = actionModule.getRestController();
-            final NetworkModule networkModule = new NetworkModule(settings, false, pluginsService.filterPlugins(NetworkPlugin.class),
-                    threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, restController);
-            final MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(customMetaDataUpgraders);
-            final Transport transport = networkModule.getTransportSupplier().get();
-            final TransportService transportService = newTransportService(settings, transport, threadPool,
-                networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings());
+            
+            final RestController restController = 
+                actionModule.getRestController();
+            final NetworkModule networkModule =
+                new NetworkModule(settings, false, pluginsService.filterPlugins(NetworkPlugin.class), threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, restController);
+            final MetaDataUpgrader metaDataUpgrader = 
+                new MetaDataUpgrader(customMetaDataUpgraders);
+            final Transport transport = 
+                networkModule.getTransportSupplier().get();
+            final TransportService transportService = 
+                newTransportService(settings, transport, threadPool, networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings());
             final Consumer<Binder> httpBind;
             final HttpServerTransport httpServerTransport;
+            
             if (networkModule.isHttpEnabled()) {
                 httpServerTransport = networkModule.getHttpServerTransportSupplier().get();
                 httpBind = b -> {
@@ -419,11 +437,13 @@ public class Node implements Closeable {
                 };
                 httpServerTransport = null;
             }
-            final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, threadPool, transportService,
-                namedWriteableRegistry, networkService, clusterService, pluginsService.filterPlugins(DiscoveryPlugin.class));
-            NodeService nodeService = new NodeService(settings, threadPool, monitorService, discoveryModule.getDiscovery(),
-                transportService, indicesService, pluginsService, circuitBreakerService, scriptModule.getScriptService(),
-                httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter());
+            final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, threadPool, transportService, namedWriteableRegistry, 
+                                                                        networkService, clusterService, pluginsService.filterPlugins(DiscoveryPlugin.class));
+            
+            NodeService nodeService = new NodeService(settings, threadPool, monitorService, discoveryModule.getDiscovery(), 
+                                                      transportService, indicesService, pluginsService, circuitBreakerService, 
+                                                      scriptModule.getScriptService(), httpServerTransport,
+                                                      ingestService, clusterService, settingsModule.getSettingsFilter());
 
             modules.add(b -> {
                     b.bind(NodeService.class).toInstance(nodeService);

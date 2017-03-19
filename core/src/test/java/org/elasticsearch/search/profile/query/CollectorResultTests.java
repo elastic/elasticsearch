@@ -41,7 +41,7 @@ public class CollectorResultTests extends ESTestCase {
     public static CollectorResult createTestItem(int depth) {
         String name = randomAsciiOfLengthBetween(5, 10);
         String reason = randomAsciiOfLengthBetween(5, 10);
-        long time = randomPositiveLong();
+        long time = randomNonNegativeLong();
         if (randomBoolean()) {
             // also often use relatively "small" values, otherwise we will mostly test huge longs
             time = time % 100000;

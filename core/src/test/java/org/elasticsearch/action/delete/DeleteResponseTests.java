@@ -94,7 +94,7 @@ public class DeleteResponseTests extends ESTestCase {
         String type = randomAsciiOfLength(5);
         String id = randomAsciiOfLength(5);
         //long seqNo = randomFrom(SequenceNumbersService.UNASSIGNED_SEQ_NO, randomPositiveLong(), (long) randomIntBetween(0, 10000));
-        long version = randomBoolean() ? randomPositiveLong() : randomIntBetween(0, 10000);
+        long version = randomBoolean() ? randomNonNegativeLong() : randomIntBetween(0, 10000);
         boolean found = randomBoolean();
 
         DeleteResponse response = new DeleteResponse(shardId, type, id, version, found);

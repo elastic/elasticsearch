@@ -46,10 +46,10 @@ public class ProfileResultTests extends ESTestCase {
         int timingsSize = randomIntBetween(0, 5);
         Map<String, Long> timings = new HashMap<>(timingsSize);
         for (int i = 0; i < timingsSize; i++) {
-            long time = randomPositiveLong() / timingsSize;
+            long time = randomNonNegativeLong() / timingsSize;
             if (randomBoolean()) {
                 // also often use "small" values in tests
-                time = randomPositiveLong() % 10000;
+                time = randomNonNegativeLong() % 10000;
             }
             timings.put(randomAsciiOfLengthBetween(5, 10), time); // don't overflow Long.MAX_VALUE;
         }

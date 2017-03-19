@@ -38,7 +38,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 public class BulkByScrollResponseTests extends ESTestCase {
 
     public void testRountTrip() throws IOException {
-        BulkByScrollResponse response = new BulkByScrollResponse(timeValueMillis(randomPositiveLong()),
+        BulkByScrollResponse response = new BulkByScrollResponse(timeValueMillis(randomNonNegativeLong()),
                 BulkByScrollTaskStatusTests.randomStatus(), randomIndexingFailures(), randomSearchFailures(), randomBoolean());
         BulkByScrollResponse tripped = new BulkByScrollResponse();
         try (BytesStreamOutput out = new BytesStreamOutput()) {

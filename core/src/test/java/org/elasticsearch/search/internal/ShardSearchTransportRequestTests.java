@@ -199,7 +199,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
                 .putAlias(AliasMetaData.newAliasMetaDataBuilder("UjLlLkjwWh").filter("{\"term\" : {\"foo\" : \"bar1\"}}"))
                 .putAlias(AliasMetaData.newAliasMetaDataBuilder("uBpgtwuqDG").filter("{\"term\" : {\"foo\" : \"bar2\"}}"));
             IndexSettings indexSettings = new IndexSettings(indexMetadata.build(), Settings.EMPTY);
-            final long nowInMillis = randomPositiveLong();
+            final long nowInMillis = randomNonNegativeLong();
             QueryShardContext context = new QueryShardContext(
                 0, indexSettings, null, null, null, null, null, xContentRegistry(), null, null, () -> nowInMillis);
             readRequest.rewrite(context);

@@ -70,7 +70,6 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
@@ -207,7 +206,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             public void onCache(ShardId shardId, Accountable accountable) {
             }
         });
-        long nowInMillis = randomPositiveLong();
+        long nowInMillis = randomNonNegativeLong();
         return new QueryShardContext(0, idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
                 xContentRegistry(), null, null, () -> nowInMillis) {
             @Override

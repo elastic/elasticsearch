@@ -59,7 +59,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb.gz")),
                 geoIpConfigDir.resolve("GeoLite2-Country.mmdb.gz"));
 
-        NodeCache cache = randomFrom(NoCache.getInstance(), new GeoIpCache(randomPositiveLong()));
+        NodeCache cache = randomFrom(NoCache.getInstance(), new GeoIpCache(randomNonNegativeLong()));
         databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(geoIpConfigDir, cache);
     }
 

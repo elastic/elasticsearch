@@ -69,7 +69,7 @@ public class LegacyDateFieldTypeTests extends FieldTypeTestCase {
                 ((LegacyDateFieldMapper.DateFieldType)ft).setTimeUnit(TimeUnit.HOURS);
             }
         });
-        nowInMillis = randomPositiveLong();
+        nowInMillis = randomNonNegativeLong();
     }
 
     public void testIsFieldWithinQueryEmptyReader() throws IOException {

@@ -43,7 +43,7 @@ public class MainResponseTests extends ESTestCase {
         String clusterUuid = randomAsciiOfLength(10);
         ClusterName clusterName = new ClusterName(randomAsciiOfLength(10));
         String nodeName = randomAsciiOfLength(10);
-        Build build = new Build(randomAsciiOfLength(8), new Date(randomPositiveLong()).toString(), randomBoolean());
+        Build build = new Build(randomAsciiOfLength(8), new Date(randomNonNegativeLong()).toString(), randomBoolean());
         Version version = VersionUtils.randomVersion(random());
         boolean available = randomBoolean();
         return new MainResponse(nodeName, version, clusterName, clusterUuid , build, available);

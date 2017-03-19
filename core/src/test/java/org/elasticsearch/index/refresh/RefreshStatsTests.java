@@ -27,7 +27,7 @@ import java.io.IOException;
 public class RefreshStatsTests extends AbstractStreamableTestCase<RefreshStats> {
     @Override
     protected RefreshStats createTestInstance() {
-        return new RefreshStats(randomPositiveLong(), randomPositiveLong(), between(0, Integer.MAX_VALUE));
+        return new RefreshStats(randomNonNegativeLong(), randomNonNegativeLong(), between(0, Integer.MAX_VALUE));
     }
 
     @Override

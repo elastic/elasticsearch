@@ -67,7 +67,7 @@ public class ElectMasterServiceTests extends ESTestCase {
             roles.add(DiscoveryNode.Role.MASTER);
             DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
                 roles, Version.CURRENT);
-            candidates.add(new MasterCandidate(node, randomBoolean() ? MasterCandidate.UNRECOVERED_CLUSTER_VERSION : randomPositiveLong()));
+            candidates.add(new MasterCandidate(node, randomBoolean() ? MasterCandidate.UNRECOVERED_CLUSTER_VERSION : randomNonNegativeLong()));
         }
 
         Collections.shuffle(candidates, random());

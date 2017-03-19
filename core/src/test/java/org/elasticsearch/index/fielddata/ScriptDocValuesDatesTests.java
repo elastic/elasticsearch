@@ -34,7 +34,7 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
             values[d] = new long[randomBoolean() ? randomBoolean() ? 0 : 1 : between(2, 100)];
             expectedDates[d] = new ReadableDateTime[values[d].length];
             for (int i = 0; i < values[d].length; i++) {
-                expectedDates[d][i] = new DateTime(randomPositiveLong(), DateTimeZone.UTC);
+                expectedDates[d][i] = new DateTime(randomNonNegativeLong(), DateTimeZone.UTC);
                 values[d][i] = expectedDates[d][i].getMillis();
             }
         }

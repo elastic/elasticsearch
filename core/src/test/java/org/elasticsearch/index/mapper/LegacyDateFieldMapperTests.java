@@ -235,7 +235,7 @@ public class LegacyDateFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testHourFormat() throws Exception {
-        long nowInMillis = randomPositiveLong();
+        long nowInMillis = randomNonNegativeLong();
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
         QueryShardContext context = new QueryShardContext(0,
@@ -262,7 +262,7 @@ public class LegacyDateFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDayWithoutYearFormat() throws Exception {
-        long nowInMillis = randomPositiveLong();
+        long nowInMillis = randomNonNegativeLong();
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
         QueryShardContext context = new QueryShardContext(0,

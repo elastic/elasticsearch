@@ -32,8 +32,8 @@ public class TaskTests extends ESTestCase {
     public void testTaskInfoToString() {
         String nodeId = randomAsciiOfLength(10);
         long taskId = randomIntBetween(0, 100000);
-        long startTime = randomPositiveLong();
-        long runningTime = randomPositiveLong();
+        long startTime = randomNonNegativeLong();
+        long runningTime = randomNonNegativeLong();
         boolean cancellable = randomBoolean();
         TaskInfo taskInfo = new TaskInfo(new TaskId(nodeId, taskId), "test_type",
             "test_action", "test_description", null, startTime, runningTime, cancellable, TaskId.EMPTY_TASK_ID);

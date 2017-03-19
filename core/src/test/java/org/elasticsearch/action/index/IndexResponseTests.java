@@ -162,7 +162,7 @@ public class IndexResponseTests extends ESTestCase {
         ShardId shardId = new ShardId(randomAsciiOfLength(5), randomAsciiOfLength(5), randomIntBetween(0, 5));
         String type = randomAsciiOfLength(5);
         String id = randomAsciiOfLength(5);
-        long version = randomBoolean() ? randomPositiveLong() : randomIntBetween(0, 10000);
+        long version = randomBoolean() ? randomNonNegativeLong() : randomIntBetween(0, 10000);
         boolean created = randomBoolean();
 
         IndexResponse indexResponse = new IndexResponse(shardId, type, id, version, created);

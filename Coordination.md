@@ -20,11 +20,13 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 16671: Honey Boo Boo Fan Club
 * 17597: 100
 * 17620: JAH
+* 17853: JQ
 * 18109: Krispy Belgian Cookies
 * 18348: JAH
 * 18543: Oink
 * 20912: Evil_Engineers
 * 21418: marathon
+* 21802: JQ
 * 21862: JTeam1
 * 21946: Honey Boo Boo Fan Club
 * 21974: Krispy Belgian Cookies

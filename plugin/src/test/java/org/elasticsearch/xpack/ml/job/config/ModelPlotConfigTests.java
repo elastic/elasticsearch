@@ -12,25 +12,25 @@ import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ModelDebugConfigTests extends AbstractSerializingTestCase<ModelDebugConfig> {
+public class ModelPlotConfigTests extends AbstractSerializingTestCase<ModelPlotConfig> {
 
     public void testConstructorDefaults() {
-        assertThat(new ModelDebugConfig().isEnabled(), is(true));
-        assertThat(new ModelDebugConfig().getTerms(), is(nullValue()));
+        assertThat(new ModelPlotConfig().isEnabled(), is(true));
+        assertThat(new ModelPlotConfig().getTerms(), is(nullValue()));
     }
 
     @Override
-    protected ModelDebugConfig createTestInstance() {
-        return new ModelDebugConfig(randomBoolean(), randomAsciiOfLengthBetween(1, 30));
+    protected ModelPlotConfig createTestInstance() {
+        return new ModelPlotConfig(randomBoolean(), randomAsciiOfLengthBetween(1, 30));
     }
 
     @Override
-    protected Reader<ModelDebugConfig> instanceReader() {
-        return ModelDebugConfig::new;
+    protected Reader<ModelPlotConfig> instanceReader() {
+        return ModelPlotConfig::new;
     }
 
     @Override
-    protected ModelDebugConfig parseInstance(XContentParser parser) {
-        return ModelDebugConfig.PARSER.apply(parser, null);
+    protected ModelPlotConfig parseInstance(XContentParser parser) {
+        return ModelPlotConfig.PARSER.apply(parser, null);
     }
 }

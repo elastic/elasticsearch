@@ -25,7 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
-import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
+import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 import java.io.IOException;
@@ -113,20 +113,20 @@ public class UpdateProcessAction extends
 
     public static class Request extends TransportJobTaskAction.JobTaskRequest<Request> {
 
-        private ModelDebugConfig modelDebugConfig;
+        private ModelPlotConfig modelPlotConfig;
         private List<JobUpdate.DetectorUpdate> detectorUpdates;
 
         Request() {
         }
 
-        public Request(String jobId, ModelDebugConfig modelDebugConfig, List<JobUpdate.DetectorUpdate> detectorUpdates) {
+        public Request(String jobId, ModelPlotConfig modelPlotConfig, List<JobUpdate.DetectorUpdate> detectorUpdates) {
             super(jobId);
-            this.modelDebugConfig = modelDebugConfig;
+            this.modelPlotConfig = modelPlotConfig;
             this.detectorUpdates = detectorUpdates;
         }
 
-        public ModelDebugConfig getModelDebugConfig() {
-            return modelDebugConfig;
+        public ModelPlotConfig getModelPlotConfig() {
+            return modelPlotConfig;
         }
 
         public List<JobUpdate.DetectorUpdate> getDetectorUpdates() {
@@ -136,7 +136,7 @@ public class UpdateProcessAction extends
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            modelDebugConfig = in.readOptionalWriteable(ModelDebugConfig::new);
+            modelPlotConfig = in.readOptionalWriteable(ModelPlotConfig::new);
             if (in.readBoolean()) {
                 in.readList(JobUpdate.DetectorUpdate::new);
             }
@@ -145,7 +145,7 @@ public class UpdateProcessAction extends
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalWriteable(modelDebugConfig);
+            out.writeOptionalWriteable(modelPlotConfig);
             boolean hasDetectorUpdates = detectorUpdates != null;
             out.writeBoolean(hasDetectorUpdates);
             if (hasDetectorUpdates) {
@@ -155,7 +155,7 @@ public class UpdateProcessAction extends
 
         @Override
         public int hashCode() {
-            return Objects.hash(getJobId(), modelDebugConfig, detectorUpdates);
+            return Objects.hash(getJobId(), modelPlotConfig, detectorUpdates);
         }
 
         @Override
@@ -169,7 +169,7 @@ public class UpdateProcessAction extends
             Request other = (Request) obj;
 
             return Objects.equals(getJobId(), other.getJobId()) &&
-                    Objects.equals(modelDebugConfig, other.modelDebugConfig) &&
+                    Objects.equals(modelPlotConfig, other.modelPlotConfig) &&
                     Objects.equals(detectorUpdates, other.detectorUpdates);
         }
     }
@@ -196,7 +196,7 @@ public class UpdateProcessAction extends
             threadPool.executor(MachineLearning.THREAD_POOL_NAME).execute(() -> {
                 try {
                     processManager.writeUpdateProcessMessage(request.getJobId(), request.getDetectorUpdates(),
-                            request.getModelDebugConfig());
+                            request.getModelPlotConfig());
                     listener.onResponse(new Response());
                 } catch (Exception e) {
                     listener.onFailure(e);

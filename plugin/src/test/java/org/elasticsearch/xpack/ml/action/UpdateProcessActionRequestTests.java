@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
-import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
+import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 import java.util.List;
@@ -16,9 +16,9 @@ public class UpdateProcessActionRequestTests extends AbstractStreamableTestCase<
 
     @Override
     protected UpdateProcessAction.Request createTestInstance() {
-        ModelDebugConfig config = null;
+        ModelPlotConfig config = null;
         if (randomBoolean()) {
-            config = new ModelDebugConfig(randomBoolean(), randomAsciiOfLength(10));
+            config = new ModelPlotConfig(randomBoolean(), randomAsciiOfLength(10));
         }
         List<JobUpdate.DetectorUpdate> updates = null;
         if (randomBoolean()) {

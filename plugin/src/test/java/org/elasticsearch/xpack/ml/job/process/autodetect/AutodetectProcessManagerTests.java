@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
+import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
@@ -272,11 +272,11 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     public void testwriteUpdateProcessMessage() throws IOException {
         AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
         AutodetectProcessManager manager = createManagerAndCallProcessData(communicator, "foo");
-        ModelDebugConfig debugConfig = mock(ModelDebugConfig.class);
+        ModelPlotConfig modelConfig = mock(ModelPlotConfig.class);
         List<DetectionRule> rules = Collections.singletonList(mock(DetectionRule.class));
         List<JobUpdate.DetectorUpdate> detectorUpdates = Collections.singletonList(new JobUpdate.DetectorUpdate(2, null, rules));
-        manager.writeUpdateProcessMessage("foo", detectorUpdates, debugConfig);
-        verify(communicator).writeUpdateModelDebugMessage(debugConfig);
+        manager.writeUpdateProcessMessage("foo", detectorUpdates, modelConfig);
+        verify(communicator).writeUpdateModelPlotMessage(modelConfig);
         verify(communicator).writeUpdateDetectorRulesMessage(2, rules);
     }
 

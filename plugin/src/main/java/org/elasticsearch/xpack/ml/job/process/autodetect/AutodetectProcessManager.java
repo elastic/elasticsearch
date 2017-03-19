@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
+import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
@@ -174,7 +174,7 @@ public class AutodetectProcessManager extends AbstractComponent {
         }
     }
 
-    public void writeUpdateProcessMessage(String jobId, List<JobUpdate.DetectorUpdate> updates, ModelDebugConfig config)
+    public void writeUpdateProcessMessage(String jobId, List<JobUpdate.DetectorUpdate> updates, ModelPlotConfig config)
             throws IOException {
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
         if (communicator == null) {
@@ -183,7 +183,7 @@ public class AutodetectProcessManager extends AbstractComponent {
         }
 
         if (config != null) {
-            communicator.writeUpdateModelDebugMessage(config);
+            communicator.writeUpdateModelPlotMessage(config);
         }
 
         if (updates != null) {

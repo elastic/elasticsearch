@@ -30,7 +30,7 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
     public static final ConstructingObjectParser<AutodetectResult, Void> PARSER = new ConstructingObjectParser<>(
             TYPE.getPreferredName(), a -> new AutodetectResult((Bucket) a[0], (List<AnomalyRecord>) a[1], (List<Influencer>) a[2],
                     (Quantiles) a[3], (ModelSnapshot) a[4], a[5] == null ? null : ((ModelSizeStats.Builder) a[5]).build(),
-                    (ModelDebugOutput) a[6], (CategoryDefinition) a[7], (FlushAcknowledgement) a[8]));
+                    (ModelPlot) a[6], (CategoryDefinition) a[7], (FlushAcknowledgement) a[8]));
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Bucket.PARSER, Bucket.RESULT_TYPE_FIELD);
@@ -40,7 +40,7 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelSnapshot.PARSER, ModelSnapshot.TYPE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelSizeStats.PARSER,
                 ModelSizeStats.RESULT_TYPE_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelDebugOutput.PARSER, ModelDebugOutput.RESULTS_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelPlot.PARSER, ModelPlot.RESULTS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), CategoryDefinition.PARSER, CategoryDefinition.TYPE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), FlushAcknowledgement.PARSER, FlushAcknowledgement.TYPE);
     }
@@ -51,12 +51,12 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
     private final Quantiles quantiles;
     private final ModelSnapshot modelSnapshot;
     private final ModelSizeStats modelSizeStats;
-    private final ModelDebugOutput modelDebugOutput;
+    private final ModelPlot modelPlot;
     private final CategoryDefinition categoryDefinition;
     private final FlushAcknowledgement flushAcknowledgement;
 
     public AutodetectResult(Bucket bucket, List<AnomalyRecord> records, List<Influencer> influencers, Quantiles quantiles,
-                            ModelSnapshot modelSnapshot, ModelSizeStats modelSizeStats, ModelDebugOutput modelDebugOutput,
+                            ModelSnapshot modelSnapshot, ModelSizeStats modelSizeStats, ModelPlot modelPlot,
                             CategoryDefinition categoryDefinition, FlushAcknowledgement flushAcknowledgement) {
         this.bucket = bucket;
         this.records = records;
@@ -64,7 +64,7 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
         this.quantiles = quantiles;
         this.modelSnapshot = modelSnapshot;
         this.modelSizeStats = modelSizeStats;
-        this.modelDebugOutput = modelDebugOutput;
+        this.modelPlot = modelPlot;
         this.categoryDefinition = categoryDefinition;
         this.flushAcknowledgement = flushAcknowledgement;
     }
@@ -101,9 +101,9 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
             this.modelSizeStats = null;
         }
         if (in.readBoolean()) {
-            this.modelDebugOutput = new ModelDebugOutput(in);
+            this.modelPlot = new ModelPlot(in);
         } else {
-            this.modelDebugOutput = null;
+            this.modelPlot = null;
         }
         if (in.readBoolean()) {
             this.categoryDefinition = new CategoryDefinition(in);
@@ -125,7 +125,7 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
         writeNullable(quantiles, out);
         writeNullable(modelSnapshot, out);
         writeNullable(modelSizeStats, out);
-        writeNullable(modelDebugOutput, out);
+        writeNullable(modelPlot, out);
         writeNullable(categoryDefinition, out);
         writeNullable(flushAcknowledgement, out);
     }
@@ -155,7 +155,7 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
         addNullableField(Quantiles.TYPE, quantiles, builder);
         addNullableField(ModelSnapshot.TYPE, modelSnapshot, builder);
         addNullableField(ModelSizeStats.RESULT_TYPE_FIELD, modelSizeStats, builder);
-        addNullableField(ModelDebugOutput.RESULTS_FIELD, modelDebugOutput, builder);
+        addNullableField(ModelPlot.RESULTS_FIELD, modelPlot, builder);
         addNullableField(CategoryDefinition.TYPE, categoryDefinition, builder);
         addNullableField(FlushAcknowledgement.TYPE, flushAcknowledgement, builder);
         builder.endObject();
@@ -198,8 +198,8 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
         return modelSizeStats;
     }
 
-    public ModelDebugOutput getModelDebugOutput() {
-        return modelDebugOutput;
+    public ModelPlot getModelPlot() {
+        return modelPlot;
     }
 
     public CategoryDefinition getCategoryDefinition() {
@@ -212,7 +212,7 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(bucket, records, influencers, categoryDefinition, flushAcknowledgement, modelDebugOutput, modelSizeStats,
+        return Objects.hash(bucket, records, influencers, categoryDefinition, flushAcknowledgement, modelPlot, modelSizeStats,
                 modelSnapshot, quantiles);
     }
 
@@ -230,7 +230,7 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
                 Objects.equals(influencers, other.influencers) &&
                 Objects.equals(categoryDefinition, other.categoryDefinition) &&
                 Objects.equals(flushAcknowledgement, other.flushAcknowledgement) &&
-                Objects.equals(modelDebugOutput, other.modelDebugOutput) &&
+                Objects.equals(modelPlot, other.modelPlot) &&
                 Objects.equals(modelSizeStats, other.modelSizeStats) &&
                 Objects.equals(modelSnapshot, other.modelSnapshot) &&
                 Objects.equals(quantiles, other.quantiles);

@@ -71,7 +71,7 @@ import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
-import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
+import org.elasticsearch.xpack.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.security.support.Exceptions;
@@ -961,32 +961,32 @@ public class JobProvider {
         stream.write(0);
     }
 
-    public QueryPage<ModelDebugOutput> modelDebugOutput(String jobId, int from, int size) {
+    public QueryPage<ModelPlot> modelPlot(String jobId, int from, int size) {
         SearchResponse searchResponse;
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         LOGGER.trace("ES API CALL: search result type {} from index {} from {}, size {}",
-                ModelDebugOutput.RESULT_TYPE_VALUE, indexName, from, size);
+                ModelPlot.RESULT_TYPE_VALUE, indexName, from, size);
 
         searchResponse = client.prepareSearch(indexName)
                 .setIndicesOptions(addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS))
                 .setTypes(Result.TYPE.getPreferredName())
-                .setQuery(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), ModelDebugOutput.RESULT_TYPE_VALUE))
+                .setQuery(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), ModelPlot.RESULT_TYPE_VALUE))
                 .setFrom(from).setSize(size)
                 .get();
 
-        List<ModelDebugOutput> results = new ArrayList<>();
+        List<ModelPlot> results = new ArrayList<>();
 
         for (SearchHit hit : searchResponse.getHits().getHits()) {
             BytesReference source = hit.getSourceRef();
             try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
-                ModelDebugOutput modelDebugOutput = ModelDebugOutput.PARSER.apply(parser, null);
-                results.add(modelDebugOutput);
+                ModelPlot modelPlot = ModelPlot.PARSER.apply(parser, null);
+                results.add(modelPlot);
             } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parse modelDebugOutput", e);
+                throw new ElasticsearchParseException("failed to parse modelPlot", e);
             }
         }
 
-        return new QueryPage<>(results, searchResponse.getHits().getTotalHits(), ModelDebugOutput.RESULTS_FIELD);
+        return new QueryPage<>(results, searchResponse.getHits().getTotalHits(), ModelPlot.RESULTS_FIELD);
     }
 
     /**

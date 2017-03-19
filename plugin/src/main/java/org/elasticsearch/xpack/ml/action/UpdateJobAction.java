@@ -200,7 +200,7 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
                                    ActionListener<PutJobAction.Response> listener) {
 
             UpdateProcessAction.Request updateProcessRequest = new UpdateProcessAction.Request(request.getJobId(),
-                    request.getJobUpdate().getModelDebugConfig(), request.getJobUpdate().getDetectorUpdates());
+                    request.getJobUpdate().getModelPlotConfig(), request.getJobUpdate().getDetectorUpdates());
 
             client.execute(UpdateProcessAction.INSTANCE, updateProcessRequest, new ActionListener<UpdateProcessAction.Response>() {
                 @Override

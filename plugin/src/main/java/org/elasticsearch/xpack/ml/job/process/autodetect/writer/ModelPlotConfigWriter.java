@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
+import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -14,16 +14,16 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.ml.job.process.autodetect.writer.WriterConstants.EQUALS;
 import static org.elasticsearch.xpack.ml.job.process.autodetect.writer.WriterConstants.NEW_LINE;
 
-public class ModelDebugConfigWriter {
+public class ModelPlotConfigWriter {
 
     private static final double BOUNDS_PERCENTILE_DEFAULT = 95.0;
     private static final double BOUNDS_PERCENTILE_DISABLE_VALUE = -1.0;
 
-    private final ModelDebugConfig modelDebugConfig;
+    private final ModelPlotConfig modelPlotConfig;
     private final Writer writer;
 
-    public ModelDebugConfigWriter(ModelDebugConfig modelDebugConfig, Writer writer) {
-        this.modelDebugConfig = Objects.requireNonNull(modelDebugConfig);
+    public ModelPlotConfigWriter(ModelPlotConfig modelPlotConfig, Writer writer) {
+        this.modelPlotConfig = Objects.requireNonNull(modelPlotConfig);
         this.writer = Objects.requireNonNull(writer);
     }
 
@@ -32,11 +32,12 @@ public class ModelDebugConfigWriter {
 
         contents.append("boundspercentile")
                 .append(EQUALS)
-                .append(modelDebugConfig.isEnabled() ? BOUNDS_PERCENTILE_DEFAULT : BOUNDS_PERCENTILE_DISABLE_VALUE)
+                .append(modelPlotConfig.isEnabled() ? 
+                        BOUNDS_PERCENTILE_DEFAULT : BOUNDS_PERCENTILE_DISABLE_VALUE)
                 .append(NEW_LINE);
 
-        String terms = modelDebugConfig.getTerms();
-        contents.append(ModelDebugConfig.TERMS_FIELD.getPreferredName())
+        String terms = modelPlotConfig.getTerms();
+        contents.append(ModelPlotConfig.TERMS_FIELD.getPreferredName())
                 .append(EQUALS)
                 .append(terms == null ? "" : terms)
                 .append(NEW_LINE);

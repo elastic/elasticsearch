@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
+import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -53,12 +53,12 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         }
     }
 
-    public void tesWriteUpdateModelDebugMessage() throws IOException {
+    public void tesWriteUpdateModelPlotMessage() throws IOException {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class))) {
-            ModelDebugConfig config = new ModelDebugConfig();
-            communicator.writeUpdateModelDebugMessage(config);
-            Mockito.verify(process).writeUpdateModelDebugMessage(config);
+            ModelPlotConfig config = new ModelPlotConfig();
+            communicator.writeUpdateModelPlotMessage(config);
+            Mockito.verify(process).writeUpdateModelPlotMessage(config);
         }
     }
 
@@ -195,16 +195,16 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         communicator.close();
     }
 
-    public void testWriteUpdateModelDebugConfigMessageInUse() throws Exception {
+    public void testWriteUpdateModelPlotConfigMessageInUse() throws Exception {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         AutoDetectResultProcessor resultProcessor = mock(AutoDetectResultProcessor.class);
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, resultProcessor);
 
         communicator.inUse.set(new CountDownLatch(1));
-        expectThrows(ElasticsearchStatusException.class, () -> communicator.writeUpdateModelDebugMessage(mock(ModelDebugConfig.class)));
+        expectThrows(ElasticsearchStatusException.class, () -> communicator.writeUpdateModelPlotMessage(mock(ModelPlotConfig.class)));
 
         communicator.inUse.set(null);
-        communicator.writeUpdateModelDebugMessage(mock(ModelDebugConfig.class));
+        communicator.writeUpdateModelPlotMessage(mock(ModelPlotConfig.class));
     }
 
     public void testWriteUpdateDetectorRulesMessageInUse() throws Exception {

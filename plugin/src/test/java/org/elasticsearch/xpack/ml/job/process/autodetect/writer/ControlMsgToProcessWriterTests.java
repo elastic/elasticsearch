@@ -20,7 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.Condition;
 import org.elasticsearch.xpack.ml.job.config.Connective;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
-import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
+import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.config.Operator;
 import org.elasticsearch.xpack.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.ml.job.config.RuleConditionType;
@@ -148,15 +148,15 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
-    public void testWriteUpdateModelDebugMessage() throws IOException {
+    public void testWriteUpdateModelPlotMessage() throws IOException {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
 
-        writer.writeUpdateModelDebugMessage(new ModelDebugConfig(true, "foo,bar"));
+        writer.writeUpdateModelPlotMessage(new ModelPlotConfig(true, "foo,bar"));
 
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
-        inOrder.verify(lengthEncodedWriter).writeField("u[modelDebugConfig]\nboundspercentile = 95.0\nterms = foo,bar\n");
+        inOrder.verify(lengthEncodedWriter).writeField("u[modelPlotConfig]\nboundspercentile = 95.0\nterms = foo,bar\n");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 

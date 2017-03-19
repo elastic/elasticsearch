@@ -57,7 +57,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField FINISHED_TIME = new ParseField("finished_time");
     public static final ParseField LAST_DATA_TIME = new ParseField("last_data_time");
-    public static final ParseField MODEL_DEBUG_CONFIG = new ParseField("model_debug_config");
+    public static final ParseField MODEL_PLOT_CONFIG = new ParseField("model_plot_config");
     public static final ParseField RENORMALIZATION_WINDOW_DAYS = new ParseField("renormalization_window_days");
     public static final ParseField BACKGROUND_PERSIST_INTERVAL = new ParseField("background_persist_interval");
     public static final ParseField MODEL_SNAPSHOT_RETENTION_DAYS = new ParseField("model_snapshot_retention_days");
@@ -108,7 +108,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         PARSER.declareObject(Builder::setAnalysisConfig, AnalysisConfig.PARSER, ANALYSIS_CONFIG);
         PARSER.declareObject(Builder::setAnalysisLimits, AnalysisLimits.PARSER, ANALYSIS_LIMITS);
         PARSER.declareObject(Builder::setDataDescription, DataDescription.PARSER, DATA_DESCRIPTION);
-        PARSER.declareObject(Builder::setModelDebugConfig, ModelDebugConfig.PARSER, MODEL_DEBUG_CONFIG);
+        PARSER.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.PARSER, MODEL_PLOT_CONFIG);
         PARSER.declareLong(Builder::setRenormalizationWindowDays, RENORMALIZATION_WINDOW_DAYS);
         PARSER.declareString((builder, val) -> builder.setBackgroundPersistInterval(
                 TimeValue.parseTimeValue(val, BACKGROUND_PERSIST_INTERVAL.getPreferredName())), BACKGROUND_PERSIST_INTERVAL);
@@ -129,7 +129,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     private final AnalysisConfig analysisConfig;
     private final AnalysisLimits analysisLimits;
     private final DataDescription dataDescription;
-    private final ModelDebugConfig modelDebugConfig;
+    private final ModelPlotConfig modelPlotConfig;
     private final Long renormalizationWindowDays;
     private final TimeValue backgroundPersistInterval;
     private final Long modelSnapshotRetentionDays;
@@ -141,7 +141,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     private Job(String jobId, String description, Date createTime, Date finishedTime, Date lastDataTime,
                AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
-               ModelDebugConfig modelDebugConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
+               ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
                Long modelSnapshotRetentionDays, Long resultsRetentionDays, Map<String, Object> customSettings,
                String modelSnapshotId, String resultsIndexName, boolean deleted) {
 
@@ -153,7 +153,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         this.analysisConfig = analysisConfig;
         this.analysisLimits = analysisLimits;
         this.dataDescription = dataDescription;
-        this.modelDebugConfig = modelDebugConfig;
+        this.modelPlotConfig = modelPlotConfig;
         this.renormalizationWindowDays = renormalizationWindowDays;
         this.backgroundPersistInterval = backgroundPersistInterval;
         this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
@@ -173,7 +173,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         analysisConfig = new AnalysisConfig(in);
         analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
         dataDescription = in.readOptionalWriteable(DataDescription::new);
-        modelDebugConfig = in.readOptionalWriteable(ModelDebugConfig::new);
+        modelPlotConfig = in.readOptionalWriteable(ModelPlotConfig::new);
         renormalizationWindowDays = in.readOptionalLong();
         backgroundPersistInterval = in.readOptionalWriteable(TimeValue::new);
         modelSnapshotRetentionDays = in.readOptionalLong();
@@ -277,8 +277,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         return analysisLimits;
     }
 
-    public ModelDebugConfig getModelDebugConfig() {
-        return modelDebugConfig;
+    public ModelPlotConfig getModelPlotConfig() {
+        return modelPlotConfig;
     }
 
     /**
@@ -378,7 +378,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         analysisConfig.writeTo(out);
         out.writeOptionalWriteable(analysisLimits);
         out.writeOptionalWriteable(dataDescription);
-        out.writeOptionalWriteable(modelDebugConfig);
+        out.writeOptionalWriteable(modelPlotConfig);
         out.writeOptionalLong(renormalizationWindowDays);
         out.writeOptionalWriteable(backgroundPersistInterval);
         out.writeOptionalLong(modelSnapshotRetentionDays);
@@ -420,8 +420,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         if (dataDescription != null) {
             builder.field(DATA_DESCRIPTION.getPreferredName(), dataDescription, params);
         }
-        if (modelDebugConfig != null) {
-            builder.field(MODEL_DEBUG_CONFIG.getPreferredName(), modelDebugConfig, params);
+        if (modelPlotConfig != null) {
+            builder.field(MODEL_PLOT_CONFIG.getPreferredName(), modelPlotConfig, params);
         }
         if (renormalizationWindowDays != null) {
             builder.field(RENORMALIZATION_WINDOW_DAYS.getPreferredName(), renormalizationWindowDays);
@@ -465,7 +465,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 && Objects.equals(this.lastDataTime, that.lastDataTime)
                 && Objects.equals(this.analysisConfig, that.analysisConfig)
                 && Objects.equals(this.analysisLimits, that.analysisLimits) && Objects.equals(this.dataDescription, that.dataDescription)
-                && Objects.equals(this.modelDebugConfig, that.modelDebugConfig)
+                && Objects.equals(this.modelPlotConfig, that.modelPlotConfig)
                 && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
                 && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
                 && Objects.equals(this.modelSnapshotRetentionDays, that.modelSnapshotRetentionDays)
@@ -479,7 +479,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     @Override
     public int hashCode() {
         return Objects.hash(jobId, description, createTime, finishedTime, lastDataTime, analysisConfig,
-                analysisLimits, dataDescription, modelDebugConfig, renormalizationWindowDays,
+                analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
                 modelSnapshotId, resultsIndexName, deleted);
     }
@@ -507,7 +507,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         private Date createTime;
         private Date finishedTime;
         private Date lastDataTime;
-        private ModelDebugConfig modelDebugConfig;
+        private ModelPlotConfig modelPlotConfig;
         private Long renormalizationWindowDays;
         private TimeValue backgroundPersistInterval;
         private Long modelSnapshotRetentionDays = 1L;
@@ -533,7 +533,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             this.createTime = job.getCreateTime();
             this.finishedTime = job.getFinishedTime();
             this.lastDataTime = job.getLastDataTime();
-            this.modelDebugConfig = job.getModelDebugConfig();
+            this.modelPlotConfig = job.getModelPlotConfig();
             this.renormalizationWindowDays = job.getRenormalizationWindowDays();
             this.backgroundPersistInterval = job.getBackgroundPersistInterval();
             this.modelSnapshotRetentionDays = job.getModelSnapshotRetentionDays();
@@ -610,8 +610,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             return this;
         }
 
-        public Builder setModelDebugConfig(ModelDebugConfig modelDebugConfig) {
-            this.modelDebugConfig = modelDebugConfig;
+        public Builder setModelPlotConfig(ModelPlotConfig modelPlotConfig) {
+            this.modelPlotConfig = modelPlotConfig;
             return this;
         }
 
@@ -693,7 +693,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
             return new Job(
                     id, description, createTime, finishedTime, lastDataTime, analysisConfig, analysisLimits,
-                    dataDescription, modelDebugConfig, renormalizationWindowDays, backgroundPersistInterval,
+                    dataDescription, modelPlotConfig, renormalizationWindowDays, backgroundPersistInterval,
                     modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
                     resultsIndexName, deleted);
         }

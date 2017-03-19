@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
-import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
+import org.elasticsearch.xpack.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 
 import java.time.Duration;
@@ -143,9 +143,9 @@ public class AutoDetectResultProcessor {
         if (categoryDefinition != null) {
             persister.persistCategoryDefinition(categoryDefinition);
         }
-        ModelDebugOutput modelDebugOutput = result.getModelDebugOutput();
-        if (modelDebugOutput != null) {
-            persister.persistModelDebugOutput(modelDebugOutput);
+        ModelPlot modelPlot = result.getModelPlot();
+        if (modelPlot != null) {
+            persister.persistModelPlot(modelPlot);
         }
         ModelSizeStats modelSizeStats = result.getModelSizeStats();
         if (modelSizeStats != null) {

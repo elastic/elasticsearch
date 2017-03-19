@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.Influence;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
-import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
+import org.elasticsearch.xpack.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.ml.job.results.Result;
@@ -236,17 +236,17 @@ public class ElasticsearchMappings {
                                 .endObject()
                             .endObject()
 
-                            // Model Debug Output
-                            .startObject(ModelDebugOutput.DEBUG_FEATURE.getPreferredName())
+                            // Model Plot Output
+                            .startObject(ModelPlot.MODEL_FEATURE.getPreferredName())
                                 .field(TYPE, KEYWORD)
                             .endObject()
-                            .startObject(ModelDebugOutput.DEBUG_LOWER.getPreferredName())
+                            .startObject(ModelPlot.MODEL_LOWER.getPreferredName())
                                 .field(TYPE, DOUBLE)
                             .endObject()
-                            .startObject(ModelDebugOutput.DEBUG_UPPER.getPreferredName())
+                            .startObject(ModelPlot.MODEL_UPPER.getPreferredName())
                                 .field(TYPE, DOUBLE)
                             .endObject()
-                            .startObject(ModelDebugOutput.DEBUG_MEDIAN.getPreferredName())
+                            .startObject(ModelPlot.MODEL_MEDIAN.getPreferredName())
                                 .field(TYPE, DOUBLE)
                             .endObject();
 

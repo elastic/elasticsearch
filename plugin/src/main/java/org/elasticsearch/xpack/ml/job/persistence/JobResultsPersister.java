@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
-import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
+import org.elasticsearch.xpack.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.Result;
 
@@ -270,11 +270,11 @@ public class JobResultsPersister extends AbstractComponent {
     }
 
     /**
-     * Persist model debug output
+     * Persist model plot output
      */
-    public void persistModelDebugOutput(ModelDebugOutput modelDebugOutput) {
-        Persistable persistable = new Persistable(modelDebugOutput.getJobId(), modelDebugOutput, Result.TYPE.getPreferredName(), null);
-        persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(modelDebugOutput.getJobId()));
+    public void persistModelPlot(ModelPlot modelPlot) {
+        Persistable persistable = new Persistable(modelPlot.getJobId(), modelPlot, Result.TYPE.getPreferredName(), null);
+        persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(modelPlot.getJobId()));
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process
     }

@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
-import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
+import org.elasticsearch.xpack.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.junit.Before;
 import org.mockito.InOrder;
@@ -227,17 +227,17 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         assertTrue(context.deleteInterimRequired);
     }
 
-    public void testProcessResult_modelDebugOutput() {
+    public void testProcessResult_modelPlot() {
         JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
 
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, false, bulkBuilder);
         context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
-        ModelDebugOutput modelDebugOutput = mock(ModelDebugOutput.class);
-        when(result.getModelDebugOutput()).thenReturn(modelDebugOutput);
+        ModelPlot modelPlot = mock(ModelPlot.class);
+        when(result.getModelPlot()).thenReturn(modelPlot);
         processorUnderTest.processResult(context, result);
 
-        verify(persister, times(1)).persistModelDebugOutput(modelDebugOutput);
+        verify(persister, times(1)).persistModelPlot(modelPlot);
         verifyNoMoreInteractions(persister);
     }
 

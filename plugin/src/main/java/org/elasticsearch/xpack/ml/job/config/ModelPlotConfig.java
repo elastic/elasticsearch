@@ -16,14 +16,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ModelDebugConfig extends ToXContentToBytes implements Writeable {
+public class ModelPlotConfig extends ToXContentToBytes implements Writeable {
 
-    private static final ParseField TYPE_FIELD = new ParseField("model_debug_config");
+    private static final ParseField TYPE_FIELD = new ParseField("model_plot_config");
     private static final ParseField ENABLED_FIELD = new ParseField("enabled");
     public static final ParseField TERMS_FIELD = new ParseField("terms");
 
-    public static final ConstructingObjectParser<ModelDebugConfig, Void> PARSER = new ConstructingObjectParser<>(
-            TYPE_FIELD.getPreferredName(), a -> new ModelDebugConfig((boolean) a[0], (String) a[1]));
+    public static final ConstructingObjectParser<ModelPlotConfig, Void> PARSER = 
+            new ConstructingObjectParser<>(TYPE_FIELD.getPreferredName(), 
+                    a -> new ModelPlotConfig((boolean) a[0], (String) a[1]));
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED_FIELD);
@@ -33,20 +34,20 @@ public class ModelDebugConfig extends ToXContentToBytes implements Writeable {
     private final boolean enabled;
     private final String terms;
 
-    public ModelDebugConfig() {
+    public ModelPlotConfig() {
         this(true, null);
     }
 
-    public ModelDebugConfig(boolean enabled) {
+    public ModelPlotConfig(boolean enabled) {
         this(false, null);
     }
 
-    public ModelDebugConfig(boolean enabled, String terms) {
+    public ModelPlotConfig(boolean enabled, String terms) {
         this.enabled = enabled;
         this.terms = terms;
     }
 
-    public ModelDebugConfig(StreamInput in) throws IOException {
+    public ModelPlotConfig(StreamInput in) throws IOException {
         enabled = in.readBoolean();
         terms = in.readOptionalString();
     }
@@ -82,11 +83,11 @@ public class ModelDebugConfig extends ToXContentToBytes implements Writeable {
             return true;
         }
 
-        if (other instanceof ModelDebugConfig == false) {
+        if (other instanceof ModelPlotConfig == false) {
             return false;
         }
 
-        ModelDebugConfig that = (ModelDebugConfig) other;
+        ModelPlotConfig that = (ModelPlotConfig) other;
         return this.enabled == that.enabled && Objects.equals(this.terms, that.terms);
     }
 

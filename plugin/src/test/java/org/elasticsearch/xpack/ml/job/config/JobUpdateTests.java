@@ -48,7 +48,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             update.setDetectorUpdates(detectorUpdates);
         }
         if (randomBoolean()) {
-            update.setModelDebugConfig(new ModelDebugConfig(randomBoolean(), randomAsciiOfLength(10)));
+            update.setModelPlotConfig(new ModelPlotConfig(randomBoolean(), randomAsciiOfLength(10)));
         }
         if (randomBoolean()) {
             update.setAnalysisLimits(new AnalysisLimits(randomNonNegativeLong(), randomNonNegativeLong()));
@@ -99,7 +99,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
                         new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, new Condition(Operator.GT, "5"), null))));
         detectorUpdates.add(new JobUpdate.DetectorUpdate(1, "description-2", detectionRules2));
 
-        ModelDebugConfig modelDebugConfig = new ModelDebugConfig(randomBoolean(), randomAsciiOfLength(10));
+        ModelPlotConfig modelPlotConfig = new ModelPlotConfig(randomBoolean(), randomAsciiOfLength(10));
         AnalysisLimits analysisLimits = new AnalysisLimits(randomNonNegativeLong(), randomNonNegativeLong());
         List<String> categorizationFilters = Arrays.asList(generateRandomStringArray(10, 10, false));
         Map<String, Object> customSettings = Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10));
@@ -107,7 +107,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         JobUpdate.Builder updateBuilder = new JobUpdate.Builder();
         updateBuilder.setDescription("updated_description");
         updateBuilder.setDetectorUpdates(detectorUpdates);
-        updateBuilder.setModelDebugConfig(modelDebugConfig);
+        updateBuilder.setModelPlotConfig(modelPlotConfig);
         updateBuilder.setAnalysisLimits(analysisLimits);
         updateBuilder.setBackgroundPersistInterval(TimeValue.timeValueHours(randomIntBetween(1, 24)));
         updateBuilder.setResultsRetentionDays(randomNonNegativeLong());
@@ -131,7 +131,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         Job updatedJob = update.mergeWithJob(jobBuilder.build());
 
         assertEquals(update.getDescription(), updatedJob.getDescription());
-        assertEquals(update.getModelDebugConfig(), updatedJob.getModelDebugConfig());
+        assertEquals(update.getModelPlotConfig(), updatedJob.getModelPlotConfig());
         assertEquals(update.getAnalysisLimits(), updatedJob.getAnalysisLimits());
         assertEquals(update.getRenormalizationWindowDays(), updatedJob.getRenormalizationWindowDays());
         assertEquals(update.getBackgroundPersistInterval(), updatedJob.getBackgroundPersistInterval());
@@ -153,7 +153,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
     public void testIsAutodetectProcessUpdate() {
         JobUpdate update = new JobUpdate.Builder().build();
         assertFalse(update.isAutodetectProcessUpdate());
-        update = new JobUpdate.Builder().setModelDebugConfig(new ModelDebugConfig(true, "ff")).build();
+        update = new JobUpdate.Builder().setModelPlotConfig(new ModelPlotConfig(true, "ff")).build();
         assertTrue(update.isAutodetectProcessUpdate());
         update = new JobUpdate.Builder().setDetectorUpdates(Arrays.asList(mock(JobUpdate.DetectorUpdate.class))).build();
         assertTrue(update.isAutodetectProcessUpdate());

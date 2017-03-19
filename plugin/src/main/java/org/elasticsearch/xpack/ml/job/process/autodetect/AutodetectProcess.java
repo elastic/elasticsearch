@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
-import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
+import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
@@ -41,12 +41,12 @@ public interface AutodetectProcess extends Closeable {
     void writeResetBucketsControlMessage(DataLoadParams params) throws IOException;
 
     /**
-     * Update the model debug configuration
+     * Update the model plot configuration
      *
-     * @param modelDebugConfig New model debug config
+     * @param modelPlotConfig New model plot config
      * @throws IOException If the write fails
      */
-    void writeUpdateModelDebugMessage(ModelDebugConfig modelDebugConfig) throws IOException;
+    void writeUpdateModelPlotMessage(ModelPlotConfig modelPlotConfig) throws IOException;
 
     /**
      * Write message to update the detector rules

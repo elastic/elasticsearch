@@ -10,13 +10,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
+import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
 import org.elasticsearch.xpack.ml.job.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.AnalysisLimitsWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.FieldConfigWriter;
-import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ModelDebugConfigWriter;
+import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ModelPlotConfigWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 
@@ -37,7 +37,7 @@ import java.util.concurrent.TimeoutException;
 public class AutodetectBuilder {
     private static final String CONF_EXTENSION = ".conf";
     private static final String LIMIT_CONFIG_ARG = "--limitconfig=";
-    private static final String MODEL_DEBUG_CONFIG_ARG = "--modeldebugconfig=";
+    private static final String MODEL_PLOT_CONFIG_ARG = "--modelplotconfig=";
     private static final String FIELD_CONFIG_ARG = "--fieldconfig=";
 
     private Job job;
@@ -106,7 +106,7 @@ public class AutodetectBuilder {
         List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job, logger, ignoreDowntime, controller.getPid());
 
         buildLimits(command);
-        buildModelDebugConfig(command);
+        buildModelPlotConfig(command);
 
         buildQuantiles(command);
         buildFieldConfig(command);
@@ -134,22 +134,22 @@ public class AutodetectBuilder {
         }
     }
 
-    private void buildModelDebugConfig(List<String> command) throws IOException {
-        if (job.getModelDebugConfig() != null) {
-            Path modelDebugConfigFile = Files.createTempFile(env.tmpFile(), "modeldebugconfig", CONF_EXTENSION);
-            filesToDelete.add(modelDebugConfigFile);
-            writeModelDebugConfig(job.getModelDebugConfig(), modelDebugConfigFile);
-            String modelDebugConfig = MODEL_DEBUG_CONFIG_ARG + modelDebugConfigFile.toString();
-            command.add(modelDebugConfig);
+    private void buildModelPlotConfig(List<String> command) throws IOException {
+        if (job.getModelPlotConfig() != null) {
+            Path modelPlotConfigFile = Files.createTempFile(env.tmpFile(), "modelplotconfig", CONF_EXTENSION);
+            filesToDelete.add(modelPlotConfigFile);
+            writeModelPlotConfig(job.getModelPlotConfig(), modelPlotConfigFile);
+            String modelPlotConfig = MODEL_PLOT_CONFIG_ARG + modelPlotConfigFile.toString();
+            command.add(modelPlotConfig);
         }
     }
 
-    private static void writeModelDebugConfig(ModelDebugConfig config, Path emptyConfFile)
+    private static void writeModelPlotConfig(ModelPlotConfig config, Path emptyConfFile)
             throws IOException {
         try (OutputStreamWriter osw = new OutputStreamWriter(
                 Files.newOutputStream(emptyConfFile),
                 StandardCharsets.UTF_8)) {
-            new ModelDebugConfigWriter(config, osw).write();
+            new ModelPlotConfigWriter(config, osw).write();
         }
     }
 

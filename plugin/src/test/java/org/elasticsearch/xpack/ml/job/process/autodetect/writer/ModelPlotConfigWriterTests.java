@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
+import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -17,7 +17,7 @@ import java.io.OutputStreamWriter;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-public class ModelDebugConfigWriterTests extends ESTestCase {
+public class ModelPlotConfigWriterTests extends ESTestCase {
     private OutputStreamWriter writer;
 
     @Before
@@ -31,8 +31,8 @@ public class ModelDebugConfigWriterTests extends ESTestCase {
     }
 
     public void testWrite_GivenEnabledConfigWithoutTerms() throws IOException {
-        ModelDebugConfig modelDebugConfig = new ModelDebugConfig();
-        ModelDebugConfigWriter writer = new ModelDebugConfigWriter(modelDebugConfig, this.writer);
+        ModelPlotConfig modelPlotConfig = new ModelPlotConfig();
+        ModelPlotConfigWriter writer = new ModelPlotConfigWriter(modelPlotConfig, this.writer);
 
         writer.write();
 
@@ -40,8 +40,8 @@ public class ModelDebugConfigWriterTests extends ESTestCase {
     }
 
     public void testWrite_GivenEnabledConfigWithTerms() throws IOException {
-        ModelDebugConfig modelDebugConfig = new ModelDebugConfig(true, "foo,bar");
-        ModelDebugConfigWriter writer = new ModelDebugConfigWriter(modelDebugConfig, this.writer);
+        ModelPlotConfig modelPlotConfig = new ModelPlotConfig(true, "foo,bar");
+        ModelPlotConfigWriter writer = new ModelPlotConfigWriter(modelPlotConfig, this.writer);
 
         writer.write();
 
@@ -49,8 +49,8 @@ public class ModelDebugConfigWriterTests extends ESTestCase {
     }
 
     public void testWrite_GivenDisabledConfigWithTerms() throws IOException {
-        ModelDebugConfig modelDebugConfig = new ModelDebugConfig(false, "foo,bar");
-        ModelDebugConfigWriter writer = new ModelDebugConfigWriter(modelDebugConfig, this.writer);
+        ModelPlotConfig modelPlotConfig = new ModelPlotConfig(false, "foo,bar");
+        ModelPlotConfigWriter writer = new ModelPlotConfigWriter(modelPlotConfig, this.writer);
 
         writer.write();
 

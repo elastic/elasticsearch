@@ -52,7 +52,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertNull(job.getDescription());
         assertNull(job.getFinishedTime());
         assertNull(job.getLastDataTime());
-        assertNull(job.getModelDebugConfig());
+        assertNull(job.getModelPlotConfig());
         assertNull(job.getRenormalizationWindowDays());
         assertNull(job.getBackgroundPersistInterval());
         assertThat(job.getModelSnapshotRetentionDays(), equalTo(1L));
@@ -392,7 +392,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             builder.setDataDescription(dataDescription);
         }
         if (randomBoolean()) {
-            builder.setModelDebugConfig(new ModelDebugConfig(randomBoolean(), randomAsciiOfLength(10)));
+            builder.setModelPlotConfig(new ModelPlotConfig(randomBoolean(), randomAsciiOfLength(10)));
         }
         if (randomBoolean()) {
             builder.setRenormalizationWindowDays(randomNonNegativeLong());

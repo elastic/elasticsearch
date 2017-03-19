@@ -29,7 +29,7 @@ public class JobUpdate implements Writeable, ToXContent {
     static {
         PARSER.declareStringOrNull(Builder::setDescription, Job.DESCRIPTION);
         PARSER.declareObjectArray(Builder::setDetectorUpdates, DetectorUpdate.PARSER, DETECTORS);
-        PARSER.declareObject(Builder::setModelDebugConfig, ModelDebugConfig.PARSER, Job.MODEL_DEBUG_CONFIG);
+        PARSER.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.PARSER, Job.MODEL_PLOT_CONFIG);
         PARSER.declareObject(Builder::setAnalysisLimits, AnalysisLimits.PARSER, Job.ANALYSIS_LIMITS);
         PARSER.declareString((builder, val) -> builder.setBackgroundPersistInterval(
                 TimeValue.parseTimeValue(val, Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName())), Job.BACKGROUND_PERSIST_INTERVAL);
@@ -43,7 +43,7 @@ public class JobUpdate implements Writeable, ToXContent {
 
     private final String description;
     private final List<DetectorUpdate> detectorUpdates;
-    private final ModelDebugConfig modelDebugConfig;
+    private final ModelPlotConfig modelPlotConfig;
     private final AnalysisLimits analysisLimits;
     private final Long renormalizationWindowDays;
     private final TimeValue backgroundPersistInterval;
@@ -54,14 +54,14 @@ public class JobUpdate implements Writeable, ToXContent {
     private final String modelSnapshotId;
 
     private JobUpdate(@Nullable String description, @Nullable List<DetectorUpdate> detectorUpdates,
-                      @Nullable ModelDebugConfig modelDebugConfig, @Nullable AnalysisLimits analysisLimits,
+                      @Nullable ModelPlotConfig modelPlotConfig, @Nullable AnalysisLimits analysisLimits,
                       @Nullable TimeValue backgroundPersistInterval, @Nullable Long renormalizationWindowDays,
                       @Nullable Long resultsRetentionDays, @Nullable Long modelSnapshotRetentionDays,
                       @Nullable List<String> categorisationFilters, @Nullable  Map<String, Object> customSettings,
                       @Nullable String modelSnapshotId) {
         this.description = description;
         this.detectorUpdates = detectorUpdates;
-        this.modelDebugConfig = modelDebugConfig;
+        this.modelPlotConfig = modelPlotConfig;
         this.analysisLimits = analysisLimits;
         this.renormalizationWindowDays = renormalizationWindowDays;
         this.backgroundPersistInterval = backgroundPersistInterval;
@@ -79,7 +79,7 @@ public class JobUpdate implements Writeable, ToXContent {
         } else {
             detectorUpdates = null;
         }
-        modelDebugConfig = in.readOptionalWriteable(ModelDebugConfig::new);
+        modelPlotConfig = in.readOptionalWriteable(ModelPlotConfig::new);
         analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
         renormalizationWindowDays = in.readOptionalLong();
         backgroundPersistInterval = in.readOptionalWriteable(TimeValue::new);
@@ -100,7 +100,7 @@ public class JobUpdate implements Writeable, ToXContent {
         if (detectorUpdates != null) {
             out.writeList(detectorUpdates);
         }
-        out.writeOptionalWriteable(modelDebugConfig);
+        out.writeOptionalWriteable(modelPlotConfig);
         out.writeOptionalWriteable(analysisLimits);
         out.writeOptionalLong(renormalizationWindowDays);
         out.writeOptionalWriteable(backgroundPersistInterval);
@@ -122,8 +122,8 @@ public class JobUpdate implements Writeable, ToXContent {
         return detectorUpdates;
     }
 
-    public ModelDebugConfig getModelDebugConfig() {
-        return modelDebugConfig;
+    public ModelPlotConfig getModelPlotConfig() {
+        return modelPlotConfig;
     }
 
     public AnalysisLimits getAnalysisLimits() {
@@ -159,7 +159,7 @@ public class JobUpdate implements Writeable, ToXContent {
     }
 
     public boolean isAutodetectProcessUpdate() {
-        return modelDebugConfig != null || detectorUpdates != null;
+        return modelPlotConfig != null || detectorUpdates != null;
     }
 
     @Override
@@ -171,8 +171,8 @@ public class JobUpdate implements Writeable, ToXContent {
         if (detectorUpdates != null) {
             builder.field(DETECTORS.getPreferredName(), detectorUpdates);
         }
-        if (modelDebugConfig != null) {
-            builder.field(Job.MODEL_DEBUG_CONFIG.getPreferredName(), modelDebugConfig);
+        if (modelPlotConfig != null) {
+            builder.field(Job.MODEL_PLOT_CONFIG.getPreferredName(), modelPlotConfig);
         }
         if (analysisLimits != null) {
             builder.field(Job.ANALYSIS_LIMITS.getPreferredName(), analysisLimits);
@@ -234,8 +234,8 @@ public class JobUpdate implements Writeable, ToXContent {
             AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(ac);
             builder.setAnalysisConfig(acBuilder);
         }
-        if (modelDebugConfig != null) {
-            builder.setModelDebugConfig(modelDebugConfig);
+        if (modelPlotConfig != null) {
+            builder.setModelPlotConfig(modelPlotConfig);
         }
         if (analysisLimits != null) {
             builder.setAnalysisLimits(analysisLimits);
@@ -281,7 +281,7 @@ public class JobUpdate implements Writeable, ToXContent {
 
         return Objects.equals(this.description, that.description)
                 && Objects.equals(this.detectorUpdates, that.detectorUpdates)
-                && Objects.equals(this.modelDebugConfig, that.modelDebugConfig)
+                && Objects.equals(this.modelPlotConfig, that.modelPlotConfig)
                 && Objects.equals(this.analysisLimits, that.analysisLimits)
                 && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
                 && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
@@ -294,7 +294,7 @@ public class JobUpdate implements Writeable, ToXContent {
 
     @Override
     public int hashCode() {
-        return Objects.hash(description, detectorUpdates, modelDebugConfig, analysisLimits, renormalizationWindowDays,
+        return Objects.hash(description, detectorUpdates, modelPlotConfig, analysisLimits, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, categorizationFilters, customSettings,
                 modelSnapshotId);
     }
@@ -395,7 +395,7 @@ public class JobUpdate implements Writeable, ToXContent {
     public static class Builder {
         private String description;
         private List<DetectorUpdate> detectorUpdates;
-        private ModelDebugConfig modelDebugConfig;
+        private ModelPlotConfig modelPlotConfig;
         private AnalysisLimits analysisLimits;
         private Long renormalizationWindowDays;
         private TimeValue backgroundPersistInterval;
@@ -417,8 +417,8 @@ public class JobUpdate implements Writeable, ToXContent {
             return this;
         }
 
-        public Builder setModelDebugConfig(ModelDebugConfig modelDebugConfig) {
-            this.modelDebugConfig = modelDebugConfig;
+        public Builder setModelPlotConfig(ModelPlotConfig modelPlotConfig) {
+            this.modelPlotConfig = modelPlotConfig;
             return this;
         }
 
@@ -463,7 +463,7 @@ public class JobUpdate implements Writeable, ToXContent {
         }
 
         public JobUpdate build() {
-            return new JobUpdate(description, detectorUpdates, modelDebugConfig, analysisLimits, backgroundPersistInterval,
+            return new JobUpdate(description, detectorUpdates, modelPlotConfig, analysisLimits, backgroundPersistInterval,
                     renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays, categorizationFilters, customSettings,
                     modelSnapshotId);
         }

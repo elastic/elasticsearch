@@ -15,7 +15,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
+import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
@@ -111,9 +111,9 @@ public class AutodetectCommunicator implements Closeable {
     }
 
 
-    public void writeUpdateModelDebugMessage(ModelDebugConfig config) throws IOException {
+    public void writeUpdateModelPlotMessage(ModelPlotConfig config) throws IOException {
         checkAndRun(() -> Messages.getMessage(Messages.JOB_DATA_CONCURRENT_USE_UPDATE, job.getId()), () -> {
-            autodetectProcess.writeUpdateModelDebugMessage(config);
+            autodetectProcess.writeUpdateModelPlotMessage(config);
             return null;
         }, false);
     }

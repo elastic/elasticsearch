@@ -22,16 +22,13 @@ import java.util.Date;
 import java.util.Objects;
 
 /**
- * Model Debug POJO.
- * Some of the fields being with the word "debug".  This avoids creation of
- * reserved words that are likely to clash with fields in the input data (due to
- * the restrictions on Elasticsearch mappings).
+ * Model Plot POJO.
  */
-public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
+public class ModelPlot extends ToXContentToBytes implements Writeable {
     /**
      * Result type
      */
-    public static final String RESULT_TYPE_VALUE = "model_debug_output";
+    public static final String RESULT_TYPE_VALUE = "model_plot";
     public static final ParseField RESULTS_FIELD = new ParseField(RESULT_TYPE_VALUE);
 
     public static final ParseField PARTITION_FIELD_NAME = new ParseField("partition_field_name");
@@ -40,19 +37,19 @@ public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
     public static final ParseField OVER_FIELD_VALUE = new ParseField("over_field_value");
     public static final ParseField BY_FIELD_NAME = new ParseField("by_field_name");
     public static final ParseField BY_FIELD_VALUE = new ParseField("by_field_value");
-    public static final ParseField DEBUG_FEATURE = new ParseField("debug_feature");
-    public static final ParseField DEBUG_LOWER = new ParseField("debug_lower");
-    public static final ParseField DEBUG_UPPER = new ParseField("debug_upper");
-    public static final ParseField DEBUG_MEDIAN = new ParseField("debug_median");
+    public static final ParseField MODEL_FEATURE = new ParseField("model_feature");
+    public static final ParseField MODEL_LOWER = new ParseField("model_lower");
+    public static final ParseField MODEL_UPPER = new ParseField("model_upper");
+    public static final ParseField MODEL_MEDIAN = new ParseField("model_median");
     public static final ParseField ACTUAL = new ParseField("actual");
 
-    public static final ConstructingObjectParser<ModelDebugOutput, Void> PARSER =
-            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new ModelDebugOutput((String) a[0]));
+    public static final ConstructingObjectParser<ModelPlot, Void> PARSER =
+            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new ModelPlot((String) a[0]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareString((modelDebugOutput, s) -> {}, Result.RESULT_TYPE);
-        PARSER.declareField(ModelDebugOutput::setTimestamp, p -> {
+        PARSER.declareString((modelPlot, s) -> {}, Result.RESULT_TYPE);
+        PARSER.declareField(ModelPlot::setTimestamp, p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
@@ -61,17 +58,17 @@ public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
             throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
                     + Result.TIMESTAMP.getPreferredName() + "]");
         }, Result.TIMESTAMP, ValueType.VALUE);
-        PARSER.declareString(ModelDebugOutput::setPartitionFieldName, PARTITION_FIELD_NAME);
-        PARSER.declareString(ModelDebugOutput::setPartitionFieldValue, PARTITION_FIELD_VALUE);
-        PARSER.declareString(ModelDebugOutput::setOverFieldName, OVER_FIELD_NAME);
-        PARSER.declareString(ModelDebugOutput::setOverFieldValue, OVER_FIELD_VALUE);
-        PARSER.declareString(ModelDebugOutput::setByFieldName, BY_FIELD_NAME);
-        PARSER.declareString(ModelDebugOutput::setByFieldValue, BY_FIELD_VALUE);
-        PARSER.declareString(ModelDebugOutput::setDebugFeature, DEBUG_FEATURE);
-        PARSER.declareDouble(ModelDebugOutput::setDebugLower, DEBUG_LOWER);
-        PARSER.declareDouble(ModelDebugOutput::setDebugUpper, DEBUG_UPPER);
-        PARSER.declareDouble(ModelDebugOutput::setDebugMedian, DEBUG_MEDIAN);
-        PARSER.declareDouble(ModelDebugOutput::setActual, ACTUAL);
+        PARSER.declareString(ModelPlot::setPartitionFieldName, PARTITION_FIELD_NAME);
+        PARSER.declareString(ModelPlot::setPartitionFieldValue, PARTITION_FIELD_VALUE);
+        PARSER.declareString(ModelPlot::setOverFieldName, OVER_FIELD_NAME);
+        PARSER.declareString(ModelPlot::setOverFieldValue, OVER_FIELD_VALUE);
+        PARSER.declareString(ModelPlot::setByFieldName, BY_FIELD_NAME);
+        PARSER.declareString(ModelPlot::setByFieldValue, BY_FIELD_VALUE);
+        PARSER.declareString(ModelPlot::setModelFeature, MODEL_FEATURE);
+        PARSER.declareDouble(ModelPlot::setModelLower, MODEL_LOWER);
+        PARSER.declareDouble(ModelPlot::setModelUpper, MODEL_UPPER);
+        PARSER.declareDouble(ModelPlot::setModelMedian, MODEL_MEDIAN);
+        PARSER.declareDouble(ModelPlot::setActual, ACTUAL);
     }
 
     private final String jobId;
@@ -83,17 +80,17 @@ public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
     private String overFieldValue;
     private String byFieldName;
     private String byFieldValue;
-    private String debugFeature;
-    private double debugLower;
-    private double debugUpper;
-    private double debugMedian;
+    private String modelFeature;
+    private double modelLower;
+    private double modelUpper;
+    private double modelMedian;
     private double actual;
 
-    public ModelDebugOutput(String jobId) {
+    public ModelPlot(String jobId) {
         this.jobId = jobId;
     }
 
-    public ModelDebugOutput(StreamInput in) throws IOException {
+    public ModelPlot(StreamInput in) throws IOException {
         jobId = in.readString();
         if (in.readBoolean()) {
             timestamp = new Date(in.readLong());
@@ -105,10 +102,10 @@ public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
         overFieldValue = in.readOptionalString();
         byFieldName = in.readOptionalString();
         byFieldValue = in.readOptionalString();
-        debugFeature = in.readOptionalString();
-        debugLower = in.readDouble();
-        debugUpper = in.readDouble();
-        debugMedian = in.readDouble();
+        modelFeature = in.readOptionalString();
+        modelLower = in.readDouble();
+        modelUpper = in.readDouble();
+        modelMedian = in.readDouble();
         actual = in.readDouble();
     }
 
@@ -127,10 +124,10 @@ public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
         out.writeOptionalString(overFieldValue);
         out.writeOptionalString(byFieldName);
         out.writeOptionalString(byFieldValue);
-        out.writeOptionalString(debugFeature);
-        out.writeDouble(debugLower);
-        out.writeDouble(debugUpper);
-        out.writeDouble(debugMedian);
+        out.writeOptionalString(modelFeature);
+        out.writeDouble(modelLower);
+        out.writeDouble(modelUpper);
+        out.writeDouble(modelMedian);
         out.writeDouble(actual);
     }
 
@@ -140,7 +137,8 @@ public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         if (timestamp != null) {
-            builder.dateField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
+            builder.dateField(Result.TIMESTAMP.getPreferredName(), 
+                    Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         }
         if (partitionFieldName != null) {
             builder.field(PARTITION_FIELD_NAME.getPreferredName(), partitionFieldName);
@@ -160,12 +158,12 @@ public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
         if (byFieldValue != null) {
             builder.field(BY_FIELD_VALUE.getPreferredName(), byFieldValue);
         }
-        if (debugFeature != null) {
-            builder.field(DEBUG_FEATURE.getPreferredName(), debugFeature);
+        if (modelFeature != null) {
+            builder.field(MODEL_FEATURE.getPreferredName(), modelFeature);
         }
-        builder.field(DEBUG_LOWER.getPreferredName(), debugLower);
-        builder.field(DEBUG_UPPER.getPreferredName(), debugUpper);
-        builder.field(DEBUG_MEDIAN.getPreferredName(), debugMedian);
+        builder.field(MODEL_LOWER.getPreferredName(), modelLower);
+        builder.field(MODEL_UPPER.getPreferredName(), modelUpper);
+        builder.field(MODEL_MEDIAN.getPreferredName(), modelMedian);
         builder.field(ACTUAL.getPreferredName(), actual);
         builder.endObject();
         return builder;
@@ -239,36 +237,36 @@ public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
         this.byFieldValue = byFieldValue;
     }
 
-    public String getDebugFeature() {
-        return debugFeature;
+    public String getModelFeature() {
+        return modelFeature;
     }
 
-    public void setDebugFeature(String debugFeature) {
-        this.debugFeature = debugFeature;
+    public void setModelFeature(String modelFeature) {
+        this.modelFeature = modelFeature;
     }
 
-    public double getDebugLower() {
-        return debugLower;
+    public double getModelLower() {
+        return modelLower;
     }
 
-    public void setDebugLower(double debugLower) {
-        this.debugLower = debugLower;
+    public void setModelLower(double modelLower) {
+        this.modelLower = modelLower;
     }
 
-    public double getDebugUpper() {
-        return debugUpper;
+    public double getModelUpper() {
+        return modelUpper;
     }
 
-    public void setDebugUpper(double debugUpper) {
-        this.debugUpper = debugUpper;
+    public void setModelUpper(double modelUpper) {
+        this.modelUpper = modelUpper;
     }
 
-    public double getDebugMedian() {
-        return debugMedian;
+    public double getModelMedian() {
+        return modelMedian;
     }
 
-    public void setDebugMedian(double debugMedian) {
-        this.debugMedian = debugMedian;
+    public void setModelMedian(double modelMedian) {
+        this.modelMedian = modelMedian;
     }
 
     public double getActual() {
@@ -284,11 +282,11 @@ public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
         if (this == other) {
             return true;
         }
-        if (other instanceof ModelDebugOutput == false) {
+        if (other instanceof ModelPlot == false) {
             return false;
         }
         // id excluded here as it is generated by the datastore
-        ModelDebugOutput that = (ModelDebugOutput) other;
+        ModelPlot that = (ModelPlot) other;
         return Objects.equals(this.jobId, that.jobId) &&
                 Objects.equals(this.timestamp, that.timestamp) &&
                 Objects.equals(this.partitionFieldValue, that.partitionFieldValue) &&
@@ -297,10 +295,10 @@ public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
                 Objects.equals(this.overFieldName, that.overFieldName) &&
                 Objects.equals(this.byFieldValue, that.byFieldValue) &&
                 Objects.equals(this.byFieldName, that.byFieldName) &&
-                Objects.equals(this.debugFeature, that.debugFeature) &&
-                this.debugLower == that.debugLower &&
-                this.debugUpper == that.debugUpper &&
-                this.debugMedian == that.debugMedian &&
+                Objects.equals(this.modelFeature, that.modelFeature) &&
+                this.modelLower == that.modelLower &&
+                this.modelUpper == that.modelUpper &&
+                this.modelMedian == that.modelMedian &&
                 this.actual == that.actual;
     }
 
@@ -309,6 +307,6 @@ public class ModelDebugOutput extends ToXContentToBytes implements Writeable {
         // id excluded here as it is generated by the datastore
         return Objects.hash(jobId, timestamp, partitionFieldName, partitionFieldValue,
                 overFieldName, overFieldValue, byFieldName, byFieldValue,
-                debugFeature, debugLower, debugUpper, debugMedian, actual);
+                modelFeature, modelLower, modelUpper, modelMedian, actual);
     }
 }

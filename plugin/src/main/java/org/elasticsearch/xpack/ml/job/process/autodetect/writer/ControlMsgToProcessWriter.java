@@ -18,7 +18,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
-import org.elasticsearch.xpack.ml.job.config.ModelDebugConfig;
+import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
 
@@ -149,10 +149,10 @@ public class ControlMsgToProcessWriter {
         writeMessage(message.toString());
     }
 
-    public void writeUpdateModelDebugMessage(ModelDebugConfig modelDebugConfig) throws IOException {
+    public void writeUpdateModelPlotMessage(ModelPlotConfig modelPlotConfig) throws IOException {
         StringWriter configWriter = new StringWriter();
-        configWriter.append(UPDATE_MESSAGE_CODE).append("[modelDebugConfig]\n");
-        new ModelDebugConfigWriter(modelDebugConfig, configWriter).write();
+        configWriter.append(UPDATE_MESSAGE_CODE).append("[modelPlotConfig]\n");
+        new ModelPlotConfigWriter(modelPlotConfig, configWriter).write();
         writeMessage(configWriter.toString());
     }
 

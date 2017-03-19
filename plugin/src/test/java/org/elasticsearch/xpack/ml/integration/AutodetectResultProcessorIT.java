@@ -37,8 +37,8 @@ import org.elasticsearch.xpack.ml.job.results.BucketTests;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinitionTests;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
-import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
-import org.elasticsearch.xpack.ml.job.results.ModelDebugOutputTests;
+import org.elasticsearch.xpack.ml.job.results.ModelPlot;
+import org.elasticsearch.xpack.ml.job.results.ModelPlotTests;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -98,8 +98,8 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         builder.addInfluencers(influencers);
         CategoryDefinition categoryDefinition = createCategoryDefinition();
         builder.addCategoryDefinition(categoryDefinition);
-        ModelDebugOutput modelDebugOutput = createModelDebugOutput();
-        builder.addModelDebugOutput(modelDebugOutput);
+        ModelPlot modelPlot = createmodelPlot();
+        builder.addmodelPlot(modelPlot);
         ModelSizeStats modelSizeStats = createModelSizeStats();
         builder.addModelSizeStats(modelSizeStats);
         ModelSnapshot modelSnapshot = createModelSnapshot();
@@ -129,9 +129,9 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         assertEquals(1, persistedDefinition.count());
         assertEquals(categoryDefinition, persistedDefinition.results().get(0));
 
-        QueryPage<ModelDebugOutput> persistedModelDebugOutput = jobProvider.modelDebugOutput(JOB_ID, 0, 100);
-        assertEquals(1, persistedModelDebugOutput.count());
-        assertEquals(modelDebugOutput, persistedModelDebugOutput.results().get(0));
+        QueryPage<ModelPlot> persistedmodelPlot = jobProvider.modelPlot(JOB_ID, 0, 100);
+        assertEquals(1, persistedmodelPlot.count());
+        assertEquals(modelPlot, persistedmodelPlot.results().get(0));
 
         ModelSizeStats persistedModelSizeStats = getModelSizeStats();
         assertEquals(modelSizeStats, persistedModelSizeStats);
@@ -286,8 +286,8 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         return new CategoryDefinitionTests().createTestInstance(JOB_ID);
     }
 
-    private ModelDebugOutput createModelDebugOutput() {
-        return new ModelDebugOutputTests().createTestInstance(JOB_ID);
+    private ModelPlot createmodelPlot() {
+        return new ModelPlotTests().createTestInstance(JOB_ID);
     }
 
     private ModelSizeStats createModelSizeStats() {
@@ -343,8 +343,8 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
             return this;
         }
 
-        ResultsBuilder addModelDebugOutput(ModelDebugOutput modelDebugOutput) {
-            results.add(new AutodetectResult(null, null, null, null, null, null, modelDebugOutput, null, null));
+        ResultsBuilder addmodelPlot(ModelPlot modelPlot) {
+            results.add(new AutodetectResult(null, null, null, null, null, null, modelPlot, null, null));
             return this;
         }
 

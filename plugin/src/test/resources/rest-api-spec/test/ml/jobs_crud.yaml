@@ -189,7 +189,7 @@
             "data_description" : {
               "field_delimiter":","
             },
-            "model_debug_config": {
+            "model_plot_config": {
               "enabled": true,
               "terms": "foo,bar"
             },
@@ -221,7 +221,7 @@
                                       "rule_conditions": [ { "condition_type": "numerical_actual",
                                                              "condition": {"operator": "gt", "value": "10" } } ] } },
                           {"index": 1, "description": "updated description"}],
-            "model_debug_config": {
+            "model_plot_config": {
               "enabled": false,
               "terms": "foobar"
             },
@@ -239,8 +239,8 @@
           }
   - match: { job_id: "to-update" }
   - match: { description: "Post update description" }
-  - match: { model_debug_config.enabled: false }
-  - match: { model_debug_config.terms: "foobar" }
+  - match: { model_plot_config.enabled: false }
+  - match: { model_plot_config.terms: "foobar" }
   - match: { analysis_limits.model_memory_limit: 20 }
   - match: { analysis_config.categorization_filters: ["cat3.*"] }
   - match: { analysis_config.detectors.0.detector_rules.0.target_field_name: "airline" }

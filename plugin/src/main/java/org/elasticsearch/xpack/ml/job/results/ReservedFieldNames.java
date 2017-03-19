@@ -126,12 +126,12 @@ public final class ReservedFieldNames {
             Influencer.BUCKET_SPAN.getPreferredName(),
             Influencer.SEQUENCE_NUM.getPreferredName(),
 
-            ModelDebugOutput.PARTITION_FIELD_NAME.getPreferredName(), ModelDebugOutput.PARTITION_FIELD_VALUE.getPreferredName(),
-            ModelDebugOutput.OVER_FIELD_NAME.getPreferredName(), ModelDebugOutput.OVER_FIELD_VALUE.getPreferredName(),
-            ModelDebugOutput.BY_FIELD_NAME.getPreferredName(), ModelDebugOutput.BY_FIELD_VALUE.getPreferredName(),
-            ModelDebugOutput.DEBUG_FEATURE.getPreferredName(), ModelDebugOutput.DEBUG_LOWER.getPreferredName(),
-            ModelDebugOutput.DEBUG_UPPER.getPreferredName(), ModelDebugOutput.DEBUG_MEDIAN.getPreferredName(),
-            ModelDebugOutput.ACTUAL.getPreferredName(),
+            ModelPlot.PARTITION_FIELD_NAME.getPreferredName(), ModelPlot.PARTITION_FIELD_VALUE.getPreferredName(),
+            ModelPlot.OVER_FIELD_NAME.getPreferredName(), ModelPlot.OVER_FIELD_VALUE.getPreferredName(),
+            ModelPlot.BY_FIELD_NAME.getPreferredName(), ModelPlot.BY_FIELD_VALUE.getPreferredName(),
+            ModelPlot.MODEL_FEATURE.getPreferredName(), ModelPlot.MODEL_LOWER.getPreferredName(),
+            ModelPlot.MODEL_UPPER.getPreferredName(), ModelPlot.MODEL_MEDIAN.getPreferredName(),
+            ModelPlot.ACTUAL.getPreferredName(),
 
             ModelSizeStats.MODEL_BYTES_FIELD.getPreferredName(),
             ModelSizeStats.TOTAL_BY_FIELD_COUNT_FIELD.getPreferredName(),

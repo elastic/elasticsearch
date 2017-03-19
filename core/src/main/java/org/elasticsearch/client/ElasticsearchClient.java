@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client;
 
-
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;

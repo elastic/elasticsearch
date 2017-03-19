@@ -19,12 +19,13 @@
 
 package org.elasticsearch.cli;
 
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 import joptsimple.NonOptionArgumentSpec;
 import joptsimple.OptionSet;
+
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * A cli tool which is made up of multiple subcommands.

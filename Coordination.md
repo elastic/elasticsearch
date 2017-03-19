@@ -31,7 +31,6 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 21862: JTeam1
 * 21946: Honey Boo Boo Fan Club
 * 21974: Krispy Belgian Cookies
-* 22209: JTeam1
 * 22530: Evil_Engineers
 * 22552: Your Choice
 * 22573: The code less traveled
@@ -52,6 +51,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 23268: Your Choice
 * 23430: Honey Boo Boo Fan Club
 * 23435: The Best Engineers, The Best
+* 23436: JTeam1
 * 23446: JavaGeeks
 * 23570: Random 1
 * 23609: marathon

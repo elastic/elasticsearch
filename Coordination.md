@@ -26,6 +26,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 18543: Oink
 * 20912: Evil_Engineers
 * 21418: marathon
+* 21772: Random 1
 * 21802: JQ
 * 21862: JTeam1
 * 21946: Honey Boo Boo Fan Club
@@ -52,4 +53,5 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 23430: Honey Boo Boo Fan Club
 * 23435: The Best Engineers, The Best
 * 23446: JavaGeeks
+* 23570: Random 1
 * 23609: marathon

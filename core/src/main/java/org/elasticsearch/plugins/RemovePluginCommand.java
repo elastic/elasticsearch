@@ -56,7 +56,18 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         execute(terminal, arg, env);
     }
 
-    // pkg private for testing
+    /**
+    * Execute on the given terminal and environment method, with pluginName derived by the argument options.
+    * When successful it removes a plugin from elasticsearch.
+    *
+    * @param terminal the Terminal to use for input/output
+    * @param pluginName the name of the plugin, given by the options
+    * @param env the environment for the local node, which may be used for the local settings and path
+    *
+    * @throws UserException if plugin name is null
+    * @throws UserException if plugin directory does not exist
+    * @throws UserException if plugin bin directory does not exist
+    */
     void execute(Terminal terminal, String pluginName, Environment env) throws Exception {
         if (pluginName == null) {
             throw new UserException(ExitCodes.USAGE, "plugin name is required");

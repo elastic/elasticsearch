@@ -38,6 +38,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 22640: marathon
 * 22748: Group 1
 * 22768: Evil_Engineers
+* 22792: Hesam
 * 22821: Random 1
 * 22823: Group SmallBit
 * 22840: Group SmallBit

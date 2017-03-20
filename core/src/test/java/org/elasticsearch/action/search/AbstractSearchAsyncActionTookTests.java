@@ -150,7 +150,7 @@ public class AbstractSearchAsyncActionTookTests extends ESTestCase {
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(controlled, expected);
         final long actual = action.buildTookInMillis();
         if (controlled) {
-            // with a fake clock, we can assert the exact took time
+            // with a controlled clock, we can assert the exact took time
             assertThat(actual, equalTo(TimeUnit.NANOSECONDS.toMillis(expected.get())));
         } else {
             // with a real clock, the best we can say is that it took as long as we spun for

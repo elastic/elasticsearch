@@ -1412,7 +1412,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             assert readers.stream().anyMatch(r -> r.getGeneration() == currentCommittingGeneration)
                     : "readers missing committing generation [" + currentCommittingGeneration + "]";
             // set the last committed generation otherwise old files will not be cleaned up
-            lastCommittedTranslogFileGeneration = current.getGeneration();
+            lastCommittedTranslogFileGeneration = currentCommittingGeneration;
             currentCommittingGeneration = NOT_SET_GENERATION;
             trimUnreferencedReaders();
         }

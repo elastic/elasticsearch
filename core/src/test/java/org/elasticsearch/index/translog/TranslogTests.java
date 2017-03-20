@@ -41,6 +41,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -102,6 +103,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
+import static org.elasticsearch.common.util.BigArrays.PAGE_SIZE_IN_BYTES;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -2153,34 +2155,59 @@ public class TranslogTests extends ESTestCase {
         final long generation = translog.currentFileGeneration();
         int seqNo = 0;
 
-        final int operationsBefore = randomIntBetween(1, 256);
-        for (int i = 0; i < operationsBefore; i++) {
-            translog.add(new Translog.NoOp(seqNo++, 0, "test"));
+        final int rollsBefore = randomIntBetween(0, 16);
+        for (int r = 1; r <= rollsBefore; r++) {
+            final int operationsBefore = randomIntBetween(1, 256);
+            for (int i = 0; i < operationsBefore; i++) {
+                translog.add(new Translog.NoOp(seqNo++, 0, "test"));
+            }
+
+            try (Releasable ignored = translog.writeLock.acquire()) {
+                translog.rollGeneration();
+            }
+
+            assertThat(translog.currentFileGeneration(), equalTo(generation + r));
+            for (int i = 0; i <= r; i++) {
+                assertFileIsPresent(translog, generation + r);
+            }
         }
 
+        assertThat(translog.currentFileGeneration(), equalTo(generation + rollsBefore));
         translog.prepareCommit();
-        assertThat(translog.currentFileGeneration(), equalTo(generation + 1));
-        assertFileIsPresent(translog, generation);
-        assertFileIsPresent(translog, generation + 1);
+        assertThat(translog.currentFileGeneration(), equalTo(generation + rollsBefore + 1));
 
-        final int operationsBetween = randomIntBetween(1, 256);
-        for (int i = 0; i < operationsBetween; i++) {
-            translog.add(new Translog.NoOp(seqNo++, 0, "test"));
+        for (int i = 0; i <= rollsBefore + 1; i++) {
+            assertFileIsPresent(translog, generation + i);
         }
 
-        try (ReleasableLock ignored = translog.writeLock.acquire()) {
-            translog.rollGeneration();
+        final int rollsBetween = randomIntBetween(0, 16);
+        for (int r = 1; r <= rollsBetween; r++) {
+            final int operationsBetween = randomIntBetween(1, 256);
+            for (int i = 0; i < operationsBetween; i++) {
+                translog.add(new Translog.NoOp(seqNo++, 0, "test"));
+            }
+
+            try (Releasable ignored = translog.writeLock.acquire()) {
+                translog.rollGeneration();
+            }
+
+            assertThat(
+                    translog.currentFileGeneration(),
+                    equalTo(generation + rollsBefore + 1 + r));
+            for (int i = 0; i <= rollsBefore + 1 + r; i++) {
+                assertFileIsPresent(translog, generation + i);
+            }
         }
-        assertThat(translog.currentFileGeneration(), equalTo(generation + 2));
-        assertFileIsPresent(translog, generation);
-        assertFileIsPresent(translog, generation + 1);
-        assertFileIsPresent(translog, generation + 2);
 
         translog.commit();
 
-        assertFileDeleted(translog, generation);
-        assertFileDeleted(translog, generation + 1);
-        assertFileIsPresent(translog, generation + 2);
+        for (int i = 0; i < rollsBefore; i++) {
+            assertFileDeleted(translog, generation + i);
+        }
+        for (int i = rollsBefore; i <= rollsBefore + 1 + rollsBetween; i++) {
+            assertFileIsPresent(translog, generation + i);
+        }
+
     }
 
 }

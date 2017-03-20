@@ -307,7 +307,7 @@ project.afterEvaluate {
 
 integTestRunner {
   // TODO: fix this rest test to not depend on a hardcoded port!
-  systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*,bulk/10_basic/*,ml/index_layout/Test CRUD on two jobs in shared index,ml/index_layout/Test unrelated index'
+  systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*,bulk/10_basic/*'
 }
 
 integTestCluster {

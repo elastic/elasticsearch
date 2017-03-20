@@ -25,7 +25,6 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 17597: 100
 * 17620: JAH
 * 17853: JQ
-* 18109: Krispy Belgian Cookies
 * 18348: JAH
 * 18543: Oink
 * 19391: FDJ
@@ -36,6 +35,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 21862: JTeam1
 * 21946: Honey Boo Boo Fan Club
 * 21974: Krispy Belgian Cookies
+* 21978: Krispy Belgian Cookies
 * 22530: Evil_Engineers
 * 22552: Your Choice
 * 22573: The code less traveled

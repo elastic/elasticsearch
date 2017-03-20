@@ -33,7 +33,7 @@ public class SamplerAggregatorFactory extends AggregatorFactory<SamplerAggregato
 
     private final int shardSize;
 
-    public SamplerAggregatorFactory(String name, int shardSize, SearchContext context, AggregatorFactory<?> parent,
+    SamplerAggregatorFactory(String name, int shardSize, SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactories, metaData);
         this.shardSize = shardSize;

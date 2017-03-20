@@ -19,8 +19,6 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -29,7 +27,6 @@ import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.Arrays;
 import java.util.Map;
 

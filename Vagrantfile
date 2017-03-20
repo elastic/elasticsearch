@@ -165,8 +165,6 @@ end
 def sles_common(config)
   extra = <<-SHELL
     zypper rr systemsmanagement_puppet puppetlabs-pc1
-    zypper addrepo -t yast2 http://demeter.uni-regensburg.de/SLES12-x64/DVD1/ dvd1 || true
-    zypper --no-gpg-checks --non-interactive refresh
     zypper --non-interactive install git-core
 SHELL
   suse_common config, extra
@@ -266,14 +264,13 @@ def provision(config,
     }
 
     installed gradle || {
-      echo "==> Installing gradle"
-      curl -o /tmp/gradle.zip -L https://services.gradle.org/distributions/gradle-3.3-bin.zip
+      echo "==> Installing Gradle"
+      curl -sS -o /tmp/gradle.zip -L https://services.gradle.org/distributions/gradle-3.3-bin.zip
       unzip /tmp/gradle.zip -d /opt
       rm -rf /tmp/gradle.zip 
       ln -s /opt/gradle-3.3/bin/gradle /usr/bin/gradle
       # make nfs mounted gradle home dir writeable
-      # TODO: also chgrp to vagrant once sles and opensuse have vagrant group...
-      chown vagrant /home/vagrant/.gradle
+      chown vagrant:vagrant /home/vagrant/.gradle
     }
 
 

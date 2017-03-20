@@ -105,6 +105,13 @@ public abstract class SecureSetting<T> extends Setting<T> {
     // TODO: override toXContent
 
     /**
+     * Overrides the diff operation to make this a no-op for secure settings as they shouldn't be returned in a diff
+     */
+    @Override
+    public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+    }
+
+    /**
      * A setting which contains a sensitive string.
      *
      * This may be any sensitive string, e.g. a username, a password, an auth token, etc.

@@ -23,11 +23,12 @@ import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class DeleteStoredSearchTemplateRequestBuilder extends AcknowledgedRequestBuilder<
-            DeleteStoredSearchTemplateRequest,
-            DeleteStoredSearchTemplateResponse,
-            DeleteStoredSearchTemplateRequestBuilder> {
+        DeleteStoredSearchTemplateRequest,
+        DeleteStoredSearchTemplateResponse,
+        DeleteStoredSearchTemplateRequestBuilder> {
 
-    public DeleteStoredSearchTemplateRequestBuilder(ElasticsearchClient client, DeleteStoredSearchTemplateAction action) {
+    public DeleteStoredSearchTemplateRequestBuilder(ElasticsearchClient client,
+            DeleteStoredSearchTemplateAction action) {
         super(client, action, new DeleteStoredSearchTemplateRequest());
     }
 

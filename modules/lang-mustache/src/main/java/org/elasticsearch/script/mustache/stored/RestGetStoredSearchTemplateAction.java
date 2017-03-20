@@ -49,7 +49,8 @@ public class RestGetStoredSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client)
+            throws IOException {
         String id = request.param("id");
 
         GetStoredSearchTemplateRequest getRequest = new GetStoredSearchTemplateRequest(id);
@@ -57,23 +58,28 @@ public class RestGetStoredSearchTemplateAction extends BaseRestHandler {
         return channel -> client.execute(GetStoredSearchTemplateAction.INSTANCE, getRequest,
                 new RestBuilderListener<GetStoredSearchTemplateResponse>(channel) {
                     @Override
-                    public RestResponse buildResponse(GetStoredSearchTemplateResponse response, XContentBuilder builder) throws Exception {
+                    public RestResponse buildResponse(GetStoredSearchTemplateResponse response,
+                            XContentBuilder builder) throws Exception {
                         builder.startObject();
-                        builder.field(_ID_PARSE_FIELD.getPreferredName(), id);
+                        builder.field("_id", id);
 
-                        builder.field(StoredScriptSource.LANG_PARSE_FIELD.getPreferredName(), Script.DEFAULT_TEMPLATE_LANG);
+                        builder.field(StoredScriptSource.LANG_PARSE_FIELD.getPreferredName(),
+                                Script.DEFAULT_TEMPLATE_LANG);
 
                         StoredScriptSource source = response.getSource();
                         boolean found = source != null;
-                        builder.field(FOUND_PARSE_FIELD.getPreferredName(), found);
+                        builder.field("found", found);
 
                         if (found) {
-                            builder.field(StoredScriptSource.TEMPLATE_PARSE_FIELD.getPreferredName(), source.getCode());
+                            builder.field(
+                                    StoredScriptSource.TEMPLATE_PARSE_FIELD.getPreferredName(),
+                                    source.getCode());
                         }
 
                         builder.endObject();
 
-                        return new BytesRestResponse(found ? RestStatus.OK : RestStatus.NOT_FOUND, builder);
+                        return new BytesRestResponse(found ? RestStatus.OK : RestStatus.NOT_FOUND,
+                                builder);
                     }
                 });
     }

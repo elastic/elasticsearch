@@ -23,11 +23,12 @@ import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBui
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class GetStoredSearchTemplateRequestBuilder extends MasterNodeReadOperationRequestBuilder<
-            GetStoredSearchTemplateRequest,
-            GetStoredSearchTemplateResponse,
-            GetStoredSearchTemplateRequestBuilder> {
+        GetStoredSearchTemplateRequest,
+        GetStoredSearchTemplateResponse,
+        GetStoredSearchTemplateRequestBuilder> {
 
-    public GetStoredSearchTemplateRequestBuilder(ElasticsearchClient client, GetStoredSearchTemplateAction action) {
+    public GetStoredSearchTemplateRequestBuilder(ElasticsearchClient client,
+            GetStoredSearchTemplateAction action) {
         super(client, action, new GetStoredSearchTemplateRequest());
     }
 

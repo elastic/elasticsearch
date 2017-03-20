@@ -82,14 +82,16 @@ public class TemplateServiceTests extends ESTestCase {
         scriptContextRegistry = new ScriptContextRegistry(contexts.values());
         backend = mock(TemplateService.Backend.class);
         when(backend.getType()).thenReturn("test_template_backend");
-        scriptSettings = new ScriptSettings(new ScriptEngineRegistry(emptyList()), backend, scriptContextRegistry);
-        scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
+        scriptSettings = new ScriptSettings(new ScriptEngineRegistry(emptyList()), backend,
+                scriptContextRegistry);
+        scriptContexts = scriptContextRegistry.scriptContexts()
+                .toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
         logger.info("--> setup script service");
         scriptsFilePath = genericConfigFolder.resolve("scripts");
         Files.createDirectories(scriptsFilePath);
         Environment environment = new Environment(settings);
-        templateService = new TemplateService(settings, environment, resourceWatcherService, backend, scriptContextRegistry,
-                scriptSettings, new ScriptMetrics());
+        templateService = new TemplateService(settings, environment, resourceWatcherService,
+                backend, scriptContextRegistry, scriptSettings, new ScriptMetrics());
     }
 
     public void testFoo() {

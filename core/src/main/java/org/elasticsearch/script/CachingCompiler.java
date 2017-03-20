@@ -55,7 +55,8 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * Manages caching, resource watching, permissions checking, and compilation of scripts (or templates).
+ * Manages caching, resource watching, permissions checking, and compilation of scripts (or
+ * templates).
  */
 public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener {
     private static final Logger logger = ESLoggerFactory.getLogger(CachingCompiler.class);
@@ -63,7 +64,8 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
     /**
      * Compiled file scripts (or templates). Modified by the file watching process.
      */
-    private final ConcurrentMap<CacheKeyT, CompiledScript> fileScripts = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<CacheKeyT, CompiledScript> fileScripts = ConcurrentCollections
+            .newConcurrentMap();
 
     /**
      * Cache of compiled dynamic scripts (or templates).
@@ -77,7 +79,8 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
     private volatile ClusterState clusterState;
 
     public CachingCompiler(Settings settings, ScriptSettings scriptSettings, Environment env,
-            ResourceWatcherService resourceWatcherService, ScriptMetrics scriptMetrics) throws IOException {
+            ResourceWatcherService resourceWatcherService, ScriptMetrics scriptMetrics)
+            throws IOException {
         int cacheMaxSize = ScriptService.SCRIPT_CACHE_SIZE_SETTING.get(settings);
         this.scriptMetrics = scriptMetrics;
 
@@ -91,9 +94,10 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
             cacheBuilder.setExpireAfterAccess(cacheExpire);
         }
 
-        logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
+        logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize,
+                cacheExpire);
         this.cache = cacheBuilder.removalListener(new CacheRemovalListener()).build();
-        
+
         // add file watcher for file scripts
         scriptsDirectory = env.scriptsFile();
         if (logger.isTraceEnabled()) {
@@ -111,30 +115,42 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
     }
 
     /**
-     * Build the cache key for a file name and its extension. Return null to indicate that the file type is not supported.
+     * Build the cache key for a file name and its extension. Return null to indicate that the file
+     * type is not supported.
      */
     protected abstract CacheKeyT cacheKeyForFile(String baseName, String extension);
     protected abstract CacheKeyT cacheKeyFromClusterState(StoredScriptSource scriptMetadata);
-    protected abstract StoredScriptSource lookupStoredScript(ClusterState clusterState, CacheKeyT cacheKey);
+
+    protected abstract StoredScriptSource lookupStoredScript(ClusterState clusterState,
+            CacheKeyT cacheKey);
+
     /**
-     * Are any script contexts enabled for the given {@code cacheKey} and {@code scriptType}? Used to reject compilation if all script
-     * contexts are disabled and produce a nice error message earlier rather than later.
-     */ // NOCOMMIT make sure we have tests for cases where we use this (known cases are files and cluster state)
-    protected abstract boolean areAnyScriptContextsEnabled(CacheKeyT cacheKey, ScriptType scriptType);
+     * Are any script contexts enabled for the given {@code cacheKey} and {@code scriptType}? Used
+     * to reject compilation if all script contexts are disabled and produce a nice error message
+     * earlier rather than later.
+     */ // NOCOMMIT make sure we have tests for cases where we use this (files, cluster state, ?)
+    protected abstract boolean areAnyScriptContextsEnabled(CacheKeyT cacheKey,
+            ScriptType scriptType);
+
     /**
      * Check if a script can be executed.
      */
-    protected abstract void checkCanExecuteScript(CacheKeyT cacheKey, ScriptType scriptType, ScriptContext scriptContext);
+    protected abstract void checkCanExecuteScript(CacheKeyT cacheKey, ScriptType scriptType,
+            ScriptContext scriptContext);
+
     /**
      * Check if too many scripts (or templates) have been compiled recently.
      */
     protected abstract void checkCompilationLimit();
+
     // NOCOMMIT document
     protected abstract CompiledScript compile(ScriptType scriptType, CacheKeyT cacheKey);
     protected abstract CompiledScript compileFileScript(CacheKeyT cacheKey, String body, Path file);
 
-    public final CompiledScript getScript(CacheKeyT cacheKey, ScriptType scriptType, ScriptContext scriptContext) {
-        ESLoggerFactory.getLogger(QueryRewriteContext.class).warn("ASDFASDF get {} {}", cacheKey, scriptType);
+    public final CompiledScript getScript(CacheKeyT cacheKey, ScriptType scriptType,
+            ScriptContext scriptContext) {
+        ESLoggerFactory.getLogger(QueryRewriteContext.class).warn("ASDFASDF get {} {}", cacheKey,
+                scriptType);
         Objects.requireNonNull(cacheKey);
 
         // First resolve stored scripts so so we have accurate parameters for checkCanExecuteScript
@@ -151,7 +167,8 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
             if (compiled == null) {
                 throw new IllegalArgumentException("unable to find file script " + cacheKey);
             }
-            ESLoggerFactory.getLogger(QueryRewriteContext.class).warn("ASDFASDF got file {}", compiled);
+            ESLoggerFactory.getLogger(QueryRewriteContext.class).warn("ASDFASDF got file {}",
+                    compiled);
             return compiled;
         }
 
@@ -161,7 +178,8 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
             return compiledScript;
         }
 
-        // Synchronize so we don't compile scripts many times during multiple shards all compiling a script
+        /* Synchronize so we don't compile scripts many times during multiple shards all compiling
+         * a script */
         synchronized (this) {
             // Double check in case it was compiled while we were waiting for the monitor
             compiledScript = cache.get(cacheKey);
@@ -177,7 +195,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
                 checkCompilationLimit();
                 compiledScript = compile(scriptType, cacheKey);
             } catch (ScriptException good) {
-                // TODO: remove this try-catch completely, when all script engines have good exceptions!
+                // TODO: remove this try-catch when all script engines have good exceptions!
                 throw good; // its already good
             } catch (Exception exception) {
                 throw new GeneralScriptException("Failed to compile " + cacheKey, exception);
@@ -192,7 +210,8 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
         StoredScriptSource source = lookupStoredScript(clusterState, cacheKey);
 
         if (source == null) {
-            throw new ResourceNotFoundException("unable to find script [" + cacheKey + "] in cluster state");
+            throw new ResourceNotFoundException(
+                    "unable to find script [" + cacheKey + "] in cluster state");
         }
         return cacheKeyFromClusterState(source);
     }
@@ -231,7 +250,8 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
         @Override
         public void onRemoval(RemovalNotification<CacheKeyT, CompiledScript> notification) {
             if (logger.isDebugEnabled()) {
-                logger.debug("removed {} from cache, reason: {}", notification.getValue(), notification.getRemovalReason());
+                logger.debug("removed {} from cache, reason: {}", notification.getValue(),
+                        notification.getRemovalReason());
             }
             scriptMetrics.onCacheEviction();
         }
@@ -250,7 +270,8 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
                 return null;
             }
 
-            String scriptName = scriptPath.toString().substring(0, extIndex).replace(scriptPath.getFileSystem().getSeparator(), "_");
+            String scriptName = scriptPath.toString().substring(0, extIndex)
+                    .replace(scriptPath.getFileSystem().getSeparator(), "_");
             return new Tuple<>(scriptName, ext);
         }
 
@@ -271,39 +292,45 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
                 return;
             }
             try {
-                /* we don't know yet what the script will be used for, but if all of the operations for this lang with file scripts are 
-                 * disabled, it makes no sense to even compile it and cache it. */
+                /* we don't know yet what the script will be used for, but if all of the operations
+                 * for this lang with file scripts are disabled, it makes no sense to even compile
+                 * it and cache it. */
                 if (areAnyScriptContextsEnabled(cacheKey, ScriptType.FILE)) {
                     logger.info("compiling script file [{}]", file.toAbsolutePath());
-                    try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8)) {
+                    try (InputStreamReader reader = new InputStreamReader(
+                            Files.newInputStream(file), StandardCharsets.UTF_8)) {
                         String body = Streams.copyToString(reader);
                         fileScripts.put(cacheKey, compileFileScript(cacheKey, body, file));
                         scriptMetrics.onCompilation();
                     }
                 } else {
-                    logger.warn("skipping compile of script file [{}] as all scripted operations are disabled for file scripts",
-                            
-                            file.toAbsolutePath());
+                    logger.warn("skipping compile of script file [{}] as all scripted operations "
+                            + "are disabled for file scripts", file.toAbsolutePath());
                 }
             } catch (ScriptException e) {
-                /* Attempt to extract a concise error message using the xcontent generation mechanisms and log that. */
+                /* Attempt to extract a concise error message using the xcontent generation
+                 * mechanisms and log that. */
                 try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                     builder.prettyPrint();
                     builder.startObject();
-                    ElasticsearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, e);
+                    ElasticsearchException.generateThrowableXContent(builder,
+                            ToXContent.EMPTY_PARAMS, e);
                     builder.endObject();
-                    logger.warn("failed to load/compile script [{}]: {}", scriptNameExt.v1(), builder.string());
+                    logger.warn("failed to load/compile script [{}]: {}", scriptNameExt.v1(),
+                            builder.string());
                 } catch (IOException ioe) {
                     ioe.addSuppressed(e);
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to log an appropriate warning after failing to load/compile script [{}]", scriptNameExt.v1()), ioe);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to log an "
+                            + "appropriate warning after failing to load/compile script [{}]",
+                            scriptNameExt.v1()), ioe);
                 }
-                /* Log at the whole exception at the debug level as well just in case the stack trace is important. That way you can
-                 * turn on the stack trace if you need it. */
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to load/compile script [{}]. full exception:",
-                        scriptNameExt.v1()), e);
+                /* Log at the whole exception at the debug level as well just in case the stack
+                 * trace is important. That way you can turn on the stack trace if you need it. */
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to load/compile "
+                        + "script [{}]. full exception:", scriptNameExt.v1()), e);
             } catch (Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to load/compile script [{}]", scriptNameExt.v1()), e);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to load/compile "
+                        + "script [{}]", scriptNameExt.v1()), e);
             }
         }
 

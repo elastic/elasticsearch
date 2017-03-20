@@ -41,11 +41,14 @@ public class RestPutStoredSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
+            throws IOException {
         String id = request.param("id");
         BytesReference content = request.content();
 
-        PutStoredSearchTemplateRequest put = new PutStoredSearchTemplateRequest(id, content, request.getXContentType());
-        return channel -> client.execute(PutStoredSearchTemplateAction.INSTANCE, put, new AcknowledgedRestListener<>(channel));
+        PutStoredSearchTemplateRequest put = new PutStoredSearchTemplateRequest(id, content,
+                request.getXContentType());
+        return channel -> client.execute(PutStoredSearchTemplateAction.INSTANCE, put,
+                new AcknowledgedRestListener<>(channel));
     }
 }

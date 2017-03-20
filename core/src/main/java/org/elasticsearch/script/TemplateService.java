@@ -46,18 +46,21 @@ public class TemplateService implements ClusterStateListener {
     private final ScriptPermits scriptPermits;
     private final CachingCompiler<String> compiler;
 
-    public TemplateService(Settings settings, Environment env, ResourceWatcherService resourceWatcherService,
-            Backend backend, ScriptContextRegistry scriptContextRegistry, ScriptSettings scriptSettings,
+    public TemplateService(Settings settings, Environment env,
+            ResourceWatcherService resourceWatcherService, Backend backend,
+            ScriptContextRegistry scriptContextRegistry, ScriptSettings scriptSettings,
             ScriptMetrics scriptMetrics) throws IOException {
         Objects.requireNonNull(scriptContextRegistry);
 
         this.backend = backend;
         this.scriptPermits = new ScriptPermits(settings, scriptSettings, scriptContextRegistry);
-        this.compiler = new CachingCompiler<String>(settings, scriptSettings, env, resourceWatcherService, scriptMetrics) {
+        this.compiler = new CachingCompiler<String>(settings, scriptSettings, env,
+                resourceWatcherService, scriptMetrics) {
             @Override
             protected String cacheKeyForFile(String baseName, String extension) {
                 if (false == backend.getType().equals(extension)) {
-                    // For backwards compatibility templates are in the scripts directory and we must ignore all other templates
+                    /* For backwards compatibility templates are in the scripts directory and we
+                     * must ignore all other templates. */
                     return null;
                 }
                 return baseName;
@@ -69,12 +72,13 @@ public class TemplateService implements ClusterStateListener {
             }
 
             @Override
-            protected StoredScriptSource lookupStoredScript(ClusterState clusterState, String cacheKey) {
+            protected StoredScriptSource lookupStoredScript(ClusterState clusterState,
+                    String cacheKey) {
                 ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
                 if (scriptMetadata == null) {
                     return null;
                 }
-                
+
                 String id = cacheKey;
                 // search template requests can possibly pass in the entire path instead
                 // of just an id for looking up a stored script, so we parse the path and
@@ -84,11 +88,15 @@ public class TemplateService implements ClusterStateListener {
                 if (path.length == 3) {
                     id = path[2];
 
-                    deprecationLogger.deprecated("use of </lang/id> [" + cacheKey + "] for looking up" +
-                        " stored scripts/templates has been deprecated, use only <id> [" + id + "] instead");
-                } else if (path.length != 1) {
-                    throw new IllegalArgumentException("illegal stored script format [" + id + "] use only <id>");
-                }
+                    deprecationLogger
+                            .deprecated("use of </lang/id> [" + cacheKey + "] for looking up"
+                                    + " stored scripts/templates has been deprecated, use only"
+                                    + " <id> [" + id + "] instead");
+                } else
+                    if (path.length != 1) {
+                        throw new IllegalArgumentException(
+                                "illegal stored script format [" + id + "] use only <id>");
+                    }
 
                 return scriptMetadata.getStoredScript(id, "mustache");
             }
@@ -96,7 +104,8 @@ public class TemplateService implements ClusterStateListener {
             @Override
             protected boolean areAnyScriptContextsEnabled(String cacheKey, ScriptType scriptType) {
                 for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
-                    if (scriptPermits.canExecuteScript(backend.getType(), scriptType, scriptContext)) {
+                    if (scriptPermits.canExecuteScript(backend.getType(), scriptType,
+                            scriptContext)) {
                         return true;
                     }
                 }
@@ -104,10 +113,13 @@ public class TemplateService implements ClusterStateListener {
             }
 
             @Override
-            protected void checkCanExecuteScript(String cacheKey, ScriptType scriptType, ScriptContext scriptContext) {
-                if (scriptPermits.canExecuteScript(backend.getType(), scriptType, scriptContext) == false) {
-                    throw new IllegalStateException("scripts of type [" + scriptType + "]," +
-                            " operation [" + scriptContext.getKey() + "] and lang [" + backend.getType() + "] are disabled");
+            protected void checkCanExecuteScript(String cacheKey, ScriptType scriptType,
+                    ScriptContext scriptContext) {
+                if (scriptPermits.canExecuteScript(backend.getType(), scriptType,
+                        scriptContext) == false) {
+                    throw new IllegalStateException("scripts of type [" + scriptType + "],"
+                            + " operation [" + scriptContext.getKey() + "] and lang ["
+                            + backend.getType() + "] are disabled");
                 }
             }
 
@@ -124,16 +136,20 @@ public class TemplateService implements ClusterStateListener {
 
             @Override
             protected CompiledScript compileFileScript(String cacheKey, String body, Path file) {
-                Object compiled = backend.compile(file.getFileName().toString(), cacheKey, emptyMap());
+                Object compiled = backend.compile(file.getFileName().toString(), cacheKey,
+                        emptyMap());
                 return new CompiledScript(ScriptType.FILE, body, backend.getType(), compiled);
             }
         };
     }
 
-    public BytesReference render(String idOrCode, ScriptType scriptType, ScriptContext scriptContext,
-            Map<String, Object> scriptParams) {
-        BytesReference b = (BytesReference) backend.executable(compiler.getScript(idOrCode, scriptType, scriptContext), scriptParams).run();
-        ESLoggerFactory.getLogger(TemplateService.class).warn("ASDFASDF rendered [{}]", b.utf8ToString());
+    public BytesReference render(String idOrCode, ScriptType scriptType,
+            ScriptContext scriptContext, Map<String, Object> scriptParams) {
+        BytesReference b = (BytesReference) backend
+                .executable(compiler.getScript(idOrCode, scriptType, scriptContext), scriptParams)
+                .run();
+        ESLoggerFactory.getLogger(TemplateService.class).warn("ASDFASDF rendered [{}]",
+                b.utf8ToString());
         return b;
     }
 

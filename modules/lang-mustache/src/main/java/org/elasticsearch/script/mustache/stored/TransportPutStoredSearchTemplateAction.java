@@ -39,18 +39,20 @@ import org.elasticsearch.script.TemplateService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportPutStoredSearchTemplateAction
-        extends TransportMasterNodeAction<PutStoredSearchTemplateRequest, PutStoredSearchTemplateResponse> {
+public class TransportPutStoredSearchTemplateAction extends TransportMasterNodeAction<
+        PutStoredSearchTemplateRequest, PutStoredSearchTemplateResponse> {
 
     private final TemplateService templateService;
     private final int maxScriptSizeInBytes;
 
     @Inject
-    public TransportPutStoredSearchTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                          ThreadPool threadPool, ActionFilters actionFilters,
-                                          IndexNameExpressionResolver indexNameExpressionResolver, TemplateService templateService) {
-        super(settings, PutStoredSearchTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PutStoredSearchTemplateRequest::new);
+    public TransportPutStoredSearchTemplateAction(Settings settings,
+            TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+            TemplateService templateService) {
+        super(settings, PutStoredSearchTemplateAction.NAME, transportService, clusterService,
+                threadPool, actionFilters, indexNameExpressionResolver,
+                PutStoredSearchTemplateRequest::new);
         this.templateService = templateService;
         maxScriptSizeInBytes = ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.get(settings);
     }
@@ -67,43 +69,48 @@ public class TransportPutStoredSearchTemplateAction
 
     @Override
     protected void masterOperation(PutStoredSearchTemplateRequest request, ClusterState state,
-                                   ActionListener<PutStoredSearchTemplateResponse> listener) throws Exception {
+            ActionListener<PutStoredSearchTemplateResponse> listener) throws Exception {
         if (request.content().length() > maxScriptSizeInBytes) {
-            throw new IllegalArgumentException("exceeded max allowed stored script size in bytes [" + maxScriptSizeInBytes
-                    + "] with size [" + request.content().length() + "] for script [" + request.id() + "]");
+            throw new IllegalArgumentException("exceeded max allowed stored script size in bytes ["
+                    + maxScriptSizeInBytes + "] with size [" + request.content().length()
+                    + "] for script [" + request.id() + "]");
         }
 
-        StoredScriptSource source = StoredScriptSource.parse(templateService.getTemplateLanguage(), request.content(),
-                request.xContentType());
+        StoredScriptSource source = StoredScriptSource.parse(templateService.getTemplateLanguage(),
+                request.content(), request.xContentType());
         try {
             templateService.checkCompileBeforeStore(source);
         } catch (IllegalArgumentException | ScriptException e) {
-            throw new IllegalArgumentException("failed to parse/compile stored search template [" + request.id() + "]" +
-                    (source.getCode() == null ? "" : " using code [" + source.getCode() + "]"), e);
+            throw new IllegalArgumentException("failed to parse/compile stored search template ["
+                    + request.id() + "]"
+                    + (source.getCode() == null ? "" : " using code [" + source.getCode() + "]"),
+                    e);
         }
 
         clusterService.submitStateUpdateTask("put-search-template-" + request.id(),
-                new AckedClusterStateUpdateTask<PutStoredSearchTemplateResponse>(request, listener) {
+                new AckedClusterStateUpdateTask<PutStoredSearchTemplateResponse>(request,
+                        listener) {
 
-                @Override
-                protected PutStoredSearchTemplateResponse newResponse(boolean acknowledged) {
-                    return new PutStoredSearchTemplateResponse(acknowledged);
-                }
+                    @Override
+                    protected PutStoredSearchTemplateResponse newResponse(boolean acknowledged) {
+                        return new PutStoredSearchTemplateResponse(acknowledged);
+                    }
 
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    ScriptMetaData smd = currentState.metaData().custom(ScriptMetaData.TYPE);
-                    smd = ScriptMetaData.putStoredScript(smd, request.id(), source);
-                    MetaData.Builder mdb = MetaData.builder(currentState.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        ScriptMetaData smd = currentState.metaData().custom(ScriptMetaData.TYPE);
+                        smd = ScriptMetaData.putStoredScript(smd, request.id(), source);
+                        MetaData.Builder mdb = MetaData.builder(currentState.getMetaData())
+                                .putCustom(ScriptMetaData.TYPE, smd);
 
-                    return ClusterState.builder(currentState).metaData(mdb).build();
-                }
-            });
+                        return ClusterState.builder(currentState).metaData(mdb).build();
+                    }
+                });
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutStoredSearchTemplateRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutStoredSearchTemplateRequest request,
+            ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
-
 }

@@ -29,7 +29,8 @@ public class PutStoredSearchTemplateRequestBuilder extends AcknowledgedRequestBu
             PutStoredSearchTemplateResponse,
             PutStoredSearchTemplateRequestBuilder> {
 
-    public PutStoredSearchTemplateRequestBuilder(ElasticsearchClient client, PutStoredSearchTemplateAction action) {
+    public PutStoredSearchTemplateRequestBuilder(ElasticsearchClient client,
+            PutStoredSearchTemplateAction action) {
         super(client, action, new PutStoredSearchTemplateRequest());
     }
 
@@ -38,7 +39,8 @@ public class PutStoredSearchTemplateRequestBuilder extends AcknowledgedRequestBu
         return this;
     }
 
-    public PutStoredSearchTemplateRequestBuilder setContent(BytesReference content, XContentType xContentType) {
+    public PutStoredSearchTemplateRequestBuilder setContent(BytesReference content,
+            XContentType xContentType) {
         request.content(content, xContentType);
         return this;
     }

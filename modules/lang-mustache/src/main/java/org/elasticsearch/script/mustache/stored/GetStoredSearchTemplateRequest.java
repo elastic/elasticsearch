@@ -28,7 +28,9 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetStoredSearchTemplateRequest extends MasterNodeReadRequest<GetStoredSearchTemplateRequest> {
+public class GetStoredSearchTemplateRequest extends MasterNodeReadRequest<
+        GetStoredSearchTemplateRequest> {
+
     protected String id;
 
     GetStoredSearchTemplateRequest() {

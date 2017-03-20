@@ -28,7 +28,9 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class DeleteStoredSearchTemplateRequest extends AcknowledgedRequest<DeleteStoredSearchTemplateRequest> {
+public class DeleteStoredSearchTemplateRequest extends AcknowledgedRequest<
+        DeleteStoredSearchTemplateRequest> {
+
     private String id;
 
     DeleteStoredSearchTemplateRequest() {

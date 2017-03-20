@@ -32,7 +32,8 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class PutStoredSearchTemplateRequest extends AcknowledgedRequest<PutStoredSearchTemplateRequest> {
+public class PutStoredSearchTemplateRequest extends AcknowledgedRequest<
+        PutStoredSearchTemplateRequest> {
     private String id;
     private BytesReference content;
     private XContentType xContentType;
@@ -40,7 +41,8 @@ public class PutStoredSearchTemplateRequest extends AcknowledgedRequest<PutStore
     public PutStoredSearchTemplateRequest() {
     }
 
-    public PutStoredSearchTemplateRequest(String id, BytesReference content, XContentType xContentType) {
+    public PutStoredSearchTemplateRequest(String id, BytesReference content,
+            XContentType xContentType) {
         this.id = id;
         this.content = content;
         this.xContentType = Objects.requireNonNull(xContentType);
@@ -51,7 +53,8 @@ public class PutStoredSearchTemplateRequest extends AcknowledgedRequest<PutStore
         return this;
     }
 
-    public PutStoredSearchTemplateRequest content(BytesReference content, XContentType xContentType) {
+    public PutStoredSearchTemplateRequest content(BytesReference content,
+            XContentType xContentType) {
         this.content = content;
         this.xContentType = xContentType;
         return this;
@@ -62,13 +65,17 @@ public class PutStoredSearchTemplateRequest extends AcknowledgedRequest<PutStore
         ActionRequestValidationException validationException = null;
 
         if (id == null || id.isEmpty()) {
-            validationException = addValidationError("must specify id for stored search template", validationException);
-        } else if (id.contains("#")) {
-            validationException = addValidationError("id cannot contain '#' for stored search template", validationException);
-        }
+            validationException = addValidationError("must specify id for stored search template",
+                    validationException);
+        } else
+            if (id.contains("#")) {
+                validationException = addValidationError(
+                        "id cannot contain '#' for stored search template", validationException);
+            }
 
         if (content == null) {
-            validationException = addValidationError("must specify code for stored search template", validationException);
+            validationException = addValidationError("must specify code for stored search template",
+                    validationException);
         }
 
         return validationException;

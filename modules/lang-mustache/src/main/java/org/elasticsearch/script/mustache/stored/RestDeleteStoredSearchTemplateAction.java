@@ -38,10 +38,12 @@ public class RestDeleteStoredSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
+            throws IOException {
         String id = request.param("id");
 
         DeleteStoredSearchTemplateRequest deleteRequest = new DeleteStoredSearchTemplateRequest(id);
-        return channel -> client.execute(DeleteStoredSearchTemplateAction.INSTANCE, deleteRequest, new AcknowledgedRestListener<>(channel));
+        return channel -> client.execute(DeleteStoredSearchTemplateAction.INSTANCE, deleteRequest,
+                new AcknowledgedRestListener<>(channel));
     }
 }

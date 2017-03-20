@@ -22,10 +22,13 @@ package org.elasticsearch.script.mustache.stored;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class GetStoredSearchTemplateAction extends Action<GetStoredSearchTemplateRequest, GetStoredSearchTemplateResponse,
+public class GetStoredSearchTemplateAction extends Action<
+        GetStoredSearchTemplateRequest,
+        GetStoredSearchTemplateResponse,
         GetStoredSearchTemplateRequestBuilder> {
 
-    public static final GetStoredSearchTemplateAction INSTANCE = new GetStoredSearchTemplateAction();
+    public static final GetStoredSearchTemplateAction INSTANCE =
+            new GetStoredSearchTemplateAction();
     public static final String NAME = "cluster:admin/search/template/get";
 
     private GetStoredSearchTemplateAction() {

@@ -1,7 +1,7 @@
 [[indices-aliases]]
 == Index Aliases
 
-APIs in elasticsearch accept an index name when working against a
+APIs in Elasticsearch accept an index name when working against a
 specific index, and several indices when applicable. The index aliases
 API allow to alias an index with a name, with all APIs automatically
 converting the alias name to the actual index name. An alias can also be
@@ -71,7 +71,7 @@ POST /_aliases
 // CONSOLE
 // TEST[s/^/PUT test1\nPUT test2\n/]
 
-Multiple indices can be specified for an action with the `indices` array syntax:
+Multiple indices for an action can be specified with the `indices` array syntax:
 
 [source,js]
 --------------------------------------------------
@@ -374,7 +374,7 @@ DELETE /logs_20162801/_alias/current_day
 [[alias-retrieving]]
 === Retrieving existing aliases
 
-The get index alias api allows to filter by
+The get index alias API allows to filter by
 alias name and index name. This api redirects to the master and fetches
 the requested index aliases, if available. This api only serialises the
 found index aliases.

@@ -38,29 +38,21 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
     }
 
     public void testCountsEquals_GivenEqualCounts() {
-        DataCounts counts1 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
-        DataCounts counts2 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
+        DataCounts counts1 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+        DataCounts counts2 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
 
         assertTrue(counts1.equals(counts2));
         assertTrue(counts2.equals(counts1));
     }
 
     public void testCountsHashCode_GivenEqualCounts() {
-        DataCounts counts1 = new DataCounts("foo", 1, 2, 3,
-                4, 5, 6, 7,
-                8, 9, 10,
-                new Date(11), new Date(12),
-                new Date(13), new Date(14), new Date(15));
-        DataCounts counts2 = new DataCounts("foo", 1, 2, 3,
-                4, 5, 6, 7,
-                8, 9, 10,
-                new Date(11), new Date(12),
-                new Date(13), new Date(14), new Date(15));
+        DataCounts counts1 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+        DataCounts counts2 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
         assertEquals(counts1.hashCode(), counts2.hashCode());
     }
 
     public void testCountsCopyConstructor() {
-        DataCounts counts1 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
+        DataCounts counts1 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
         DataCounts counts2 = new DataCounts(counts1);
 
         assertEquals(counts1.hashCode(), counts2.hashCode());
@@ -72,7 +64,7 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
     }
 
     public void testCountCopyCreatedFieldsNotZero() throws Exception {
-        DataCounts counts1 = createCounts(1, 200, 400, 3, 4, 5, 6, 7, 8, 9, 1479211200000L, 1479384000000L);
+        DataCounts counts1 = createCounts(1, 200, 400, 3, 4, 5, 6, 7, 8, 9, 1479211200000L, 1479384000000L, 13, 14, 15);
         assertAllFieldsGreaterThanZero(counts1);
 
         DataCounts counts2 = new DataCounts(counts1);
@@ -170,13 +162,14 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
             long processedRecordCount, long processedFieldCount, long inputBytes, long inputFieldCount,
             long invalidDateCount, long missingFieldCount, long outOfOrderTimeStampCount, 
             long emptyBucketCount, long sparseBucketCount, long bucketCount,
-            long earliestRecordTime, long latestRecordTime) {
+            long earliestRecordTime, long latestRecordTime, long lastDataTimeStamp, long latestEmptyBucketTimeStamp,
+            long latestSparseBucketTimeStamp) {
 
         DataCounts counts = new DataCounts("foo", processedRecordCount, processedFieldCount, inputBytes,
                 inputFieldCount, invalidDateCount, missingFieldCount, outOfOrderTimeStampCount,
                 emptyBucketCount, sparseBucketCount, bucketCount,
                 new Date(earliestRecordTime), new Date(latestRecordTime),
-                new Date(), new Date(), new Date());
+                new Date(lastDataTimeStamp), new Date(latestEmptyBucketTimeStamp), new Date(latestSparseBucketTimeStamp));
 
         return counts;
     }

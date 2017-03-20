@@ -58,17 +58,16 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
     }
 
     /**
-    * Remove the plugin specified by {@code pluginName}.
-    *
-    * @param terminal       the terminal to use for input/output
-    * @param pluginName     the name of the plugin to remove
-    * @param env            the environment for the local node
-    *
-    * @throws IOException   if any I/O exception occurs while performing a file operation
-    * @throws UserException if plugin name is null
-    * @throws UserException if plugin directory does not exist
-    * @throws UserException if the plugin bin directory is not a directory
-    */
+     * Remove the plugin specified by {@code pluginName}.
+     *
+     * @param terminal   the terminal to use for input/output
+     * @param pluginName the name of the plugin to remove
+     * @param env        the environment for the local node
+     * @throws IOException   if any I/O exception occurs while performing a file operation
+     * @throws UserException if plugin name is null
+     * @throws UserException if plugin directory does not exist
+     * @throws UserException if the plugin bin directory is not a directory
+     */
     void execute(Terminal terminal, String pluginName, Environment env) throws IOException, UserException {
         if (pluginName == null) {
             throw new UserException(ExitCodes.USAGE, "plugin name is required");

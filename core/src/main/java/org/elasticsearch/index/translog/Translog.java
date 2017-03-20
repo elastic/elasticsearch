@@ -1364,7 +1364,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @throws IOException if an I/O exception occurred during any file operations
      */
     void rollGeneration() throws IOException {
-        assert writeLock.isHeldByCurrentThread();
+        assert writeLock.isHeldByCurrentThread() : "translog write lock not held by current thread";
         try {
             final TranslogReader reader = current.closeIntoReader();
             readers.add(reader);

@@ -13,6 +13,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 12620: global elite
 * 13214: JavaGeeks
 * 13260: jk
+* 14114: FDJ
 * 15115: Chicken Nugget trio
 * 15295: The Best Engineers, The Best
 * 15816: Group 1

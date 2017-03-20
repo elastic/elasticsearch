@@ -57,14 +57,14 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         execute(terminal, arg, env);
     }
 
-/**
-    * Remove the plugin named pluginName.
+    /**
+    * Remove the plugin specified by {@code pluginName}.
     *
-    * @param terminal       the Terminal to use for input/output
+    * @param terminal       the terminal to use for input/output
     * @param pluginName     the name of the plugin to remove
     * @param env            the environment for the local node
     *
-    * @throws IOException   if the plugin is no longer available to delete or permission is denied
+    * @throws IOException   if any I/O exception occurs while performing a file operation
     * @throws UserException if plugin name is null
     * @throws UserException if plugin directory does not exist
     * @throws UserException if the plugin bin directory is not a directory

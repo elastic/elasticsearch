@@ -22,8 +22,6 @@ import java.util.Objects;
  * <li>IncludeInterim- Include interim results. Default = false</li>
  * <li>anomalyScoreThreshold- Return only buckets with an anomalyScore &gt;=
  * this value. Default = 0.0</li>
- * <li>normalizedProbabilityThreshold- Return only buckets with a
- * maxNormalizedProbability &gt;= this value. Default = 0.0</li>
  * <li>start- The start bucket time. A bucket with this timestamp will be
  * included in the results. If 0 all buckets up to <code>endEpochMs</code> are
  * returned. Default = -1</li>
@@ -62,13 +60,6 @@ public final class BucketsQueryBuilder {
     public BucketsQueryBuilder anomalyScoreThreshold(Double anomalyScoreFilter) {
         if (anomalyScoreFilter != null) {
             bucketsQuery.anomalyScoreFilter = anomalyScoreFilter;
-        }
-        return this;
-    }
-
-    public BucketsQueryBuilder normalizedProbabilityThreshold(Double normalizedProbability) {
-        if (normalizedProbability != null) {
-            bucketsQuery.normalizedProbability = normalizedProbability;
         }
         return this;
     }
@@ -133,8 +124,7 @@ public final class BucketsQueryBuilder {
         private int size = DEFAULT_SIZE;
         private boolean expand = false;
         private boolean includeInterim = false;
-        private double anomalyScoreFilter = 0.0d;
-        private double normalizedProbability = 0.0d;
+        private double anomalyScoreFilter = 0.0;
         private String start;
         private String end;
         private String timestamp;
@@ -160,10 +150,6 @@ public final class BucketsQueryBuilder {
 
         public double getAnomalyScoreFilter() {
             return anomalyScoreFilter;
-        }
-
-        public double getNormalizedProbability() {
-            return normalizedProbability;
         }
 
         public String getStart() {
@@ -195,7 +181,7 @@ public final class BucketsQueryBuilder {
 
         @Override
         public int hashCode() {
-            return Objects.hash(from, size, expand, includeInterim, anomalyScoreFilter, normalizedProbability, start, end,
+            return Objects.hash(from, size, expand, includeInterim, anomalyScoreFilter, start, end,
                     timestamp, partitionValue, sortField, sortDescending);
         }
 
@@ -221,7 +207,6 @@ public final class BucketsQueryBuilder {
                     Objects.equals(end, other.end) &&
                     Objects.equals(timestamp, other.timestamp) &&
                     Objects.equals(anomalyScoreFilter, other.anomalyScoreFilter) &&
-                    Objects.equals(normalizedProbability, other.normalizedProbability) &&
                     Objects.equals(partitionValue, other.partitionValue) &&
                     Objects.equals(sortField, other.sortField) &&
                     this.sortDescending == other.sortDescending;

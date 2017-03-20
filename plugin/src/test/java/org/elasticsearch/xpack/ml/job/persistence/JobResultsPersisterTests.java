@@ -40,7 +40,6 @@ public class JobResultsPersisterTests extends ESTestCase {
         bucket.setAnomalyScore(99.9);
         bucket.setEventCount(57);
         bucket.setInitialAnomalyScore(88.8);
-        bucket.setMaxNormalizedProbability(42.0);
         bucket.setProcessingTimeMs(8888);
         bucket.setRecordCount(1);
 
@@ -54,7 +53,6 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         // We are adding a record but it shouldn't be persisted as part of the bucket
         AnomalyRecord record = new AnomalyRecord(JOB_ID, new Date(), 600, 2);
-        record.setAnomalyScore(99.8);
         bucket.setRecords(Arrays.asList(record));
 
         JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
@@ -65,7 +63,6 @@ public class JobResultsPersisterTests extends ESTestCase {
         String s = ((IndexRequest)bulkRequest.requests().get(0)).source().utf8ToString();
         assertTrue(s.matches(".*anomaly_score.:99\\.9.*"));
         assertTrue(s.matches(".*initial_anomaly_score.:88\\.8.*"));
-        assertTrue(s.matches(".*max_normalized_probability.:42\\.0.*"));
         assertTrue(s.matches(".*record_count.:1.*"));
         assertTrue(s.matches(".*event_count.:57.*"));
         assertTrue(s.matches(".*bucket_span.:123456.*"));
@@ -92,7 +89,6 @@ public class JobResultsPersisterTests extends ESTestCase {
         actuals.add(5.0);
         actuals.add(5.1);
         r1.setActual(actuals);
-        r1.setAnomalyScore(99.8);
         r1.setByFieldName("byName");
         r1.setByFieldValue("byValue");
         r1.setCorrelatedByFieldValue("testCorrelations");
@@ -100,8 +96,8 @@ public class JobResultsPersisterTests extends ESTestCase {
         r1.setFieldName("testFieldName");
         r1.setFunction("testFunction");
         r1.setFunctionDescription("testDescription");
-        r1.setInitialNormalizedProbability(23.4);
-        r1.setNormalizedProbability(0.005);
+        r1.setInitialRecordScore(23.4);
+        r1.setRecordScore(0.005);
         r1.setOverFieldName("overName");
         r1.setOverFieldValue("overValue");
         r1.setPartitionFieldName("partName");
@@ -120,9 +116,8 @@ public class JobResultsPersisterTests extends ESTestCase {
         String s = ((IndexRequest) bulkRequest.requests().get(0)).source().utf8ToString();
         assertTrue(s.matches(".*detector_index.:3.*"));
         assertTrue(s.matches(".*\"probability\":0\\.1.*"));
-        assertTrue(s.matches(".*\"anomaly_score\":99\\.8.*"));
-        assertTrue(s.matches(".*\"normalized_probability\":0\\.005.*"));
-        assertTrue(s.matches(".*initial_normalized_probability.:23.4.*"));
+        assertTrue(s.matches(".*\"record_score\":0\\.005.*"));
+        assertTrue(s.matches(".*initial_record_score.:23.4.*"));
         assertTrue(s.matches(".*bucket_span.:42.*"));
         assertTrue(s.matches(".*by_field_name.:.byName.*"));
         assertTrue(s.matches(".*by_field_value.:.byValue.*"));
@@ -144,8 +139,8 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         List<Influencer> influencers = new ArrayList<>();
         Influencer inf = new Influencer(JOB_ID, "infName1", "infValue1", new Date(), 600, 1);
-        inf.setAnomalyScore(16);
-        inf.setInitialAnomalyScore(55.5);
+        inf.setInfluencerScore(16);
+        inf.setInitialInfluencerScore(55.5);
         inf.setProbability(0.4);
         influencers.add(inf);
 
@@ -158,8 +153,8 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertTrue(s.matches(".*probability.:0\\.4.*"));
         assertTrue(s.matches(".*influencer_field_name.:.infName1.*"));
         assertTrue(s.matches(".*influencer_field_value.:.infValue1.*"));
-        assertTrue(s.matches(".*initial_anomaly_score.:55\\.5.*"));
-        assertTrue(s.matches(".*anomaly_score.:16\\.0.*"));
+        assertTrue(s.matches(".*initial_influencer_score.:55\\.5.*"));
+        assertTrue(s.matches(".*influencer_score.:16\\.0.*"));
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -72,16 +71,14 @@ public final class ReservedFieldNames {
             AnomalyRecord.OVER_FIELD_NAME.getPreferredName(),
             AnomalyRecord.OVER_FIELD_VALUE.getPreferredName(),
             AnomalyRecord.CAUSES.getPreferredName(),
-            AnomalyRecord.ANOMALY_SCORE.getPreferredName(),
-            AnomalyRecord.NORMALIZED_PROBABILITY.getPreferredName(),
-            AnomalyRecord.INITIAL_NORMALIZED_PROBABILITY.getPreferredName(),
+            AnomalyRecord.RECORD_SCORE.getPreferredName(),
+            AnomalyRecord.INITIAL_RECORD_SCORE.getPreferredName(),
             AnomalyRecord.BUCKET_SPAN.getPreferredName(),
             AnomalyRecord.SEQUENCE_NUM.getPreferredName(),
 
             Bucket.ANOMALY_SCORE.getPreferredName(),
             Bucket.BUCKET_INFLUENCERS.getPreferredName(),
             Bucket.BUCKET_SPAN.getPreferredName(),
-            Bucket.MAX_NORMALIZED_PROBABILITY.getPreferredName(),
             Bucket.IS_INTERIM.getPreferredName(),
             Bucket.RECORD_COUNT.getPreferredName(),
             Bucket.EVENT_COUNT.getPreferredName(),
@@ -121,8 +118,8 @@ public final class ReservedFieldNames {
             Influencer.PROBABILITY.getPreferredName(),
             Influencer.INFLUENCER_FIELD_NAME.getPreferredName(),
             Influencer.INFLUENCER_FIELD_VALUE.getPreferredName(),
-            Influencer.INITIAL_ANOMALY_SCORE.getPreferredName(),
-            Influencer.ANOMALY_SCORE.getPreferredName(),
+            Influencer.INITIAL_INFLUENCER_SCORE.getPreferredName(),
+            Influencer.INFLUENCER_SCORE.getPreferredName(),
             Influencer.BUCKET_SPAN.getPreferredName(),
             Influencer.SEQUENCE_NUM.getPreferredName(),
 
@@ -148,6 +145,7 @@ public final class ReservedFieldNames {
             ModelSnapshot.LATEST_RESULT_TIME.getPreferredName(),
 
             PerPartitionMaxProbabilities.PER_PARTITION_MAX_PROBABILITIES.getPreferredName(),
+            PerPartitionMaxProbabilities.MAX_RECORD_SCORE.getPreferredName(),
 
             Result.RESULT_TYPE.getPreferredName(),
             Result.TIMESTAMP.getPreferredName()

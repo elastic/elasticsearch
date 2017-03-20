@@ -30,10 +30,9 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         AnomalyRecord anomalyRecord = new AnomalyRecord(jobId, new Date(randomNonNegativeLong()), randomNonNegativeLong(), sequenceNum);
         anomalyRecord.setActual(Collections.singletonList(randomDouble()));
         anomalyRecord.setTypical(Collections.singletonList(randomDouble()));
-        anomalyRecord.setAnomalyScore(randomDouble());
         anomalyRecord.setProbability(randomDouble());
-        anomalyRecord.setNormalizedProbability(randomDouble());
-        anomalyRecord.setInitialNormalizedProbability(randomDouble());
+        anomalyRecord.setRecordScore(randomDouble());
+        anomalyRecord.setInitialRecordScore(randomDouble());
         anomalyRecord.setInterim(randomBoolean());
         if (randomBoolean()) {
             anomalyRecord.setFieldName(randomAsciiOfLength(12));

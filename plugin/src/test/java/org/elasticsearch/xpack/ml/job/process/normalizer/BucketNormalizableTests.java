@@ -41,12 +41,11 @@ public class BucketNormalizableTests extends ESTestCase {
         bucket.setBucketInfluencers(Arrays.asList(bucketInfluencer1, bucketInfluencer2));
 
         bucket.setAnomalyScore(88.0);
-        bucket.setMaxNormalizedProbability(2.0);
 
         AnomalyRecord record1 = new AnomalyRecord("foo", bucket.getTimestamp(), 600, 3);
-        record1.setNormalizedProbability(1.0);
+        record1.setRecordScore(1.0);
         AnomalyRecord record2 = new AnomalyRecord("foo", bucket.getTimestamp(), 600, 4);
-        record2.setNormalizedProbability(2.0);
+        record2.setRecordScore(2.0);
         bucket.setRecords(Arrays.asList(record1, record2));
 
         List<PartitionScore> partitionScores = new ArrayList<>();
@@ -149,10 +148,9 @@ public class BucketNormalizableTests extends ESTestCase {
         BucketNormalizable bucketNormalizable = new BucketNormalizable(bucket, INDEX_NAME);
 
         assertTrue(bucketNormalizable.setMaxChildrenScore(Normalizable.ChildType.BUCKET_INFLUENCER, 95.0));
-        assertTrue(bucketNormalizable.setMaxChildrenScore(Normalizable.ChildType.RECORD, 42.0));
+        assertFalse(bucketNormalizable.setMaxChildrenScore(Normalizable.ChildType.RECORD, 42.0));
 
         assertEquals(95.0, bucket.getAnomalyScore(), EPSILON);
-        assertEquals(42.0, bucket.getMaxNormalizedProbability(), EPSILON);
     }
 
     public void testSetMaxChildrenScore_GivenSameScores() {
@@ -162,7 +160,6 @@ public class BucketNormalizableTests extends ESTestCase {
         assertFalse(bucketNormalizable.setMaxChildrenScore(Normalizable.ChildType.RECORD, 2.0));
 
         assertEquals(88.0, bucket.getAnomalyScore(), EPSILON);
-        assertEquals(2.0, bucket.getMaxNormalizedProbability(), EPSILON);
     }
 
     public void testSetParentScore() {

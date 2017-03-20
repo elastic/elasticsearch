@@ -43,6 +43,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
      * Field Names
      */
     public static final ParseField PER_PARTITION_MAX_PROBABILITIES = new ParseField("per_partition_max_probabilities");
+    public static final ParseField MAX_RECORD_SCORE = new ParseField("max_record_score");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<PerPartitionMaxProbabilities, Void> PARSER =
@@ -85,7 +86,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
         this.jobId = records.get(0).getJobId();
         this.timestamp = records.get(0).getTimestamp();
         this.bucketSpan = records.get(0).getBucketSpan();
-        this.perPartitionMaxProbabilities = calcMaxNormalizedProbabilityPerPartition(records);
+        this.perPartitionMaxProbabilities = calcMaxRecordScorePerPartition(records);
     }
 
     public PerPartitionMaxProbabilities(StreamInput in) throws IOException {
@@ -123,7 +124,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
         Optional<PartitionProbability> first =
                 perPartitionMaxProbabilities.stream().filter(pp -> partitionValue.equals(pp.getPartitionValue())).findFirst();
 
-        return first.isPresent() ? first.get().getMaxNormalizedProbability() : 0.0;
+        return first.isPresent() ? first.get().getMaxRecordScore() : 0.0;
     }
 
     /**
@@ -150,10 +151,10 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
         }
     }
 
-    private List<PartitionProbability> calcMaxNormalizedProbabilityPerPartition(List<AnomalyRecord> anomalyRecords) {
+    private List<PartitionProbability> calcMaxRecordScorePerPartition(List<AnomalyRecord> anomalyRecords) {
         Map<String, Double> maxValueByPartition = anomalyRecords.stream().collect(
                 Collectors.groupingBy(AnomalyRecord::getPartitionFieldValue,
-                Collector.of(DoubleMaxBox::new, (m, ar) -> m.accept(ar.getNormalizedProbability()),
+                Collector.of(DoubleMaxBox::new, (m, ar) -> m.accept(ar.getRecordScore()),
                         DoubleMaxBox::combine, DoubleMaxBox::value)));
 
         List<PartitionProbability> pProbs = new ArrayList<>();
@@ -200,7 +201,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
     }
 
     /**
-     * Class for partitionValue, maxNormalizedProb pairs
+     * Class for partitionValue, maxRecordScore pairs
      */
     public static class PartitionProbability extends ToXContentToBytes implements Writeable  {
 
@@ -210,48 +211,48 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), AnomalyRecord.PARTITION_FIELD_VALUE);
-            PARSER.declareDouble(ConstructingObjectParser.constructorArg(), Bucket.MAX_NORMALIZED_PROBABILITY);
+            PARSER.declareDouble(ConstructingObjectParser.constructorArg(), MAX_RECORD_SCORE);
         }
 
         private final String partitionValue;
-        private final double maxNormalizedProbability;
+        private final double maxRecordScore;
 
-        PartitionProbability(String partitionName, double maxNormalizedProbability) {
+        PartitionProbability(String partitionName, double maxRecordScore) {
             this.partitionValue = partitionName;
-            this.maxNormalizedProbability = maxNormalizedProbability;
+            this.maxRecordScore = maxRecordScore;
         }
 
         public PartitionProbability(StreamInput in) throws IOException {
             partitionValue = in.readString();
-            maxNormalizedProbability = in.readDouble();
+            maxRecordScore = in.readDouble();
         }
 
         public String getPartitionValue() {
             return partitionValue;
         }
 
-        public double getMaxNormalizedProbability() {
-            return maxNormalizedProbability;
+        public double getMaxRecordScore() {
+            return maxRecordScore;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(partitionValue);
-            out.writeDouble(maxNormalizedProbability);
+            out.writeDouble(maxRecordScore);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject()
                     .field(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(), partitionValue)
-                    .field(Bucket.MAX_NORMALIZED_PROBABILITY.getPreferredName(), maxNormalizedProbability)
+                    .field(MAX_RECORD_SCORE.getPreferredName(), maxRecordScore)
                     .endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(partitionValue, maxNormalizedProbability);
+            return Objects.hash(partitionValue, maxRecordScore);
         }
 
         @Override
@@ -267,7 +268,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
             PartitionProbability that = (PartitionProbability) other;
 
             return Objects.equals(this.partitionValue, that.partitionValue)
-                    && this.maxNormalizedProbability == that.maxNormalizedProbability;
+                    && this.maxRecordScore == that.maxRecordScore;
         }
     }
 }

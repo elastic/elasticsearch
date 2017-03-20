@@ -140,22 +140,18 @@ public class BucketNormalizable extends Normalizable {
 
     @Override
     public boolean setMaxChildrenScore(ChildType childrenType, double maxScore) {
-        double oldScore = 0.0;
         switch (childrenType) {
             case BUCKET_INFLUENCER:
-                oldScore = bucket.getAnomalyScore();
+                double oldScore = bucket.getAnomalyScore();
                 bucket.setAnomalyScore(maxScore);
-                break;
+                return maxScore != oldScore;
             case RECORD:
-                oldScore = bucket.getMaxNormalizedProbability();
-                bucket.setMaxNormalizedProbability(maxScore);
-                break;
             case PARTITION_SCORE:
-                break;
+                return false;
             default:
                 throw new IllegalArgumentException("Invalid type: " + childrenType);
         }
-        return maxScore != oldScore;
+
     }
 
     @Override

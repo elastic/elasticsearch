@@ -124,7 +124,6 @@ public class ScoresUpdaterTests extends ESTestCase {
         Bucket bucket = generateBucket(new Date(0));
         bucket.setAnomalyScore(42.0);
         bucket.addBucketInfluencer(createTimeBucketInfluencer(bucket.getTimestamp(), 0.04, 42.0));
-        bucket.setMaxNormalizedProbability(50.0);
 
         Deque<Bucket> buckets = new ArrayDeque<>();
         buckets.add(bucket);
@@ -166,14 +165,12 @@ public class ScoresUpdaterTests extends ESTestCase {
             Bucket bucket = generateBucket(new Date(i * 1000));
             bucket.setAnomalyScore(42.0);
             bucket.addBucketInfluencer(createTimeBucketInfluencer(bucket.getTimestamp(), 0.04, 42.0));
-            bucket.setMaxNormalizedProbability(50.0);
             batch1.add(bucket);
         }
 
         Bucket secondBatchBucket = generateBucket(new Date(10000 * 1000));
         secondBatchBucket.addBucketInfluencer(createTimeBucketInfluencer(secondBatchBucket.getTimestamp(), 0.04, 42.0));
         secondBatchBucket.setAnomalyScore(42.0);
-        secondBatchBucket.setMaxNormalizedProbability(50.0);
         Deque<Bucket> batch2 = new ArrayDeque<>();
         batch2.add(secondBatchBucket);
 
@@ -193,7 +190,6 @@ public class ScoresUpdaterTests extends ESTestCase {
         Bucket bucket1 = generateBucket(new Date(0));
         bucket1.setAnomalyScore(42.0);
         bucket1.addBucketInfluencer(createTimeBucketInfluencer(bucket1.getTimestamp(), 0.04, 42.0));
-        bucket1.setMaxNormalizedProbability(50.0);
         List<BatchedResultsIterator.ResultWithIndex<AnomalyRecord>> records = new ArrayList<>();
         Date date = new Date();
         for (int i=0; i<100000; i++) {
@@ -203,7 +199,6 @@ public class ScoresUpdaterTests extends ESTestCase {
         Bucket bucket2 = generateBucket(new Date(10000 * 1000));
         bucket2.addBucketInfluencer(createTimeBucketInfluencer(bucket2.getTimestamp(), 0.04, 42.0));
         bucket2.setAnomalyScore(42.0);
-        bucket2.setMaxNormalizedProbability(50.0);
 
         Deque<Bucket> batch = new ArrayDeque<>();
         batch.add(bucket1);
@@ -240,7 +235,6 @@ public class ScoresUpdaterTests extends ESTestCase {
         Bucket bucket = generateBucket(new Date(2509200000L));
         bucket.setAnomalyScore(42.0);
         bucket.addBucketInfluencer(createTimeBucketInfluencer(bucket.getTimestamp(), 0.04, 42.0));
-        bucket.setMaxNormalizedProbability(50.0);
 
         Deque<Bucket> buckets = new ArrayDeque<>();
         buckets.add(bucket);
@@ -258,7 +252,6 @@ public class ScoresUpdaterTests extends ESTestCase {
         Bucket bucket = generateBucket(new Date(3600000));
         bucket.setAnomalyScore(42.0);
         bucket.addBucketInfluencer(createTimeBucketInfluencer(bucket.getTimestamp(), 0.04, 42.0));
-        bucket.setMaxNormalizedProbability(50.0);
 
         Deque<Bucket> buckets = new ArrayDeque<>();
         buckets.add(bucket);
@@ -277,7 +270,6 @@ public class ScoresUpdaterTests extends ESTestCase {
         Bucket bucket = generateBucket(new Date(2700000));
         bucket.setAnomalyScore(42.0);
         bucket.addBucketInfluencer(createTimeBucketInfluencer(bucket.getTimestamp(), 0.04, 42.0));
-        bucket.setMaxNormalizedProbability(50.0);
 
         Deque<Bucket> buckets = new ArrayDeque<>();
         buckets.add(bucket);

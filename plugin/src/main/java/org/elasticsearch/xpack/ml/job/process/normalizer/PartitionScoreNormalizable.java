@@ -62,12 +62,12 @@ public class PartitionScoreNormalizable extends AbstractLeafNormalizable {
 
     @Override
     public double getNormalizedScore() {
-        return score.getAnomalyScore();
+        return score.getRecordScore();
     }
 
     @Override
     public void setNormalizedScore(double normalizedScore) {
-        score.setAnomalyScore(normalizedScore);
+        score.setRecordScore(normalizedScore);
     }
 
     @Override

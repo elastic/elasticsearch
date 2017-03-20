@@ -19,8 +19,8 @@ public class InfluencerNormalizableTests extends ESTestCase {
     @Before
     public void setUpInfluencer() {
         influencer = new Influencer("foo", "airline", "AAL", new Date(), 600, 1);
-        influencer.setAnomalyScore(1.0);
-        influencer.setInitialAnomalyScore(2.0);
+        influencer.setInfluencerScore(1.0);
+        influencer.setInitialInfluencerScore(2.0);
         influencer.setProbability(0.05);
     }
 
@@ -66,7 +66,7 @@ public class InfluencerNormalizableTests extends ESTestCase {
         normalizable.setNormalizedScore(99.0);
 
         assertEquals(99.0, normalizable.getNormalizedScore(), EPSILON);
-        assertEquals(99.0, influencer.getAnomalyScore(), EPSILON);
+        assertEquals(99.0, influencer.getInfluencerScore(), EPSILON);
     }
 
     public void testGetChildrenTypes() {

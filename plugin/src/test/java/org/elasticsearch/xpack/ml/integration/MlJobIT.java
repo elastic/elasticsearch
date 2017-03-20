@@ -51,7 +51,7 @@ public class MlJobIT extends ESRestTestCase {
             "\"result_type\": { \"type\" : \"keyword\" }," +
             "\"timestamp\": { \"type\" : \"date\" }, " +
             "\"anomaly_score\": { \"type\" : \"double\" }, " +
-            "\"normalized_probability\": { \"type\" : \"double\" }, " +
+            "\"record_score\": { \"type\" : \"double\" }, " +
             "\"over_field_value\": { \"type\" : \"keyword\" }, " +
             "\"partition_field_value\": { \"type\" : \"keyword\" }, " +
             "\"by_field_value\": { \"type\" : \"keyword\" }, " +

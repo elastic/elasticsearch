@@ -36,10 +36,7 @@
           "type": "string",
           "description": "End time filter for records"
         },
-        "anomaly_score": {
-          "type": "double"
-        },
-        "max_normalized_probability": {
+        "record_score": {
           "type": "double"
         },
         "partition_value": {

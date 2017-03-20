@@ -50,10 +50,6 @@
         "anomaly_score": {
           "type": "double",
           "description": "Filter for the most anomalous buckets"
-        },
-        "max_normalized_probability": {
-          "type": "double",
-          "description": "Filter for buckets containing the most anomalous records"
         }
       }
     },

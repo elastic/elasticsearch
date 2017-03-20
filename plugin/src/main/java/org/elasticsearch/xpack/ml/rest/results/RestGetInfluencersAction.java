@@ -50,7 +50,7 @@ public class RestGetInfluencersAction extends BaseRestHandler {
             request.setAnomalyScore(
                     Double.parseDouble(restRequest.param(GetInfluencersAction.Request.ANOMALY_SCORE.getPreferredName(), "0.0")));
             request.setSort(restRequest.param(GetInfluencersAction.Request.SORT_FIELD.getPreferredName(),
-                    Influencer.ANOMALY_SCORE.getPreferredName()));
+                    Influencer.INFLUENCER_SCORE.getPreferredName()));
             request.setDecending(restRequest.paramAsBoolean(GetInfluencersAction.Request.DESCENDING_SORT.getPreferredName(), true));
         }
 

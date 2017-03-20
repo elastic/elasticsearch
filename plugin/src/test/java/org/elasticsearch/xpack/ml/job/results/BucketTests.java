@@ -53,9 +53,6 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
             bucket.setInterim(randomBoolean());
         }
         if (randomBoolean()) {
-            bucket.setMaxNormalizedProbability(randomDouble());
-        }
-        if (randomBoolean()) {
             int size = randomInt(10);
             List<PartitionScore> partitionScores = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
@@ -130,16 +127,6 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
         assertTrue(b1.equals(b2));
     }
 
-    public void testEquals_GivenDifferentMaxNormalizedProbability() {
-        Bucket bucket1 = new Bucket("foo", new Date(123), 123);
-        bucket1.setMaxNormalizedProbability(55.0);
-        Bucket bucket2 = new Bucket("foo", new Date(123), 123);
-        bucket2.setMaxNormalizedProbability(55.1);
-
-        assertFalse(bucket1.equals(bucket2));
-        assertFalse(bucket2.equals(bucket1));
-    }
-
     public void testEquals_GivenDifferentEventCount() {
         Bucket bucket1 = new Bucket("foo", new Date(123), 123);
         bucket1.setEventCount(3);
@@ -183,9 +170,9 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
 
     public void testEquals_GivenSameNumberOfRecordsButDifferent() {
         AnomalyRecord anomalyRecord1 = new AnomalyRecord("foo", new Date(123), 123, 1);
-        anomalyRecord1.setAnomalyScore(1.0);
+        anomalyRecord1.setRecordScore(1.0);
         AnomalyRecord anomalyRecord2 = new AnomalyRecord("foo", new Date(123), 123, 2);
-        anomalyRecord1.setAnomalyScore(2.0);
+        anomalyRecord1.setRecordScore(2.0);
 
         Bucket bucket1 = new Bucket("foo", new Date(123), 123);
         bucket1.setRecords(Arrays.asList(anomalyRecord1));
@@ -231,7 +218,6 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
         bucket1.setInitialAnomalyScore(92.0);
         bucket1.setEventCount(134);
         bucket1.setInterim(true);
-        bucket1.setMaxNormalizedProbability(33.3);
         bucket1.setRecordCount(4);
         bucket1.setRecords(Arrays.asList(record));
         bucket1.addBucketInfluencer(bucketInfluencer);
@@ -241,7 +227,6 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
         bucket2.setInitialAnomalyScore(92.0);
         bucket2.setEventCount(134);
         bucket2.setInterim(true);
-        bucket2.setMaxNormalizedProbability(33.3);
         bucket2.setRecordCount(4);
         bucket2.setRecords(Arrays.asList(record));
         bucket2.addBucketInfluencer(bucketInfluencer);

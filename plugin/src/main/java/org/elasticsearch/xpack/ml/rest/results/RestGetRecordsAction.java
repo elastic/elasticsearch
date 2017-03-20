@@ -45,13 +45,11 @@ public class RestGetRecordsAction extends BaseRestHandler {
             request.setIncludeInterim(restRequest.paramAsBoolean(GetRecordsAction.Request.INCLUDE_INTERIM.getPreferredName(), false));
             request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
-            request.setAnomalyScore(
-                    Double.parseDouble(restRequest.param(GetRecordsAction.Request.ANOMALY_SCORE_FILTER.getPreferredName(), "0.0")));
+            request.setRecordScore(
+                    Double.parseDouble(restRequest.param(GetRecordsAction.Request.RECORD_SCORE_FILTER.getPreferredName(), "0.0")));
             request.setSort(restRequest.param(GetRecordsAction.Request.SORT.getPreferredName(),
-                    AnomalyRecord.NORMALIZED_PROBABILITY.getPreferredName()));
+                    AnomalyRecord.RECORD_SCORE.getPreferredName()));
             request.setDecending(restRequest.paramAsBoolean(GetRecordsAction.Request.DESCENDING.getPreferredName(), true));
-            request.setMaxNormalizedProbability(
-                    Double.parseDouble(restRequest.param(GetRecordsAction.Request.MAX_NORMALIZED_PROBABILITY.getPreferredName(), "0.0")));
             String partitionValue = restRequest.param(GetRecordsAction.Request.PARTITION_VALUE.getPreferredName());
             if (partitionValue != null) {
                 request.setPartitionValue(partitionValue);

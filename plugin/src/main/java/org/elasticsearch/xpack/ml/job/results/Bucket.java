@@ -38,7 +38,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
 
     public static final ParseField ANOMALY_SCORE = new ParseField("anomaly_score");
     public static final ParseField INITIAL_ANOMALY_SCORE = new ParseField("initial_anomaly_score");
-    public static final ParseField MAX_NORMALIZED_PROBABILITY = new ParseField("max_normalized_probability");
     public static final ParseField IS_INTERIM = new ParseField("is_interim");
     public static final ParseField RECORD_COUNT = new ParseField("record_count");
     public static final ParseField EVENT_COUNT = new ParseField("event_count");
@@ -74,7 +73,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         PARSER.declareDouble(Bucket::setAnomalyScore, ANOMALY_SCORE);
         PARSER.declareDouble(Bucket::setInitialAnomalyScore, INITIAL_ANOMALY_SCORE);
-        PARSER.declareDouble(Bucket::setMaxNormalizedProbability, MAX_NORMALIZED_PROBABILITY);
         PARSER.declareBoolean(Bucket::setInterim, IS_INTERIM);
         PARSER.declareInt(Bucket::setRecordCount, RECORD_COUNT);
         PARSER.declareLong(Bucket::setEventCount, EVENT_COUNT);
@@ -90,7 +88,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     private final long bucketSpan;
     private double anomalyScore;
     private double initialAnomalyScore;
-    private double maxNormalizedProbability;
     private int recordCount;
     private List<AnomalyRecord> records = new ArrayList<>();
     private long eventCount;
@@ -112,7 +109,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         this.bucketSpan = other.bucketSpan;
         this.anomalyScore = other.anomalyScore;
         this.initialAnomalyScore = other.initialAnomalyScore;
-        this.maxNormalizedProbability = other.maxNormalizedProbability;
         this.recordCount = other.recordCount;
         this.records = new ArrayList<>(other.records);
         this.eventCount = other.eventCount;
@@ -130,7 +126,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         anomalyScore = in.readDouble();
         bucketSpan = in.readLong();
         initialAnomalyScore = in.readDouble();
-        maxNormalizedProbability = in.readDouble();
         recordCount = in.readInt();
         records = in.readList(AnomalyRecord::new);
         eventCount = in.readLong();
@@ -148,7 +143,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         out.writeDouble(anomalyScore);
         out.writeLong(bucketSpan);
         out.writeDouble(initialAnomalyScore);
-        out.writeDouble(maxNormalizedProbability);
         out.writeInt(recordCount);
         out.writeList(records);
         out.writeLong(eventCount);
@@ -167,7 +161,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScore);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(INITIAL_ANOMALY_SCORE.getPreferredName(), initialAnomalyScore);
-        builder.field(MAX_NORMALIZED_PROBABILITY.getPreferredName(), maxNormalizedProbability);
         builder.field(RECORD_COUNT.getPreferredName(), recordCount);
         if (!records.isEmpty()) {
             builder.field(RECORDS.getPreferredName(), records);
@@ -223,14 +216,6 @@ public class Bucket extends ToXContentToBytes implements Writeable {
 
     public void setInitialAnomalyScore(double initialAnomalyScore) {
         this.initialAnomalyScore = initialAnomalyScore;
-    }
-
-    public double getMaxNormalizedProbability() {
-        return maxNormalizedProbability;
-    }
-
-    public void setMaxNormalizedProbability(double maxNormalizedProbability) {
-        this.maxNormalizedProbability = maxNormalizedProbability;
     }
 
     public int getRecordCount() {
@@ -316,19 +301,19 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         Optional<PartitionScore> first = partitionScores.stream().filter(s -> partitionValue.equals(s.getPartitionFieldValue()))
                 .findFirst();
 
-        return first.isPresent() ? first.get().getInitialAnomalyScore() : 0.0;
+        return first.isPresent() ? first.get().getInitialRecordScore() : 0.0;
     }
 
     public double partitionAnomalyScore(String partitionValue) {
         Optional<PartitionScore> first = partitionScores.stream().filter(s -> partitionValue.equals(s.getPartitionFieldValue()))
                 .findFirst();
 
-        return first.isPresent() ? first.get().getAnomalyScore() : 0.0;
+        return first.isPresent() ? first.get().getRecordScore() : 0.0;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, timestamp, eventCount, initialAnomalyScore, anomalyScore, maxNormalizedProbability, recordCount, records,
+        return Objects.hash(jobId, timestamp, eventCount, initialAnomalyScore, anomalyScore, recordCount, records,
                 isInterim, bucketSpan, bucketInfluencers);
     }
 
@@ -349,8 +334,8 @@ public class Bucket extends ToXContentToBytes implements Writeable {
 
         return Objects.equals(this.jobId, that.jobId) && Objects.equals(this.timestamp, that.timestamp)
                 && (this.eventCount == that.eventCount) && (this.bucketSpan == that.bucketSpan)
+                && (this.recordCount == that.recordCount)
                 && (this.anomalyScore == that.anomalyScore) && (this.initialAnomalyScore == that.initialAnomalyScore)
-                && (this.maxNormalizedProbability == that.maxNormalizedProbability) && (this.recordCount == that.recordCount)
                 && Objects.equals(this.records, that.records) && Objects.equals(this.isInterim, that.isInterim)
                 && Objects.equals(this.bucketInfluencers, that.bucketInfluencers);
     }

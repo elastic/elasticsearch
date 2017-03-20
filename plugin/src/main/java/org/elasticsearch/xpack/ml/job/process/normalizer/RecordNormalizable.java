@@ -63,17 +63,17 @@ class RecordNormalizable extends AbstractLeafNormalizable {
 
     @Override
     public double getNormalizedScore() {
-        return record.getNormalizedProbability();
+        return record.getRecordScore();
     }
 
     @Override
     public void setNormalizedScore(double normalizedScore) {
-        record.setNormalizedProbability(normalizedScore);
+        record.setRecordScore(normalizedScore);
     }
 
     @Override
     public void setParentScore(double parentScore) {
-        record.setAnomalyScore(parentScore);
+        // nothing to do
     }
 
     @Override

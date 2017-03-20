@@ -20,9 +20,6 @@ public class GetBucketActionRequestTests extends AbstractStreamableXContentTestC
             request.setTimestamp(String.valueOf(randomLong()));
         } else {
             if (randomBoolean()) {
-                request.setMaxNormalizedProbability(randomDouble());
-            }
-            if (randomBoolean()) {
                 request.setPartitionValue(randomAsciiOfLengthBetween(1, 20));
             }
             if (randomBoolean()) {

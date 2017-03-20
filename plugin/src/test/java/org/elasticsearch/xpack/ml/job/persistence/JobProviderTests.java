@@ -297,8 +297,7 @@ public class JobProviderTests extends ESTestCase {
         Client client = getMockedClient(queryBuilder -> {queryBuilderHolder[0] = queryBuilder;}, response);
         JobProvider provider = createProvider(client);
 
-        BucketsQueryBuilder bq = new BucketsQueryBuilder().from(from).size(size).anomalyScoreThreshold(0.0)
-                .normalizedProbabilityThreshold(1.0);
+        BucketsQueryBuilder bq = new BucketsQueryBuilder().from(from).size(size).anomalyScoreThreshold(1.0);
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<Bucket>[] holder = new QueryPage[1];
@@ -308,7 +307,7 @@ public class JobProviderTests extends ESTestCase {
         QueryBuilder query = queryBuilderHolder[0];
         String queryString = query.toString();
         assertTrue(
-                queryString.matches("(?s).*max_normalized_probability[^}]*from. : 1\\.0.*must_not[^}]*term[^}]*is_interim.*value. : .true" +
+                queryString.matches("(?s).*anomaly_score[^}]*from. : 1\\.0.*must_not[^}]*term[^}]*is_interim.*value. : .true" +
                         ".*"));
     }
 
@@ -333,7 +332,7 @@ public class JobProviderTests extends ESTestCase {
         JobProvider provider = createProvider(client);
 
         BucketsQueryBuilder bq = new BucketsQueryBuilder().from(from).size(size).anomalyScoreThreshold(5.1)
-                .normalizedProbabilityThreshold(10.9).includeInterim(true);
+                .includeInterim(true);
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<Bucket>[] holder = new QueryPage[1];
@@ -342,7 +341,6 @@ public class JobProviderTests extends ESTestCase {
         assertEquals(1L, buckets.count());
         QueryBuilder query = queryBuilderHolder[0];
         String queryString = query.toString();
-        assertTrue(queryString.matches("(?s).*max_normalized_probability[^}]*from. : 10\\.9.*"));
         assertTrue(queryString.matches("(?s).*anomaly_score[^}]*from. : 5\\.1.*"));
         assertFalse(queryString.matches("(?s).*is_interim.*"));
     }
@@ -371,7 +369,6 @@ public class JobProviderTests extends ESTestCase {
         bq.from(from);
         bq.size(size);
         bq.anomalyScoreThreshold(5.1);
-        bq.normalizedProbabilityThreshold(10.9);
         bq.includeInterim(true);
 
         @SuppressWarnings({"unchecked", "rawtypes"})
@@ -381,7 +378,6 @@ public class JobProviderTests extends ESTestCase {
         assertEquals(1L, buckets.count());
         QueryBuilder query = queryBuilderHolder[0];
         String queryString = query.toString();
-        assertTrue(queryString.matches("(?s).*max_normalized_probability[^}]*from. : 10\\.9.*"));
         assertTrue(queryString.matches("(?s).*anomaly_score[^}]*from. : 5\\.1.*"));
         assertFalse(queryString.matches("(?s).*is_interim.*"));
     }
@@ -488,8 +484,8 @@ public class JobProviderTests extends ESTestCase {
         JobProvider provider = createProvider(client);
 
         RecordsQueryBuilder rqb = new RecordsQueryBuilder().from(from).size(size).epochStart(String.valueOf(now.getTime()))
-                .epochEnd(String.valueOf(now.getTime())).includeInterim(true).sortField(sortfield).anomalyScoreThreshold(11.1)
-                .normalizedProbability(2.2);
+                .epochEnd(String.valueOf(now.getTime())).includeInterim(true).sortField(sortfield)
+                .recordScore(2.2);
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<AnomalyRecord>[] holder = new QueryPage[1];
@@ -545,8 +541,7 @@ public class JobProviderTests extends ESTestCase {
         rqb.epochEnd(String.valueOf(now.getTime()));
         rqb.includeInterim(true);
         rqb.sortField(sortfield);
-        rqb.anomalyScoreThreshold(11.1);
-        rqb.normalizedProbability(2.2);
+        rqb.recordScore(2.2);
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<AnomalyRecord>[] holder = new QueryPage[1];
@@ -729,27 +724,27 @@ public class JobProviderTests extends ESTestCase {
         Date now = new Date();
         List<Map<String, Object>> source = new ArrayList<>();
 
-        Map<String, Object> recordMap1 = new HashMap<>();
-        recordMap1.put("job_id", "foo");
-        recordMap1.put("probability", 0.555);
-        recordMap1.put("influencer_field_name", "Builder");
-        recordMap1.put("timestamp", now.getTime());
-        recordMap1.put("influencer_field_value", "Bob");
-        recordMap1.put("initial_anomaly_score", 22.2);
-        recordMap1.put("anomaly_score", 22.6);
-        recordMap1.put("bucket_span", 123);
-        recordMap1.put("sequence_num", 1);
+        Map<String, Object> influencerMap1 = new HashMap<>();
+        influencerMap1.put("job_id", "foo");
+        influencerMap1.put("probability", 0.555);
+        influencerMap1.put("influencer_field_name", "Builder");
+        influencerMap1.put("timestamp", now.getTime());
+        influencerMap1.put("influencer_field_value", "Bob");
+        influencerMap1.put("initial_influencer_score", 22.2);
+        influencerMap1.put("influencer_score", 22.6);
+        influencerMap1.put("bucket_span", 123);
+        influencerMap1.put("sequence_num", 1);
         Map<String, Object> recordMap2 = new HashMap<>();
         recordMap2.put("job_id", "foo");
         recordMap2.put("probability", 0.99);
         recordMap2.put("influencer_field_name", "Builder");
         recordMap2.put("timestamp", now.getTime());
         recordMap2.put("influencer_field_value", "James");
-        recordMap2.put("initial_anomaly_score", 5.0);
-        recordMap2.put("anomaly_score", 5.0);
+        recordMap2.put("initial_influencer_score", 5.0);
+        recordMap2.put("influencer_score", 5.0);
         recordMap2.put("bucket_span", 123);
         recordMap2.put("sequence_num", 2);
-        source.add(recordMap1);
+        source.add(influencerMap1);
         source.add(recordMap2);
 
         int from = 4;
@@ -775,15 +770,15 @@ public class JobProviderTests extends ESTestCase {
         assertEquals("Builder", records.get(0).getInfluencerFieldName());
         assertEquals(now, records.get(0).getTimestamp());
         assertEquals(0.555, records.get(0).getProbability(), 0.00001);
-        assertEquals(22.6, records.get(0).getAnomalyScore(), 0.00001);
-        assertEquals(22.2, records.get(0).getInitialAnomalyScore(), 0.00001);
+        assertEquals(22.6, records.get(0).getInfluencerScore(), 0.00001);
+        assertEquals(22.2, records.get(0).getInitialInfluencerScore(), 0.00001);
 
         assertEquals("James", records.get(1).getInfluencerFieldValue());
         assertEquals("Builder", records.get(1).getInfluencerFieldName());
         assertEquals(now, records.get(1).getTimestamp());
         assertEquals(0.99, records.get(1).getProbability(), 0.00001);
-        assertEquals(5.0, records.get(1).getAnomalyScore(), 0.00001);
-        assertEquals(5.0, records.get(1).getInitialAnomalyScore(), 0.00001);
+        assertEquals(5.0, records.get(1).getInfluencerScore(), 0.00001);
+        assertEquals(5.0, records.get(1).getInitialInfluencerScore(), 0.00001);
     }
 
     public void testInfluencers_WithInterim() throws InterruptedException, ExecutionException, IOException {
@@ -791,28 +786,28 @@ public class JobProviderTests extends ESTestCase {
         Date now = new Date();
         List<Map<String, Object>> source = new ArrayList<>();
 
-        Map<String, Object> recordMap1 = new HashMap<>();
-        recordMap1.put("job_id", "foo");
-        recordMap1.put("probability", 0.555);
-        recordMap1.put("influencer_field_name", "Builder");
-        recordMap1.put("timestamp", now.getTime());
-        recordMap1.put("influencer_field_value", "Bob");
-        recordMap1.put("initial_anomaly_score", 22.2);
-        recordMap1.put("anomaly_score", 22.6);
-        recordMap1.put("bucket_span", 123);
-        recordMap1.put("sequence_num", 1);
-        Map<String, Object> recordMap2 = new HashMap<>();
-        recordMap2.put("job_id", "foo");
-        recordMap2.put("probability", 0.99);
-        recordMap2.put("influencer_field_name", "Builder");
-        recordMap2.put("timestamp", now.getTime());
-        recordMap2.put("influencer_field_value", "James");
-        recordMap2.put("initial_anomaly_score", 5.0);
-        recordMap2.put("anomaly_score", 5.0);
-        recordMap2.put("bucket_span", 123);
-        recordMap2.put("sequence_num", 2);
-        source.add(recordMap1);
-        source.add(recordMap2);
+        Map<String, Object> influencerMap1 = new HashMap<>();
+        influencerMap1.put("job_id", "foo");
+        influencerMap1.put("probability", 0.555);
+        influencerMap1.put("influencer_field_name", "Builder");
+        influencerMap1.put("timestamp", now.getTime());
+        influencerMap1.put("influencer_field_value", "Bob");
+        influencerMap1.put("initial_influencer_score", 22.2);
+        influencerMap1.put("influencer_score", 22.6);
+        influencerMap1.put("bucket_span", 123);
+        influencerMap1.put("sequence_num", 1);
+        Map<String, Object> influencerMap2 = new HashMap<>();
+        influencerMap2.put("job_id", "foo");
+        influencerMap2.put("probability", 0.99);
+        influencerMap2.put("influencer_field_name", "Builder");
+        influencerMap2.put("timestamp", now.getTime());
+        influencerMap2.put("influencer_field_value", "James");
+        influencerMap2.put("initial_influencer_score", 5.0);
+        influencerMap2.put("influencer_score", 5.0);
+        influencerMap2.put("bucket_span", 123);
+        influencerMap2.put("sequence_num", 2);
+        source.add(influencerMap1);
+        source.add(influencerMap2);
 
         int from = 4;
         int size = 3;
@@ -837,15 +832,15 @@ public class JobProviderTests extends ESTestCase {
         assertEquals("Builder", records.get(0).getInfluencerFieldName());
         assertEquals(now, records.get(0).getTimestamp());
         assertEquals(0.555, records.get(0).getProbability(), 0.00001);
-        assertEquals(22.6, records.get(0).getAnomalyScore(), 0.00001);
-        assertEquals(22.2, records.get(0).getInitialAnomalyScore(), 0.00001);
+        assertEquals(22.6, records.get(0).getInfluencerScore(), 0.00001);
+        assertEquals(22.2, records.get(0).getInitialInfluencerScore(), 0.00001);
 
         assertEquals("James", records.get(1).getInfluencerFieldValue());
         assertEquals("Builder", records.get(1).getInfluencerFieldName());
         assertEquals(now, records.get(1).getTimestamp());
         assertEquals(0.99, records.get(1).getProbability(), 0.00001);
-        assertEquals(5.0, records.get(1).getAnomalyScore(), 0.00001);
-        assertEquals(5.0, records.get(1).getInitialAnomalyScore(), 0.00001);
+        assertEquals(5.0, records.get(1).getInfluencerScore(), 0.00001);
+        assertEquals(5.0, records.get(1).getInitialInfluencerScore(), 0.00001);
     }
 
     public void testModelSnapshots() throws InterruptedException, ExecutionException, IOException {
@@ -951,78 +946,11 @@ public class JobProviderTests extends ESTestCase {
         assertTrue(queryString.matches("(?s).*snapshot_id.*value. : .snappyId.*description.*value. : .description1.*"));
     }
 
-    public void testMergePartitionScoresIntoBucket() throws InterruptedException, ExecutionException {
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
-
-        JobProvider provider = createProvider(clientBuilder.build());
-
-        List<PerPartitionMaxProbabilities> partitionMaxProbs = new ArrayList<>();
-
-        List<AnomalyRecord> records = new ArrayList<>();
-        records.add(createAnomalyRecord("partitionValue1", new Date(2), 1.0));
-        records.add(createAnomalyRecord("partitionValue2", new Date(2), 4.0));
-        partitionMaxProbs.add(new PerPartitionMaxProbabilities(records));
-
-        records.clear();
-        records.add(createAnomalyRecord("partitionValue1", new Date(3), 2.0));
-        records.add(createAnomalyRecord("partitionValue2", new Date(3), 1.0));
-        partitionMaxProbs.add(new PerPartitionMaxProbabilities(records));
-
-        records.clear();
-        records.add(createAnomalyRecord("partitionValue1", new Date(5), 3.0));
-        records.add(createAnomalyRecord("partitionValue2", new Date(5), 2.0));
-        partitionMaxProbs.add(new PerPartitionMaxProbabilities(records));
-
-        List<Bucket> buckets = new ArrayList<>();
-        buckets.add(createBucketAtEpochTime(1));
-        buckets.add(createBucketAtEpochTime(2));
-        buckets.add(createBucketAtEpochTime(3));
-        buckets.add(createBucketAtEpochTime(4));
-        buckets.add(createBucketAtEpochTime(5));
-        buckets.add(createBucketAtEpochTime(6));
-
-        provider.mergePartitionScoresIntoBucket(partitionMaxProbs, buckets, "partitionValue1");
-        assertEquals(0.0, buckets.get(0).getMaxNormalizedProbability(), 0.001);
-        assertEquals(1.0, buckets.get(1).getMaxNormalizedProbability(), 0.001);
-        assertEquals(2.0, buckets.get(2).getMaxNormalizedProbability(), 0.001);
-        assertEquals(0.0, buckets.get(3).getMaxNormalizedProbability(), 0.001);
-        assertEquals(3.0, buckets.get(4).getMaxNormalizedProbability(), 0.001);
-        assertEquals(0.0, buckets.get(5).getMaxNormalizedProbability(), 0.001);
-
-        provider.mergePartitionScoresIntoBucket(partitionMaxProbs, buckets, "partitionValue2");
-        assertEquals(0.0, buckets.get(0).getMaxNormalizedProbability(), 0.001);
-        assertEquals(4.0, buckets.get(1).getMaxNormalizedProbability(), 0.001);
-        assertEquals(1.0, buckets.get(2).getMaxNormalizedProbability(), 0.001);
-        assertEquals(0.0, buckets.get(3).getMaxNormalizedProbability(), 0.001);
-        assertEquals(2.0, buckets.get(4).getMaxNormalizedProbability(), 0.001);
-        assertEquals(0.0, buckets.get(5).getMaxNormalizedProbability(), 0.001);
-    }
-
-    private AnomalyRecord createAnomalyRecord(String partitionFieldValue, Date timestamp, double normalizedProbability) {
+    private AnomalyRecord createAnomalyRecord(String partitionFieldValue, Date timestamp, double recordScore) {
         AnomalyRecord record = new AnomalyRecord("foo", timestamp, 600, 42);
         record.setPartitionFieldValue(partitionFieldValue);
-        record.setNormalizedProbability(normalizedProbability);
+        record.setRecordScore(recordScore);
         return record;
-    }
-
-    public void testMergePartitionScoresIntoBucket_WithEmptyScoresList() throws InterruptedException, ExecutionException {
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
-
-        JobProvider provider = createProvider(clientBuilder.build());
-
-        List<PerPartitionMaxProbabilities> scores = new ArrayList<>();
-
-        List<Bucket> buckets = new ArrayList<>();
-        buckets.add(createBucketAtEpochTime(1));
-        buckets.add(createBucketAtEpochTime(2));
-        buckets.add(createBucketAtEpochTime(3));
-        buckets.add(createBucketAtEpochTime(4));
-
-        provider.mergePartitionScoresIntoBucket(scores, buckets, "partitionValue");
-        assertEquals(0.0, buckets.get(0).getMaxNormalizedProbability(), 0.001);
-        assertEquals(0.0, buckets.get(1).getMaxNormalizedProbability(), 0.001);
-        assertEquals(0.0, buckets.get(2).getMaxNormalizedProbability(), 0.001);
-        assertEquals(0.0, buckets.get(3).getMaxNormalizedProbability(), 0.001);
     }
 
     public void testRestoreStateToStream() throws Exception {
@@ -1120,7 +1048,6 @@ public class JobProviderTests extends ESTestCase {
 
     private Bucket createBucketAtEpochTime(long epoch) {
         Bucket b = new Bucket("foo", new Date(epoch), 123);
-        b.setMaxNormalizedProbability(10.0);
         return b;
     }
 

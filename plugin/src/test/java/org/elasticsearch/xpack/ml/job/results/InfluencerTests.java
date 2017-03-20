@@ -16,12 +16,12 @@ import java.util.Date;
 
 public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
 
-    public  Influencer createTestInstance(String jobId) {
+    public Influencer createTestInstance(String jobId) {
         Influencer influencer = new Influencer(jobId, randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20),
                 new Date(randomNonNegativeLong()), randomNonNegativeLong(), randomIntBetween(1, 1000));
         influencer.setInterim(randomBoolean());
-        influencer.setAnomalyScore(randomDouble());
-        influencer.setInitialAnomalyScore(randomDouble());
+        influencer.setInfluencerScore(randomDouble());
+        influencer.setInitialInfluencerScore(randomDouble());
         influencer.setProbability(randomDouble());
         return influencer;
     }
@@ -50,12 +50,12 @@ public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
     }
 
     public void testToXContentDoesNotIncludeNameValueFieldWhenReservedWord() throws IOException {
-        Influencer influencer = new Influencer("foo", AnomalyRecord.ANOMALY_SCORE.getPreferredName(), "bar", new Date(), 300L, 0);
+        Influencer influencer = new Influencer("foo", Influencer.INFLUENCER_SCORE.getPreferredName(), "bar", new Date(), 300L, 0);
         XContentBuilder builder = toXContent(influencer, XContentType.JSON);
         XContentParser parser = createParser(builder);
-        Object serialisedFieldValue = parser.map().get(AnomalyRecord.ANOMALY_SCORE.getPreferredName());
+        Object serialisedFieldValue = parser.map().get(Influencer.INFLUENCER_SCORE.getPreferredName());
+        assertNotNull(serialisedFieldValue);
         assertNotEquals("bar", serialisedFieldValue);
-        assertEquals(0.0, (Double)serialisedFieldValue, 0.0001);
     }
 
 }

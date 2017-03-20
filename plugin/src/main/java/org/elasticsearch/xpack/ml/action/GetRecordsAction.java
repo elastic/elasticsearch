@@ -66,10 +66,9 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
         public static final ParseField START = new ParseField("start");
         public static final ParseField END = new ParseField("end");
         public static final ParseField INCLUDE_INTERIM = new ParseField("include_interim");
-        public static final ParseField ANOMALY_SCORE_FILTER = new ParseField("anomaly_score");
+        public static final ParseField RECORD_SCORE_FILTER = new ParseField("record_score");
         public static final ParseField SORT = new ParseField("sort");
         public static final ParseField DESCENDING = new ParseField("desc");
-        public static final ParseField MAX_NORMALIZED_PROBABILITY = new ParseField("normalized_probability");
         public static final ParseField PARTITION_VALUE = new ParseField("partition_value");
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
@@ -83,8 +82,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             PARSER.declareBoolean(Request::setDecending, DESCENDING);
             PARSER.declareBoolean(Request::setIncludeInterim, INCLUDE_INTERIM);
             PARSER.declareObject(Request::setPageParams, PageParams.PARSER, PageParams.PAGE);
-            PARSER.declareDouble(Request::setAnomalyScore, ANOMALY_SCORE_FILTER);
-            PARSER.declareDouble(Request::setMaxNormalizedProbability, MAX_NORMALIZED_PROBABILITY);
+            PARSER.declareDouble(Request::setRecordScore, RECORD_SCORE_FILTER);
         }
 
         public static Request parseRequest(String jobId, XContentParser parser) {
@@ -100,10 +98,9 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
         private String end;
         private boolean includeInterim = false;
         private PageParams pageParams = new PageParams();
-        private double anomalyScoreFilter = 0.0;
-        private String sort = Influencer.ANOMALY_SCORE.getPreferredName();
+        private double recordScoreFilter = 0.0;
+        private String sort = Influencer.INFLUENCER_SCORE.getPreferredName();
         private boolean decending = false;
-        private double maxNormalizedProbability = 0.0;
         private String partitionValue;
 
         Request() {
@@ -156,12 +153,12 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             return pageParams;
         }
 
-        public double getAnomalyScoreFilter() {
-            return anomalyScoreFilter;
+        public double getRecordScoreFilter() {
+            return recordScoreFilter;
         }
 
-        public void setAnomalyScore(double anomalyScoreFilter) {
-            this.anomalyScoreFilter = anomalyScoreFilter;
+        public void setRecordScore(double recordScoreFilter) {
+            this.recordScoreFilter = recordScoreFilter;
         }
 
         public String getSort() {
@@ -170,14 +167,6 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
 
         public void setSort(String sort) {
             this.sort = ExceptionsHelper.requireNonNull(sort, SORT.getPreferredName());
-        }
-
-        public double getMaxNormalizedProbability() {
-            return maxNormalizedProbability;
-        }
-
-        public void setMaxNormalizedProbability(double maxNormalizedProbability) {
-            this.maxNormalizedProbability = maxNormalizedProbability;
         }
 
         public String getPartitionValue() {
@@ -203,8 +192,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             end = in.readOptionalString();
             sort = in.readOptionalString();
             decending = in.readBoolean();
-            anomalyScoreFilter = in.readDouble();
-            maxNormalizedProbability = in.readDouble();
+            recordScoreFilter = in.readDouble();
             partitionValue = in.readOptionalString();
         }
 
@@ -218,8 +206,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             out.writeOptionalString(end);
             out.writeOptionalString(sort);
             out.writeBoolean(decending);
-            out.writeDouble(anomalyScoreFilter);
-            out.writeDouble(maxNormalizedProbability);
+            out.writeDouble(recordScoreFilter);
             out.writeOptionalString(partitionValue);
         }
 
@@ -231,9 +218,8 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             builder.field(END.getPreferredName(), end);
             builder.field(SORT.getPreferredName(), sort);
             builder.field(DESCENDING.getPreferredName(), decending);
-            builder.field(ANOMALY_SCORE_FILTER.getPreferredName(), anomalyScoreFilter);
+            builder.field(RECORD_SCORE_FILTER.getPreferredName(), recordScoreFilter);
             builder.field(INCLUDE_INTERIM.getPreferredName(), includeInterim);
-            builder.field(MAX_NORMALIZED_PROBABILITY.getPreferredName(), maxNormalizedProbability);
             builder.field(PageParams.PAGE.getPreferredName(), pageParams);
             if (partitionValue != null) {
                 builder.field(PARTITION_VALUE.getPreferredName(), partitionValue);
@@ -244,7 +230,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, start, end, sort, decending, anomalyScoreFilter, includeInterim, maxNormalizedProbability,
+            return Objects.hash(jobId, start, end, sort, decending, recordScoreFilter, includeInterim,
                     pageParams, partitionValue);
         }
 
@@ -262,9 +248,8 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
                     Objects.equals(end, other.end) &&
                     Objects.equals(sort, other.sort) &&
                     Objects.equals(decending, other.decending) &&
-                    Objects.equals(anomalyScoreFilter, other.anomalyScoreFilter) &&
+                    Objects.equals(recordScoreFilter, other.recordScoreFilter) &&
                     Objects.equals(includeInterim, other.includeInterim) &&
-                    Objects.equals(maxNormalizedProbability, other.maxNormalizedProbability) &&
                     Objects.equals(pageParams, other.pageParams) &&
                     Objects.equals(partitionValue, other.partitionValue);
         }
@@ -362,7 +347,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
                     .epochEnd(request.end)
                     .from(request.pageParams.getFrom())
                     .size(request.pageParams.getSize())
-                    .anomalyScoreThreshold(request.anomalyScoreFilter)
+                    .recordScore(request.recordScoreFilter)
                     .sortField(request.sort)
                     .sortDescending(request.decending)
                     .build();

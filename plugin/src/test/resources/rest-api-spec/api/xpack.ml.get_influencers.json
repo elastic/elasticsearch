@@ -31,9 +31,9 @@
           "type": "string",
           "description": "end timestamp for the requested influencers"
         },
-        "anomaly_score": {
+        "influencer_score": {
           "type": "double",
-          "description": "anomaly score threshold for the requested influencers"
+          "description": "influencer score threshold for the requested influencers"
         },
         "sort": {
           "type": "string",

@@ -10,8 +10,8 @@ setup:
                   type: keyword
                 "timestamp":
                   type: date
-                "anomaly_score":
-                  type: float
+                "influencer_score":
+                  type: double
                 "result_type":
                   type: keyword
   - do:
@@ -25,7 +25,7 @@ setup:
             "timestamp": "2016-06-01T00:00:00Z",
             "influencer_field_name": "foo",
             "influencer_field_value": "bar",
-            "anomaly_score": 80.0,
+            "influencer_score": 80.0,
             "result_type" : "influencer",
             "bucket_span" : 1,
             "sequence_num" : 1
@@ -42,7 +42,7 @@ setup:
             "timestamp": "2016-06-02T00:00:00Z",
             "influencer_field_name": "foo",
             "influencer_field_value": "zoo",
-            "anomaly_score": 50.0,
+            "influencer_score": 50.0,
             "result_type" : "influencer",
             "bucket_span" : 1,
             "sequence_num" : 2

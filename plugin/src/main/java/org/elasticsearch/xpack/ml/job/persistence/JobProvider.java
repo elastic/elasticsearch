@@ -99,7 +99,7 @@ public class JobProvider {
     private static final Logger LOGGER = Loggers.getLogger(JobProvider.class);
 
     private static final List<String> SECONDARY_SORT = Arrays.asList(
-            AnomalyRecord.ANOMALY_SCORE.getPreferredName(),
+            AnomalyRecord.RECORD_SCORE.getPreferredName(),
             AnomalyRecord.OVER_FIELD_VALUE.getPreferredName(),
             AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(),
             AnomalyRecord.BY_FIELD_VALUE.getPreferredName(),
@@ -330,7 +330,6 @@ public class JobProvider {
         } else {
             rfb.timeRange(Result.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
                     .score(Bucket.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreFilter())
-                    .score(Bucket.MAX_NORMALIZED_PROBABILITY.getPreferredName(), query.getNormalizedProbability())
                     .interim(Bucket.IS_INTERIM.getPreferredName(), query.isIncludeInterim());
         }
 
@@ -399,9 +398,6 @@ public class JobProvider {
                     errorHandler.accept(item2.getFailure());
                     return;
                 }
-                List<PerPartitionMaxProbabilities> partitionProbs =
-                        handlePartitionMaxNormailizedProbabilitiesResponse(item2.getResponse());
-                mergePartitionScoresIntoBucket(partitionProbs, buckets.results(), query.getPartitionValue());
 
                 if (query.isExpand()) {
                     Iterator<Bucket> bucketsToExpand = buckets.results().stream()
@@ -430,23 +426,6 @@ public class JobProvider {
             expandBucket(jobId, query.isIncludeInterim(), bucketsToExpand.next(), query.getPartitionValue(), from, c, errorHandler, client);
         } else {
             handler.accept(buckets);
-        }
-    }
-
-    void mergePartitionScoresIntoBucket(List<PerPartitionMaxProbabilities> partitionProbs, List<Bucket> buckets, String partitionValue) {
-        Iterator<PerPartitionMaxProbabilities> itr = partitionProbs.iterator();
-        PerPartitionMaxProbabilities partitionProb = itr.hasNext() ? itr.next() : null;
-        for (Bucket b : buckets) {
-            if (partitionProb == null) {
-                b.setMaxNormalizedProbability(0.0);
-            } else {
-                if (partitionProb.getTimestamp().equals(b.getTimestamp())) {
-                    b.setMaxNormalizedProbability(partitionProb.getMaxProbabilityForPartition(partitionValue));
-                    partitionProb = itr.hasNext() ? itr.next() : null;
-                } else {
-                    b.setMaxNormalizedProbability(0.0);
-                }
-            }
         }
     }
 
@@ -643,8 +622,7 @@ public class JobProvider {
                         Consumer<Exception> errorHandler, Client client) {
         QueryBuilder fb = new ResultsFilterBuilder()
                 .timeRange(Result.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
-                .score(AnomalyRecord.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreThreshold())
-                .score(AnomalyRecord.NORMALIZED_PROBABILITY.getPreferredName(), query.getNormalizedProbabilityThreshold())
+                .score(AnomalyRecord.RECORD_SCORE.getPreferredName(), query.getRecordScoreThreshold())
                 .interim(AnomalyRecord.IS_INTERIM.getPreferredName(), query.isIncludeInterim())
                 .term(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(), query.getPartitionFieldValue()).build();
         FieldSortBuilder sb = null;

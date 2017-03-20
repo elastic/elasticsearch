@@ -17,7 +17,6 @@ public class BucketsQueryBuilderTests extends ESTestCase {
         assertEquals(false, query.isIncludeInterim());
         assertEquals(false, query.isExpand());
         assertEquals(0.0, query.getAnomalyScoreFilter(), 0.0001);
-        assertEquals(0.0, query.getNormalizedProbability(), 0.0001);
         assertNull(query.getStart());
         assertNull(query.getEnd());
         assertEquals("timestamp", query.getSortField());
@@ -31,7 +30,6 @@ public class BucketsQueryBuilderTests extends ESTestCase {
                 .includeInterim(true)
                 .expand(true)
                 .anomalyScoreThreshold(50.0d)
-                .normalizedProbabilityThreshold(70.0d)
                 .start("1000")
                 .end("2000")
                 .partitionValue("foo")
@@ -44,7 +42,6 @@ public class BucketsQueryBuilderTests extends ESTestCase {
         assertEquals(true, query.isIncludeInterim());
         assertEquals(true, query.isExpand());
         assertEquals(50.0d, query.getAnomalyScoreFilter(), 0.00001);
-        assertEquals(70.0d, query.getNormalizedProbability(), 0.00001);
         assertEquals("1000", query.getStart());
         assertEquals("2000", query.getEnd());
         assertEquals("foo", query.getPartitionValue());
@@ -59,7 +56,6 @@ public class BucketsQueryBuilderTests extends ESTestCase {
                 .includeInterim(true)
                 .expand(true)
                 .anomalyScoreThreshold(50.0d)
-                .normalizedProbabilityThreshold(70.0d)
                 .start("1000")
                 .end("2000")
                 .partitionValue("foo");
@@ -70,7 +66,6 @@ public class BucketsQueryBuilderTests extends ESTestCase {
                 .includeInterim(true)
                 .expand(true)
                 .anomalyScoreThreshold(50.0d)
-                .normalizedProbabilityThreshold(70.0d)
                 .start("1000")
                 .end("2000")
                 .partitionValue("foo");
@@ -85,7 +80,6 @@ public class BucketsQueryBuilderTests extends ESTestCase {
         .includeInterim(true)
         .expand(true)
         .anomalyScoreThreshold(50.0d)
-        .normalizedProbabilityThreshold(70.0d)
         .start("1000")
         .end("2000")
         .partitionValue("foo");
@@ -97,7 +91,6 @@ public class BucketsQueryBuilderTests extends ESTestCase {
         .includeInterim(true)
         .expand(true)
         .anomalyScoreThreshold(50.1d)
-        .normalizedProbabilityThreshold(70.0d)
         .start("1000")
         .end("2000")
         .partitionValue("foo");

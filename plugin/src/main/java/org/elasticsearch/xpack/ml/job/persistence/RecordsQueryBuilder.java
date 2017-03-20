@@ -17,10 +17,8 @@ package org.elasticsearch.xpack.ml.job.persistence;
  * <li>SortField- The field to sort results by if <code>null</code> no sort is
  * applied. Default = null</li>
  * <li>SortDescending- Sort in descending order. Default = true</li>
- * <li>anomalyScoreThreshold- Return only buckets with an anomalyScore &gt;=
+ * <li>recordScoreThreshold- Return only records with a record_score &gt;=
  * this value. Default = 0.0</li>
- * <li>normalizedProbabilityThreshold. Return only buckets with a
- * maxNormalizedProbability &gt;= this value. Default = 0.0</li>
  * <li>start- The start bucket time. A bucket with this timestamp will be
  * included in the results. If 0 all buckets up to <code>endEpochMs</code> are
  * returned. Default = -1</li>
@@ -70,13 +68,8 @@ public final class RecordsQueryBuilder {
         return this;
     }
 
-    public RecordsQueryBuilder anomalyScoreThreshold(double anomalyScoreFilter) {
-        recordsQuery.anomalyScoreFilter = anomalyScoreFilter;
-        return this;
-    }
-
-    public RecordsQueryBuilder normalizedProbability(double normalizedProbability) {
-        recordsQuery.normalizedProbability = normalizedProbability;
+    public RecordsQueryBuilder recordScore(double recordScore) {
+        recordsQuery.recordScore = recordScore;
         return this;
     }
 
@@ -100,8 +93,7 @@ public final class RecordsQueryBuilder {
         private boolean includeInterim = false;
         private String sortField;
         private boolean sortDescending = true;
-        private double anomalyScoreFilter = 0.0d;
-        private double normalizedProbability = 0.0d;
+        private double recordScore = 0.0;
         private String partitionFieldValue;
         private String start;
         private String end;
@@ -123,12 +115,8 @@ public final class RecordsQueryBuilder {
             return sortDescending;
         }
 
-        public double getAnomalyScoreThreshold() {
-            return anomalyScoreFilter;
-        }
-
-        public double getNormalizedProbabilityThreshold() {
-            return normalizedProbability;
+        public double getRecordScoreThreshold() {
+            return recordScore;
         }
 
         public String getPartitionFieldValue() {

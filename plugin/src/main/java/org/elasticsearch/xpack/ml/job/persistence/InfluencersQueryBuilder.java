@@ -25,8 +25,6 @@ import java.util.Objects;
  * <li>end- The end influencer timestamp. Influencers up to but NOT including this
  * timestamp are returned. If 0 all influencers from <code>start</code> are
  * returned. Default = -1</li>
- * <li>partitionValue Set the bucket's max normalized probability to this
- * partition field value's max normalized probability. Default = null</li>
  * </ul>
  */
 public final class InfluencersQueryBuilder {
@@ -96,7 +94,7 @@ public final class InfluencersQueryBuilder {
         private double anomalyScoreFilter = 0.0d;
         private String start;
         private String end;
-        private String sortField = Influencer.ANOMALY_SCORE.getPreferredName();
+        private String sortField = Influencer.INFLUENCER_SCORE.getPreferredName();
         private boolean sortDescending = false;
 
         public int getFrom() {

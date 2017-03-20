@@ -96,7 +96,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
         private boolean includeInterim = false;
         private PageParams pageParams = new PageParams();
         private double anomalyScoreFilter = 0.0;
-        private String sort = Influencer.ANOMALY_SCORE.getPreferredName();
+        private String sort = Influencer.INFLUENCER_SCORE.getPreferredName();
         private boolean decending = false;
 
         Request() {

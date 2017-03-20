@@ -23,7 +23,7 @@ setup:
             "job_id": "farequote",
             "result_type": "record",
             "timestamp": "2016-06-01T00:00:00Z",
-            "anomaly_score": 60.0,
+            "record_score": 60.0,
             "bucket_span": 1,
             "sequence_num": 1
           }
@@ -38,7 +38,7 @@ setup:
               "job_id": "farequote",
               "result_type": "record",
               "timestamp": "2016-06-02T00:00:00Z",
-              "anomaly_score": 80.0,
+              "record_score": 80.0,
               "bucket_span": 1,
               "sequence_num": 2
             }

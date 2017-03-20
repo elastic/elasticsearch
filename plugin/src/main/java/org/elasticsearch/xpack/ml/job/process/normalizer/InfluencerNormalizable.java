@@ -61,12 +61,12 @@ class InfluencerNormalizable extends AbstractLeafNormalizable {
 
     @Override
     public double getNormalizedScore() {
-        return influencer.getAnomalyScore();
+        return influencer.getInfluencerScore();
     }
 
     @Override
     public void setNormalizedScore(double normalizedScore) {
-        influencer.setAnomalyScore(normalizedScore);
+        influencer.setInfluencerScore(normalizedScore);
     }
 
     @Override

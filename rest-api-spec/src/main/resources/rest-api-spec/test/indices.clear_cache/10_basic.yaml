@@ -12,8 +12,8 @@
 ---
 "clear_cache with request_cache set to false":
   - skip:
-      version: " - 5.2.2"
-      reason: deprecation was added in 5.2.3
+      version: " - 5.3.99"
+      reason: deprecation was added in 5.4.0
       features: "warnings"
 
   - do:

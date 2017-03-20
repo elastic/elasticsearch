@@ -34,7 +34,7 @@ public class RestClearIndicesCacheActionTests extends ESTestCase {
         final HashMap<String, String> params = new HashMap<>();
         params.put("request", "true");
         final RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
-                                            .withPath("_cache").withParams(params).build();
+                                                           .withParams(params).build();
         ClearIndicesCacheRequest cacheRequest = new ClearIndicesCacheRequest();
         cacheRequest = RestClearIndicesCacheAction.fromRequest(restRequest, cacheRequest);
         assertThat(cacheRequest.requestCache(), equalTo(true));

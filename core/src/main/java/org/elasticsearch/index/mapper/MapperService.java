@@ -115,7 +115,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private volatile Map<String, DocumentMapper> mappers = emptyMap();
 
     private volatile FieldTypeLookup fieldTypes;
-    private volatile Map<String, ObjectMapper> fullPathObjectMappers = new HashMap<>();
+    private volatile Map<String, ObjectMapper> fullPathObjectMappers = emptyMap();
     private boolean hasNested = false; // updated dynamically to true when a nested object is added
     private boolean allEnabled = false; // updated dynamically to true when _all is enabled
 
@@ -399,6 +399,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             for (ObjectMapper objectMapper : objectMappers) {
                 if (fullPathObjectMappers == this.fullPathObjectMappers) {
+                    // first time through the loops
                     fullPathObjectMappers = new HashMap<>(this.fullPathObjectMappers);
                 }
                 fullPathObjectMappers.put(objectMapper.fullPath(), objectMapper);
@@ -419,6 +420,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             if (oldMapper == null && newMapper.parentFieldMapper().active()) {
                 if (parentTypes == this.parentTypes) {
+                    // first time through the loop
                     parentTypes = new HashSet<>(this.parentTypes);
                 }
                 parentTypes.add(mapper.parentFieldMapper().type());
@@ -461,8 +463,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         // make structures immutable
         mappers = Collections.unmodifiableMap(mappers);
         results = Collections.unmodifiableMap(results);
-        parentTypes = Collections.unmodifiableSet(parentTypes);
-        fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
+
+        // only need to immutably rewrap these if the previous reference was changed.
+        // if not then they are already implicitly immutable.
+        if (fullPathObjectMappers != this.fullPathObjectMappers) {
+            fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
+        }
+        if (parentTypes != this.parentTypes) {
+            parentTypes = Collections.unmodifiableSet(parentTypes);
+        }
 
         // commit the change
         if (defaultMappingSource != null) {

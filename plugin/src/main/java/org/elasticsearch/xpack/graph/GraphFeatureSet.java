@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.graph;
 import java.io.IOException;
 import java.util.Map;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -54,8 +55,8 @@ public class GraphFeatureSet implements XPackFeatureSet {
     }
 
     @Override
-    public XPackFeatureSet.Usage usage() {
-        return new Usage(available(), enabled());
+    public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
+        listener.onResponse(new Usage(available(), enabled()));
     }
 
     public static class Usage extends XPackFeatureSet.Usage {

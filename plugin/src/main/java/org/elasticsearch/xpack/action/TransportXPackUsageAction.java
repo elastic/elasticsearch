@@ -17,14 +17,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackFeatureSet;
+import org.elasticsearch.xpack.XPackFeatureSet.Usage;
+import org.elasticsearch.xpack.common.IteratingActionListener;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.BiConsumer;
 
 public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUsageRequest, XPackUsageResponse> {
 
-    private final Set<XPackFeatureSet> featureSets;
+    private final List<XPackFeatureSet> featureSets;
 
     @Inject
     public TransportXPackUsageAction(Settings settings, ThreadPool threadPool, TransportService transportService,
@@ -32,7 +38,7 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
                                      IndexNameExpressionResolver indexNameExpressionResolver, Set<XPackFeatureSet> featureSets) {
         super(settings, XPackUsageAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 XPackUsageRequest::new);
-        this.featureSets = featureSets;
+        this.featureSets = Collections.unmodifiableList(new ArrayList<>(featureSets));
     }
 
     @Override
@@ -48,8 +54,43 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
     @Override
     protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageResponse> listener)
             throws Exception {
-        List<XPackFeatureSet.Usage> usages = featureSets.stream().map(XPackFeatureSet::usage).collect(Collectors.toList());
-        listener.onResponse(new XPackUsageResponse(usages));
+        final ActionListener<List<XPackFeatureSet.Usage>> usageActionListener = new ActionListener<List<Usage>>() {
+            @Override
+            public void onResponse(List<Usage> usages) {
+                listener.onResponse(new XPackUsageResponse(usages));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        };
+        final AtomicReferenceArray<Usage> featureSetUsages = new AtomicReferenceArray<>(featureSets.size());
+        final AtomicInteger position = new AtomicInteger(0);
+        final BiConsumer<XPackFeatureSet, ActionListener<List<Usage>>> consumer = (featureSet, iteratingListener) -> {
+            featureSet.usage(new ActionListener<Usage>() {
+                @Override
+                public void onResponse(Usage usage) {
+                    featureSetUsages.set(position.getAndIncrement(), usage);
+                    iteratingListener.onResponse(null); // just send null back and keep iterating
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    iteratingListener.onFailure(e);
+                }
+            });
+        };
+        IteratingActionListener<List<XPackFeatureSet.Usage>, XPackFeatureSet> iteratingActionListener =
+                new IteratingActionListener<>(usageActionListener, consumer, featureSets,
+                        threadPool.getThreadContext(), () -> {
+                    final List<Usage> usageList = new ArrayList<>(featureSetUsages.length());
+                    for (int i = 0; i < featureSetUsages.length(); i++) {
+                        usageList.add(featureSetUsages.get(i));
+                    }
+                    return usageList;
+                });
+        iteratingActionListener.run();
     }
 
     @Override

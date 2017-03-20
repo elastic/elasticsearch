@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -60,8 +61,8 @@ public class MonitoringFeatureSet implements XPackFeatureSet {
     }
 
     @Override
-    public XPackFeatureSet.Usage usage() {
-        return new Usage(available(), enabled(), exportersUsage(exporters));
+    public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
+        listener.onResponse(new Usage(available(), enabled(), exportersUsage(exporters)));
     }
 
     static Map<String, Object> exportersUsage(Exporters exporters) {

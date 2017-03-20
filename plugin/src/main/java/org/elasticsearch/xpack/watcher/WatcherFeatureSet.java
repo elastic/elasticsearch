@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackFeatureSet;
+import org.elasticsearch.xpack.XPackFeatureSet.Usage;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 
@@ -59,8 +61,9 @@ public class WatcherFeatureSet implements XPackFeatureSet {
     }
 
     @Override
-    public XPackFeatureSet.Usage usage() {
-        return new Usage(available(), enabled(), watcherService != null ? watcherService.usageStats() : Collections.emptyMap());
+    public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
+        listener.onResponse(
+                new Usage(available(), enabled(), watcherService != null ? watcherService.usageStats() : Collections.emptyMap()));
     }
 
     public static class Usage extends XPackFeatureSet.Usage {

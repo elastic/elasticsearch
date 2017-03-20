@@ -278,11 +278,13 @@ public class CompositeRolesStore extends AbstractComponent {
         negativeLookupCache.remove(role);
     }
 
-    public Map<String, Object> usageStats() {
-        Map<String, Object> usage = new HashMap<>(2);
+    public void usageStats(ActionListener<Map<String, Object>> listener) {
+        final Map<String, Object> usage = new HashMap<>(2);
         usage.put("file", fileRolesStore.usageStats());
-        usage.put("native", nativeRolesStore.usageStats());
-        return usage;
+        nativeRolesStore.usageStats(ActionListener.wrap(map -> {
+            usage.put("native", map);
+            listener.onResponse(usage);
+        }, listener::onFailure));
     }
 
     /**

@@ -16,7 +16,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
@@ -202,29 +201,20 @@ public class NativeRolesStore extends AbstractComponent {
         }
     }
 
-    public Map<String, Object> usageStats() {
-        boolean dls = false;
-        boolean fls = false;
+    public void usageStats(ActionListener<Map<String, Object>> listener) {
         Map<String, Object> usageStats = new HashMap<>();
         if (securityLifecycleService.securityIndexExists() == false) {
             usageStats.put("size", 0L);
-            usageStats.put("fls", fls);
-            usageStats.put("dls", dls);
-            return usageStats;
-        }
-
-        // FIXME this needs to be async
-        long count = 0L;
-        // query for necessary information
-        if (fls == false || dls == false) {
-            MultiSearchRequestBuilder builder = client.prepareMultiSearch()
+            usageStats.put("fls", false);
+            usageStats.put("dls", false);
+            listener.onResponse(usageStats);
+        } else {
+            client.prepareMultiSearch()
                     .add(client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
                             .setTypes(ROLE_DOC_TYPE)
                             .setQuery(QueryBuilders.matchAllQuery())
-                            .setSize(0));
-
-            if (fls == false) {
-                builder.add(client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
+                            .setSize(0))
+                    .add(client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
                         .setTypes(ROLE_DOC_TYPE)
                         .setQuery(QueryBuilders.boolQuery()
                                 .should(existsQuery("indices.field_security.grant"))
@@ -232,41 +222,42 @@ public class NativeRolesStore extends AbstractComponent {
                                 // for backwardscompat with 2.x
                                 .should(existsQuery("indices.fields")))
                         .setSize(0)
-                        .setTerminateAfter(1));
-            }
-
-            if (dls == false) {
-                builder.add(client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
+                        .setTerminateAfter(1))
+                    .add(client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
                         .setTypes(ROLE_DOC_TYPE)
                         .setQuery(existsQuery("indices.query"))
                         .setSize(0)
-                        .setTerminateAfter(1));
-            }
+                        .setTerminateAfter(1))
+                    .execute(new ActionListener<MultiSearchResponse>() {
+                        @Override
+                        public void onResponse(MultiSearchResponse items) {
+                            Item[] responses = items.getResponses();
+                            if (responses[0].isFailure()) {
+                                usageStats.put("size", 0);
+                            } else {
+                                usageStats.put("size", responses[0].getResponse().getHits().getTotalHits());
+                            }
 
-            MultiSearchResponse multiSearchResponse = builder.get();
-            int pos = 0;
-            Item[] responses = multiSearchResponse.getResponses();
-            if (responses[pos].isFailure() == false) {
-                count = responses[pos].getResponse().getHits().getTotalHits();
-            }
+                            if (responses[1].isFailure()) {
+                                usageStats.put("fls", false);
+                            } else {
+                                usageStats.put("fls", responses[1].getResponse().getHits().getTotalHits() > 0L);
+                            }
 
-            if (fls == false) {
-                if (responses[++pos].isFailure() == false) {
-                    fls = responses[pos].getResponse().getHits().getTotalHits() > 0L;
-                }
-            }
+                            if (responses[2].isFailure()) {
+                                usageStats.put("dls", false);
+                            } else {
+                                usageStats.put("dls", responses[2].getResponse().getHits().getTotalHits() > 0L);
+                            }
+                            listener.onResponse(usageStats);
+                        }
 
-            if (dls == false) {
-                if (responses[++pos].isFailure() == false) {
-                    dls = responses[pos].getResponse().getHits().getTotalHits() > 0L;
-                }
-            }
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
         }
-
-        usageStats.put("size", count);
-        usageStats.put("fls", fls);
-        usageStats.put("dls", dls);
-        return usageStats;
     }
 
     private void getRoleDescriptor(final String roleId, ActionListener<RoleDescriptor> roleActionListener) {

@@ -6,20 +6,23 @@
 package org.elasticsearch.xpack.security;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
@@ -33,8 +36,6 @@ import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
  */
 public class SecurityFeatureSet implements XPackFeatureSet {
 
-    private static final Map<String, Object> DISABLED_FEATURE_MAP = Collections.singletonMap("enabled", false);
-
     private final Settings settings;
     private final boolean enabled;
     private final XPackLicenseState licenseState;
@@ -44,23 +45,19 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     private final CompositeRolesStore rolesStore;
     @Nullable
     private final IPFilter ipFilter;
-    @Nullable
-    private final AuditTrailService auditTrailService;
-    @Nullable
-    private final CryptoService cryptoService;
+    private final boolean systemKeyUsed;
 
     @Inject
     public SecurityFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, @Nullable Realms realms,
                               @Nullable CompositeRolesStore rolesStore, @Nullable IPFilter ipFilter,
-                              @Nullable AuditTrailService auditTrailService, @Nullable CryptoService cryptoService) {
+                              Environment environment) {
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         this.licenseState = licenseState;
         this.realms = realms;
         this.rolesStore = rolesStore;
         this.settings = settings;
         this.ipFilter = ipFilter;
-        this.auditTrailService = auditTrailService;
-        this.cryptoService = cryptoService;
+        this.systemKeyUsed = enabled && Files.exists(CryptoService.resolveSystemKey(environment));
     }
 
     @Override
@@ -89,16 +86,21 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     }
 
     @Override
-    public XPackFeatureSet.Usage usage() {
+    public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         Map<String, Object> realmsUsage = buildRealmsUsage(realms);
-        Map<String, Object> rolesStoreUsage = rolesStore == null ? Collections.emptyMap() : rolesStore.usageStats();
         Map<String, Object> sslUsage = sslUsage(settings);
-        Map<String, Object> auditUsage = auditUsage(auditTrailService);
+        Map<String, Object> auditUsage = auditUsage(settings);
         Map<String, Object> ipFilterUsage = ipFilterUsage(ipFilter);
-        Map<String, Object> systemKeyUsage = systemKeyUsage(cryptoService);
+        Map<String, Object> systemKeyUsage = systemKeyUsage();
         Map<String, Object> anonymousUsage = Collections.singletonMap("enabled", AnonymousUser.isAnonymousEnabled(settings));
-        return new Usage(available(), enabled(), realmsUsage, rolesStoreUsage, sslUsage, auditUsage, ipFilterUsage, systemKeyUsage,
-                anonymousUsage);
+        final ActionListener<Map<String, Object>> rolesStoreUsageListener =
+                ActionListener.wrap(rolesStoreUsage -> listener.onResponse(new Usage(available(), enabled(), realmsUsage, rolesStoreUsage,
+                        sslUsage, auditUsage, ipFilterUsage, systemKeyUsage, anonymousUsage)),listener::onFailure);
+        if (rolesStore == null) {
+            rolesStoreUsageListener.onResponse(Collections.emptyMap());
+        } else {
+            rolesStore.usageStats(rolesStoreUsageListener);
+        }
     }
 
     static Map<String, Object> buildRealmsUsage(Realms realms) {
@@ -112,11 +114,11 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         return Collections.singletonMap("http", Collections.singletonMap("enabled", HTTP_SSL_ENABLED.get(settings)));
     }
 
-    static Map<String, Object> auditUsage(@Nullable AuditTrailService auditTrailService) {
-        if (auditTrailService == null) {
-            return DISABLED_FEATURE_MAP;
-        }
-        return auditTrailService.usageStats();
+    static Map<String, Object> auditUsage(Settings settings) {
+        Map<String, Object> map = new HashMap<>(2);
+        map.put("enabled", XPackSettings.AUDIT_ENABLED.get(settings));
+        map.put("outputs", Security.AUDIT_OUTPUTS_SETTING.get(settings));
+        return map;
     }
 
     static Map<String, Object> ipFilterUsage(@Nullable IPFilter ipFilter) {
@@ -126,9 +128,9 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         return ipFilter.usageStats();
     }
 
-    static Map<String, Object> systemKeyUsage(CryptoService cryptoService) {
+    Map<String, Object> systemKeyUsage() {
         // we can piggy back on the encryption enabled method as it is only enabled if there is a system key
-        return Collections.singletonMap("enabled", cryptoService != null && cryptoService.isEncryptionEnabled());
+        return Collections.singletonMap("enabled", systemKeyUsed);
     }
 
     public static class Usage extends XPackFeatureSet.Usage {

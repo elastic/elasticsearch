@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -599,7 +600,9 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     public void testRolesUsageStats() throws Exception {
         NativeRolesStore rolesStore = internalCluster().getInstance(NativeRolesStore.class);
         long roles = anonymousEnabled && roleExists ? 1L: 0L;
-        Map<String, Object> usage = rolesStore.usageStats();
+        PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        rolesStore.usageStats(future);
+        Map<String, Object> usage = future.get();
         assertEquals(roles, usage.get("size"));
         assertThat(usage.get("fls"), is(false));
         assertThat(usage.get("dls"), is(false));
@@ -644,7 +647,9 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
         client.prepareClearRolesCache().get();
 
-        usage = rolesStore.usageStats();
+        future = new PlainActionFuture<>();
+        rolesStore.usageStats(future);
+        usage = future.get();
         assertThat(usage.get("size"), is(roles));
         assertThat(usage.get("fls"), is(fls));
         assertThat(usage.get("dls"), is(dls));

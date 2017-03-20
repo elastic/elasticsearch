@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -12,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackFeatureSet;
+import org.elasticsearch.xpack.XPackFeatureSet.Usage;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
@@ -95,7 +97,9 @@ public class MonitoringFeatureSetTests extends ESTestCase {
         when(exporters.iterator()).thenReturn(exporterList.iterator());
 
         MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, licenseState, exporters);
-        XPackFeatureSet.Usage monitoringUsage = featureSet.usage();
+        PlainActionFuture<Usage> future = new PlainActionFuture<>();
+        featureSet.usage(future);
+        XPackFeatureSet.Usage monitoringUsage = future.get();
         BytesStreamOutput out = new BytesStreamOutput();
         monitoringUsage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new MonitoringFeatureSet.Usage(out.bytes().streamInput());

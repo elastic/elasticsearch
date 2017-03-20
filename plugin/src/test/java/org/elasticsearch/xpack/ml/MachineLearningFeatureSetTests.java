@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackFeatureSet;
+import org.elasticsearch.xpack.XPackFeatureSet.Usage;
 import org.junit.Before;
 
 import static org.hamcrest.core.Is.is;
@@ -30,10 +32,13 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         boolean available = randomBoolean();
         when(licenseState.isMachineLearningAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
-        assertThat(featureSet.usage().available(), is(available));
+        PlainActionFuture<Usage> future = new PlainActionFuture<>();
+        featureSet.usage(future);
+        XPackFeatureSet.Usage usage = future.get();
+        assertThat(usage.available(), is(available));
 
         BytesStreamOutput out = new BytesStreamOutput();
-        featureSet.usage().writeTo(out);
+        usage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new MachineLearningFeatureSet.Usage(out.bytes().streamInput());
         assertThat(serializedUsage.available(), is(available));
     }
@@ -49,10 +54,13 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         boolean expected = enabled || useDefault;
         MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(expected));
-        assertThat(featureSet.usage().enabled(), is(expected));
+        PlainActionFuture<Usage> future = new PlainActionFuture<>();
+        featureSet.usage(future);
+        XPackFeatureSet.Usage usage = future.get();
+        assertThat(usage.enabled(), is(expected));
 
         BytesStreamOutput out = new BytesStreamOutput();
-        featureSet.usage().writeTo(out);
+        usage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new MachineLearningFeatureSet.Usage(out.bytes().streamInput());
         assertThat(serializedUsage.enabled(), is(expected));
     }

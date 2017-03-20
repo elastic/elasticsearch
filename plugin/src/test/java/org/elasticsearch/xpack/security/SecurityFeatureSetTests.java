@@ -5,16 +5,20 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -24,6 +28,10 @@ import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,12 +42,15 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SecurityFeatureSetTests extends ESTestCase {
 
     private Settings settings;
+    private Environment environment;
     private XPackLicenseState licenseState;
     private Realms realms;
     private IPFilter ipFilter;
@@ -50,17 +61,16 @@ public class SecurityFeatureSetTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         settings = Settings.builder().put("path.home", createTempDir()).build();
+        environment = new Environment(settings);
         licenseState = mock(XPackLicenseState.class);
         realms = mock(Realms.class);
         ipFilter = mock(IPFilter.class);
         rolesStore = mock(CompositeRolesStore.class);
-        auditTrail = mock(AuditTrailService.class);
-        cryptoService = mock(CryptoService.class);
     }
 
     public void testAvailable() throws Exception {
         SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, rolesStore,
-                ipFilter, auditTrail, cryptoService);
+                ipFilter, environment);
         boolean available = randomBoolean();
         when(licenseState.isAuthAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -73,26 +83,26 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 .put("xpack.security.enabled", enabled)
                 .build();
         SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, rolesStore,
-                ipFilter, auditTrail, cryptoService);
+                ipFilter, environment);
         assertThat(featureSet.enabled(), is(enabled));
     }
 
     public void testEnabledDefault() throws Exception {
         SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, rolesStore,
-                        ipFilter, auditTrail, cryptoService);
+                        ipFilter, environment);
         assertThat(featureSet.enabled(), is(true));
     }
 
-    public void testSystemKeyUsageEnabledByCryptoService() {
+    public void testSystemKeyUsageEnabledByCryptoService() throws IOException {
         final boolean enabled = randomBoolean();
-
-        when(cryptoService.isEncryptionEnabled()).thenReturn(enabled);
-
-        assertThat(SecurityFeatureSet.systemKeyUsage(cryptoService), hasEntry("enabled", enabled));
-    }
-
-    public void testSystemKeyUsageNotEnabledIfNull() {
-        assertThat(SecurityFeatureSet.systemKeyUsage(null), hasEntry("enabled", false));
+        if (enabled) {
+            Path path = CryptoService.resolveSystemKey(environment);
+            Files.createDirectories(path.getParent());
+            Files.write(path, new byte[0]);
+        }
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, rolesStore,
+                ipFilter, environment);
+        assertThat(featureSet.systemKeyUsage(), hasEntry("enabled", enabled));
     }
 
     public void testUsage() throws Exception {
@@ -108,13 +118,9 @@ public class SecurityFeatureSetTests extends ESTestCase {
         final boolean httpSSLEnabled = randomBoolean();
         settings.put("xpack.security.http.ssl.enabled", httpSSLEnabled);
         final boolean auditingEnabled = randomBoolean();
+        settings.put(XPackSettings.AUDIT_ENABLED.getKey(), auditingEnabled);
         final String[] auditOutputs = randomFrom(new String[] {"logfile"}, new String[] {"index"}, new String[] {"logfile", "index"});
-        when(auditTrail.usageStats())
-                .thenReturn(MapBuilder.<String, Object>newMapBuilder()
-                        .put("enabled", auditingEnabled)
-                        .put("outputs", auditOutputs)
-                        .map());
-
+        settings.putArray(Security.AUDIT_OUTPUTS_SETTING.getKey(), auditOutputs);
         final boolean httpIpFilterEnabled = randomBoolean();
         final boolean transportIPFilterEnabled = randomBoolean();
         when(ipFilter.usageStats())
@@ -125,13 +131,21 @@ public class SecurityFeatureSetTests extends ESTestCase {
 
 
         final boolean rolesStoreEnabled = randomBoolean();
-        if (rolesStoreEnabled) {
-            when(rolesStore.usageStats()).thenReturn(Collections.singletonMap("count", 1));
-        } else {
-            when(rolesStore.usageStats()).thenReturn(Collections.emptyMap());
-        }
+        doAnswer(invocationOnMock -> {
+            ActionListener<Map<String, Object>> listener = (ActionListener<Map<String, Object>>) invocationOnMock.getArguments()[0];
+            if (rolesStoreEnabled) {
+                listener.onResponse(Collections.singletonMap("count", 1));
+            } else {
+                listener.onResponse(Collections.emptyMap());
+            }
+            return Void.TYPE;
+        }).when(rolesStore).usageStats(any(ActionListener.class));
         final boolean useSystemKey = randomBoolean();
-        when(cryptoService.isEncryptionEnabled()).thenReturn(useSystemKey);
+        if (useSystemKey) {
+            Path path = CryptoService.resolveSystemKey(environment);
+            Files.createDirectories(path.getParent());
+            Files.write(path, new byte[0], StandardOpenOption.CREATE_NEW);
+        }
 
         Map<String, Object> realmsUsageStats = new HashMap<>();
         for (int i = 0; i < 5; i++) {
@@ -148,9 +162,10 @@ public class SecurityFeatureSetTests extends ESTestCase {
             settings.put(AnonymousUser.ROLES_SETTING.getKey(), "foo");
         }
 
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState, realms, rolesStore,
-                ipFilter, auditTrail, cryptoService);
-        XPackFeatureSet.Usage securityUsage = featureSet.usage();
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState, realms, rolesStore, ipFilter, environment);
+        PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
+        featureSet.usage(future);
+        XPackFeatureSet.Usage securityUsage = future.get();
         BytesStreamOutput out = new BytesStreamOutput();
         securityUsage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new SecurityFeatureSet.Usage(out.bytes().streamInput());

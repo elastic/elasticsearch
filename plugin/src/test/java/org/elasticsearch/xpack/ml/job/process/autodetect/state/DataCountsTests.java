@@ -46,9 +46,16 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
     }
 
     public void testCountsHashCode_GivenEqualCounts() {
-        DataCounts counts1 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
-        DataCounts counts2 = createCounts(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
-
+        DataCounts counts1 = new DataCounts("foo", 1, 2, 3,
+                4, 5, 6, 7,
+                8, 9, 10,
+                new Date(11), new Date(12),
+                new Date(13), new Date(14), new Date(15));
+        DataCounts counts2 = new DataCounts("foo", 1, 2, 3,
+                4, 5, 6, 7,
+                8, 9, 10,
+                new Date(11), new Date(12),
+                new Date(13), new Date(14), new Date(15));
         assertEquals(counts1.hashCode(), counts2.hashCode());
     }
 

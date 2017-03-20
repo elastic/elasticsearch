@@ -22,8 +22,8 @@ The `created` field has been deprecated in the Index API. It now returns
 
 The `found` field has been deprecated in the Delete API. It now returns
 `result`, returning `"result": "deleted"` when it deleted a document and
-`"result": "noop"` when it didn't found the document. This is also true for
-`index` bulk operations.
+`"result": "not_found"` when it didn't find the document. This is also true for
+`delete` bulk operations.
 
 ==== Reindex and Update By Query
 Before 5.0.0 `_reindex` and `_update_by_query` only retried bulk failures so

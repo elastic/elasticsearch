@@ -640,7 +640,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     StoreFileMetaData local = targetMetaData.get(meta.name());
                     StoreFileMetaData remote = sourceMetaData.get(meta.name());
                     // if we have different files then they must have no checksums; otherwise something went wrong during recovery.
-                    // we have that problem when we have an empty index (is only a segments_1 file) then we can't tell if it's a Lucene 4.8 file
+                    // we have that problem when we have an empty index is only a segments_1 file so we can't tell if it's a Lucene 4.8 file
                     // and therefore no checksum is included. That isn't a problem since we simply copy it over anyway but those files come out as
                     // different in the diff. That's why we have to double check here again if the rest of it matches.
 
@@ -702,7 +702,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * Represents a snapshot of the current directory build from the latest Lucene commit.
      * Only files that are part of the last commit are considered in this datastrucutre.
-     * For backwards compatibility, the snapshot might include legacy checksums that
+     * For backwards compatibility the snapshot might include legacy checksums that
      * are derived from a dedicated checksum file written by older elasticsearch version pre 1.3
      * <p>
      * Note: This class will ignore the <tt>segments.gen</tt> file since it's optional and might

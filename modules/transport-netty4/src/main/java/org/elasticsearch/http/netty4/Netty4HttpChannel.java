@@ -131,7 +131,7 @@ final class Netty4HttpChannel extends AbstractRestChannel {
             }
 
             if (releaseBytesStreamOutput) {
-                promise.addListener(f -> ((ReleasableBytesStreamOutput) bytesOutputOrNull()).releaseIfNecessary());
+                promise.addListener(f -> bytesOutput().close());
             }
 
             if (isCloseConnection()) {
@@ -152,7 +152,7 @@ final class Netty4HttpChannel extends AbstractRestChannel {
                 ((Releasable) content).close();
             }
             if (releaseBytesStreamOutput) {
-                ((ReleasableBytesStreamOutput) bytesOutputOrNull()).releaseIfNecessary();
+                bytesOutput().close();
             }
             if (pipelinedRequest != null) {
                 pipelinedRequest.release();

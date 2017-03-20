@@ -50,7 +50,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
     /**
      * Create a non recycling {@link BytesStreamOutput} with enough initial pages acquired
      * to satisfy the capacity given by expected size.
-     * 
+     *
      * @param expectedSize the expected maximum size of the stream in bytes.
      */
     public BytesStreamOutput(int expectedSize) {
@@ -129,7 +129,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
 
     /**
      * Returns the current size of the buffer.
-     * 
+     *
      * @return the value of the <code>count</code> field, which is the number of valid
      *         bytes in this output stream.
      * @see java.io.ByteArrayOutputStream#count
@@ -151,7 +151,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
         return bytes.ramBytesUsed();
     }
 
-    private void ensureCapacity(long offset) {
+    void ensureCapacity(long offset) {
         if (offset > Integer.MAX_VALUE) {
             throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
         }

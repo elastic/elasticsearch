@@ -32,24 +32,10 @@ public class ReleasableBytesStreamOutputTests extends ESTestCase {
 
     public void testRelease() throws Exception {
         MockBigArrays mockBigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
-        ReleasableBytesStreamOutput output = getRandomReleasableBytesStreamOutput(mockBigArrays);
-        output.releaseIfNecessary();
+        try (ReleasableBytesStreamOutput output = getRandomReleasableBytesStreamOutput(mockBigArrays)) {
+            output.writeBoolean(randomBoolean());
+        }
         MockBigArrays.ensureAllArraysAreReleased();
-    }
-
-    public void testGetBytesAndReset() throws Exception {
-        MockBigArrays mockBigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
-        ReleasableBytesStreamOutput output = getRandomReleasableBytesStreamOutput(mockBigArrays);
-        assertNotNull(output.bytes());
-        IllegalStateException ise = expectThrows(IllegalStateException.class, output::bytes);
-        assertThat(ise.getMessage(), containsString("bytes has been called once already and the stream has not been reset"));
-        output.releaseIfNecessary();
-
-        output = getRandomReleasableBytesStreamOutput(mockBigArrays);
-        assertNotNull(output.bytes());
-        output.reset();
-        assertNotNull(output.bytes());
-        output.releaseIfNecessary();
     }
 
     private ReleasableBytesStreamOutput getRandomReleasableBytesStreamOutput(MockBigArrays mockBigArrays) throws IOException {

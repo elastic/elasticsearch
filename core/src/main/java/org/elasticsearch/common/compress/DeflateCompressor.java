@@ -20,14 +20,15 @@
 package org.elasticsearch.common.compress;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -103,12 +104,33 @@ public class DeflateCompressor implements Compressor {
 
     @Override
     public StreamOutput streamOutput(StreamOutput out) throws IOException {
+        return streamOutput(out, true);
+    }
+
+    @Override
+    public StreamOutput streamOutput(ReleasableBytesStreamOutput out) throws IOException {
+        return streamOutput(out, false);
+    }
+
+    private StreamOutput streamOutput(StreamOutput out, final boolean close) throws IOException {
         out.writeBytes(HEADER);
         final boolean nowrap = true;
         final Deflater deflater = new Deflater(LEVEL, nowrap);
         final boolean syncFlush = true;
-        OutputStream compressedOut = new DeflaterOutputStream(out, deflater, BUFFER_SIZE, syncFlush);
-        compressedOut = new BufferedOutputStream(compressedOut, BUFFER_SIZE);
+        OutputStream outputStream;
+        if (close == false) {
+            outputStream = new FilterOutputStream(out) {
+                @Override
+                public void close() throws IOException {
+                    // just flush the stream
+                    flush();
+                }
+            };
+        } else {
+            outputStream = out;
+        }
+        DeflaterOutputStream deflaterOutputStream = new DeflaterOutputStream(outputStream, deflater, BUFFER_SIZE, syncFlush);
+        OutputStream compressedOut = new BufferedOutputStream(deflaterOutputStream, BUFFER_SIZE);
         return new OutputStreamStreamOutput(compressedOut) {
             final AtomicBoolean closed = new AtomicBoolean(false);
             public void close() throws IOException {

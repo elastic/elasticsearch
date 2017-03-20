@@ -46,6 +46,7 @@ import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -587,7 +588,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
             }
             final ByteArray bigArray = bigArrays.newByteArray(bytes.length);
             bigArray.set(0, bytes, 0, bytes.length);
-            reference = new ReleasablePagedBytesReference(bigArrays, bigArray, bytes.length);
+            reference = new ReleasablePagedBytesReference(bigArrays, bigArray, bytes.length, Releasables.releaseOnce(bigArray));
         }
 
         @Override

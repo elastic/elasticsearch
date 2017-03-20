@@ -20,12 +20,16 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
+import java.io.FilterOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Collections;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -97,7 +101,9 @@ public abstract class AbstractRestChannel implements RestChannel {
             excludes = filters.stream().filter(EXCLUDE_FILTER).map(f -> f.substring(1)).collect(toSet());
         }
 
-        XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(responseContentType), bytesOutput(), includes, excludes);
+        OutputStream unclosableOutputStream = new UnclosableBytesStream(bytesOutput());
+        XContentBuilder builder =
+            new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream, includes, excludes);
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }
@@ -107,8 +113,9 @@ public abstract class AbstractRestChannel implements RestChannel {
     }
 
     /**
-     * A channel level bytes output that can be reused. It gets reset on each call to this
-     * method.
+     * A channel level bytes output that can be reused. The bytes output is lazily instantiated
+     * by a call to {@link #newBytesOutput()}. Once the stream is created, it gets reset on each
+     * call to this method.
      */
     @Override
     public final BytesStreamOutput bytesOutput() {
@@ -120,6 +127,10 @@ public abstract class AbstractRestChannel implements RestChannel {
         return bytesOut;
     }
 
+    /**
+     * An accessor to the raw value of the channel bytes output. This method will not instantiate
+     * a new stream if one does not exist and this method will not reset the stream.
+     */
     protected final BytesStreamOutput bytesOutputOrNull() {
         return bytesOut;
     }
@@ -136,5 +147,28 @@ public abstract class AbstractRestChannel implements RestChannel {
     @Override
     public boolean detailedErrorsEnabled() {
         return detailedErrorsEnabled;
+    }
+
+    /**
+     * A wrapper around a {@link BytesStreamOutput} that makes the close operation a no-op. This is
+     * needed as closing a {@link XContentBuilder} will close the output stream, which in some
+     * cases releases resources that we still need to use to send a response.
+     */
+    private static class UnclosableBytesStream extends FilterOutputStream implements BytesStream {
+
+        private final BytesStreamOutput delegate;
+
+        private UnclosableBytesStream(BytesStreamOutput bytesStreamOutput) {
+            super(bytesStreamOutput);
+            this.delegate = bytesStreamOutput;
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public BytesReference bytes() {
+            return delegate.bytes();
+        }
     }
 }

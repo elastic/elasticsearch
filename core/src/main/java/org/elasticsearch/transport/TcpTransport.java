@@ -1006,9 +1006,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
         status = TransportStatus.setRequest(status);
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
-        // we wrap this in a release once since if the onRequestSent callback throws an exception
-        // we might release things twice and this should be prevented
-        final Releasable toRelease = Releasables.releaseOnce(bStream::releaseIfNecessary);
         boolean addedReleaseListener = false;
         StreamOutput stream = bStream;
         try {
@@ -1016,7 +1013,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             // the header part is compressed, and the "body" can't be extracted as compressed
             if (options.compress() && canCompress(request)) {
                 status = TransportStatus.setCompress(status);
-                stream = CompressorFactory.COMPRESSOR.streamOutput(stream);
+                stream = CompressorFactory.COMPRESSOR.streamOutput(bStream);
             }
 
             // we pick the smallest of the 2, to support both backward and forward compatibility
@@ -1031,16 +1028,18 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             final TransportRequestOptions finalOptions = options;
             Runnable onRequestSent = () -> { // this might be called in a different thread
                 try {
-                    toRelease.close();
+                    bStream.close();
                 } finally {
                     transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions);
                 }
             };
             addedReleaseListener = internalSendMessage(targetChannel, message, onRequestSent);
         } finally {
-            IOUtils.close(stream);
+            if (stream != bStream) {
+                IOUtils.close(stream);
+            }
             if (!addedReleaseListener) {
-                toRelease.close();
+                bStream.close();
             }
         }
     }
@@ -1107,15 +1106,12 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
         status = TransportStatus.setResponse(status); // TODO share some code with sendRequest
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
-        // we wrap this in a release once since if the onRequestSent callback throws an exception
-        // we might release things twice and this should be prevented
-        final Releasable toRelease = Releasables.releaseOnce(bStream::releaseIfNecessary);
         boolean addedReleaseListener = false;
         StreamOutput stream = bStream;
         try {
             if (options.compress()) {
                 status = TransportStatus.setCompress(status);
-                stream = CompressorFactory.COMPRESSOR.streamOutput(stream);
+                stream = CompressorFactory.COMPRESSOR.streamOutput(bStream);
             }
             threadPool.getThreadContext().writeTo(stream);
             stream.setVersion(nodeVersion);
@@ -1124,7 +1120,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             final TransportResponseOptions finalOptions = options;
             Runnable onRequestSent = () -> { // this might be called in a different thread
                 try {
-                    toRelease.close();
+                    bStream.close();
                 } finally {
                     transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions);
                 }
@@ -1132,11 +1128,12 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             addedReleaseListener = internalSendMessage(channel, reference, onRequestSent);
         } finally {
             try {
-                IOUtils.close(stream);
+                if (stream != bStream) {
+                    IOUtils.close(stream);
+                }
             } finally {
                 if (!addedReleaseListener) {
-
-                    toRelease.close();
+                    bStream.close();
                 }
             }
 
@@ -1182,7 +1179,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         // and if we do that the close method will write some marker bytes (EOS marker) and otherwise
         // we barf on the decompressing end when we read past EOF on purpose in the #validateRequest method.
         // this might be a problem in deflate after all but it's important to close it for now.
-        stream.close();
+        if (stream != writtenBytes) {
+            stream.close();
+        } else {
+            stream.flush();
+        }
         final BytesReference messageBody = writtenBytes.bytes();
         final BytesReference header = buildHeader(requestId, status, stream.getVersion(), messageBody.length() + zeroCopyBuffer.length());
         return new CompositeBytesReference(header, messageBody, zeroCopyBuffer);

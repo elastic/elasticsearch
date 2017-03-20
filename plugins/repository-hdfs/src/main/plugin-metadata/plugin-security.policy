@@ -58,4 +58,5 @@ grant {
 
   // Kerberos Ticket permissions
   permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KerberosTicket * \"*\"", "read";
+  permission javax.security.auth.kerberos.ServicePermission "*", "initiate,accept";
 };

@@ -43,9 +43,12 @@ import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Request, GetDatafeedsStatsAction.Response,
         GetDatafeedsStatsAction.RequestBuilder> {
@@ -299,32 +302,42 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        protected void masterOperation(Request request, ClusterState state,
+                                       ActionListener<Response> listener) throws Exception {
             logger.debug("Get stats for datafeed '{}'", request.getDatafeedId());
 
-            Map<String, DatafeedStats> results = new HashMap<>();
             MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
-            PersistentTasks tasksInProgress = state.getMetaData().custom(PersistentTasks.TYPE);
-            if (request.getDatafeedId().equals(ALL) == false && mlMetadata.getDatafeed(request.getDatafeedId()) == null) {
+
+            if (request.getDatafeedId().equals(ALL) == false
+                    && mlMetadata.getDatafeed(request.getDatafeedId()) == null) {
                 throw ExceptionsHelper.missingDatafeedException(request.getDatafeedId());
             }
 
-            for (DatafeedConfig datafeedConfig : mlMetadata.getDatafeeds().values()) {
-                if (request.getDatafeedId().equals(ALL) || datafeedConfig.getId().equals(request.getDatafeedId())) {
-                    PersistentTask<?> task = MlMetadata.getDatafeedTask(request.getDatafeedId(), tasksInProgress);
-                    DatafeedState datafeedState = MlMetadata.getDatafeedState(request.getDatafeedId(), tasksInProgress);
-                    DiscoveryNode node = null;
-                    String explanation = null;
-                    if (task != null) {
-                        node = state.nodes().get(task.getExecutorNode());
-                        explanation = task.getAssignment().getExplanation();
-                    }
-                    results.put(datafeedConfig.getId(), new DatafeedStats(datafeedConfig.getId(), datafeedState, node, explanation));
-                }
-            }
-            QueryPage<DatafeedStats> statsPage = new QueryPage<>(new ArrayList<>(results.values()), results.size(),
+            List<String> expandedDatafeedsIds = request.getDatafeedId().equals(ALL) ?
+                    mlMetadata.getDatafeeds().values().stream()
+                            .map(d -> d.getId()).collect(Collectors.toList())
+                    : Collections.singletonList(request.getDatafeedId());
+
+            PersistentTasks tasksInProgress = state.getMetaData().custom(PersistentTasks.TYPE);
+            List<DatafeedStats> results = expandedDatafeedsIds.stream()
+                    .map(datafeedId -> getDatafeedStats(datafeedId, state, tasksInProgress))
+                    .collect(Collectors.toList());
+            QueryPage<DatafeedStats> statsPage = new QueryPage<>(results, results.size(),
                     DatafeedConfig.RESULTS_FIELD);
             listener.onResponse(new Response(statsPage));
+        }
+
+        private static DatafeedStats getDatafeedStats(String datafeedId, ClusterState state,
+                                                      PersistentTasks tasks) {
+            PersistentTask<?> task = MlMetadata.getDatafeedTask(datafeedId, tasks);
+            DatafeedState datafeedState = MlMetadata.getDatafeedState(datafeedId, tasks);
+            DiscoveryNode node = null;
+            String explanation = null;
+            if (task != null) {
+                node = state.nodes().get(task.getExecutorNode());
+                explanation = task.getAssignment().getExplanation();
+            }
+            return new DatafeedStats(datafeedId, datafeedState, node, explanation);
         }
 
         @Override

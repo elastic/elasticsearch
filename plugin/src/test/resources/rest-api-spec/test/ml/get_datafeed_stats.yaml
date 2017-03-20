@@ -98,7 +98,36 @@ setup:
   - match: { datafeeds.0.node.attributes.max_running_jobs: "10"}
 
 ---
-"Test explicit get all datafeed stats":
+"Test implicit get all datafeed stats given started datafeeds":
+
+  - do:
+      xpack.ml.open_job:
+        job_id: job-1
+
+  - do:
+      xpack.ml.start_datafeed:
+        "datafeed_id": "datafeed-1"
+        "start": 0
+
+  - do:
+      xpack.ml.open_job:
+        job_id: job-2
+
+  - do:
+      xpack.ml.start_datafeed:
+        "datafeed_id": "datafeed-2"
+        "start": 0
+
+  - do:
+      xpack.ml.get_datafeed_stats: {}
+  - match: { count: 2 }
+  - match: { datafeeds.0.datafeed_id: "datafeed-1"}
+  - match: { datafeeds.0.state: "started"}
+  - match: { datafeeds.1.datafeed_id: "datafeed-2"}
+  - match: { datafeeds.1.state: "started"}
+
+---
+"Test explicit get all datafeed stats given stopped datafeeds":
 
   - do:
       xpack.ml.get_datafeed_stats:
@@ -110,7 +139,7 @@ setup:
   - match: { datafeeds.1.state: "stopped"}
 
 ---
-"Test implicit get all datafeed stats":
+"Test implicit get all datafeed stats given stopped datafeeds":
 
   - do:
       xpack.ml.get_datafeed_stats: {}

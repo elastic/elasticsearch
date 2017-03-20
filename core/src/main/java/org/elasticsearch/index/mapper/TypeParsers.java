@@ -254,7 +254,9 @@ public class TypeParsers {
                 iterator.remove();
             } else if (propName.equals("include_in_all")) {
                 if (parserContext.isWithinMultiField()) {
-                    throw new MapperParsingException("include_in_all in multi fields is not allowed. Found the include_in_all in field [" + name + "] which is within a multi field.");
+                    DEPRECATION_LOGGER.deprecated("include_in_all in multi fields is deprecated "
+                            + "because it doesn't do anything. Found the include_in_all in field "
+                            + "[{}] which is within a multi field.", name);
                 } else {
                     builder.includeInAll(nodeBooleanValue("include_in_all", propNode, parserContext));
                 }

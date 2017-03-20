@@ -33,12 +33,11 @@ public class MultiFieldIncludeInAllMapperTests extends ESTestCase {
     public void testExceptionForIncludeInAllInMultiFields() throws IOException {
         XContentBuilder mapping = createMappingWithIncludeInAllInMultiField();
 
-        // first check that for newer versions we throw exception if include_in_all is found withing multi field
+        // first check that for newer versions we throw exception if include_in_all is found within multi field
         MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY);
-        Exception e = expectThrows(MapperParsingException.class, () ->
-            mapperService.parse("type", new CompressedXContent(mapping.string()), true));
-        assertEquals("include_in_all in multi fields is not allowed. Found the include_in_all in field [c] which is within a multi field.",
-                e.getMessage());
+        mapperService.parse("type", new CompressedXContent(mapping.string()), true);
+        assertWarnings("include_in_all in multi fields is deprecated because it doesn't do "
+                + "anything. Found the include_in_all in field [c] which is within a multi field.");
     }
 
     private static XContentBuilder createMappingWithIncludeInAllInMultiField() throws IOException {

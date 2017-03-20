@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.notification.slack.SentMessages;
 import org.elasticsearch.xpack.notification.slack.SlackAccount;
@@ -19,6 +21,7 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.joda.time.DateTime;
 
+import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -69,10 +72,20 @@ public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
         SentMessages messages = account.send(message, null);
         assertThat(messages.count(), is(2));
         for (SentMessages.SentMessage sentMessage : messages) {
-            assertThat(sentMessage.successful(), is(true));
-            assertThat(sentMessage.getRequest(), notNullValue());
-            assertThat(sentMessage.getResponse(), notNullValue());
-            assertThat(sentMessage.getResponse().status(), lessThan(300));
+            try {
+                assertThat(sentMessage.successful(), is(true));
+                assertThat(sentMessage.getRequest(), notNullValue());
+                assertThat(sentMessage.getResponse(), notNullValue());
+                assertThat(sentMessage.getResponse().status(), lessThan(300));
+            } catch (AssertionError e) {
+                XContentBuilder builder = XContentFactory.jsonBuilder();
+                builder.prettyPrint();
+                sentMessage.toXContent(builder, EMPTY_PARAMS);
+                final String messageDescription = builder.string();
+                logger.warn("failed to send message. full message description: \n"
+                                + messageDescription, e);
+                throw e;
+            }
         }
     }
 

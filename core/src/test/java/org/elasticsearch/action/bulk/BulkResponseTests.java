@@ -20,6 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponseTests;
@@ -75,8 +76,12 @@ public class BulkResponseTests extends ESTestCase {
                 String id = randomAsciiOfLength(5);
 
                 Tuple<Throwable, ElasticsearchException> failures = randomExceptions();
-                bulkItems[i] = new BulkItemResponse(i, opType, new BulkItemResponse.Failure(index, type, id, (Exception) failures.v1()));
-                expectedBulkItems[i] = new BulkItemResponse(i, opType, new BulkItemResponse.Failure(index, type, id, failures.v2()));
+
+                Exception bulkItemCause = (Exception) failures.v1();
+                bulkItems[i] = new BulkItemResponse(i, opType,
+                        new BulkItemResponse.Failure(index, type, id, bulkItemCause));
+                expectedBulkItems[i] = new BulkItemResponse(i, opType,
+                        new BulkItemResponse.Failure(index, type, id, failures.v2(), ExceptionsHelper.status(bulkItemCause)));
             }
         }
 

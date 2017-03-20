@@ -19,26 +19,14 @@
 
 package org.elasticsearch.indices.settings;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.appender.AbstractAppender;
-import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
@@ -235,189 +223,6 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         // delete is should not be in cache
         assertThrows(client().prepareIndex("test", "type", "1").setSource("f", 3).setVersion(4), VersionConflictEngineException.class);
 
-    }
-
-    private static class MockAppender extends AbstractAppender {
-        public boolean sawUpdateMaxThreadCount;
-        public boolean sawUpdateAutoThrottle;
-
-        MockAppender(final String name) throws IllegalAccessException {
-            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
-        }
-
-        @Override
-        public void append(LogEvent event) {
-            String message = event.getMessage().getFormattedMessage();
-            if (event.getLevel() == Level.TRACE && event.getLoggerName().endsWith("lucene.iw")) {
-            }
-            if (event.getLevel() == Level.INFO
-                && message.contains("updating [index.merge.scheduler.max_thread_count] from [10000] to [1]")) {
-                sawUpdateMaxThreadCount = true;
-            }
-            if (event.getLevel() == Level.INFO
-                && message.contains("updating [index.merge.scheduler.auto_throttle] from [true] to [false]")) {
-                sawUpdateAutoThrottle = true;
-            }
-        }
-
-        @Override
-        public boolean ignoreExceptions() {
-            return false;
-        }
-
-    }
-
-    public void testUpdateAutoThrottleSettings() throws Exception {
-        MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
-        mockAppender.start();
-        Logger rootLogger = LogManager.getRootLogger();
-        Loggers.addAppender(rootLogger, mockAppender);
-        Level savedLevel = rootLogger.getLevel();
-        Loggers.setLevel(rootLogger, Level.TRACE);
-
-        try {
-            // No throttling at first, only 1 non-replicated shard, force lots of merging:
-            assertAcked(prepareCreate("test")
-                        .setSettings(Settings.builder()
-                                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
-                                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
-                                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
-                                     .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
-                                     .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "2")
-                                     .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), "true")));
-
-            // Disable auto throttle:
-            client()
-                .admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), "false"))
-                .get();
-
-            // if a node has processed the cluster state update but not yet returned from the update task, it might still log messages;
-            // these log messages will race with the stopping of the appender so we wait to ensure these tasks are done processing
-            assertBusy(() -> {
-                for (final ClusterService service : internalCluster().getInstances(ClusterService.class)) {
-                    assertThat(service.numberOfPendingTasks(), equalTo(0));
-                }
-            });
-
-            // Make sure we log the change:
-            assertTrue(mockAppender.sawUpdateAutoThrottle);
-
-            // Make sure setting says it is in fact changed:
-            GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey()), equalTo("false"));
-        } finally {
-            Loggers.setLevel(rootLogger, savedLevel);
-            Loggers.removeAppender(rootLogger, mockAppender);
-            // don't call stop here some node might still use this reference at this point causing tests to fail.
-            // this is only relevant in integ tests, unittest can control what uses a logger and what doesn't
-            // mockAppender.stop();
-        }
-    }
-
-    public void testInvalidMergeMaxThreadCount() throws IllegalAccessException {
-        CreateIndexRequestBuilder createBuilder = prepareCreate("test")
-            .setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
-                .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
-                .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "100")
-                .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "10")
-            );
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-            () -> createBuilder.get());
-        assertThat(exc.getMessage(), equalTo("maxThreadCount (= 100) should be <= maxMergeCount (= 10)"));
-
-        assertAcked(prepareCreate("test")
-            .setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
-                .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
-                .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "100")
-                .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "100")
-            ));
-
-        {
-            UpdateSettingsRequestBuilder updateBuilder =
-                client()
-                    .admin()
-                    .indices()
-                    .prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1000"));
-            exc = expectThrows(IllegalArgumentException.class,
-                () -> updateBuilder.get());
-            assertThat(exc.getMessage(), equalTo("maxThreadCount (= 1000) should be <= maxMergeCount (= 100)"));
-        }
-
-        {
-            UpdateSettingsRequestBuilder updateBuilder =
-                client()
-                    .admin()
-                    .indices()
-                    .prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "10"));
-            exc = expectThrows(IllegalArgumentException.class,
-                () -> updateBuilder.get());
-            assertThat(exc.getMessage(), equalTo("maxThreadCount (= 100) should be <= maxMergeCount (= 10)"));
-        }
-    }
-
-    // #6882: make sure we can change index.merge.scheduler.max_thread_count live
-    public void testUpdateMergeMaxThreadCount() throws Exception {
-        MockAppender mockAppender = new MockAppender("testUpdateMergeMaxThreadCount");
-        mockAppender.start();
-        Logger rootLogger = LogManager.getRootLogger();
-        Level savedLevel = rootLogger.getLevel();
-        Loggers.addAppender(rootLogger, mockAppender);
-        Loggers.setLevel(rootLogger, Level.TRACE);
-
-        try {
-
-            assertAcked(prepareCreate("test")
-                        .setSettings(Settings.builder()
-                                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
-                                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
-                                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
-                                     .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "10000")
-                                     .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "10000")));
-
-            assertFalse(mockAppender.sawUpdateMaxThreadCount);
-            // Now make a live change to reduce allowed merge threads:
-            client()
-                .admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1"))
-                .get();
-
-            // if a node has processed the cluster state update but not yet returned from the update task, it might still log messages;
-            // these log messages will race with the stopping of the appender so we wait to ensure these tasks are done processing
-            assertBusy(() -> {
-                for (final ClusterService service : internalCluster().getInstances(ClusterService.class)) {
-                    assertThat(service.numberOfPendingTasks(), equalTo(0));
-                }
-            });
-
-            // Make sure we log the change:
-            assertTrue(mockAppender.sawUpdateMaxThreadCount);
-
-            // Make sure setting says it is in fact changed:
-            GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
-            assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey()), equalTo("1"));
-
-        } finally {
-            Loggers.setLevel(rootLogger, savedLevel);
-            Loggers.removeAppender(rootLogger, mockAppender);
-            // don't call stop here some node might still use this reference at this point causing tests to fail.
-            // this is only relevant in integ tests, unittest can control what uses a logger and what doesn't
-            // mockAppender.stop();
-        }
     }
 
     public void testUpdateSettingsWithBlocks() {

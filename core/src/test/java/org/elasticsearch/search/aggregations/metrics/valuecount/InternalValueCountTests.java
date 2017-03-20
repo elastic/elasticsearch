@@ -37,7 +37,7 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
 
     @Override
     protected void assertReduced(InternalValueCount reduced, List<InternalValueCount> inputs) {
-        assertEquals(inputs.stream().mapToDouble(InternalValueCount::value).sum(), reduced.getValue(), 0);
+        assertEquals(inputs.stream().mapToLong(InternalValueCount::getValue).sum(), reduced.getValue(), 0);
     }
 
     @Override

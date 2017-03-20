@@ -35,18 +35,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
@@ -83,7 +79,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
      * <p>
      * Returns the task manager tracked task or null if the task doesn't support the task manager
      */
-    public Task register(String type, String action, TransportRequest request) {
+    public Task register(String type, String action, TaskAwareRequest request) {
         Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask());
         if (task == null) {
             return null;

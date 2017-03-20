@@ -22,13 +22,18 @@ package org.elasticsearch.client;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -40,13 +45,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.client.Request.enforceSameContentType;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class RequestTests extends ESTestCase {
@@ -59,8 +66,49 @@ public class RequestTests extends ESTestCase {
         assertEquals("HEAD", request.method);
     }
 
+    public void testInfo() {
+        Request request = Request.info();
+        assertEquals("/", request.endpoint);
+        assertEquals(0, request.params.size());
+        assertNull(request.entity);
+        assertEquals("GET", request.method);
+    }
+
     public void testGet() {
         getAndExistsTest(Request::get, "GET");
+    }
+
+    public void testDelete() throws IOException {
+        String index = randomAsciiOfLengthBetween(3, 10);
+        String type = randomAsciiOfLengthBetween(3, 10);
+        String id = randomAsciiOfLengthBetween(3, 10);
+        DeleteRequest deleteRequest = new DeleteRequest(index, type, id);
+
+        Map<String, String> expectedParams = new HashMap<>();
+
+        setRandomTimeout(deleteRequest, expectedParams);
+        setRandomRefreshPolicy(deleteRequest, expectedParams);
+        setRandomVersion(deleteRequest, expectedParams);
+        setRandomVersionType(deleteRequest, expectedParams);
+
+        if (frequently()) {
+            if (randomBoolean()) {
+                String routing = randomAsciiOfLengthBetween(3, 10);
+                deleteRequest.routing(routing);
+                expectedParams.put("routing", routing);
+            }
+            if (randomBoolean()) {
+                String parent = randomAsciiOfLengthBetween(3, 10);
+                deleteRequest.parent(parent);
+                expectedParams.put("parent", parent);
+            }
+        }
+
+        Request request = Request.delete(deleteRequest);
+        assertEquals("/" + index + "/" + type + "/" + id, request.endpoint);
+        assertEquals(expectedParams, request.params);
+        assertEquals("DELETE", request.method);
+        assertNull(request.entity);
     }
 
     public void testExists() {
@@ -157,33 +205,16 @@ public class RequestTests extends ESTestCase {
             }
         }
 
+        setRandomTimeout(indexRequest, expectedParams);
+        setRandomRefreshPolicy(indexRequest, expectedParams);
+
         // There is some logic around _create endpoint and version/version type
         if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
             indexRequest.version(randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED));
             expectedParams.put("version", Long.toString(Versions.MATCH_DELETED));
         } else {
-            if (randomBoolean()) {
-                long version = randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED, Versions.NOT_FOUND, randomNonNegativeLong());
-                indexRequest.version(version);
-                if (version != Versions.MATCH_ANY) {
-                    expectedParams.put("version", Long.toString(version));
-                }
-            }
-            if (randomBoolean()) {
-                VersionType versionType = randomFrom(VersionType.values());
-                indexRequest.versionType(versionType);
-                if (versionType != VersionType.INTERNAL) {
-                    expectedParams.put("version_type", versionType.name().toLowerCase(Locale.ROOT));
-                }
-            }
-        }
-
-        if (randomBoolean()) {
-            String timeout = randomTimeValue();
-            indexRequest.timeout(timeout);
-            expectedParams.put("timeout", timeout);
-        } else {
-            expectedParams.put("timeout", ReplicationRequest.DEFAULT_TIMEOUT.getStringRep());
+            setRandomVersion(indexRequest, expectedParams);
+            setRandomVersionType(indexRequest, expectedParams);
         }
 
         if (frequently()) {
@@ -201,14 +232,6 @@ public class RequestTests extends ESTestCase {
                 String pipeline = randomAsciiOfLengthBetween(3, 10);
                 indexRequest.setPipeline(pipeline);
                 expectedParams.put("pipeline", pipeline);
-            }
-
-            if (randomBoolean()) {
-                WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
-                indexRequest.setRefreshPolicy(refreshPolicy);
-                if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
-                    expectedParams.put("refresh", refreshPolicy.getValue());
-                }
             }
         }
 
@@ -361,12 +384,205 @@ public class RequestTests extends ESTestCase {
     public void testUpdateWithDifferentContentTypes() throws IOException {
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
             UpdateRequest updateRequest = new UpdateRequest();
-            updateRequest.doc(new IndexRequest().source(Collections.singletonMap("field", "doc"), XContentType.JSON));
-            updateRequest.upsert(new IndexRequest().source(Collections.singletonMap("field", "upsert"), XContentType.YAML));
+            updateRequest.doc(new IndexRequest().source(singletonMap("field", "doc"), XContentType.JSON));
+            updateRequest.upsert(new IndexRequest().source(singletonMap("field", "upsert"), XContentType.YAML));
             Request.update(updateRequest);
         });
         assertEquals("Update request cannot have different content types for doc [JSON] and upsert [YAML] documents",
                 exception.getMessage());
+    }
+
+    public void testBulk() throws IOException {
+        Map<String, String> expectedParams = new HashMap<>();
+
+        BulkRequest bulkRequest = new BulkRequest();
+        if (randomBoolean()) {
+            String timeout = randomTimeValue();
+            bulkRequest.timeout(timeout);
+            expectedParams.put("timeout", timeout);
+        } else {
+            expectedParams.put("timeout", BulkShardRequest.DEFAULT_TIMEOUT.getStringRep());
+        }
+
+        if (randomBoolean()) {
+            WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
+            bulkRequest.setRefreshPolicy(refreshPolicy);
+            if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
+                expectedParams.put("refresh", refreshPolicy.getValue());
+            }
+        }
+
+        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+
+        int nbItems = randomIntBetween(10, 100);
+        for (int i = 0; i < nbItems; i++) {
+            String index = randomAsciiOfLength(5);
+            String type = randomAsciiOfLength(5);
+            String id = randomAsciiOfLength(5);
+
+            BytesReference source = RandomObjects.randomSource(random(), xContentType);
+            DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
+
+            DocWriteRequest<?> docWriteRequest = null;
+            if (opType == DocWriteRequest.OpType.INDEX) {
+                IndexRequest indexRequest = new IndexRequest(index, type, id).source(source, xContentType);
+                docWriteRequest = indexRequest;
+                if (randomBoolean()) {
+                    indexRequest.setPipeline(randomAsciiOfLength(5));
+                }
+                if (randomBoolean()) {
+                    indexRequest.parent(randomAsciiOfLength(5));
+                }
+            } else if (opType == DocWriteRequest.OpType.CREATE) {
+                IndexRequest createRequest = new IndexRequest(index, type, id).source(source, xContentType).create(true);
+                docWriteRequest = createRequest;
+                if (randomBoolean()) {
+                    createRequest.parent(randomAsciiOfLength(5));
+                }
+            } else if (opType == DocWriteRequest.OpType.UPDATE) {
+                final UpdateRequest updateRequest = new UpdateRequest(index, type, id).doc(new IndexRequest().source(source, xContentType));
+                docWriteRequest = updateRequest;
+                if (randomBoolean()) {
+                    updateRequest.retryOnConflict(randomIntBetween(1, 5));
+                }
+                if (randomBoolean()) {
+                    randomizeFetchSourceContextParams(updateRequest::fetchSource, new HashMap<>());
+                }
+                if (randomBoolean()) {
+                    updateRequest.parent(randomAsciiOfLength(5));
+                }
+            } else if (opType == DocWriteRequest.OpType.DELETE) {
+                docWriteRequest = new DeleteRequest(index, type, id);
+            }
+
+            if (randomBoolean()) {
+                docWriteRequest.routing(randomAsciiOfLength(10));
+            }
+            if (randomBoolean()) {
+                docWriteRequest.version(randomNonNegativeLong());
+            }
+            if (randomBoolean()) {
+                docWriteRequest.versionType(randomFrom(VersionType.values()));
+            }
+            bulkRequest.add(docWriteRequest);
+        }
+
+        Request request = Request.bulk(bulkRequest);
+        assertEquals("/_bulk", request.endpoint);
+        assertEquals(expectedParams, request.params);
+        assertEquals("POST", request.method);
+
+        byte[] content = new byte[(int) request.entity.getContentLength()];
+        try (InputStream inputStream = request.entity.getContent()) {
+            Streams.readFully(inputStream, content);
+        }
+
+        BulkRequest parsedBulkRequest = new BulkRequest();
+        parsedBulkRequest.add(content, 0, content.length, xContentType);
+        assertEquals(bulkRequest.numberOfActions(), parsedBulkRequest.numberOfActions());
+
+        for (int i = 0; i < bulkRequest.numberOfActions(); i++) {
+            DocWriteRequest<?> originalRequest = bulkRequest.requests().get(i);
+            DocWriteRequest<?> parsedRequest = parsedBulkRequest.requests().get(i);
+
+            assertEquals(originalRequest.opType(), parsedRequest.opType());
+            assertEquals(originalRequest.index(), parsedRequest.index());
+            assertEquals(originalRequest.type(), parsedRequest.type());
+            assertEquals(originalRequest.id(), parsedRequest.id());
+            assertEquals(originalRequest.routing(), parsedRequest.routing());
+            assertEquals(originalRequest.parent(), parsedRequest.parent());
+            assertEquals(originalRequest.version(), parsedRequest.version());
+            assertEquals(originalRequest.versionType(), parsedRequest.versionType());
+
+            DocWriteRequest.OpType opType = originalRequest.opType();
+            if (opType == DocWriteRequest.OpType.INDEX) {
+                IndexRequest indexRequest = (IndexRequest) originalRequest;
+                IndexRequest parsedIndexRequest = (IndexRequest) parsedRequest;
+
+                assertEquals(indexRequest.getPipeline(), parsedIndexRequest.getPipeline());
+                assertToXContentEquivalent(indexRequest.source(), parsedIndexRequest.source(), xContentType);
+            } else if (opType == DocWriteRequest.OpType.UPDATE) {
+                UpdateRequest updateRequest = (UpdateRequest) originalRequest;
+                UpdateRequest parsedUpdateRequest = (UpdateRequest) parsedRequest;
+
+                assertEquals(updateRequest.retryOnConflict(), parsedUpdateRequest.retryOnConflict());
+                assertEquals(updateRequest.fetchSource(), parsedUpdateRequest.fetchSource());
+                if (updateRequest.doc() != null) {
+                    assertToXContentEquivalent(updateRequest.doc().source(), parsedUpdateRequest.doc().source(), xContentType);
+                } else {
+                    assertNull(parsedUpdateRequest.doc());
+                }
+            }
+        }
+    }
+
+    public void testBulkWithDifferentContentTypes() throws IOException {
+        {
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.add(new DeleteRequest("index", "type", "0"));
+            bulkRequest.add(new UpdateRequest("index", "type", "1").script(new Script("test")));
+            bulkRequest.add(new DeleteRequest("index", "type", "2"));
+
+            Request request = Request.bulk(bulkRequest);
+            assertEquals(XContentType.JSON.mediaType(), request.entity.getContentType().getValue());
+        }
+        {
+            XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.add(new DeleteRequest("index", "type", "0"));
+            bulkRequest.add(new IndexRequest("index", "type", "0").source(singletonMap("field", "value"), xContentType));
+            bulkRequest.add(new DeleteRequest("index", "type", "2"));
+
+            Request request = Request.bulk(bulkRequest);
+            assertEquals(xContentType.mediaType(), request.entity.getContentType().getValue());
+        }
+        {
+            XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+            UpdateRequest updateRequest = new UpdateRequest("index", "type", "0");
+            if (randomBoolean()) {
+                updateRequest.doc(new IndexRequest().source(singletonMap("field", "value"), xContentType));
+            } else {
+                updateRequest.upsert(new IndexRequest().source(singletonMap("field", "value"), xContentType));
+            }
+
+            Request request = Request.bulk(new BulkRequest().add(updateRequest));
+            assertEquals(xContentType.mediaType(), request.entity.getContentType().getValue());
+        }
+        {
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.add(new IndexRequest("index", "type", "0").source(singletonMap("field", "value"), XContentType.SMILE));
+            bulkRequest.add(new IndexRequest("index", "type", "1").source(singletonMap("field", "value"), XContentType.JSON));
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> Request.bulk(bulkRequest));
+            assertEquals("Mismatching content-type found for request with content-type [JSON], " +
+                            "previous requests have content-type [SMILE]", exception.getMessage());
+        }
+        {
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.add(new IndexRequest("index", "type", "0")
+                    .source(singletonMap("field", "value"), XContentType.JSON));
+            bulkRequest.add(new IndexRequest("index", "type", "1")
+                    .source(singletonMap("field", "value"), XContentType.JSON));
+            bulkRequest.add(new UpdateRequest("index", "type", "2")
+                    .doc(new IndexRequest().source(singletonMap("field", "value"), XContentType.JSON))
+                    .upsert(new IndexRequest().source(singletonMap("field", "value"), XContentType.SMILE))
+            );
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> Request.bulk(bulkRequest));
+            assertEquals("Mismatching content-type found for request with content-type [SMILE], " +
+                            "previous requests have content-type [JSON]", exception.getMessage());
+        }
+        {
+            XContentType xContentType = randomFrom(XContentType.CBOR, XContentType.YAML);
+            BulkRequest bulkRequest = new BulkRequest();
+            bulkRequest.add(new DeleteRequest("index", "type", "0"));
+            bulkRequest.add(new IndexRequest("index", "type", "1").source(singletonMap("field", "value"), XContentType.JSON));
+            bulkRequest.add(new DeleteRequest("index", "type", "2"));
+            bulkRequest.add(new DeleteRequest("index", "type", "3"));
+            bulkRequest.add(new IndexRequest("index", "type", "4").source(singletonMap("field", "value"), XContentType.JSON));
+            bulkRequest.add(new IndexRequest("index", "type", "1").source(singletonMap("field", "value"), xContentType));
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> Request.bulk(bulkRequest));
+            assertEquals("Unsupported content-type found for request with content-type [" + xContentType
+                    + "], only JSON and SMILE are supported", exception.getMessage());
+        }
     }
 
     public void testParams() {
@@ -404,6 +620,33 @@ public class RequestTests extends ESTestCase {
         assertEquals("/a/b", Request.endpoint("a", "b"));
         assertEquals("/a/b/_create", Request.endpoint("a", "b", "_create"));
         assertEquals("/a/b/c/_create", Request.endpoint("a", "b", "c", "_create"));
+        assertEquals("/a/_create", Request.endpoint("a", null, null, "_create"));
+    }
+
+    public void testEnforceSameContentType() {
+        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+        IndexRequest indexRequest = new IndexRequest().source(singletonMap("field", "value"), xContentType);
+        assertEquals(xContentType, enforceSameContentType(indexRequest, null));
+        assertEquals(xContentType, enforceSameContentType(indexRequest, xContentType));
+
+        XContentType bulkContentType = randomBoolean() ? xContentType : null;
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
+                enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), XContentType.CBOR), bulkContentType));
+        assertEquals("Unsupported content-type found for request with content-type [CBOR], only JSON and SMILE are supported",
+                exception.getMessage());
+
+        exception = expectThrows(IllegalArgumentException.class, () ->
+                enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), XContentType.YAML), bulkContentType));
+        assertEquals("Unsupported content-type found for request with content-type [YAML], only JSON and SMILE are supported",
+                exception.getMessage());
+
+        XContentType requestContentType = xContentType == XContentType.JSON ? XContentType.SMILE : XContentType.JSON;
+
+        exception = expectThrows(IllegalArgumentException.class, () ->
+                enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), requestContentType), xContentType));
+        assertEquals("Mismatching content-type found for request with content-type [" + requestContentType + "], "
+                + "previous requests have content-type [" + xContentType + "]", exception.getMessage());
     }
 
     /**
@@ -447,6 +690,46 @@ public class RequestTests extends ESTestCase {
                     expectedParams.put("_source_exclude", excludesParam.toString());
                 }
                 consumer.accept(new FetchSourceContext(true, includes, excludes));
+            }
+        }
+    }
+
+    private static void setRandomTimeout(ReplicationRequest<?> request, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            String timeout = randomTimeValue();
+            request.timeout(timeout);
+            expectedParams.put("timeout", timeout);
+        } else {
+            expectedParams.put("timeout", ReplicationRequest.DEFAULT_TIMEOUT.getStringRep());
+        }
+    }
+
+    private static void setRandomRefreshPolicy(ReplicatedWriteRequest<?> request, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
+            request.setRefreshPolicy(refreshPolicy);
+            if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
+                expectedParams.put("refresh", refreshPolicy.getValue());
+            }
+        }
+    }
+
+    private static void setRandomVersion(DocWriteRequest<?> request, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            long version = randomFrom(Versions.MATCH_ANY, Versions.MATCH_DELETED, Versions.NOT_FOUND, randomNonNegativeLong());
+            request.version(version);
+            if (version != Versions.MATCH_ANY) {
+                expectedParams.put("version", Long.toString(version));
+            }
+        }
+    }
+
+    private static void setRandomVersionType(DocWriteRequest<?> request, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            VersionType versionType = randomFrom(VersionType.values());
+            request.versionType(versionType);
+            if (versionType != VersionType.INTERNAL) {
+                expectedParams.put("version_type", versionType.name().toLowerCase(Locale.ROOT));
             }
         }
     }

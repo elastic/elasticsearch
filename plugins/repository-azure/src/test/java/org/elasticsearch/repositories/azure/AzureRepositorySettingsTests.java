@@ -23,6 +23,7 @@ import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -124,4 +125,5 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             azureRepository(Settings.builder().put("chunk_size", "65mb").build()));
         assertEquals("Failed to parse value [65mb] for setting [chunk_size] must be <= 64mb", e.getMessage());
     }
+
 }

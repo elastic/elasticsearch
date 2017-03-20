@@ -668,7 +668,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         public final long translogLocation;
         public final int size;
 
-        Location(long generation, long translogLocation, int size) {
+        public Location(long generation, long translogLocation, int size) {
             this.generation = generation;
             this.translogLocation = translogLocation;
             this.size = size;

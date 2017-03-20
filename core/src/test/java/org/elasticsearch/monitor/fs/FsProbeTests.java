@@ -36,10 +36,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 
@@ -89,6 +92,67 @@ public class FsProbeTests extends ESTestCase {
                 assertThat(path.available, greaterThan(0L));
             }
         }
+    }
+
+    public void testFsInfoOverflow() throws Exception {
+        final FsInfo.Path pathStats =
+                new FsInfo.Path(
+                        "/foo/bar",
+                        null,
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong());
+
+        addUntilOverflow(
+                pathStats,
+                p -> p.total,
+                "total",
+                () -> new FsInfo.Path("/foo/baz", null, randomNonNegativeLong(), 0, 0));
+
+        addUntilOverflow(
+                pathStats,
+                p -> p.free,
+                "free",
+                () -> new FsInfo.Path("/foo/baz", null, 0, randomNonNegativeLong(), 0));
+
+        addUntilOverflow(
+                pathStats,
+                p -> p.available,
+                "available",
+                () -> new FsInfo.Path("/foo/baz", null, 0, 0, randomNonNegativeLong()));
+
+        // even after overflowing these should not be negative
+        assertThat(pathStats.total, greaterThan(0L));
+        assertThat(pathStats.free, greaterThan(0L));
+        assertThat(pathStats.available, greaterThan(0L));
+    }
+
+    private void addUntilOverflow(
+            final FsInfo.Path pathStats,
+            final Function<FsInfo.Path, Long> getter,
+            final String field,
+            final Supplier<FsInfo.Path> supplier) {
+        FsInfo.Path pathToAdd = supplier.get();
+        while ((getter.apply(pathStats) + getter.apply(pathToAdd)) > 0) {
+            // add a path to increase the total bytes until it overflows
+            logger.info(
+                    "--> adding {} bytes to {}, {} will be: {}",
+                    getter.apply(pathToAdd),
+                    getter.apply(pathStats),
+                    field,
+                    getter.apply(pathStats) + getter.apply(pathToAdd));
+            pathStats.add(pathToAdd);
+            pathToAdd = supplier.get();
+        }
+        // this overflows
+        logger.info(
+                "--> adding {} bytes to {}, {} will be: {}",
+                getter.apply(pathToAdd),
+                getter.apply(pathStats),
+                field,
+                getter.apply(pathStats) + getter.apply(pathToAdd));
+        assertThat(getter.apply(pathStats) + getter.apply(pathToAdd), lessThan(0L));
+        pathStats.add(pathToAdd);
     }
 
     public void testIoStats() {

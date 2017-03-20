@@ -41,6 +41,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Implementation of {@link Histogram}.
@@ -74,6 +75,24 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             key = in.readLong();
             docCount = in.readVLong();
             aggregations = InternalAggregations.readAggregations(in);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || obj.getClass() != InternalDateHistogram.Bucket.class) {
+                return false;
+            }
+            InternalDateHistogram.Bucket that = (InternalDateHistogram.Bucket) obj;
+            // No need to take the keyed and format parameters into account,
+            // they are already stored and tested on the InternalDateHistogram object
+            return key == that.key
+                    && docCount == that.docCount
+                    && Objects.equals(aggregations, that.aggregations);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getClass(), key, docCount, aggregations);
         }
 
         @Override
@@ -169,6 +188,21 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             out.writeOptionalWriteable(bounds);
         }
 
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            EmptyBucketInfo that = (EmptyBucketInfo) obj;
+            return Objects.equals(rounding, that.rounding)
+                    && Objects.equals(bounds, that.bounds)
+                    && Objects.equals(subAggregations, that.subAggregations);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getClass(), rounding, bounds, subAggregations);
+        }
     }
 
     private final List<Bucket> buckets;
@@ -445,5 +479,22 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     @Override
     public Bucket createBucket(Number key, long docCount, InternalAggregations aggregations) {
         return new Bucket(key.longValue(), docCount, keyed, format, aggregations);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalDateHistogram that = (InternalDateHistogram) obj;
+        return Objects.equals(buckets, that.buckets)
+                && Objects.equals(order, that.order)
+                && Objects.equals(format, that.format)
+                && Objects.equals(keyed, that.keyed)
+                && Objects.equals(minDocCount, that.minDocCount)
+                && Objects.equals(offset, that.offset)
+                && Objects.equals(emptyBucketInfo, that.emptyBucketInfo);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(buckets, order, format, keyed, minDocCount, offset, emptyBucketInfo);
     }
 }

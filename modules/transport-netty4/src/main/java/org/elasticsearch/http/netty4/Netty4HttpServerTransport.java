@@ -69,7 +69,6 @@ import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.http.netty4.pipelining.HttpPipeliningHandler;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -143,7 +142,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         Setting.byteSizeSetting("http.tcp.receive_buffer_size", NetworkService.TcpSettings.TCP_RECEIVE_BUFFER_SIZE,
             Property.NodeScope, Property.Shared);
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE =
-        Setting.byteSizeSetting("http.netty.receive_predictor_size", new ByteSizeValue(32, ByteSizeUnit.KB), Property.NodeScope);
+        Setting.byteSizeSetting("http.netty.receive_predictor_size", new ByteSizeValue(64, ByteSizeUnit.KB), Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MIN =
         byteSizeSetting("http.netty.receive_predictor_min", SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MAX =
@@ -487,11 +486,17 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     }
 
     void dispatchRequest(final RestRequest request, final RestChannel channel) {
-        dispatcher.dispatchRequest(request, channel, threadPool.getThreadContext());
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            dispatcher.dispatchRequest(request, channel, threadContext);
+        }
     }
 
     void dispatchBadRequest(final RestRequest request, final RestChannel channel, final Throwable cause) {
-        dispatcher.dispatchBadRequest(request, channel, threadPool.getThreadContext(), cause);
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            dispatcher.dispatchBadRequest(request, channel, threadContext, cause);
+        }
     }
 
     protected void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {

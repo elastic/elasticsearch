@@ -2,22 +2,22 @@
 #
 setup:
     - do:
-      indices.create:
-        index: test
-        body:
-          mappings:
-            test:
-              properties:
-                foo:
-                  type: keyword
-                missing:
-                  type: keyword
-                date:
-                  type: date
-                  format: yyyy/MM/dd
-                dates:
-                  type: date
-                  format: yyyy/MM/dd
+        indices.create:
+          index: test
+          body:
+            mappings:
+              test:
+                properties:
+                  foo:
+                    type: keyword
+                  missing:
+                    type: keyword
+                  date:
+                    type: date
+                    format: yyyy/MM/dd
+                  dates:
+                    type: date
+                    format: yyyy/MM/dd
     - do:
         index:
             index: test

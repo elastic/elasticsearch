@@ -22,8 +22,6 @@ esplugin {
     classname 'org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'
 }
 
-integTest {
-    cluster {
-        setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-    }
+integTestCluster {
+    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
 }

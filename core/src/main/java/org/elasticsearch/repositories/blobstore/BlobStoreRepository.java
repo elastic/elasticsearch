@@ -733,22 +733,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     long latestIndexBlobId() throws IOException {
         try {
-            // first, try reading the latest index generation from the index.latest blob
-            return readSnapshotIndexLatestBlob();
-        } catch (IOException ioe) {
-            // we could not find the index.latest blob, this can happen in two scenarios:
-            //  (1) its an empty repository
-            //  (2) when writing the index-latest blob, if the blob already exists,
-            //      we first delete it, then atomically write the new blob.  there is
-            //      a small window in time when the blob is deleted and the new one
-            //      written - if the node crashes during that time, we won't have an
-            //      index-latest blob
-            // lets try to list all index-N blobs to determine the last one, if listing the blobs
-            // is not a supported operation (which is the case for read-only repositories), then
-            // assume its an empty repository.
+            // First, try listing all index-N blobs (there should only be two index-N blobs at any given
+            // time in a repository if cleanup is happening properly) and pick the index-N blob with the
+            // highest N value - this will be the latest index blob for the repository.  Note, we do this
+            // instead of directly reading the index.latest blob to get the current index-N blob because
+            // index.latest is not written atomically and is not immutable - on every index-N change,
+            // we first delete the old index.latest and then write the new one.  If the repository is not
+            // read-only, it is possible that we try deleting the index.latest blob while it is being read
+            // by some other operation (such as the get snapshots operation).  In some file systems, it is
+            // illegal to delete a file while it is being read elsewhere (e.g. Windows).  For read-only
+            // repositories, we read for index.latest, both because listing blob prefixes is often unsupported
+            // and because the index.latest blob will never be deleted and re-written.
+            return listBlobsToGetLatestIndexId();
+        } catch (UnsupportedOperationException e) {
+            // If its a read-only repository, listing blobs by prefix may not be supported (e.g. a URL repository),
+            // in this case, try reading the latest index generation from the index.latest blob
             try {
-                return listBlobsToGetLatestIndexId();
-            } catch (UnsupportedOperationException uoe) {
+                return readSnapshotIndexLatestBlob();
+            } catch (NoSuchFileException nsfe) {
                 return RepositoryData.EMPTY_REPO_GEN;
             }
         }
@@ -765,7 +767,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private long listBlobsToGetLatestIndexId() throws IOException {
         Map<String, BlobMetaData> blobs = snapshotsBlobContainer.listBlobsByPrefix(INDEX_FILE_PREFIX);
-        long latest = -1;
+        long latest = RepositoryData.EMPTY_REPO_GEN;
         if (blobs.isEmpty()) {
             // no snapshot index blobs have been written yet
             return latest;

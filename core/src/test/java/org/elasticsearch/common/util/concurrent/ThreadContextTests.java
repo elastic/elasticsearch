@@ -19,6 +19,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -178,6 +179,14 @@ public class ThreadContextTests extends ESTestCase {
             threadContext.addResponseHeader("foo", "bar");
         }
 
+        final String value = DeprecationLogger.formatWarning("qux");
+        threadContext.addResponseHeader("baz", value, DeprecationLogger::extractWarningValueFromWarningHeader);
+        // pretend that another thread created the same response at a different time
+        if (randomBoolean()) {
+            final String duplicateValue = DeprecationLogger.formatWarning("qux");
+            threadContext.addResponseHeader("baz", duplicateValue, DeprecationLogger::extractWarningValueFromWarningHeader);
+        }
+
         threadContext.addResponseHeader("Warning", "One is the loneliest number");
         threadContext.addResponseHeader("Warning", "Two can be as bad as one");
         if (expectThird) {
@@ -186,11 +195,14 @@ public class ThreadContextTests extends ESTestCase {
 
         final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         final List<String> foo = responseHeaders.get("foo");
+        final List<String> baz = responseHeaders.get("baz");
         final List<String> warnings = responseHeaders.get("Warning");
         final int expectedWarnings = expectThird ? 3 : 2;
 
         assertThat(foo, hasSize(1));
+        assertThat(baz, hasSize(1));
         assertEquals("bar", foo.get(0));
+        assertEquals(value, baz.get(0));
         assertThat(warnings, hasSize(expectedWarnings));
         assertThat(warnings, hasItem(equalTo("One is the loneliest number")));
         assertThat(warnings, hasItem(equalTo("Two can be as bad as one")));

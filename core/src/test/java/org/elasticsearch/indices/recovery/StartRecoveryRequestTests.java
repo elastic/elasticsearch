@@ -40,7 +40,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         final Version targetNodeVersion = randomVersion(random());
-        final StartFullRecoveryRequest outRequest = new StartFullRecoveryRequest(
+        final StartFileRecoveryRequest outRequest = new StartFileRecoveryRequest(
                 new ShardId("test", "_na_", 0),
                 new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
@@ -57,7 +57,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
         final ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
         in.setVersion(targetNodeVersion);
-        final StartFullRecoveryRequest inRequest = new StartFullRecoveryRequest();
+        final StartFileRecoveryRequest inRequest = new StartFileRecoveryRequest();
         inRequest.readFrom(in);
 
         assertThat(outRequest.shardId(), equalTo(inRequest.shardId()));

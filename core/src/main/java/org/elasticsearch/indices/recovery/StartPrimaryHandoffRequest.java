@@ -19,53 +19,43 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-class RecoveryResponse extends TransportResponse {
+/**
+ * Represents a request for starting a peer recovery.
+ */
+public class StartPrimaryHandoffRequest extends StartRecoveryRequest {
 
-    private String traceSummary = null;
-
-    RecoveryResponse() {
+    public StartPrimaryHandoffRequest() {
     }
 
-    public void logTraceSummary(Logger logger, StartRecoveryRequest request,
-                                TimeValue recoveryTime) {
-        StringBuilder sb = new StringBuilder();
-        sb.append('[').append(request.shardId().getIndex().getName()).append(']').append('[')
-            .append(request.shardId().id())
-            .append("] ");
-        sb.append("recovery completed from ").append(request.sourceNode()).append(", took[")
-            .append(recoveryTime);
-        if (traceSummary != null) {
-            sb.append("]\n");
-            sb.append(traceSummary);
-        }
-        logger.trace("{}", sb);
-    }
-
-    public void apprendTraceSummary(String summary) {
-        if (traceSummary == null) {
-            traceSummary = summary;
-        } else {
-            traceSummary += "\n" + summary;
-        }
+    /**
+     * Construct a request for starting a peer recovery.
+     *
+     * @param shardId           the shard ID to recover
+     * @param sourceNode        the source node to remover from
+     * @param targetNode        the target node to recover to
+     * @param recoveryId        the recovery ID
+     */
+    public StartPrimaryHandoffRequest(final ShardId shardId,
+                                      final DiscoveryNode sourceNode,
+                                      final DiscoveryNode targetNode,
+                                      final long recoveryId) {
+        super(shardId, sourceNode, targetNode, recoveryId);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        traceSummary = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalString(traceSummary);
     }
 }

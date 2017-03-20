@@ -183,4 +183,7 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
         globalCheckpointTracker.updateAllocationIdsFromMaster(activeAllocationIds, initializingAllocationIds);
     }
 
+    public boolean isAllocationIDInSync(String aID) {
+        return globalCheckpointTracker.isAllocationIDInSync(aID);
+    }
 }

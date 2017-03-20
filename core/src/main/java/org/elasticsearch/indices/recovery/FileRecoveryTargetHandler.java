@@ -21,13 +21,12 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
-import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.util.List;
 
 
-public interface FullRecoveryTargetHandler {
+public interface FileRecoveryTargetHandler extends OpsRecoveryTargetHandler {
 
     /**
      * Prepares the target to receive translog operations, after all file have been copied
@@ -37,26 +36,6 @@ public interface FullRecoveryTargetHandler {
      * This is used to ensure we don't add duplicate documents when we assume an append only case based on auto-generated IDs
      */
     void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException;
-
-    /**
-     * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, and
-     * updates the global checkpoint.
-     *
-     * @param globalCheckpoint the global checkpoint on the recovery source
-     */
-    void finalizeRecovery(long globalCheckpoint);
-
-    /**
-     * Blockingly waits for cluster state with at least clusterStateVersion to be available
-     */
-    void ensureClusterStateVersion(long clusterStateVersion);
-
-    /**
-     * Index a set of translog operations on the target
-     * @param operations operations to index
-     * @param totalTranslogOps current number of total operations expected to be indexed
-     */
-    void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps);
 
     /**
      * Notifies the target of the files it is going to receive
@@ -78,10 +57,4 @@ public interface FullRecoveryTargetHandler {
     /** writes a partial file chunk to the target store */
     void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
                         boolean lastChunk, int totalTranslogOps) throws IOException;
-
-    /***
-     * @return the allocation id of the target shard.
-     */
-    String getTargetAllocationId();
-
 }

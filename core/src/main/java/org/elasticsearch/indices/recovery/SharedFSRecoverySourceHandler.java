@@ -22,7 +22,6 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.util.function.Function;
@@ -31,17 +30,23 @@ import java.util.function.Supplier;
 /**
  * A recovery handler that skips phase one as well as sending the translog snapshot.
  */
-public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
+public class SharedFSRecoverySourceHandler extends FileRecoverySourceHandler {
 
     private final IndexShard shard;
-    private final StartFullRecoveryRequest request;
+    private final StartFileRecoveryRequest request;
+    private final boolean isPrimaryRelocation;
 
-    SharedFSRecoverySourceHandler(IndexShard shard, FullRecoveryTargetHandler recoveryTarget, StartFullRecoveryRequest request,
+    SharedFSRecoverySourceHandler(IndexShard shard,
+                                  FileRecoveryTargetHandler recoveryTarget,
+                                  StartFileRecoveryRequest request,
                                   Supplier<Long> currentClusterStateVersionSupplier,
-                                  Function<String, Releasable> delayNewRecoveries, Settings nodeSettings) {
-        super(shard, recoveryTarget, request, currentClusterStateVersionSupplier, delayNewRecoveries, -1, nodeSettings);
+                                  Function<String, Releasable> delayNewRecoveries,
+                                  Settings nodeSettings, boolean isPrimaryRelocation) {
+        super(shard, recoveryTarget, request, currentClusterStateVersionSupplier,
+            delayNewRecoveries, -1, nodeSettings);
         this.shard = shard;
         this.request = request;
+        this.isPrimaryRelocation = isPrimaryRelocation;
     }
 
     @Override
@@ -49,8 +54,9 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
         boolean engineClosed = false;
         try {
             logger.trace("recovery [phase1]: skipping phase1 for shared filesystem");
-            final long maxUnsafeAutoIdTimestamp = shard.segmentStats(false).getMaxUnsafeAutoIdTimestamp();
-            if (request.isPrimaryRelocation()) {
+            final long maxUnsafeAutoIdTimestamp =
+                shard.segmentStats(false).getMaxUnsafeAutoIdTimestamp();
+            if (isPrimaryRelocation) {
                 logger.debug("[phase1] closing engine on primary for shared filesystem recovery");
                 try {
                     // if we relocate we need to close the engine in order to open a new
@@ -80,11 +86,4 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
             throw e;
         }
     }
-
-    @Override
-    protected int sendSnapshot(final long startingSeqNo, final Translog.Snapshot snapshot) {
-        logger.trace("skipping recovery of translog snapshot on shared filesystem");
-        return 0;
-    }
-
 }

@@ -19,30 +19,10 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.index.translog.Translog;
-
-import java.util.List;
-
-public interface OpsRecoveryTargetHandler {
+interface PrimaryHandoffRecoveryTargetHandler {
 
     /**
-     * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, and
-     * updates the global checkpoint.
-     *
-     * @param globalCheckpoint the global checkpoint on the recovery source
+     * Blockingly waits for cluster state with at least clusterStateVersion to be available
      */
-    void finalizeRecovery(long globalCheckpoint);
-
-    /**
-     * Index a set of translog operations on the target
-     * @param operations operations to index
-     * @param totalTranslogOps current number of total operations expected to be indexed
-     */
-    void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps);
-
-
-    /***
-     * @return the allocation id of the target shard.
-     */
-    String getTargetAllocationId();
+    void ensureClusterStateVersion(long clusterStateVersion);
 }

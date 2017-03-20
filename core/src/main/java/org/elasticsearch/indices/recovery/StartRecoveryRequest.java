@@ -19,9 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -89,31 +87,5 @@ public abstract class StartRecoveryRequest extends TransportRequest {
         shardId.writeTo(out);
         sourceNode.writeTo(out);
         targetNode.writeTo(out);
-    }
-
-    /**
-     * checks the source's shard routing to see if recovery can start and throws the appropriate
-     * exception if not.
-     *
-     * @param sourceRouting source routing entry
-     * @param logger        logger to log any debug info on
-     */
-    public void validateSourceRouting(ShardRouting sourceRouting, Logger logger) {}
-
-    public void validateTargetRouting(ShardRouting targetRouting, Logger logger) {
-        if (targetRouting == null) {
-            logger.debug(
-                "delaying recovery of {} as it is not listed as assigned to target node {}",
-                shardId(), targetNode());
-            throw new DelayRecoveryException(
-                "source node does not have the shard listed in its state as allocated on the node");
-        }
-        if (!targetRouting.initializing()) {
-            logger.debug("delaying recovery of {} as it is not listed as initializing on the " +
-                    "target node {}. known shards state is [{}]",
-                shardId(), targetNode(), targetRouting.state());
-            throw new DelayRecoveryException("source node has the state of the target shard to " +
-                "be [" + targetRouting.state() + "], expecting to be [initializing]");
-        }
     }
 }

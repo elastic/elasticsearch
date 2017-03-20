@@ -25,21 +25,21 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.FileRecoveryTarget;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.FullRecoveryTarget;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
@@ -289,12 +289,14 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
             CountDownLatch recoveryStart = new CountDownLatch(1);
             AtomicBoolean preparedForTranslog = new AtomicBoolean(false);
-            final Future<Void> recoveryFuture = shards.asyncRecoverReplica(newReplica, (indexShard, node) -> {
+            final Future<Void> recoveryFuture = shards.asyncRecoverReplica(newReplica,
+                (indexShard, node) -> {
                 recoveryStart.countDown();
-                return new FullRecoveryTarget(indexShard, node, recoveryListener, l -> {
-                }) {
+                return new FileRecoveryTarget(indexShard, node, recoveryListener) {
                     @Override
-                    public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
+                    public void prepareForTranslogOperations(int totalTranslogOps,
+                                                             long maxUnsafeAutoIdTimestamp)
+                        throws IOException {
                         preparedForTranslog.set(true);
                         super.prepareForTranslogOperations(totalTranslogOps, maxUnsafeAutoIdTimestamp);
                     }
@@ -320,7 +322,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
     }
 
-    private static class BlockingTarget extends FullRecoveryTarget {
+    private static class BlockingTarget extends FileRecoveryTarget {
 
         private final CountDownLatch recoveryBlocked;
         private final CountDownLatch releaseRecovery;
@@ -329,9 +331,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             EnumSet.of(RecoveryState.Stage.INDEX, RecoveryState.Stage.TRANSLOG, RecoveryState.Stage.FINALIZE);
         private final Logger logger;
 
-        BlockingTarget(RecoveryState.Stage stageToBlock, CountDownLatch recoveryBlocked, CountDownLatch releaseRecovery, IndexShard shard,
-                       DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener, Logger logger) {
-            super(shard, sourceNode, listener, version -> {});
+        BlockingTarget(RecoveryState.Stage stageToBlock, CountDownLatch recoveryBlocked,
+                       CountDownLatch releaseRecovery, IndexShard shard, DiscoveryNode sourceNode,
+                       PeerRecoveryTargetService.RecoveryListener listener, Logger logger) {
+            super(shard, sourceNode, listener);
             this.recoveryBlocked = recoveryBlocked;
             this.releaseRecovery = releaseRecovery;
             this.stageToBlock = stageToBlock;

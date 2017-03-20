@@ -97,16 +97,14 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Settings settings = Settings.builder().put("indices.recovery.concurrent_streams", 1).
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
-        final StartFullRecoveryRequest request = new StartFullRecoveryRequest(
+        final StartFileRecoveryRequest request = new StartFileRecoveryRequest(
             shardId,
             new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             null,
-            randomBoolean(),
-            randomNonNegativeLong(),
-            randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
+            randomNonNegativeLong());
         Store store = newStore(createTempDir());
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, () -> 0L, e -> () -> {},
+        FileRecoverySourceHandler handler = new FileRecoverySourceHandler(null, null, request, () -> 0L, e -> () -> {},
             recoverySettings.getChunkSize().bytesAsInt(), Settings.EMPTY);
         Directory dir = store.directory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
@@ -153,19 +151,17 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         final int fileChunkSizeInBytes = recoverySettings.getChunkSize().bytesAsInt();
         final long startingSeqNo = randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : randomIntBetween(0, 16);
-        final StartFullRecoveryRequest request = new StartFullRecoveryRequest(
+        final StartFileRecoveryRequest request = new StartFileRecoveryRequest(
             shardId,
             new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
             null,
-            randomBoolean(),
-            randomNonNegativeLong(),
-            randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : randomNonNegativeLong());
+            randomNonNegativeLong());
         final IndexShard shard = mock(IndexShard.class);
         when(shard.state()).thenReturn(IndexShardState.STARTED);
-        final FullRecoveryTargetHandler recoveryTarget = mock(FullRecoveryTargetHandler.class);
-        final RecoverySourceHandler handler =
-            new RecoverySourceHandler(shard, recoveryTarget, request, () -> 0L, e -> () -> {}, fileChunkSizeInBytes, Settings.EMPTY);
+        final FileRecoveryTargetHandler recoveryTarget = mock(FileRecoveryTargetHandler.class);
+        final FileRecoverySourceHandler handler =
+            new FileRecoverySourceHandler(shard, recoveryTarget, request, () -> 0L, e -> () -> {}, fileChunkSizeInBytes, Settings.EMPTY);
         final List<Translog.Operation> operations = new ArrayList<>();
         final int initialNumberOfDocs = randomIntBetween(16, 64);
         for (int i = 0; i < initialNumberOfDocs; i++) {
@@ -178,7 +174,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             operations.add(new Translog.Index(index, new Engine.IndexResult(1, i - initialNumberOfDocs, true)));
         }
         operations.add(null);
-        int totalOperations = handler.sendSnapshot(startingSeqNo, new Translog.Snapshot() {
+        int totalOperations = handler.sn(startingSeqNo, new Translog.Snapshot() {
             private int counter = 0;
 
             @Override
@@ -220,8 +216,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Settings settings = Settings.builder().put("indices.recovery.concurrent_streams", 1).
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
-        final StartFullRecoveryRequest request =
-            new StartFullRecoveryRequest(
+        final StartFileRecoveryRequest request =
+            new StartFileRecoveryRequest(
                 shardId,
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -232,7 +228,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, () -> 0L, e -> () -> {},
+        FileRecoverySourceHandler handler = new FileRecoverySourceHandler(null, null, request, () -> 0L, e -> () -> {},
             recoverySettings.getChunkSize().bytesAsInt(), Settings.EMPTY) {
             @Override
             protected void failEngine(IOException cause) {
@@ -289,8 +285,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Settings settings = Settings.builder().put("indices.recovery.concurrent_streams", 1).
                 put("indices.recovery.concurrent_small_file_streams", 1).build();
         final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
-        final StartFullRecoveryRequest request =
-            new StartFullRecoveryRequest(
+        final StartFileRecoveryRequest request =
+            new StartFileRecoveryRequest(
                 shardId,
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -301,7 +297,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
-        RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, () -> 0L, e -> () -> {},
+        FileRecoverySourceHandler handler = new FileRecoverySourceHandler(null, null, request, () -> 0L, e -> () -> {},
             recoverySettings.getChunkSize().bytesAsInt(), Settings.EMPTY) {
             @Override
             protected void failEngine(IOException cause) {
@@ -355,8 +351,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         final boolean attemptSequenceNumberBasedRecovery = randomBoolean();
         final boolean isTranslogReadyForSequenceNumberBasedRecovery = attemptSequenceNumberBasedRecovery && randomBoolean();
-        final StartFullRecoveryRequest request =
-            new StartFullRecoveryRequest(
+        final StartFileRecoveryRequest request =
+            new StartFileRecoveryRequest(
                 shardId,
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -373,9 +369,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final AtomicBoolean phase1Called = new AtomicBoolean();
         final AtomicBoolean prepareTargetForTranslogCalled = new AtomicBoolean();
         final AtomicBoolean phase2Called = new AtomicBoolean();
-        final RecoverySourceHandler handler = new RecoverySourceHandler(
+        final FileRecoverySourceHandler handler = new FileRecoverySourceHandler(
             shard,
-            mock(FullRecoveryTargetHandler.class),
+            mock(FileRecoveryTargetHandler.class),
             request,
             () -> 0L,
             e -> () -> {},
@@ -414,8 +410,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         final boolean attemptSequenceNumberBasedRecovery = randomBoolean();
         final boolean isTranslogReadyForSequenceNumberBasedRecovery = attemptSequenceNumberBasedRecovery && randomBoolean();
-        final StartFullRecoveryRequest request =
-            new StartFullRecoveryRequest(
+        final StartFileRecoveryRequest request =
+            new StartFileRecoveryRequest(
                 shardId,
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
@@ -463,9 +459,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             };
         };
 
-        final RecoverySourceHandler handler = new RecoverySourceHandler(
+        final FileRecoverySourceHandler handler = new FileRecoverySourceHandler(
             shard,
-            mock(FullRecoveryTargetHandler.class),
+            mock(FileRecoveryTargetHandler.class),
             request,
             currentClusterStateVersionSupplier,
             delayNewRecoveries,

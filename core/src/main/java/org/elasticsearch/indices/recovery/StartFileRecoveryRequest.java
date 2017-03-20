@@ -19,9 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -32,12 +30,11 @@ import java.io.IOException;
 /**
  * Represents a request for starting a peer recovery.
  */
-public class StartFullRecoveryRequest extends StartRecoveryRequest {
+public class StartFileRecoveryRequest extends StartRecoveryRequest {
 
     private Store.MetadataSnapshot metadataSnapshot;
-    private boolean primaryRelocation;
 
-    public StartFullRecoveryRequest() {
+    public StartFileRecoveryRequest() {
     }
 
     /**
@@ -47,22 +44,15 @@ public class StartFullRecoveryRequest extends StartRecoveryRequest {
      * @param sourceNode        the source node to remover from
      * @param targetNode        the target node to recover to
      * @param metadataSnapshot  the Lucene metadata
-     * @param primaryRelocation whether or not the recovery is a primary relocation
      * @param recoveryId        the recovery ID
      */
-    public StartFullRecoveryRequest(final ShardId shardId,
+    public StartFileRecoveryRequest(final ShardId shardId,
                                     final DiscoveryNode sourceNode,
                                     final DiscoveryNode targetNode,
                                     final Store.MetadataSnapshot metadataSnapshot,
-                                    final boolean primaryRelocation,
                                     final long recoveryId) {
         super(shardId, sourceNode, targetNode, recoveryId);
         this.metadataSnapshot = metadataSnapshot;
-        this.primaryRelocation = primaryRelocation;
-    }
-
-    public boolean isPrimaryRelocation() {
-        return primaryRelocation;
     }
 
     public Store.MetadataSnapshot metadataSnapshot() {
@@ -73,27 +63,11 @@ public class StartFullRecoveryRequest extends StartRecoveryRequest {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         metadataSnapshot = new Store.MetadataSnapshot(in);
-        primaryRelocation = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         metadataSnapshot.writeTo(out);
-        out.writeBoolean(primaryRelocation);
-    }
-
-    @Override
-    public void validateSourceRouting(ShardRouting sourceRouting, Logger logger) {
-        super.validateSourceRouting(sourceRouting, logger);
-        if (isPrimaryRelocation() &&
-            (sourceRouting.relocating() == false ||
-                sourceRouting.relocatingNodeId().equals(targetNode().getId()) == false)) {
-            logger.debug(
-                "delaying recovery of {} as source shard is not marked yet as relocating to {}",
-                shardId(), targetNode());
-            throw new DelayRecoveryException(
-                "source shard is not marked yet as relocating to [" + targetNode() + "]");
-        }
     }
 }

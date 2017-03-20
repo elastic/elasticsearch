@@ -25,11 +25,11 @@ import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveriesCollection;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
-import org.elasticsearch.indices.recovery.FullRecoveryTarget;
+import org.elasticsearch.indices.recovery.RecoveryTarget;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -126,7 +126,8 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             IndexShard indexShard = recoveryTarget.indexShard();
             Store store = recoveryTarget.store();
             String tempFileName = recoveryTarget.getTempNameForFile("foobar");
-            FullRecoveryTarget resetRecovery = collection.resetRecovery(recoveryId, TimeValue.timeValueMinutes(60));
+            RecoveryTarget resetRecovery = collection.resetRecovery(recoveryId,
+                TimeValue.timeValueMinutes(60));
             final long resetRecoveryId = resetRecovery.recoveryId();
             assertNotSame(recoveryTarget, resetRecovery);
             assertNotSame(recoveryTarget.cancellableThreads(), resetRecovery.cancellableThreads());

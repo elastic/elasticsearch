@@ -479,6 +479,15 @@ public final class IndexSettings {
      */
     public ByteSizeValue getFlushThresholdSize() { return flushThresholdSize; }
 
+    /**
+     * Returns the generation threshold size. As sequence numbers can cause multiple generations to
+     * be preserved for rollback purposes, we want to keep the size of individual generations from
+     * growing too large to avoid excessive disk space consumption. Therefore, the translog is
+     * automatically rolled to a new generation when the current generation exceeds this generation
+     * threshold size.
+     *
+     * @return the generation threshold size
+     */
     public ByteSizeValue getGenerationThresholdSize() {
         return generationThresholdSize;
     }

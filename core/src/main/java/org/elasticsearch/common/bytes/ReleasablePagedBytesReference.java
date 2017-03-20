@@ -32,7 +32,8 @@ public final class ReleasablePagedBytesReference extends PagedBytesReference imp
 
     private final Releasable releasable;
 
-    public ReleasablePagedBytesReference(BigArrays bigarrays, ByteArray byteArray, int length, Releasable releasable) {
+    public ReleasablePagedBytesReference(BigArrays bigarrays, ByteArray byteArray, int length,
+                                         Releasable releasable) {
         super(bigarrays, byteArray, length);
         this.releasable = releasable;
     }

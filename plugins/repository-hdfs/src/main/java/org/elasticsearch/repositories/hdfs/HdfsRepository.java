@@ -30,8 +30,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
-import org.apache.hadoop.hdfs.protocolPB.ClientNamenodeProtocolPB;
-import org.apache.hadoop.security.KerberosInfo;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.log4j.Logger;
@@ -118,24 +116,6 @@ public final class HdfsRepository extends BlobStoreRepository {
         Map<String, String> map = repositorySettings.getByPrefix("conf.").getAsMap();
         for (Entry<String, String> entry : map.entrySet()) {
             cfg.set(entry.getKey(), entry.getValue());
-        }
-
-        // Eagerly load the SecurityUtil with the plugin's classloader set as the
-        // context class loader. SecurityUtil is used all over Hadoop for random
-        // stuff, but the most important thing in our case is that it creates a
-        // ServiceLoader that loads implementations that allow us to use Kerberos
-        // and Token authentication. It loads this from the current Thread's
-        // context class loader, which in our case may not be installed.
-        ClassLoader oldCCL = Thread.currentThread().getContextClassLoader();
-        try {
-            Thread.currentThread().setContextClassLoader(HdfsRepository.class.getClassLoader());
-            KerberosInfo info = SecurityUtil.getKerberosInfo(ClientNamenodeProtocolPB.class, cfg);
-            // Make sure that the correct class loader was installed.
-            if (info == null) {
-                throw new RuntimeException("Could not initialize SecurityUtil");
-            }
-        } finally {
-            Thread.currentThread().setContextClassLoader(oldCCL);
         }
 
         // Initialize the UGI with the configuration.

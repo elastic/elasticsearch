@@ -50,10 +50,13 @@ public class GetStoredSearchTemplateRequest extends MasterNodeReadRequest<
         ActionRequestValidationException validationException = null;
 
         if (id == null || id.isEmpty()) {
-            validationException = addValidationError("must specify id for stored search template", validationException);
-        } else if (id.contains("#")) {
-            validationException = addValidationError("id cannot contain '#' for stored search template", validationException);
-        }
+            validationException = addValidationError("must specify id for stored search template",
+                    validationException);
+        } else
+            if (id.contains("#")) {
+                validationException = addValidationError(
+                        "id cannot contain '#' for stored search template", validationException);
+            }
 
         return validationException;
     }

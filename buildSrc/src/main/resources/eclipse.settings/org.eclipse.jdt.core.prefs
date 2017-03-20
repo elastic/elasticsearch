@@ -1,6 +1,5 @@
 eclipse.preferences.version=1
 
-# previous configuration from maven build
 # this is merged with gradle's generated properties during 'gradle eclipse'
 
 # NOTE: null pointer analysis etc is not enabled currently, it seems very unstable
@@ -17,6 +16,6 @@ eclipse.preferences.version=1
 # org.eclipse.jdt.core.compiler.problem.potentialNullReference=warning
 
 org.eclipse.jdt.core.compiler.problem.forbiddenReference=warning
-org.eclipse.jdt.core.formatter.lineSplit=140
+org.eclipse.jdt.core.formatter.lineSplit=100
 org.eclipse.jdt.core.formatter.tabulation.char=space
 org.eclipse.jdt.core.formatter.tabulation.size=4

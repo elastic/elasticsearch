@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -37,6 +39,7 @@ import org.junit.Before;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -85,7 +88,15 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
                                     BigArrays.NON_RECYCLING_INSTANCE,
                                     new NoneCircuitBreakerService(),
                                     new NamedWriteableRegistry(Collections.emptyList()),
-                                    new NetworkService(Settings.EMPTY, Collections.emptyList()));
+                                    new NetworkService(Settings.EMPTY, Collections.emptyList())) {
+                @Override
+                public BoundTransportAddress boundAddress() {
+                    return new BoundTransportAddress(
+                        new TransportAddress[]{new TransportAddress(InetAddress.getLoopbackAddress(), 9300)},
+                        new TransportAddress(InetAddress.getLoopbackAddress(), 9300)
+                    );
+                }
+            };
         transportService = new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
     }

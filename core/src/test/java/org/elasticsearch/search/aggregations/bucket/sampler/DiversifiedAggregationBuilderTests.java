@@ -17,14 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket;
+package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator.ExecutionMode;
 
-public class DiversifiedSamplerTests extends BaseAggregationTestCase<DiversifiedAggregationBuilder> {
+public class DiversifiedAggregationBuilderTests extends BaseAggregationTestCase<DiversifiedAggregationBuilder> {
 
     @Override
     protected final DiversifiedAggregationBuilder createTestAggregatorBuilder() {

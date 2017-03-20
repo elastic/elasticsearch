@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.TaskManager;
@@ -37,7 +38,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -70,28 +76,30 @@ public class TransportMultiSearchActionTests extends ESTestCase {
 
         // Keep track of the number of concurrent searches started by multi search api,
         // and if there are more searches than is allowed create an error and remember that.
-        int maxAllowedConcurrentSearches = scaledRandomIntBetween(1, 20);
+        int maxAllowedConcurrentSearches = scaledRandomIntBetween(1, 16);
         AtomicInteger counter = new AtomicInteger();
         AtomicReference<AssertionError> errorHolder = new AtomicReference<>();
+        // randomize whether or not requests are executed asynchronously
+        final List<String> threadPoolNames = Arrays.asList(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME);
+        Randomness.shuffle(threadPoolNames);
+        final ExecutorService commonExecutor = threadPool.executor(threadPoolNames.get(0));
+        final ExecutorService rarelyExecutor = threadPool.executor(threadPoolNames.get(1));
+        final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
         TransportAction<SearchRequest, SearchResponse> searchAction = new TransportAction<SearchRequest, SearchResponse>
                 (Settings.EMPTY, "action", threadPool, actionFilters, resolver, taskManager) {
             @Override
             protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
+                requests.add(request);
                 int currentConcurrentSearches = counter.incrementAndGet();
                 if (currentConcurrentSearches > maxAllowedConcurrentSearches) {
                     errorHolder.set(new AssertionError("Current concurrent search [" + currentConcurrentSearches +
                             "] is higher than is allowed [" + maxAllowedConcurrentSearches + "]"));
                 }
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(
-                        () -> {
-                            try {
-                                Thread.sleep(scaledRandomIntBetween(10, 1000));
-                            } catch (InterruptedException e) {
-                            }
-                            counter.decrementAndGet();
-                            listener.onResponse(new SearchResponse());
-                        }
-                );
+                final ExecutorService executorService = rarely() ? rarelyExecutor : commonExecutor;
+                executorService.execute(() -> {
+                    counter.decrementAndGet();
+                    listener.onResponse(new SearchResponse());
+                });
             }
         };
         TransportMultiSearchAction action =
@@ -99,7 +107,11 @@ public class TransportMultiSearchActionTests extends ESTestCase {
 
         // Execute the multi search api and fail if we find an error after executing:
         try {
-            int numSearchRequests = randomIntBetween(16, 128);
+            /*
+             * Allow for a large number of search requests in a single batch as previous implementations could stack overflow if the number
+             * of requests in a single batch was large
+             */
+            int numSearchRequests = scaledRandomIntBetween(1, 8192);
             MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
             multiSearchRequest.maxConcurrentSearchRequests(maxAllowedConcurrentSearches);
             for (int i = 0; i < numSearchRequests; i++) {
@@ -108,6 +120,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
 
             MultiSearchResponse response = action.execute(multiSearchRequest).actionGet();
             assertThat(response.getResponses().length, equalTo(numSearchRequests));
+            assertThat(requests.size(), equalTo(numSearchRequests));
             assertThat(errorHolder.get(), nullValue());
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));

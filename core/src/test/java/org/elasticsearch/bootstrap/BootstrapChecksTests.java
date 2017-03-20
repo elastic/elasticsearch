@@ -49,7 +49,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class BootstrapCheckTests extends ESTestCase {
+public class BootstrapChecksTests extends ESTestCase {
 
     public void testNonProductionMode() throws NodeValidationException {
         // nothing should happen since we are in non-production mode

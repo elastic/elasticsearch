@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.support;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -18,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -186,8 +184,8 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     @After
     public void cleanupWorkaround() throws Exception {
         logger.info("[{}#{}]: Cleaning up datafeeds and jobs after test", getTestClass().getSimpleName(), getTestName());
-        deleteAllDatafeeds(client());
-        deleteAllJobs(client());
+        deleteAllDatafeeds(logger, client());
+        deleteAllJobs(logger, client());
         assertBusy(() -> {
             RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries()
                     .setActiveOnly(true)
@@ -244,7 +242,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    public static void deleteAllDatafeeds(Client client) throws Exception {
+    public static void deleteAllDatafeeds(Logger logger, Client client) throws Exception {
         MetaData metaData = client.admin().cluster().prepareState().get().getState().getMetaData();
         MlMetadata mlMetadata = metaData.custom(MlMetadata.TYPE);
         for (DatafeedConfig datafeed : mlMetadata.getDatafeeds().values()) {
@@ -254,8 +252,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
                         client.execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request(datafeedId)).get();
                 assertTrue(stopResponse.isStopped());
             } catch (ExecutionException e) {
-                // CONFLICT is ok, as it means the datafeed has already stopped, which isn't an issue at all.
-                if (RestStatus.CONFLICT != ExceptionsHelper.status(e.getCause())) {
+                if (e.getMessage().contains("datafeed already stopped, expected datafeed state [started], but got [stopped]")) {
+                    logger.debug("failed to stop datafeed [" + datafeedId + "]", e);
+                } else {
                     throw new RuntimeException(e);
                 }
             }
@@ -274,7 +273,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    public static void deleteAllJobs(Client client) throws Exception {
+    public static void deleteAllJobs(Logger logger, Client client) throws Exception {
         MetaData metaData = client.admin().cluster().prepareState().get().getState().getMetaData();
         MlMetadata mlMetadata = metaData.custom(MlMetadata.TYPE);
         for (Map.Entry<String, Job> entry : mlMetadata.getJobs().entrySet()) {
@@ -286,8 +285,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
                         client.execute(CloseJobAction.INSTANCE, closeRequest).get();
                 assertTrue(response.isClosed());
             } catch (Exception e) {
-                // CONFLICT is ok, as it means the job has been closed already, which isn't an issue at all.
-                if (RestStatus.CONFLICT != ExceptionsHelper.status(e.getCause())) {
+                if (e.getMessage().contains("expected job state [opened], but got [closed]")
+                        || e.getMessage().contains("expected job state [opened], but got [closing]")) {
+                    logger.debug("job [" + jobId + "] has already been closed", e);
+                } else {
                     throw new RuntimeException(e);
                 }
             }

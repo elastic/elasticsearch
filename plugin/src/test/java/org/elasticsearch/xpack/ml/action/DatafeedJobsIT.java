@@ -61,8 +61,8 @@ public class DatafeedJobsIT extends SecurityIntegTestCase {
 
     @After
     public void cleanupWorkaround() throws Exception {
-        deleteAllDatafeeds(client());
-        deleteAllJobs(client());
+        deleteAllDatafeeds(logger, client());
+        deleteAllJobs(logger, client());
     }
 
     public void ensureClusterStateConsistency() throws IOException {

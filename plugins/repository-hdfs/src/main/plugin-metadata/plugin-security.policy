@@ -25,38 +25,41 @@ grant {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 
+  // Needed so that Hadoop can load the correct classes for SPI and JAAS
+  //   org.apache.hadoop.security.SecurityUtil clinit
+  //   org.apache.hadoop.security.UserGroupInformation.newLoginContext()
+  permission java.lang.RuntimePermission "setContextClassLoader";
+
   // org.apache.hadoop.util.StringUtils clinit
   permission java.util.PropertyPermission "*", "read,write";
 
   // org.apache.hadoop.util.ShutdownHookManager clinit
   permission java.lang.RuntimePermission "shutdownHooks";
   
-  // JAAS is used always, we use a fake subject, hurts nobody
+  // JAAS is used by Hadoop for authentication purposes
+  // The Hadoop Login JAAS module modifies a Subject's private credentials and principals
+  // The Hadoop RPC Layer must be able to read these credentials, and initiate Kerberos connections
   permission javax.security.auth.AuthPermission "getSubject";
   permission javax.security.auth.AuthPermission "doAs";
   permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
+  permission javax.security.auth.AuthPermission "modifyPrincipals";
+  permission javax.security.auth.PrivateCredentialPermission "org.apache.hadoop.security.Credentials * \"*\"", "read";
+  permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KerberosTicket * \"*\"", "read";
+  permission javax.security.auth.kerberos.ServicePermission "*", "initiate";
+
+  // Hadoop depends on OS level user information for simple authentication
+  // UnixLoginModule: com.sun.security.auth.module.UnixSystem.UnixSystem init
+  permission java.lang.RuntimePermission "loadLibrary.jaas_unix";
+
+  // com.sun.security.auth.module.Krb5LoginModule.login()
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.security.krb5";
 
   // hdfs client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";
 
-  // Retrieval of private hadoop credentials from any Subject in cases where authentication is enabled
-  permission javax.security.auth.PrivateCredentialPermission "org.apache.hadoop.security.Credentials * \"*\"", "read";
-
-  // Needed for constructing login contexts in the UGI
-  permission java.lang.RuntimePermission "setContextClassLoader";
-
-  // Unix login context
-  permission java.lang.RuntimePermission "loadLibrary.jaas_unix";
-
-  // Ability for Hadoop UGI and LoginContexts to add principals for JAAS login contexts
-  permission javax.security.auth.AuthPermission "modifyPrincipals";
-
-  // Kerberos permissions
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.security.krb5";
+  // org.apache.hadoop.security.SaslRpcServer.init()
   permission java.security.SecurityPermission "putProviderProperty.SaslPlainServer";
-  permission java.security.SecurityPermission "insertProvider.SaslPlainServer";
 
-  // Kerberos Ticket permissions
-  permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KerberosTicket * \"*\"", "read";
-  permission javax.security.auth.kerberos.ServicePermission "*", "initiate,accept";
+  // org.apache.hadoop.security.SaslPlainServer.SecurityProvider.SecurityProvider init
+  permission java.security.SecurityPermission "insertProvider.SaslPlainServer";
 };

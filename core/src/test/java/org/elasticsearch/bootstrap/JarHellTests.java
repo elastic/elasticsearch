@@ -111,7 +111,7 @@ public class JarHellTests extends ESTestCase {
 
     public void testWithinSingleJar() throws Exception {
         // the java api for zip file does not allow creating duplicate entries (good!) so
-        // this bogus jar had to be constructed with ant
+        // this bogus jar had to be with https://github.com/jasontedor/duplicate-classes
         Set<URL> jars = Collections.singleton(JarHellTests.class.getResource("duplicate-classes.jar"));
         try {
             JarHell.checkJarHell(jars);

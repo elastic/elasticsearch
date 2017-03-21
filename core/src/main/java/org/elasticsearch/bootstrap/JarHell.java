@@ -204,7 +204,7 @@ public class JarHell {
                         String entry = root.relativize(file).toString();
                         if (entry.endsWith(".class")) {
                             // normalize with the os separator, remove '.class'
-                            entry = entry.replace(sep, ".").substring(0,  entry.length() - 6);
+                            entry = entry.replace(sep, ".").substring(0,  entry.length() - ".class".length());
                             checkClass(clazzes, entry, path);
                         }
                         return super.visitFile(file, attrs);

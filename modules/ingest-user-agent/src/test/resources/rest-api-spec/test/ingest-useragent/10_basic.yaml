@@ -1,4 +1,4 @@
-"ingest-user-agent plugin installed":
+"ingest-user-agent module installed":
     - do:
         cluster.state: {}
 
@@ -7,5 +7,5 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: ingest-user-agent }
+    - match:  { nodes.$master.modules.0.name: ingest-user-agent }
     - match:  { nodes.$master.ingest.processors.0.type: user_agent }

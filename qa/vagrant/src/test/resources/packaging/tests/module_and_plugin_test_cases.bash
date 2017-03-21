@@ -240,8 +240,8 @@ fi
     install_and_check_plugin ingest geoip geoip2-*.jar jackson-annotations-*.jar jackson-databind-*.jar maxmind-db-*.jar
 }
 
-@test "[$GROUP] install ingest-user-agent plugin" {
-    install_and_check_plugin ingest user-agent
+@test "[$GROUP] check ingest-user-agent module" {
+    check_module ingest-user-agent
 }
 
 @test "[$GROUP] check ingest-common module" {
@@ -363,10 +363,6 @@ fi
 
 @test "[$GROUP] remove ingest-geoip plugin" {
     remove_plugin ingest-geoip
-}
-
-@test "[$GROUP] remove ingest-user-agent plugin" {
-    remove_plugin ingest-user-agent
 }
 
 @test "[$GROUP] remove murmur3 mapper plugin" {

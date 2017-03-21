@@ -1627,7 +1627,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
     }
 
-    private class SendListener implements ActionListener<Channel> {
+    private final class SendListener implements ActionListener<Channel> {
 
         private final Releasable optionalReleasable;
         private final Runnable transportAdaptorCallback;
@@ -1640,24 +1640,12 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
         @Override
         public void onResponse(Channel channel) {
-            try {
-                if (this.optionalReleasable != null) {
-                    optionalReleasable.close();
-                }
-            } finally {
-                transportAdaptorCallback.run();
-            }
+            Releasables.close(optionalReleasable, transportAdaptorCallback::run);
         }
 
         @Override
         public void onFailure(Exception e) {
-            try {
-                if (this.optionalReleasable != null) {
-                    optionalReleasable.close();
-                }
-            } finally {
-                transportAdaptorCallback.run();
-            }
+            onResponse(null);
         }
     }
 }

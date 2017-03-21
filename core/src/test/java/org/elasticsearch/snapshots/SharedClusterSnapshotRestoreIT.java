@@ -817,6 +817,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(restoreSnapshotResponse.getRestoreInfo().totalShards()));
+        // we have to delete the index here manually, otherwise the cluster will keep
+        // trying to allocate the shards for the index, even though the restore operation
+        // is completed and marked as failed, which can lead to nodes having pending
+        // cluster states to process in their queue when the test is finished
+        client.admin().indices().prepareDelete("test-idx").get();
     }
 
     public void testDeletionOfFailingToRecoverIndexShouldStopRestore() throws Exception {

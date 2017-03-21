@@ -18,22 +18,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 
 public class TriggerService extends AbstractComponent {
 
-    private final Listeners listeners;
+    private final GroupedConsumer consumer = new GroupedConsumer();
     private final Map<String, TriggerEngine> engines;
 
     public TriggerService(Settings settings, Set<TriggerEngine> engines) {
         super(settings);
-        listeners = new Listeners();
         Map<String, TriggerEngine> builder = new HashMap<>();
         for (TriggerEngine engine : engines) {
             builder.put(engine.type(), engine);
-            engine.register(listeners);
+            engine.register(consumer);
         }
         this.engines = unmodifiableMap(builder);
     }
@@ -54,10 +54,10 @@ public class TriggerService extends AbstractComponent {
      * Adds the given job to the trigger service. If there is already a registered job in this service with the
      * same job ID, the newly added job will replace the old job (the old job will not be triggered anymore)
      *
-     * @param job   The new job
+     * @param watch   The new watch
      */
-    public void add(TriggerEngine.Job job) {
-        engines.get(job.trigger().type()).add(job);
+    public void add(Watch watch) {
+        engines.get(watch.trigger().type()).add(watch);
     }
 
     /**
@@ -75,8 +75,8 @@ public class TriggerService extends AbstractComponent {
         return false;
     }
 
-    public void register(TriggerEngine.Listener listener) {
-        listeners.add(listener);
+    public void register(Consumer<Iterable<TriggerEvent>> consumer) {
+        this.consumer.add(consumer);
     }
 
     public TriggerEvent simulateEvent(String type, String jobId, Map<String, Object> data) {
@@ -149,20 +149,17 @@ public class TriggerService extends AbstractComponent {
         return engine.parseTriggerEvent(this, watchId, context, parser);
     }
 
-    static class Listeners implements TriggerEngine.Listener {
+    static class GroupedConsumer implements java.util.function.Consumer<Iterable<TriggerEvent>> {
 
-        private List<TriggerEngine.Listener> listeners = new CopyOnWriteArrayList<>();
+        private List<Consumer<Iterable<TriggerEvent>>> consumers = new CopyOnWriteArrayList<>();
 
-        public void add(TriggerEngine.Listener listener) {
-            listeners.add(listener);
+        public void add(Consumer<Iterable<TriggerEvent>> consumer) {
+            consumers.add(consumer);
         }
 
         @Override
-        public void triggered(Iterable<TriggerEvent> events) {
-            for (TriggerEngine.Listener listener : listeners) {
-                listener.triggered(events);
-            }
+        public void accept(Iterable<TriggerEvent> events) {
+            consumers.forEach(c -> c.accept(events));
         }
     }
-
 }

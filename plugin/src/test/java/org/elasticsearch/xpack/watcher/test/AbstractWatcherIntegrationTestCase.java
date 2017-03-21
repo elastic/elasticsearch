@@ -121,20 +121,16 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     private static Boolean securityEnabled;
 
-    private static String scheduleEngineName;
-
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         if (securityEnabled == null) {
             securityEnabled = enableSecurity();
         }
-        scheduleEngineName = randomFrom("ticker", "scheduler");
         return super.buildTestCluster(scope, seed);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        logger.info("using schedule engine [{}]", scheduleEngineName);
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 //TODO: for now lets isolate watcher tests from monitoring (randomize this later)
@@ -144,7 +140,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 .put("xpack.watcher.execution.scroll.size", randomIntBetween(1, 100))
                 .put("xpack.watcher.watch.scroll.size", randomIntBetween(1, 100))
                 .put(SecuritySettings.settings(securityEnabled))
-                .put("xpack.watcher.trigger.schedule.engine", scheduleEngineName)
                 .put("script.inline", "true")
                 // Disable native ML autodetect_process as the c++ controller won't be available
                 .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
@@ -257,7 +252,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     @AfterClass
     public static void _cleanupClass() {
         securityEnabled = null;
-        scheduleEngineName = null;
     }
 
     @Override

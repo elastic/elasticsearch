@@ -532,7 +532,7 @@ public class WatchTests extends ESTestCase {
         }
 
         @Override
-        public void start(Collection<Job> jobs) {
+        public void start(Collection<Watch> jobs) {
         }
 
         @Override
@@ -540,11 +540,7 @@ public class WatchTests extends ESTestCase {
         }
 
         @Override
-        public void register(Listener listener) {
-        }
-
-        @Override
-        public void add(Job job) {
+        public void add(Watch watch) {
         }
 
         @Override

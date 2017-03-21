@@ -10,32 +10,33 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
+
+import java.util.function.Consumer;
 
 import static java.util.stream.StreamSupport.stream;
 
-public class SyncTriggerListener implements TriggerEngine.Listener {
+public class SyncTriggerEventConsumer implements Consumer<Iterable<TriggerEvent>> {
 
     private final ExecutionService executionService;
     private final Logger logger;
 
-    public SyncTriggerListener(Settings settings, ExecutionService executionService) {
-        this.logger = Loggers.getLogger(SyncTriggerListener.class, settings);
+    public SyncTriggerEventConsumer(Settings settings, ExecutionService executionService) {
+        this.logger = Loggers.getLogger(SyncTriggerEventConsumer.class, settings);
         this.executionService = executionService;
     }
 
     @Override
-    public void triggered(Iterable<TriggerEvent> events) {
+    public void accept(Iterable<TriggerEvent> events) {
         try {
             executionService.processEventsSync(events);
         } catch (Exception e) {
             logger.error(
                     (Supplier<?>) () -> new ParameterizedMessage(
                             "failed to process triggered events [{}]",
-                            (Object) stream(events.spliterator(), false).toArray(size -> new TriggerEvent[size])),
+                            (Object) stream(events.spliterator(), false).toArray(size ->
+                                    new TriggerEvent[size])),
                     e);
         }
     }
-
 }

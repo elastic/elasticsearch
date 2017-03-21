@@ -7,10 +7,12 @@ package org.elasticsearch.xpack.watcher.trigger;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public interface TriggerEngine<T extends Trigger, E extends TriggerEvent> {
 
@@ -20,13 +22,13 @@ public interface TriggerEngine<T extends Trigger, E extends TriggerEvent> {
      * It's the responsibility of the trigger engine implementation to select the appropriate jobs
      * from the given list of jobs
      */
-    void start(Collection<Job> jobs);
+    void start(Collection<Watch> jobs);
 
     void stop();
 
-    void register(Listener listener);
+    void register(Consumer<Iterable<TriggerEvent>> consumer);
 
-    void add(Job job);
+    void add(Watch job);
 
     /**
      * Removes the job associated with the given name from this trigger engine.
@@ -41,19 +43,4 @@ public interface TriggerEngine<T extends Trigger, E extends TriggerEvent> {
     T parseTrigger(String context, XContentParser parser) throws IOException;
 
     E parseTriggerEvent(TriggerService service, String watchId, String context, XContentParser parser) throws IOException;
-
-    interface Listener {
-
-        void triggered(Iterable<TriggerEvent> events);
-
-    }
-
-    interface Job {
-
-        String id();
-
-        Trigger trigger();
-    }
-
-
 }

@@ -5,22 +5,24 @@
  */
 package org.elasticsearch.xpack.watcher.test.bench;
 
-import org.elasticsearch.common.Randomness;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
+import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.elasticsearch.xpack.watcher.trigger.schedule.engine.BaseTriggerEngineTestCase;
-import org.elasticsearch.xpack.watcher.trigger.schedule.engine.SchedulerScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleTriggerEngine;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,6 +33,8 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interva
 
 @SuppressForbidden(reason = "benchmark")
 public class ScheduleEngineTriggerBenchmark {
+
+    private static final Logger logger = ESLoggerFactory.getLogger(ScheduleEngineTriggerBenchmark.class);
 
     public static void main(String[] args) throws Exception {
         int numWatches = 1000;
@@ -55,75 +59,52 @@ public class ScheduleEngineTriggerBenchmark {
         Settings settings = Settings.builder()
                 .put("name", "test")
                 .build();
-        List<TriggerEngine.Job> jobs = new ArrayList<>(numWatches);
+        List<Watch> watches = new ArrayList<>(numWatches);
         for (int i = 0; i < numWatches; i++) {
-            jobs.add(new BaseTriggerEngineTestCase.SimpleJob("job_" + i, interval(interval + "s")));
+            watches.add(new Watch("job_" + i, new ScheduleTrigger(interval(interval + "s")), new ExecutableNoneInput(logger),
+                    AlwaysCondition.INSTANCE, null, null, Collections.emptyList(), null, null));
         }
         ScheduleRegistry scheduleRegistry = new ScheduleRegistry(emptySet());
-        List<String> impls = new ArrayList<>(Arrays.asList(new String[]{"schedule", "ticker"}));
-        Randomness.shuffle(impls);
 
         List<Stats> results = new ArrayList<>();
-        for (String impl : impls) {
-            System.gc();
-            System.out.println("=====================================");
-            System.out.println("===> Testing [" + impl + "] scheduler");
-            System.out.println("=====================================");
-            final AtomicBoolean running = new AtomicBoolean(false);
-            final AtomicInteger total = new AtomicInteger();
-            final MeanMetric triggerMetric = new MeanMetric();
-            final MeanMetric tooEarlyMetric = new MeanMetric();
+        System.gc();
+        System.out.println("=====================================");
+        System.out.println("===> Testing scheduler");
+        System.out.println("=====================================");
+        final AtomicBoolean running = new AtomicBoolean(false);
+        final AtomicInteger total = new AtomicInteger();
+        final MeanMetric triggerMetric = new MeanMetric();
+        final MeanMetric tooEarlyMetric = new MeanMetric();
 
-            final ScheduleTriggerEngine scheduler;
-            switch (impl) {
-                case "schedule":
-                    scheduler = new SchedulerScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, Clock.systemUTC()) {
-
-                        @Override
-                        protected void notifyListeners(String name, long triggeredTime, long scheduledTime) {
-                            if (running.get()) {
-                                measure(total, triggerMetric, tooEarlyMetric, triggeredTime, scheduledTime);
-                            }
-                        }
-                    };
-                    break;
-                case "ticker":
-                    scheduler = new TickerScheduleTriggerEngine(settings, scheduleRegistry, Clock.systemUTC()) {
-
-                        @Override
-                        protected void notifyListeners(List<TriggerEvent> events) {
-                            if (running.get()) {
-                                for (TriggerEvent event : events) {
-                                    ScheduleTriggerEvent scheduleTriggerEvent = (ScheduleTriggerEvent) event;
-                                    measure(total, triggerMetric, tooEarlyMetric, event.triggeredTime().getMillis(),
-                                            scheduleTriggerEvent.scheduledTime().getMillis());
-                                }
-                            }
-                        }
-                    };
-                    break;
-                default:
-                    throw new IllegalArgumentException("impl [" + impl + "] doesn't exist");
+        final ScheduleTriggerEngine scheduler = new TickerScheduleTriggerEngine(settings, scheduleRegistry, Clock.systemUTC()) {
+            @Override
+            protected void notifyListeners(List<TriggerEvent> events) {
+                if (running.get()) {
+                    for (TriggerEvent event : events) {
+                        ScheduleTriggerEvent scheduleTriggerEvent = (ScheduleTriggerEvent) event;
+                        measure(total, triggerMetric, tooEarlyMetric, event.triggeredTime().getMillis(),
+                                scheduleTriggerEvent.scheduledTime().getMillis());
+                    }
+                }
             }
-            scheduler.start(jobs);
-            System.out.println("Added [" + numWatches + "] jobs");
-            running.set(true);
-            Thread.sleep(benchTime);
-            running.set(false);
-            scheduler.stop();
-            System.out.println("done, triggered [" + total.get() + "] times, delayed triggered [" + triggerMetric.count() +
-                    "] times, avg [" + triggerMetric.mean() + "] ms");
-            results.add(new Stats(impl, total.get(), triggerMetric.count(), triggerMetric.mean(), tooEarlyMetric.count(),
-                    tooEarlyMetric.mean()));
-        }
+        };
+        scheduler.start(watches);
+        System.out.println("Added [" + numWatches + "] jobs");
+        running.set(true);
+        Thread.sleep(benchTime);
+        running.set(false);
+        scheduler.stop();
+        System.out.println("done, triggered [" + total.get() + "] times, delayed triggered [" + triggerMetric.count() +
+                "] times, avg [" + triggerMetric.mean() + "] ms");
+        results.add(new Stats(total.get(), triggerMetric.count(), triggerMetric.mean(), tooEarlyMetric.count(), tooEarlyMetric.mean()));
 
         System.out.println("       Name     | # triggered | # delayed | avg delay | # too early triggered | avg too early delay");
         System.out.println("--------------- | ----------- | --------- | --------- | --------------------- | ------------------ ");
         for (Stats stats : results) {
             System.out.printf(
                     Locale.ENGLISH,
-                    "%15s | %11d | %9d | %9d | %21d | %18d\n",
-                    stats.implementation, stats.numberOfTimesTriggered, stats.numberOfTimesDelayed, stats.avgDelayTime,
+                    "%11d | %9d | %9d | %21d | %18d\n",
+                    stats.numberOfTimesTriggered, stats.numberOfTimesDelayed, stats.avgDelayTime,
                     stats.numberOfEarlyTriggered, stats.avgEarlyDelayTime
             );
         }
@@ -143,16 +124,14 @@ public class ScheduleEngineTriggerBenchmark {
 
     static class Stats {
 
-        final String implementation;
         final int numberOfTimesTriggered;
         final long numberOfTimesDelayed;
         final long avgDelayTime;
         final long numberOfEarlyTriggered;
         final long avgEarlyDelayTime;
 
-        Stats(String implementation, int numberOfTimesTriggered, long numberOfTimesDelayed, double avgDelayTime,
+        Stats(int numberOfTimesTriggered, long numberOfTimesDelayed, double avgDelayTime,
               long numberOfEarlyTriggered, double avgEarlyDelayTime) {
-            this.implementation = implementation;
             this.numberOfTimesTriggered = numberOfTimesTriggered;
             this.numberOfTimesDelayed = numberOfTimesDelayed;
             this.avgDelayTime = Math.round(avgDelayTime);

@@ -224,8 +224,6 @@ public class WatcherExecutorServiceBenchmark {
             protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
                 return new ScheduleTriggerEngineMock(settings, scheduleRegistry, clock);
             }
-
-
         }
     }
 }

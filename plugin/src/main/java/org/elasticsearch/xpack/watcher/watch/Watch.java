@@ -17,7 +17,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.common.secret.Secret;
@@ -36,7 +35,6 @@ import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.trigger.Trigger;
-import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.joda.time.DateTime;
 
@@ -50,11 +48,10 @@ import java.util.regex.Pattern;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.ioException;
 import static org.joda.time.DateTimeZone.UTC;
 
-public class Watch implements TriggerEngine.Job, ToXContentObject {
+public class Watch implements ToXContentObject {
 
     public static final String ALL_ACTIONS_ID = "_all";
     public static final String INCLUDE_STATUS_KEY = "include_status";
@@ -87,12 +84,10 @@ public class Watch implements TriggerEngine.Job, ToXContentObject {
         this.status = status;
     }
 
-    @Override
     public String id() {
         return id;
     }
 
-    @Override
     public Trigger trigger() {
         return trigger;
     }

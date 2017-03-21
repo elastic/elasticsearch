@@ -15,12 +15,13 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -31,12 +32,11 @@ import java.util.concurrent.ConcurrentMap;
 public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
     private final Logger logger;
-    private final ConcurrentMap<String, Job> jobs = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Watch> watches = new ConcurrentHashMap<>();
 
     public ScheduleTriggerEngineMock(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
         super(settings, scheduleRegistry, clock);
         this.logger = Loggers.getLogger(ScheduleTriggerEngineMock.class, settings);
-
     }
 
     @Override
@@ -51,7 +51,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     }
 
     @Override
-    public void start(Collection<Job> jobs) {
+    public void start(Collection<Watch> jobs) {
     }
 
     @Override
@@ -59,13 +59,13 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     }
 
     @Override
-    public void add(Job job) {
-        jobs.put(job.id(), job);
+    public void add(Watch watch) {
+        watches.put(watch.id(), watch);
     }
 
     @Override
     public boolean remove(String jobId) {
-        return jobs.remove(jobId) != null;
+        return watches.remove(jobId) != null;
     }
 
     public void trigger(String jobName) {
@@ -81,9 +81,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
             DateTime now = new DateTime(clock.millis());
             logger.debug("firing [{}] at [{}]", jobName, now);
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(jobName, now, now);
-            for (Listener listener : listeners) {
-                listener.triggered(Arrays.asList(event));
-            }
+            consumers.forEach(consumer -> consumer.accept(Collections.singletonList(event)));
             if (interval != null)  {
                 if (clock instanceof ClockMock) {
                     ((ClockMock) clock).fastForward(interval);

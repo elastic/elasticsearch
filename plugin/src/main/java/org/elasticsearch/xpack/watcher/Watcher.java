@@ -80,7 +80,7 @@ import org.elasticsearch.xpack.watcher.condition.ConditionFactory;
 import org.elasticsearch.xpack.watcher.condition.ConditionRegistry;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
-import org.elasticsearch.xpack.watcher.execution.AsyncTriggerListener;
+import org.elasticsearch.xpack.watcher.execution.AsyncTriggerEventConsumer;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatch;
@@ -135,6 +135,7 @@ import org.elasticsearch.xpack.watcher.transport.actions.service.WatcherServiceA
 import org.elasticsearch.xpack.watcher.transport.actions.stats.TransportWatcherStatsAction;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.CronSchedule;
@@ -146,7 +147,6 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.xpack.watcher.trigger.schedule.WeeklySchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.YearlySchedule;
-import org.elasticsearch.xpack.watcher.trigger.schedule.engine.SchedulerScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
@@ -162,12 +162,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
 
 public class Watcher implements ActionPlugin, ScriptPlugin {
 
@@ -177,19 +177,6 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
             Setting.boolSetting("xpack.watcher.encrypt_sensitive_data", false, Setting.Property.NodeScope);
     public static final Setting<TimeValue> MAX_STOP_TIMEOUT_SETTING =
             Setting.timeSetting("xpack.watcher.stop.timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
-    public static final Setting<String> TRIGGER_SCHEDULE_ENGINE_SETTING =
-            new Setting<>("xpack.watcher.trigger.schedule.engine", "ticker", s -> {
-                switch (s) {
-                    case "ticker":
-                    case "scheduler":
-                        return s;
-                    default:
-                        throw new IllegalArgumentException("Can't parse [xpack.watcher.trigger.schedule.engine] must be one of [ticker, " +
-                                "scheduler], was [" + s + "]");
-                }
-
-            }, Setting.Property.NodeScope);
-
 
     private static final ScriptContext.Plugin SCRIPT_PLUGIN = new ScriptContext.Plugin("xpack", "watch");
     public static final ScriptContext SCRIPT_CONTEXT = SCRIPT_PLUGIN::getKey;
@@ -288,7 +275,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         final ScheduleRegistry scheduleRegistry = new ScheduleRegistry(scheduleParsers);
 
         TriggerEngine manualTriggerEngine = new ManualTriggerEngine();
-        TriggerEngine configuredTriggerEngine = getTriggerEngine(clock, scheduleRegistry);
+        final TriggerEngine configuredTriggerEngine = getTriggerEngine(clock, scheduleRegistry);
 
         final Set<TriggerEngine> triggerEngines = new HashSet<>();
         triggerEngines.add(manualTriggerEngine);
@@ -306,7 +293,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         final ExecutionService executionService = new ExecutionService(settings, historyStore, triggeredWatchStore, watchExecutor,
                 clock, threadPool, watchParser, watcherClientProxy);
 
-        final TriggerEngine.Listener triggerEngineListener = getTriggerEngineListener(executionService);
+        final Consumer<Iterable<TriggerEvent>> triggerEngineListener = getTriggerEngineListener(executionService);
         triggerService.register(triggerEngineListener);
 
         final WatcherIndexTemplateRegistry watcherIndexTemplateRegistry = new WatcherIndexTemplateRegistry(settings,
@@ -324,23 +311,15 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
     }
 
     protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
-        String engine = TRIGGER_SCHEDULE_ENGINE_SETTING.get(settings);
-        switch (engine) {
-            case "scheduler":
-                return new SchedulerScheduleTriggerEngine(settings, scheduleRegistry, clock);
-            case "ticker":
-                return new TickerScheduleTriggerEngine(settings, scheduleRegistry, clock);
-            default: // should never happen, as the setting is already parsing for scheduler/ticker
-                throw illegalState("schedule engine must be either set to [scheduler] or [ticker], but was []", engine);
-        }
+        return new TickerScheduleTriggerEngine(settings, scheduleRegistry, clock);
     }
 
     protected WatchExecutor getWatchExecutor(ThreadPool threadPool) {
         return new InternalWatchExecutor(threadPool);
     }
 
-    protected TriggerEngine.Listener getTriggerEngineListener(ExecutionService executionService) {
-        return new AsyncTriggerListener(settings, executionService);
+    protected Consumer<Iterable<TriggerEvent>> getTriggerEngineListener(ExecutionService executionService) {
+        return new AsyncTriggerEventConsumer(settings, executionService);
     }
 
     private <T> T getService(Class<T> serviceClass, Collection<Object> services) {
@@ -374,7 +353,6 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         for (TemplateConfig templateConfig : WatcherIndexTemplateRegistry.TEMPLATE_CONFIGS) {
             settings.add(templateConfig.getSetting());
         }
-        settings.add(TRIGGER_SCHEDULE_ENGINE_SETTING);
         settings.add(INDEX_WATCHER_TEMPLATE_VERSION_SETTING);
         settings.add(MAX_STOP_TIMEOUT_SETTING);
         settings.add(ExecutionService.DEFAULT_THROTTLE_PERIOD_SETTING);

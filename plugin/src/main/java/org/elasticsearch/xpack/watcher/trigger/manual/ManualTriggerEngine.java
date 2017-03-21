@@ -8,11 +8,14 @@ package org.elasticsearch.xpack.watcher.trigger.manual;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 
@@ -30,7 +33,7 @@ public class ManualTriggerEngine implements TriggerEngine<ManualTrigger, ManualT
      * from the given list of jobs
      */
     @Override
-    public void start(Collection<Job> jobs) {
+    public void start(Collection<Watch> jobs) {
     }
 
     @Override
@@ -38,11 +41,11 @@ public class ManualTriggerEngine implements TriggerEngine<ManualTrigger, ManualT
     }
 
     @Override
-    public void register(Listener listener) {
+    public void register(Consumer<Iterable<TriggerEvent>> consumer) {
     }
 
     @Override
-    public void add(Job job) {
+    public void add(Watch job) {
     }
 
     @Override

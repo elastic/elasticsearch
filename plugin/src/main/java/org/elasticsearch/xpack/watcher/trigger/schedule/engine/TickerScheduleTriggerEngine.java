@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 
 import java.time.Clock;
@@ -38,10 +39,10 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     @Override
-    public void start(Collection<Job> jobs) {
+    public void start(Collection<Watch> jobs) {
         long starTime = clock.millis();
         Map<String, ActiveSchedule> schedules = new ConcurrentHashMap<>();
-        for (Job job : jobs) {
+        for (Watch job : jobs) {
             if (job.trigger() instanceof ScheduleTrigger) {
                 ScheduleTrigger trigger = (ScheduleTrigger) job.trigger();
                 schedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), starTime));
@@ -57,7 +58,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     @Override
-    public void add(Job job) {
+    public void add(Watch job) {
         assert job.trigger() instanceof ScheduleTrigger;
         ScheduleTrigger trigger = (ScheduleTrigger) job.trigger();
         schedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), clock.millis()));
@@ -90,9 +91,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     protected void notifyListeners(List<TriggerEvent> events) {
-        for (Listener listener : listeners) {
-            listener.triggered(events);
-        }
+        consumers.forEach(consumer -> consumer.accept(events));
     }
 
     static class ActiveSchedule {

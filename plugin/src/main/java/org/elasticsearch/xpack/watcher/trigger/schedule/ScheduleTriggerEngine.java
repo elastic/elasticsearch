@@ -6,24 +6,30 @@
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.xpack.watcher.trigger.AbstractTriggerEngine;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 import static org.joda.time.DateTimeZone.UTC;
 
-public abstract class ScheduleTriggerEngine extends AbstractTriggerEngine<ScheduleTrigger, ScheduleTriggerEvent> {
+public abstract class ScheduleTriggerEngine extends AbstractComponent implements TriggerEngine<ScheduleTrigger, ScheduleTriggerEvent> {
 
     public static final String TYPE = ScheduleTrigger.TYPE;
 
+    protected final List<Consumer<Iterable<TriggerEvent>>> consumers = new CopyOnWriteArrayList<>();
     protected final ScheduleRegistry scheduleRegistry;
     protected final Clock clock;
 
@@ -37,6 +43,12 @@ public abstract class ScheduleTriggerEngine extends AbstractTriggerEngine<Schedu
     public String type() {
         return TYPE;
     }
+
+    @Override
+    public void register(Consumer<Iterable<TriggerEvent>> consumer) {
+        consumers.add(consumer);
+    }
+
 
     @Override
     public ScheduleTriggerEvent simulateEvent(String jobId, @Nullable Map<String, Object> data, TriggerService service) {

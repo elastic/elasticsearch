@@ -10,15 +10,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
-import org.elasticsearch.xpack.watcher.execution.SyncTriggerListener;
+import org.elasticsearch.xpack.watcher.execution.SyncTriggerEventConsumer;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutor;
 import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 
 import java.time.Clock;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 public class TimeWarpedWatcher extends Watcher {
@@ -40,8 +42,8 @@ public class TimeWarpedWatcher extends Watcher {
     }
 
     @Override
-    protected TriggerEngine.Listener getTriggerEngineListener(ExecutionService executionService) {
-        return new SyncTriggerListener(settings, executionService);
+    protected Consumer<Iterable<TriggerEvent>> getTriggerEngineListener(ExecutionService executionService) {
+        return new SyncTriggerEventConsumer(settings, executionService);
     }
 
     public static class SameThreadExecutor implements WatchExecutor {

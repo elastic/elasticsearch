@@ -390,7 +390,7 @@ public class ConvertProcessorTests extends ESTestCase {
 				randomValue = randomLong;
                 break;
 			case 4:
-				long randomDouble = randomDouble();
+				double randomDouble = randomDouble();
 				randomValue = randomDouble;
 				break;
             default:

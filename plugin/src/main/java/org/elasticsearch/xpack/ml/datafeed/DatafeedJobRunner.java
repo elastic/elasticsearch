@@ -111,7 +111,14 @@ public class DatafeedJobRunner extends AbstractComponent {
         }, handler);
     }
 
-    public synchronized void closeAllDatafeeds(String reason) {
+    public synchronized void stopDatafeed(String datafeedId, String reason, TimeValue timeout) {
+        Holder holder = runningDatafeeds.remove(datafeedId);
+        if (holder != null) {
+            holder.stop(reason, timeout, null);
+        }
+    }
+
+    public synchronized void stopAllDatafeeds(String reason) {
         int numDatafeeds = runningDatafeeds.size();
         if (numDatafeeds != 0) {
             logger.info("Closing [{}] datafeeds, because [{}]", numDatafeeds, reason);
@@ -225,9 +232,7 @@ public class DatafeedJobRunner extends AbstractComponent {
         DataExtractorFactory dataExtractorFactory = createDataExtractorFactory(datafeed, job);
         DatafeedJob datafeedJob =  new DatafeedJob(job.getId(), buildDataDescription(job), frequency.toMillis(), queryDelay.toMillis(),
                 dataExtractorFactory, client, auditor, currentTimeSupplier, finalBucketEndMs, latestRecordTimeMs);
-        Holder holder = new Holder(datafeed, datafeedJob, task.isLookbackOnly(), new ProblemTracker(auditor, job.getId()), handler);
-        task.setHolder(holder);
-        return holder;
+        return new Holder(datafeed, datafeedJob, task.isLookbackOnly(), new ProblemTracker(auditor, job.getId()), handler);
     }
 
     DataExtractorFactory createDataExtractorFactory(DatafeedConfig datafeed, Job job) {

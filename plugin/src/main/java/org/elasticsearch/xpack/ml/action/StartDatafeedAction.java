@@ -230,13 +230,22 @@ public class StartDatafeedAction
         private final String datafeedId;
         private final long startTime;
         private final Long endTime;
-        private volatile DatafeedJobRunner.Holder holder;
+        private volatile DatafeedJobRunner datafeedJobRunner;
 
         public DatafeedTask(long id, String type, String action, TaskId parentTaskId, Request request) {
             super(id, type, action, "datafeed-" + request.getDatafeedId(), parentTaskId);
             this.datafeedId = request.getDatafeedId();
             this.startTime = request.startTime;
             this.endTime = request.endTime;
+        }
+
+        /* only for testing */
+        public DatafeedTask(long id, String type, String action, TaskId parentTaskId, Request request, DatafeedJobRunner datafeedJobRunner) {
+            super(id, type, action, "datafeed-" + request.getDatafeedId(), parentTaskId);
+            this.datafeedId = request.getDatafeedId();
+            this.startTime = request.startTime;
+            this.endTime = request.endTime;
+            this.datafeedJobRunner = datafeedJobRunner;
         }
 
         public String getDatafeedId() {
@@ -256,10 +265,6 @@ public class StartDatafeedAction
             return endTime != null;
         }
 
-        public void setHolder(DatafeedJobRunner.Holder holder) {
-            this.holder = holder;
-        }
-
         @Override
         protected void onCancelled() {
             stop(getReasonCancelled());
@@ -270,10 +275,7 @@ public class StartDatafeedAction
         }
 
         public void stop(String reason, TimeValue timeout) {
-            if (holder == null) {
-                throw new IllegalStateException("task cancel ran before datafeed runner assigned the holder");
-            }
-            holder.stop(reason, timeout, null);
+            datafeedJobRunner.stopDatafeed(datafeedId, reason, timeout);
         }
     }
 
@@ -339,6 +341,7 @@ public class StartDatafeedAction
         protected void nodeOperation(NodePersistentTask nodePersistentTask, Request request,
                                      ActionListener<TransportResponse.Empty> listener) {
             DatafeedTask datafeedTask = (DatafeedTask) nodePersistentTask;
+            datafeedTask.datafeedJobRunner = datafeedJobRunner;
             datafeedJobRunner.run(datafeedTask,
                     (error) -> {
                         if (error != null) {

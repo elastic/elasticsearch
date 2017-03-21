@@ -66,7 +66,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE;
 
@@ -221,7 +220,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
     public static class JobTask extends NodePersistentTask {
 
         private final String jobId;
-        private volatile BiConsumer<Boolean, String> cancelHandler;
+        private volatile AutodetectProcessManager autodetectProcessManager;
 
         JobTask(String jobId, long id, String type, String action, TaskId parentTask) {
             super(id, type, action, "job-" + jobId, parentTask);
@@ -236,7 +235,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         protected void onCancelled() {
             String reason = getReasonCancelled();
             boolean restart = CancelTasksRequest.DEFAULT_REASON.equals(reason) == false;
-            cancelHandler.accept(restart, reason);
+            autodetectProcessManager.closeJob(jobId, restart, reason);
         }
 
         static boolean match(Task task, String expectedJobId) {
@@ -327,14 +326,14 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
 
         @Override
         protected void nodeOperation(NodePersistentTask task, Request request, ActionListener<TransportResponse.Empty> listener) {
+            JobTask jobTask = (JobTask) task;
+            jobTask.autodetectProcessManager = autodetectProcessManager;
             autodetectProcessManager.setJobState(task.getPersistentTaskId(), JobState.OPENING, e1 -> {
                 if (e1 != null) {
                     listener.onFailure(e1);
                     return;
                 }
 
-                JobTask jobTask = (JobTask) task;
-                jobTask.cancelHandler = (restart, reason) -> autodetectProcessManager.closeJob(request.getJobId(), restart, reason);
                 autodetectProcessManager.openJob(request.getJobId(), task.getPersistentTaskId(), request.isIgnoreDowntime(), e2 -> {
                     if (e2 == null) {
                         listener.onResponse(new TransportResponse.Empty());

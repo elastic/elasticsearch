@@ -210,9 +210,14 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     /**
      * Explicitly set the analyzer to use. Defaults to use explicit mapping config for the field, or, if not
      * set, the default search analyzer.
+     * @throws IllegalArgumentException when analyzer is used with a non-String value
      */
     public MatchQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
+        if (analyzer != null && value instanceof String == false) {
+            throw new IllegalArgumentException("Setting analyzers is only allowed for string "
+                    + "values but was [" + value.getClass() + "]");
+        }
         return this;
     }
 

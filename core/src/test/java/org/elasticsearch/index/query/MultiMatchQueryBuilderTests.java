@@ -85,13 +85,8 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         if (randomBoolean()) {
             query.operator(randomFrom(Operator.values()));
         }
-        if (randomBoolean()) {
-            if (fieldName.equals(DATE_FIELD_NAME)) {
-                // tokenized dates would trigger parse errors
-                query.analyzer("keyword");
-            } else {
-                query.analyzer(randomAnalyzer());
-            }
+        if (randomBoolean() && fieldName.equals(STRING_FIELD_NAME)) {
+            query.analyzer(randomAnalyzer());
         }
         if (randomBoolean()) {
             query.slop(randomIntBetween(0, 5));
@@ -297,14 +292,24 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> query.toQuery(context));
         assertThat(e.getMessage(), containsString("Can only use fuzzy queries on keyword and text fields"));
-        query.analyzer("keyword"); // triggers a different code path
-        e = expectThrows(IllegalArgumentException.class,
-                () -> query.toQuery(context));
-        assertThat(e.getMessage(), containsString("Can only use fuzzy queries on keyword and text fields"));
-
         query.lenient(true);
         query.toQuery(context); // no exception
-        query.analyzer(null);
-        query.toQuery(context); // no exception
+    }
+
+    /**
+     * Setting an analyzer only makes sense on string fields, otherwise we throw an error
+     */
+    public void testAnalyzerOnNumericField() throws Exception {
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> new MultiMatchQueryBuilder(6.075210893508043E-4, DOUBLE_FIELD_NAME,
+                        STRING_FIELD_NAME).analyzer("simple"));
+        assertEquals("Setting analyzers is only allowed for string values but was"
+                + " [class java.lang.Double]", exception.getMessage());
+
+        exception = expectThrows(IllegalArgumentException.class,
+                () -> new MultiMatchQueryBuilder(true, DOUBLE_FIELD_NAME, STRING_FIELD_NAME)
+                        .analyzer("simple"));
+        assertEquals("Setting analyzers is only allowed for string values but was"
+                + " [class java.lang.Boolean]", exception.getMessage());
     }
 }

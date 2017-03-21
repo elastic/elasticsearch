@@ -331,6 +331,10 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      */
     public MultiMatchQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
+        if (analyzer != null && value instanceof String == false) {
+            throw new IllegalArgumentException("Setting analyzers is only allowed for string "
+                    + "values but was [" + value.getClass() + "]");
+        }
         return this;
     }
 

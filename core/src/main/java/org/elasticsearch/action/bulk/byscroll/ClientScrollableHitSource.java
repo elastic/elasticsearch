@@ -113,8 +113,9 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     }
 
     @Override
-    protected void cleanup() {
+    protected void cleanup(Runnable onCompletion) {
         // Nothing to do
+        onCompletion.run();
     }
 
     /**

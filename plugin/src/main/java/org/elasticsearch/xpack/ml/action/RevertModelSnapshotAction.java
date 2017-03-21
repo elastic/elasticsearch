@@ -55,7 +55,7 @@ public class RevertModelSnapshotAction
 extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Response, RevertModelSnapshotAction.RequestBuilder> {
 
     public static final RevertModelSnapshotAction INSTANCE = new RevertModelSnapshotAction();
-    public static final String NAME = "cluster:admin/ml/anomaly_detectors/model_snapshots/revert";
+    public static final String NAME = "cluster:admin/ml/job/model_snapshots/revert";
 
     private RevertModelSnapshotAction() {
         super(NAME);

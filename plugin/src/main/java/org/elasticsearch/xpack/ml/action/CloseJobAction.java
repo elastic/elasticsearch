@@ -56,7 +56,7 @@ import java.util.Optional;
 public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobAction.Response, CloseJobAction.RequestBuilder> {
 
     public static final CloseJobAction INSTANCE = new CloseJobAction();
-    public static final String NAME = "cluster:admin/ml/anomaly_detectors/close";
+    public static final String NAME = "cluster:admin/ml/job/close";
 
     private CloseJobAction() {
         super(NAME);

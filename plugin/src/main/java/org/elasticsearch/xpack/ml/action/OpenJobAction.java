@@ -72,7 +72,7 @@ import static org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProces
 public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActionResponse, OpenJobAction.RequestBuilder> {
 
     public static final OpenJobAction INSTANCE = new OpenJobAction();
-    public static final String NAME = "cluster:admin/ml/anomaly_detectors/open";
+    public static final String NAME = "cluster:admin/ml/job/open";
 
     private OpenJobAction() {
         super(NAME);

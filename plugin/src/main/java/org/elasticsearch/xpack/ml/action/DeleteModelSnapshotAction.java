@@ -42,7 +42,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
         DeleteModelSnapshotAction.Response, DeleteModelSnapshotAction.RequestBuilder> {
 
     public static final DeleteModelSnapshotAction INSTANCE = new DeleteModelSnapshotAction();
-    public static final String NAME = "cluster:admin/ml/anomaly_detectors/model_snapshots/delete";
+    public static final String NAME = "cluster:admin/ml/job/model_snapshots/delete";
 
     private DeleteModelSnapshotAction() {
         super(NAME);

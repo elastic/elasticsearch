@@ -39,7 +39,7 @@ import java.util.Optional;
 public class PostDataAction extends Action<PostDataAction.Request, PostDataAction.Response, PostDataAction.RequestBuilder> {
 
     public static final PostDataAction INSTANCE = new PostDataAction();
-    public static final String NAME = "cluster:admin/ml/anomaly_detectors/data/post";
+    public static final String NAME = "cluster:admin/ml/job/data/post";
 
     private PostDataAction() {
         super(NAME);

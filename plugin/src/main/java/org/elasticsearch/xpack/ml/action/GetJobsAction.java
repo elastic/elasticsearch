@@ -39,7 +39,7 @@ import java.util.Objects;
 public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.Response, GetJobsAction.RequestBuilder> {
 
     public static final GetJobsAction INSTANCE = new GetJobsAction();
-    public static final String NAME = "cluster:monitor/ml/anomaly_detectors/get";
+    public static final String NAME = "cluster:monitor/ml/job/get";
 
     private GetJobsAction() {
         super(NAME);

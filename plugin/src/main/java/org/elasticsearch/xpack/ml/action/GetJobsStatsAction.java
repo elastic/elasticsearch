@@ -64,7 +64,7 @@ import java.util.stream.Collectors;
 public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJobsStatsAction.Response, GetJobsStatsAction.RequestBuilder> {
 
     public static final GetJobsStatsAction INSTANCE = new GetJobsStatsAction();
-    public static final String NAME = "cluster:monitor/ml/anomaly_detectors/stats/get";
+    public static final String NAME = "cluster:monitor/ml/job/stats/get";
 
     private static final String DATA_COUNTS = "data_counts";
     private static final String MODEL_SIZE_STATS = "model_size_stats";

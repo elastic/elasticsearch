@@ -44,7 +44,7 @@ public class GetInfluencersAction
 extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetInfluencersAction.RequestBuilder> {
 
     public static final GetInfluencersAction INSTANCE = new GetInfluencersAction();
-    public static final String NAME = "cluster:monitor/ml/anomaly_detectors/results/influencers/get";
+    public static final String NAME = "cluster:monitor/ml/job/results/influencers/get";
 
     private GetInfluencersAction() {
         super(NAME);

@@ -33,6 +33,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 21772: Random 1
 * 21802: JQ
 * 21862: JTeam1
+* 22881: JavaGeeks
 * 21946: Honey Boo Boo Fan Club
 * 21974: Krispy Belgian Cookies
 * 21978: Krispy Belgian Cookies

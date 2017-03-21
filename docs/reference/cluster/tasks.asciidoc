@@ -168,6 +168,7 @@ If a long-running task supports cancellation, it can be cancelled by the followi
 POST _tasks/node_id:task_id/_cancel
 --------------------------------------------------
 // CONSOLE
+// TEST[s/task_id/1/]
 
 The task cancellation command supports the same task selection parameters as the list tasks command, so multiple tasks
 can be cancelled at the same time. For example, the following command will cancel all reindex tasks running on the

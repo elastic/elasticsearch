@@ -22,6 +22,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 16564: Oink
 * 16641: Your Choice
 * 16671: Honey Boo Boo Fan Club
+* 16836: The code less traveled
 * 17597: 100
 * 17620: JAH
 * 17853: JQ
@@ -52,7 +53,6 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 22870: Group SmallBit
 * 22881: JavaGeeks
 * 23044: marathon
-* 23121: The code less traveled
 * 23193: 100
 * 23208: java ych
 * 23268: Your Choice

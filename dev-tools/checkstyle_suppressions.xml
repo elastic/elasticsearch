@@ -980,7 +980,6 @@
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]modelsnapshots[/\\]GetModelSnapshotsTests.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]notifications[/\\]AuditMessageTests.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]notifications[/\\]AuditorTests.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]rest[/\\]datafeeds[/\\]RestStartJobDatafeedActionTests.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]support[/\\]AbstractSerializingTestCase.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]support[/\\]AbstractStreamableTestCase.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]support[/\\]AbstractStreamableXContentTestCase.java" checks="LineLength" />

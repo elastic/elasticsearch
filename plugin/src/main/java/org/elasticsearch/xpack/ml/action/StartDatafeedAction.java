@@ -6,11 +6,13 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,6 +25,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -30,6 +33,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -46,6 +50,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -61,6 +66,7 @@ import org.elasticsearch.xpack.persistent.TransportPersistentAction;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.LongSupplier;
 
 public class StartDatafeedAction
         extends Action<StartDatafeedAction.Request, PersistentActionResponse, StartDatafeedAction.RequestBuilder> {
@@ -92,10 +98,22 @@ public class StartDatafeedAction
 
         static {
             PARSER.declareString((request, datafeedId) -> request.datafeedId = datafeedId, DatafeedConfig.ID);
-            PARSER.declareLong((request, startTime) -> request.startTime = startTime, START_TIME);
-            PARSER.declareLong(Request::setEndTime, END_TIME);
+            PARSER.declareString((request, startTime) -> request.startTime = parseDateOrThrow(
+                    startTime, START_TIME, () -> System.currentTimeMillis()), START_TIME);
+            PARSER.declareString(Request::setEndTime, END_TIME);
             PARSER.declareString((request, val) ->
                     request.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+        }
+
+        static long parseDateOrThrow(String date, ParseField paramName, LongSupplier now) {
+            DateMathParser dateMathParser = new DateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
+
+            try {
+                return dateMathParser.parse(date, now);
+            } catch (Exception e) {
+                String msg = Messages.getMessage(Messages.REST_INVALID_DATETIME_PARAMS, paramName.getPreferredName(), date);
+                throw new ElasticsearchParseException(msg, e);
+            }
         }
 
         public static Request fromXContent(XContentParser parser) {
@@ -120,6 +138,10 @@ public class StartDatafeedAction
             this.startTime = startTime;
         }
 
+        public Request(String datafeedId, String startTime) {
+            this(datafeedId, parseDateOrThrow(startTime, START_TIME, () -> System.currentTimeMillis()));
+        }
+
         public Request(StreamInput in) throws IOException {
             readFrom(in);
         }
@@ -139,6 +161,10 @@ public class StartDatafeedAction
             return endTime;
         }
 
+        public void setEndTime(String endTime) {
+            setEndTime(parseDateOrThrow(endTime, END_TIME, () -> System.currentTimeMillis()));
+        }
+
         public void setEndTime(Long endTime) {
             this.endTime = endTime;
         }
@@ -153,7 +179,13 @@ public class StartDatafeedAction
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException e = null;
+            if (endTime != null && endTime <= startTime) {
+                e = ValidateActions.addValidationError(START_TIME.getPreferredName() + " ["
+                        + startTime + "] must be earlier than " + END_TIME.getPreferredName()
+                        + " [" + endTime + "]", e);
+            }
+            return e;
         }
 
         @Override
@@ -188,9 +220,9 @@ public class StartDatafeedAction
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(DatafeedConfig.ID.getPreferredName(), datafeedId);
-            builder.field(START_TIME.getPreferredName(), startTime);
+            builder.field(START_TIME.getPreferredName(), String.valueOf(startTime));
             if (endTime != null) {
-                builder.field(END_TIME.getPreferredName(), endTime);
+                builder.field(END_TIME.getPreferredName(), String.valueOf(endTime));
             }
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
             builder.endObject();
@@ -235,8 +267,8 @@ public class StartDatafeedAction
         public DatafeedTask(long id, String type, String action, TaskId parentTaskId, Request request) {
             super(id, type, action, "datafeed-" + request.getDatafeedId(), parentTaskId);
             this.datafeedId = request.getDatafeedId();
-            this.startTime = request.startTime;
-            this.endTime = request.endTime;
+            this.startTime = request.getStartTime();
+            this.endTime = request.getEndTime();
         }
 
         /* only for testing */

@@ -165,7 +165,7 @@ If a long-running task supports cancellation, it can be cancelled by the followi
 
 [source,js]
 --------------------------------------------------
-POST _tasks/task_id:1/_cancel
+POST _tasks/node_id:task_id/_cancel
 --------------------------------------------------
 // CONSOLE
 

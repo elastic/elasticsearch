@@ -132,7 +132,9 @@ class DatafeedJob {
 
         LOGGER.trace("[{}] Searching data in: [{}, {})", jobId, start, end);
 
+        // A storage for errors that should only be thrown after advancing time
         RuntimeException error = null;
+
         long recordCount = 0;
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
         while (dataExtractor.hasNext()) {
@@ -145,8 +147,10 @@ class DatafeedJob {
                 extractedData = dataExtractor.next();
             } catch (Exception e) {
                 LOGGER.debug("[" + jobId + "] error while extracting data", e);
-                error = new ExtractionProblemException(e);
-                break;
+                // When extraction problems are encountered, we do not want to advance time.
+                // Instead, it is preferable to retry the given interval next time an extraction
+                // is triggered.
+                throw new ExtractionProblemException(e);
             }
             if (extractedData.isPresent()) {
                 DataCounts counts;
@@ -157,6 +161,10 @@ class DatafeedJob {
                         Thread.currentThread().interrupt();
                     }
                     LOGGER.debug("[" + jobId + "] error while posting data", e);
+                    // When an analysis problem occurs, it means something catastrophic has
+                    // happened to the c++ process. We sent a batch of data to the c++ process
+                    // yet we do not know how many of those were processed. It is better to
+                    // advance time in order to avoid importing duplicate data.
                     error = new AnalysisProblemException(e);
                     break;
                 }
@@ -169,8 +177,7 @@ class DatafeedJob {
 
         lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, end - 1);
 
-        // Ensure time is always advanced in order to avoid importing duplicate data.
-        // This is the reason we store the error rather than throw inline.
+        // We can now throw any stored error as we have updated time.
         if (error != null) {
             throw error;
         }

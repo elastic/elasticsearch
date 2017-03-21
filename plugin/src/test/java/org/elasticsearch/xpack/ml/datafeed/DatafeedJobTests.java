@@ -26,6 +26,7 @@ import java.util.Date;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -43,6 +44,7 @@ public class DatafeedJobTests extends ESTestCase {
     private Client client;
     private DataDescription.Builder dataDescription;
     private ActionFuture<FlushJobAction.Response> flushJobFuture;
+    private ArgumentCaptor<FlushJobAction.Request> flushJobRequests;
 
     private long currentTime;
 
@@ -69,8 +71,10 @@ public class DatafeedJobTests extends ESTestCase {
         PostDataAction.Request expectedRequest = new PostDataAction.Request("_job_id");
         expectedRequest.setDataDescription(dataDescription.build());
         when(client.execute(same(PostDataAction.INSTANCE), eq(expectedRequest))).thenReturn(jobDataFuture);
-        when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
         when(jobDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
+
+        flushJobRequests = ArgumentCaptor.forClass(FlushJobAction.Request.class);
+        when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
     }
 
     public void testLookBackRunWithEndTime() throws Exception {
@@ -155,9 +159,10 @@ public class DatafeedJobTests extends ESTestCase {
         ArgumentCaptor<Long> endTimeCaptor = ArgumentCaptor.forClass(Long.class);
         verify(dataExtractorFactory, times(2)).newExtractor(startTimeCaptor.capture(), endTimeCaptor.capture());
         assertEquals(0L, startTimeCaptor.getAllValues().get(0).longValue());
-        assertEquals(1000L, startTimeCaptor.getAllValues().get(1).longValue());
+        assertEquals(0L, startTimeCaptor.getAllValues().get(1).longValue());
         assertEquals(1000L, endTimeCaptor.getAllValues().get(0).longValue());
         assertEquals(2000L, endTimeCaptor.getAllValues().get(1).longValue());
+        assertThat(flushJobRequests.getAllValues().isEmpty(), is(true));
     }
 
     public void testAnalysisProblem() throws Exception {

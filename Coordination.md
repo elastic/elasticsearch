@@ -31,7 +31,6 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 20912: Evil_Engineers
 * 21312: Rocky Road
 * 21418: marathon
-* 21772: Random 1
 * 21802: JQ
 * 21862: JTeam1
 * 22881: JavaGeeks
@@ -64,4 +63,5 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 23570: Random 1
 * 23609: marathon
 * 23646: Chicken Nugget Trio
+* 23664: Random 1
 

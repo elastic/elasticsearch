@@ -79,7 +79,9 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RemoteScrollableHitSourceTests extends ESTestCase {
@@ -485,6 +487,25 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         Exception e = expectThrows(RuntimeException.class, () -> sourceWithMockedRemoteCall("main/2_3_3.json").doStart(null));
         assertEquals("Error parsing the response, remote is likely not an Elasticsearch instance",
                 e.getCause().getCause().getCause().getMessage());
+    }
+
+    public void testCleanupSuccessful() throws Exception {
+        AtomicBoolean cleanupCallbackCalled = new AtomicBoolean();
+        RestClient client = mock(RestClient.class);
+        TestRemoteScrollableHitSource hitSource = new TestRemoteScrollableHitSource(client);
+        hitSource.cleanup(() -> cleanupCallbackCalled.set(true));
+        verify(client).close();
+        assertTrue(cleanupCallbackCalled.get());
+    }
+
+    public void testCleanupFailure() throws Exception {
+        AtomicBoolean cleanupCallbackCalled = new AtomicBoolean();
+        RestClient client = mock(RestClient.class);
+        doThrow(new RuntimeException("test")).when(client).close();
+        TestRemoteScrollableHitSource hitSource = new TestRemoteScrollableHitSource(client);
+        hitSource.cleanup(() -> cleanupCallbackCalled.set(true));
+        verify(client).close();
+        assertTrue(cleanupCallbackCalled.get());
     }
 
     private RemoteScrollableHitSource sourceWithMockedRemoteCall(String... paths) throws Exception {

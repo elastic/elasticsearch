@@ -21,8 +21,7 @@ public final class DomainSplitFunction {
 
     static {
         Map<String, Object> paramsMap = new HashMap<>();
-
-        ResourceBundle resource = ResourceBundle.getBundle("org/elasticsearch/xpack/ml/transforms/exact", Locale.getDefault());
+        ResourceBundle resource = ResourceBundle.getBundle("org/elasticsearch/xpack/ml/transforms/exact", Locale.ROOT);
         Enumeration<String> keys = resource.getKeys();
         Map<String, String> exact = new HashMap<>(2048);
         while (keys.hasMoreElements()) {

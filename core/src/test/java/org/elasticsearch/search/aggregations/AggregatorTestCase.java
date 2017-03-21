@@ -34,13 +34,20 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache.Listener;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -60,6 +67,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -70,6 +78,7 @@ import static org.mockito.Mockito.when;
  * {@link AggregationBuilder} instance.
  */
 public abstract class AggregatorTestCase extends ESTestCase {
+    private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
 
     protected <A extends Aggregator, B extends AggregationBuilder> A createAggregator(B aggregationBuilder,
@@ -106,6 +115,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(searchContext.bigArrays()).thenReturn(new MockBigArrays(Settings.EMPTY, circuitBreakerService));
         when(searchContext.fetchPhase())
             .thenReturn(new FetchPhase(Arrays.asList(new FetchSourceSubPhase(), new DocValueFieldsFetchSubPhase())));
+        when(searchContext.getObjectMapper(anyString())).thenAnswer(invocation -> {
+            String fieldName = (String) invocation.getArguments()[0];
+            if (fieldName.startsWith(NESTEDFIELD_PREFIX)) {
+                BuilderContext context = new BuilderContext(indexSettings.getSettings(), new ContentPath());
+                return new ObjectMapper.Builder<>(fieldName).nested(Nested.newNested(false, false)).build(context);
+            }
+            return null;
+        });
+        when(searchContext.bitsetFilterCache()).thenReturn(new BitsetFilterCache(indexSettings, mock(Listener.class)));
         doAnswer(invocation -> {
             /* Store the releasables so we can release them at the end of the test case. This is important because aggregations don't
              * close their sub-aggregations. This is fairly similar to what the production code does. */
@@ -151,6 +169,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             when(queryShardContext.getForField(fieldType)).then(invocation -> fieldType.fielddataBuilder().build(indexSettings, fieldType,
                     new IndexFieldDataCache.None(), circuitBreakerService, mock(MapperService.class)));
         }
+        NestedScope nestedScope = new NestedScope();
+        when(queryShardContext.nestedScope()).thenReturn(nestedScope);
         return queryShardContext;
     }
 

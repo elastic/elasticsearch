@@ -455,6 +455,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (fieldType == null) {
             // no field means we have no values
             return MappedFieldType.Relation.DISJOINT;
+        } else if(timeZone != null && timeZone != DateTimeZone.UTC && format != null && (format.format().equals("epoch_millis") || format.format().equals("epoch_second"))) {
+            throw new IllegalArgumentException("time_zone must be UTC when using format [" + format.format() + "]");
         } else {
             DateMathParser dateMathParser = format == null ? null : new DateMathParser(format);
             return fieldType.isFieldWithinQuery(queryRewriteContext.getIndexReader(), from, to, includeLower,

@@ -5,14 +5,6 @@
  */
 package org.elasticsearch.xpack.extensions;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.bootstrap.JarHell;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
-
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -23,8 +15,18 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
+
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
@@ -132,9 +134,9 @@ public class XPackExtensionsService {
             // jar-hell check the bundle against the parent classloader and the x-pack classloader
             // pluginmanager does it, but we do it again, in case lusers mess with jar files manually
             try {
-                final List<URL> jars = new ArrayList<>();
+                final Set<URL> jars = new LinkedHashSet<>();
                 // add the parent jars to the list
-                jars.addAll(Arrays.asList(JarHell.parseClassPath()));
+                jars.addAll(JarHell.parseClassPath());
 
                 // add the x-pack jars to the list
                 ClassLoader xpackLoader = getClass().getClassLoader();
@@ -145,7 +147,7 @@ public class XPackExtensionsService {
 
                 jars.addAll(bundle.urls);
 
-                JarHell.checkJarHell(jars.toArray(new URL[0]));
+                JarHell.checkJarHell(jars);
             } catch (Exception e) {
                 throw new IllegalStateException("failed to load bundle " + bundle.urls + " due to jar hell", e);
             }

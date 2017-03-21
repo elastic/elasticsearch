@@ -28,10 +28,12 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Collections;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -168,8 +170,7 @@ final class InstallXPackExtensionCommand extends EnvironmentAwareCommand {
     private void jarHellCheck(Path candidate) throws Exception {
         // create list of current jars in classpath
         // including the x-pack jars (see $ES_CLASSPATH in bin/extension script)
-        final List<URL> jars = new ArrayList<>();
-        jars.addAll(Arrays.asList(JarHell.parseClassPath()));
+        final Set<URL> jars = new HashSet<>(JarHell.parseClassPath());
 
         // add extension jars to the list
         Path extensionJars[] = FileSystemUtils.files(candidate, "*.jar");
@@ -180,7 +181,7 @@ final class InstallXPackExtensionCommand extends EnvironmentAwareCommand {
         // TODO: verify the classname exists in one of the jars!
 
         // check combined (current classpath + new jars to-be-added)
-        JarHell.checkJarHell(jars.toArray(new URL[jars.size()]));
+        JarHell.checkJarHell(jars);
     }
 
     /**

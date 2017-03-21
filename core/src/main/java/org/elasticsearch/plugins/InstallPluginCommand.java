@@ -452,8 +452,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     /** check a candidate plugin for jar hell before installing it */
     void jarHellCheck(Path candidate, Path pluginsDir) throws Exception {
         // create list of current jars in classpath
-        final List<URL> jars = new ArrayList<>();
-        jars.addAll(Arrays.asList(JarHell.parseClassPath()));
+        final Set<URL> jars = new HashSet<>(JarHell.parseClassPath());
 
         // read existing bundles. this does some checks on the installation too.
         PluginsService.getPluginBundles(pluginsDir);
@@ -461,13 +460,15 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         // add plugin jars to the list
         Path pluginJars[] = FileSystemUtils.files(candidate, "*.jar");
         for (Path jar : pluginJars) {
-            jars.add(jar.toUri().toURL());
+            if (jars.add(jar.toUri().toURL()) == false) {
+                throw new IllegalStateException("jar hell! duplicate plugin jar: " + jar);
+            }
         }
         // TODO: no jars should be an error
         // TODO: verify the classname exists in one of the jars!
 
         // check combined (current classpath + new jars to-be-added)
-        JarHell.checkJarHell(jars.toArray(new URL[jars.size()]));
+        JarHell.checkJarHell(jars);
     }
 
     /**

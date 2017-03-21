@@ -178,7 +178,7 @@ public class BootstrapForTesting {
         }
 
         // compute classpath minus obvious places, all other jars will get the permission.
-        Set<URL> codebases = new HashSet<>(Arrays.asList(parseClassPathWithSymlinks()));
+        Set<URL> codebases = new HashSet<>(parseClassPathWithSymlinks());
         Set<URL> excluded = new HashSet<>(Arrays.asList(
                 // es core
                 Bootstrap.class.getProtectionDomain().getCodeSource().getLocation(),
@@ -196,7 +196,7 @@ public class BootstrapForTesting {
         // parse each policy file, with codebase substitution from the classpath
         final List<Policy> policies = new ArrayList<>();
         for (URL policyFile : pluginPolicies) {
-            policies.add(Security.readPolicy(policyFile, codebases.toArray(new URL[codebases.size()])));
+            policies.add(Security.readPolicy(policyFile, codebases));
         }
 
         // consult each policy file for those codebases
@@ -223,10 +223,14 @@ public class BootstrapForTesting {
      * this is for matching the toRealPath() in the code where we have a proper plugin structure
      */
     @SuppressForbidden(reason = "does evil stuff with paths and urls because devs and jenkins do evil stuff with paths and urls")
-    static URL[] parseClassPathWithSymlinks() throws Exception {
-        URL raw[] = JarHell.parseClassPath();
-        for (int i = 0; i < raw.length; i++) {
-            raw[i] = PathUtils.get(raw[i].toURI()).toRealPath().toUri().toURL();
+    static Set<URL> parseClassPathWithSymlinks() throws Exception {
+        Set<URL> raw = JarHell.parseClassPath();
+        Set<URL> cooked = new HashSet<>(raw.size());
+        for (URL url : raw) {
+            boolean added = cooked.add(PathUtils.get(url.toURI()).toRealPath().toUri().toURL());
+            if (added == false) {
+                throw new IllegalStateException("Duplicate in classpath after resolving symlinks: " + url);
+            }
         }
         return raw;
     }

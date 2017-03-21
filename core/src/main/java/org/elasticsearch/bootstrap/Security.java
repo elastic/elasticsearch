@@ -49,8 +49,10 @@ import java.security.URIParameter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Initializes SecurityManager with necessary permissions.
@@ -128,19 +130,23 @@ final class Security {
     @SuppressForbidden(reason = "proper use of URL")
     static Map<String,Policy> getPluginPermissions(Environment environment) throws IOException, NoSuchAlgorithmException {
         Map<String,Policy> map = new HashMap<>();
-        // collect up lists of plugins and modules
-        List<Path> pluginsAndModules = new ArrayList<>();
+        // collect up set of plugins and modules by listing directories.
+        Set<Path> pluginsAndModules = new LinkedHashSet<>(); // order is already lost, but some filesystems have it
         if (Files.exists(environment.pluginsFile())) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
                 for (Path plugin : stream) {
-                    pluginsAndModules.add(plugin);
+                    if (pluginsAndModules.add(plugin) == false) {
+                        throw new IllegalStateException("duplicate plugin: " + plugin);
+                    }
                 }
             }
         }
         if (Files.exists(environment.modulesFile())) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.modulesFile())) {
-                for (Path plugin : stream) {
-                    pluginsAndModules.add(plugin);
+                for (Path module : stream) {
+                    if (pluginsAndModules.add(module) == false) {
+                        throw new IllegalStateException("duplicate module: " + module);
+                    }
                 }
             }
         }
@@ -150,15 +156,18 @@ final class Security {
             if (Files.exists(policyFile)) {
                 // first get a list of URLs for the plugins' jars:
                 // we resolve symlinks so map is keyed on the normalize codebase name
-                List<URL> codebases = new ArrayList<>();
+                Set<URL> codebases = new LinkedHashSet<>(); // order is already lost, but some filesystems have it
                 try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
                     for (Path jar : jarStream) {
-                        codebases.add(jar.toRealPath().toUri().toURL());
+                        URL url = jar.toRealPath().toUri().toURL();
+                        if (codebases.add(url) == false) {
+                            throw new IllegalStateException("duplicate module/plugin: " + url);
+                        }
                     }
                 }
 
                 // parse the plugin's policy file into a set of permissions
-                Policy policy = readPolicy(policyFile.toUri().toURL(), codebases.toArray(new URL[codebases.size()]));
+                Policy policy = readPolicy(policyFile.toUri().toURL(), codebases);
 
                 // consult this policy for each of the plugin's jars:
                 for (URL url : codebases) {
@@ -176,24 +185,33 @@ final class Security {
     /**
      * Reads and returns the specified {@code policyFile}.
      * <p>
-     * Resources (e.g. jar files and directories) listed in {@code codebases} location
-     * will be provided to the policy file via a system property of the short name:
-     * e.g. <code>${codebase.joda-convert-1.2.jar}</code> would map to full URL.
+     * Jar files listed in {@code codebases} location will be provided to the policy file via
+     * a system property of the short name: e.g. <code>${codebase.joda-convert-1.2.jar}</code>
+     * would map to full URL.
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
-    static Policy readPolicy(URL policyFile, URL codebases[]) {
+    static Policy readPolicy(URL policyFile, Set<URL> codebases) {
         try {
             try {
                 // set codebase properties
                 for (URL url : codebases) {
                     String shortName = PathUtils.get(url.toURI()).getFileName().toString();
-                    System.setProperty("codebase." + shortName, url.toString());
+                    if (shortName.endsWith(".jar") == false) {
+                        continue; // tests :(
+                    }
+                    String previous = System.setProperty("codebase." + shortName, url.toString());
+                    if (previous != null) {
+                        throw new IllegalStateException("codebase property already set: " + shortName + "->" + previous);
+                    }
                 }
                 return Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
             } finally {
                 // clear codebase properties
                 for (URL url : codebases) {
                     String shortName = PathUtils.get(url.toURI()).getFileName().toString();
+                    if (shortName.endsWith(".jar") == false) {
+                        continue; // tests :(
+                    }
                     System.clearProperty("codebase." + shortName);
                 }
             }

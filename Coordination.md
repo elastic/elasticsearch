@@ -49,6 +49,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 22840: Group SmallBit
 * 22845: java ych
 * 22870: Group SmallBit
+* 22881: JavaGeeks
 * 23044: marathon
 * 23121: The code less traveled
 * 23193: 100
@@ -60,5 +61,5 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 23446: JavaGeeks
 * 23570: Random 1
 * 23609: marathon
-* 23646: marathon
-*23646: Chicken Nugget Trio
+* 23646: Chicken Nugget Trio
+

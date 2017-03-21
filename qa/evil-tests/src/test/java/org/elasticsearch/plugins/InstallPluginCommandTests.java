@@ -595,7 +595,7 @@ public class InstallPluginCommandTests extends ESTestCase {
             stream.putNextEntry(new ZipEntry("elasticsearch/../blah"));
         }
         String pluginZip = zip.toUri().toURL().toString();
-        IOException e = expectThrows(IOException.class, () -> installPlugin(pluginZip, env.v1()));
+        UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("resolving outside of plugin directory"));
     }
 

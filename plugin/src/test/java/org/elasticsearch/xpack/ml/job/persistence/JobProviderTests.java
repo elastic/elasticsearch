@@ -974,9 +974,7 @@ public class JobProviderTests extends ESTestCase {
 
         JobProvider provider = createProvider(clientBuilder.build());
 
-        ModelSnapshot modelSnapshot = new ModelSnapshot(JOB_ID);
-        modelSnapshot.setSnapshotId("123");
-        modelSnapshot.setSnapshotDocCount(2);
+        ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(JOB_ID).setSnapshotId("123").setSnapshotDocCount(2).build();
 
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
 

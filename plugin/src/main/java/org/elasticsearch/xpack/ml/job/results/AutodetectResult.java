@@ -13,9 +13,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 
 import java.io.IOException;
@@ -29,7 +29,8 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<AutodetectResult, Void> PARSER = new ConstructingObjectParser<>(
             TYPE.getPreferredName(), a -> new AutodetectResult((Bucket) a[0], (List<AnomalyRecord>) a[1], (List<Influencer>) a[2],
-                    (Quantiles) a[3], (ModelSnapshot) a[4], a[5] == null ? null : ((ModelSizeStats.Builder) a[5]).build(),
+                    (Quantiles) a[3], a[4] == null ? null : ((ModelSnapshot.Builder) a[4]).build(),
+                    a[5] == null ? null : ((ModelSizeStats.Builder) a[5]).build(),
                     (ModelPlot) a[6], (CategoryDefinition) a[7], (FlushAcknowledgement) a[8]));
 
     static {

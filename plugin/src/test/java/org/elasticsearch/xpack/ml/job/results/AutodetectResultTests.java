@@ -10,7 +10,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshotTests;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.QuantilesTests;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 import java.util.ArrayList;
@@ -62,13 +64,12 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             }
         }
         if (randomBoolean()) {
-            quantiles = new Quantiles(jobId, new Date(randomLong()), randomAsciiOfLengthBetween(1, 20));
+            quantiles = QuantilesTests.createRandomized();
         } else {
             quantiles = null;
         }
         if (randomBoolean()) {
-            modelSnapshot = new ModelSnapshot(jobId);
-            modelSnapshot.setDescription(randomAsciiOfLengthBetween(1, 20));
+            modelSnapshot = ModelSnapshotTests.createRandomized();
         } else {
             modelSnapshot = null;
         }

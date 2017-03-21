@@ -60,14 +60,14 @@ public class Quantiles extends ToXContentToBytes implements Writeable {
 
     public Quantiles(StreamInput in) throws IOException {
         jobId = in.readString();
-        timestamp = new Date(in.readLong());
+        timestamp = new Date(in.readVLong());
         quantileState = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        out.writeLong(timestamp.getTime());
+        out.writeVLong(timestamp.getTime());
         out.writeOptionalString(quantileState);
     }
 

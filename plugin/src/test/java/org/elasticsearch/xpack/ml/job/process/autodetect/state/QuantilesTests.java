@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.state;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
@@ -56,8 +57,13 @@ public class QuantilesTests extends AbstractSerializingTestCase<Quantiles> {
 
     @Override
     protected Quantiles createTestInstance() {
-        Quantiles quantiles = new Quantiles("foo", new Date(randomLong()), randomAsciiOfLengthBetween(0, 1000));
-        return quantiles;
+        return createRandomized();
+    }
+
+    public static Quantiles createRandomized() {
+        return new Quantiles(randomAsciiOfLengthBetween(1, 20),
+                new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()),
+                randomAsciiOfLengthBetween(0, 1000));
     }
 
     @Override

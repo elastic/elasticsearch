@@ -204,9 +204,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
     }
 
     private static ModelSnapshot createModelSnapshot(String jobId, String snapshotId) {
-        ModelSnapshot modelSnapshot = new ModelSnapshot(jobId);
-        modelSnapshot.setSnapshotId(snapshotId);
-        return modelSnapshot;
+        return new ModelSnapshot.Builder(jobId).setSnapshotId(snapshotId).build();
     }
 
     private static SearchResponse createSearchResponse(List<ModelSnapshot> modelSnapshots) throws IOException {

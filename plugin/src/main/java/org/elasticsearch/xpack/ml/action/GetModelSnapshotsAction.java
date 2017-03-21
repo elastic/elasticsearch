@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class GetModelSnapshotsAction
 extends Action<GetModelSnapshotsAction.Request, GetModelSnapshotsAction.Response, GetModelSnapshotsAction.RequestBuilder> {
@@ -333,18 +334,17 @@ extends Action<GetModelSnapshotsAction.Request, GetModelSnapshotsAction.Response
                     request.getStart(), request.getEnd(), request.getSort(), request.getDescOrder(), request.getSnapshotId(),
                     request.getDescriptionString(),
                     page -> {
-                        clearQuantiles(page);
-                        listener.onResponse(new Response(page));
+                        listener.onResponse(new Response(clearQuantiles(page)));
                     }, listener::onFailure);
         }
 
-        public static void clearQuantiles(QueryPage<ModelSnapshot> page) {
-            if (page.results() != null) {
-                for (ModelSnapshot modelSnapshot : page.results()) {
-                    modelSnapshot.setQuantiles(null);
-                }
+        public static QueryPage<ModelSnapshot> clearQuantiles(QueryPage<ModelSnapshot> page) {
+            if (page.results() == null) {
+                return page;
             }
+            return new QueryPage<>(page.results().stream().map(snapshot ->
+                    new ModelSnapshot.Builder(snapshot).setQuantiles(null).build())
+                    .collect(Collectors.toList()), page.count(), page.getResultsField());
         }
     }
-
 }

@@ -6,16 +6,14 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction.Response;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshotTests;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 public class RevertModelSnapshotActionResponseTests extends AbstractStreamableTestCase<RevertModelSnapshotAction.Response> {
 
     @Override
     protected Response createTestInstance() {
-        ModelSnapshot modelSnapshot = new ModelSnapshot(randomAsciiOfLengthBetween(1, 20));
-        modelSnapshot.setDescription(randomAsciiOfLengthBetween(1, 20));
-        return new RevertModelSnapshotAction.Response(modelSnapshot);
+        return new RevertModelSnapshotAction.Response(ModelSnapshotTests.createRandomized());
     }
 
     @Override

@@ -235,11 +235,11 @@ public class JobProvider {
      */
     public void dataCounts(String jobId, Consumer<DataCounts> handler, Consumer<Exception> errorHandler) {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        get(jobId, indexName, DataCounts.TYPE.getPreferredName(), DataCounts.documentId(jobId), handler, errorHandler,
+        get(indexName, DataCounts.TYPE.getPreferredName(), DataCounts.documentId(jobId), handler, errorHandler,
                 DataCounts.PARSER, () -> new DataCounts(jobId));
     }
 
-    private <T, U> void get(String jobId, String indexName, String type, String id, Consumer<T> handler, Consumer<Exception> errorHandler,
+    private <T, U> void get(String indexName, String type, String id, Consumer<T> handler, Consumer<Exception> errorHandler,
                             BiFunction<XContentParser, U, T> objectParser, Supplier<T> notFoundSupplier) {
         GetRequest getRequest = new GetRequest(indexName, type, id);
         client.get(getRequest, ActionListener.wrap(
@@ -758,7 +758,7 @@ public class JobProvider {
         String indexName = AnomalyDetectorsIndex.jobStateIndexName();
         String quantilesId = Quantiles.documentId(jobId);
         LOGGER.trace("ES API CALL: get ID {} type {} from index {}", quantilesId, Quantiles.TYPE.getPreferredName(), indexName);
-        get(jobId, indexName, Quantiles.TYPE.getPreferredName(), quantilesId, handler, errorHandler, Quantiles.PARSER, () -> {
+        get(indexName, Quantiles.TYPE.getPreferredName(), quantilesId, handler, errorHandler, Quantiles.PARSER, () -> {
             LOGGER.info("There are currently no quantiles for job " + jobId);
             return null;
         });
@@ -773,8 +773,9 @@ public class JobProvider {
             handler.accept(null);
             return;
         }
-        get(jobId, AnomalyDetectorsIndex.jobResultsAliasedName(jobId), ModelSnapshot.TYPE.getPreferredName(),
-                ModelSnapshot.documentId(jobId, modelSnapshotId), handler, errorHandler, ModelSnapshot.PARSER, () -> null);
+        get(AnomalyDetectorsIndex.jobResultsAliasedName(jobId), ModelSnapshot.TYPE.getPreferredName(),
+                ModelSnapshot.documentId(jobId, modelSnapshotId), handler, errorHandler,
+                (parser, context) -> ModelSnapshot.PARSER.apply(parser, null).build(), () -> null);
     }
 
     /**
@@ -975,7 +976,7 @@ public class JobProvider {
                 ModelSizeStats.RESULT_TYPE_VALUE, ModelSizeStats.RESULT_TYPE_FIELD, jobId);
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        get(jobId, indexName, Result.TYPE.getPreferredName(), ModelSizeStats.documentId(jobId),
+        get(indexName, Result.TYPE.getPreferredName(), ModelSizeStats.documentId(jobId),
                 handler, errorHandler, (parser, context) -> ModelSizeStats.PARSER.apply(parser, null).build(),
                 () -> {
                     LOGGER.trace("No memory usage details for job with id {}", jobId);

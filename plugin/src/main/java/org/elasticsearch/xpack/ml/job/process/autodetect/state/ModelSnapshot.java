@@ -12,8 +12,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -49,12 +49,11 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
      */
     public static final ParseField TYPE = new ParseField("model_snapshot");
 
-    public static final ConstructingObjectParser<ModelSnapshot, Void> PARSER =
-            new ConstructingObjectParser<>(TYPE.getPreferredName(), a -> new ModelSnapshot((String) a[0]));
+    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(TYPE.getPreferredName(), Builder::new);
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareField(ModelSnapshot::setTimestamp, p -> {
+        PARSER.declareString(Builder::setJobId, Job.ID);
+        PARSER.declareField(Builder::setTimestamp, p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
@@ -62,11 +61,11 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
             }
             throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + TIMESTAMP.getPreferredName() + "]");
         }, TIMESTAMP, ValueType.VALUE);
-        PARSER.declareString(ModelSnapshot::setDescription, DESCRIPTION);
-        PARSER.declareString(ModelSnapshot::setSnapshotId, SNAPSHOT_ID);
-        PARSER.declareInt(ModelSnapshot::setSnapshotDocCount, SNAPSHOT_DOC_COUNT);
-        PARSER.declareObject(ModelSnapshot::setModelSizeStats, ModelSizeStats.PARSER, ModelSizeStats.RESULT_TYPE_FIELD);
-        PARSER.declareField(ModelSnapshot::setLatestRecordTimeStamp, p -> {
+        PARSER.declareString(Builder::setDescription, DESCRIPTION);
+        PARSER.declareString(Builder::setSnapshotId, SNAPSHOT_ID);
+        PARSER.declareInt(Builder::setSnapshotDocCount, SNAPSHOT_DOC_COUNT);
+        PARSER.declareObject(Builder::setModelSizeStats, ModelSizeStats.PARSER, ModelSizeStats.RESULT_TYPE_FIELD);
+        PARSER.declareField(Builder::setLatestRecordTimeStamp, p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
@@ -75,7 +74,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
             throw new IllegalArgumentException(
                     "unexpected token [" + p.currentToken() + "] for [" + LATEST_RECORD_TIME.getPreferredName() + "]");
         }, LATEST_RECORD_TIME, ValueType.VALUE);
-        PARSER.declareField(ModelSnapshot::setLatestResultTimeStamp, p -> {
+        PARSER.declareField(Builder::setLatestResultTimeStamp, p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
@@ -84,76 +83,70 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
             throw new IllegalArgumentException(
                     "unexpected token [" + p.currentToken() + "] for [" + LATEST_RESULT_TIME.getPreferredName() + "]");
         }, LATEST_RESULT_TIME, ValueType.VALUE);
-        PARSER.declareObject(ModelSnapshot::setQuantiles, Quantiles.PARSER, Quantiles.TYPE);
+        PARSER.declareObject(Builder::setQuantiles, Quantiles.PARSER, Quantiles.TYPE);
     }
 
     private final String jobId;
-    private Date timestamp;
-    private String description;
-    private String snapshotId;
-    private int snapshotDocCount;
-    private ModelSizeStats modelSizeStats;
-    private Date latestRecordTimeStamp;
-    private Date latestResultTimeStamp;
-    private Quantiles quantiles;
+    private final Date timestamp;
+    private final String description;
+    private final String snapshotId;
+    private final int snapshotDocCount;
+    private final ModelSizeStats modelSizeStats;
+    private final Date latestRecordTimeStamp;
+    private final Date latestResultTimeStamp;
+    private final Quantiles quantiles;
 
-    public ModelSnapshot(String jobId) {
+    private ModelSnapshot(String jobId, Date timestamp, String description, String snapshotId, int snapshotDocCount,
+                          ModelSizeStats modelSizeStats, Date latestRecordTimeStamp, Date latestResultTimeStamp, Quantiles quantiles) {
         this.jobId = jobId;
+        this.timestamp = timestamp;
+        this.description = description;
+        this.snapshotId = snapshotId;
+        this.snapshotDocCount = snapshotDocCount;
+        this.modelSizeStats = modelSizeStats;
+        this.latestRecordTimeStamp = latestRecordTimeStamp;
+        this.latestResultTimeStamp = latestResultTimeStamp;
+        this.quantiles = quantiles;
     }
 
     public ModelSnapshot(StreamInput in) throws IOException {
         jobId = in.readString();
-        if (in.readBoolean()) {
-            timestamp = new Date(in.readLong());
-        }
+        timestamp = in.readBoolean() ? new Date(in.readVLong()) : null;
         description = in.readOptionalString();
         snapshotId = in.readOptionalString();
         snapshotDocCount = in.readInt();
-        if (in.readBoolean()) {
-            modelSizeStats = new ModelSizeStats(in);
-        }
-        if (in.readBoolean()) {
-            latestRecordTimeStamp = new Date(in.readLong());
-        }
-        if (in.readBoolean()) {
-            latestResultTimeStamp = new Date(in.readLong());
-        }
-        if (in.readBoolean()) {
-            quantiles = new Quantiles(in);
-        }
+        modelSizeStats = in.readOptionalWriteable(ModelSizeStats::new);
+        latestRecordTimeStamp = in.readBoolean() ? new Date(in.readVLong()) : null;
+        latestResultTimeStamp = in.readBoolean() ? new Date(in.readVLong()) : null;
+        quantiles = in.readOptionalWriteable(Quantiles::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        boolean hasTimestamp = timestamp != null;
-        out.writeBoolean(hasTimestamp);
-        if (hasTimestamp) {
-            out.writeLong(timestamp.getTime());
+        if (timestamp != null) {
+            out.writeBoolean(true);
+            out.writeVLong(timestamp.getTime());
+        } else {
+            out.writeBoolean(false);
         }
         out.writeOptionalString(description);
         out.writeOptionalString(snapshotId);
         out.writeInt(snapshotDocCount);
-        boolean hasModelSizeStats = modelSizeStats != null;
-        out.writeBoolean(hasModelSizeStats);
-        if (hasModelSizeStats) {
-            modelSizeStats.writeTo(out);
+        out.writeOptionalWriteable(modelSizeStats);
+        if (latestRecordTimeStamp != null) {
+            out.writeBoolean(true);
+            out.writeVLong(latestRecordTimeStamp.getTime());
+        } else {
+            out.writeBoolean(false);
         }
-        boolean hasLatestRecordTimeStamp = latestRecordTimeStamp != null;
-        out.writeBoolean(hasLatestRecordTimeStamp);
-        if (hasLatestRecordTimeStamp) {
-            out.writeLong(latestRecordTimeStamp.getTime());
+        if (latestResultTimeStamp != null) {
+            out.writeBoolean(true);
+            out.writeVLong(latestResultTimeStamp.getTime());
+        } else {
+            out.writeBoolean(false);
         }
-        boolean hasLatestResultTimeStamp = latestResultTimeStamp != null;
-        out.writeBoolean(hasLatestResultTimeStamp);
-        if (hasLatestResultTimeStamp) {
-            out.writeLong(latestResultTimeStamp.getTime());
-        }
-        boolean hasQuantiles = quantiles != null;
-        out.writeBoolean(hasQuantiles);
-        if (hasQuantiles) {
-            quantiles.writeTo(out);
-        }
+        out.writeOptionalWriteable(quantiles);
     }
 
     @Override
@@ -196,64 +189,32 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
         return timestamp;
     }
 
-    public void setTimestamp(Date timestamp) {
-        this.timestamp = timestamp;
-    }
-
     public String getDescription() {
         return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
     }
 
     public String getSnapshotId() {
         return snapshotId;
     }
 
-    public void setSnapshotId(String snapshotId) {
-        this.snapshotId = snapshotId;
-    }
-
     public int getSnapshotDocCount() {
         return snapshotDocCount;
-    }
-
-    public void setSnapshotDocCount(int snapshotDocCount) {
-        this.snapshotDocCount = snapshotDocCount;
     }
 
     public ModelSizeStats getModelSizeStats() {
         return modelSizeStats;
     }
 
-    public void setModelSizeStats(ModelSizeStats.Builder modelSizeStats) {
-        this.modelSizeStats = modelSizeStats.build();
-    }
-
     public Quantiles getQuantiles() {
         return quantiles;
-    }
-
-    public void setQuantiles(Quantiles q) {
-        quantiles = q;
     }
 
     public Date getLatestRecordTimeStamp() {
         return latestRecordTimeStamp;
     }
 
-    public void setLatestRecordTimeStamp(Date latestRecordTimeStamp) {
-        this.latestRecordTimeStamp = latestRecordTimeStamp;
-    }
-
     public Date getLatestResultTimeStamp() {
         return latestResultTimeStamp;
-    }
-
-    public void setLatestResultTimeStamp(Date latestResultTimeStamp) {
-        this.latestResultTimeStamp = latestResultTimeStamp;
     }
 
     @Override
@@ -298,9 +259,96 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
 
     public static ModelSnapshot fromJson(BytesReference bytesReference) {
         try (XContentParser parser = XContentFactory.xContent(bytesReference).createParser(NamedXContentRegistry.EMPTY, bytesReference)) {
-            return PARSER.apply(parser, null);
+            return PARSER.apply(parser, null).build();
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parse modelSnapshot", e);
+        }
+    }
+
+    public static class Builder {
+        private String jobId;
+        private Date timestamp;
+        private String description;
+        private String snapshotId;
+        private int snapshotDocCount;
+        private ModelSizeStats modelSizeStats;
+        private Date latestRecordTimeStamp;
+        private Date latestResultTimeStamp;
+        private Quantiles quantiles;
+
+        public Builder() {
+        }
+
+        public Builder(String jobId) {
+            this();
+            this.jobId = jobId;
+        }
+
+        public Builder(ModelSnapshot modelSnapshot) {
+            this.jobId = modelSnapshot.jobId;
+            this.timestamp = modelSnapshot.timestamp;
+            this.description = modelSnapshot.description;
+            this.snapshotId = modelSnapshot.snapshotId;
+            this.snapshotDocCount = modelSnapshot.snapshotDocCount;
+            this.modelSizeStats = modelSnapshot.modelSizeStats;
+            this.latestRecordTimeStamp = modelSnapshot.latestRecordTimeStamp;
+            this.latestResultTimeStamp = modelSnapshot.latestResultTimeStamp;
+            this.quantiles = modelSnapshot.quantiles;
+        }
+
+        public Builder setJobId(String jobId) {
+            this.jobId = jobId;
+            return this;
+        }
+
+        public Builder setTimestamp(Date timestamp) {
+            this.timestamp = timestamp;
+            return this;
+        }
+
+        public Builder setDescription(String description) {
+            this.description = description;
+            return this;
+        }
+
+        public Builder setSnapshotId(String snapshotId) {
+            this.snapshotId = snapshotId;
+            return this;
+        }
+
+        public Builder setSnapshotDocCount(int snapshotDocCount) {
+            this.snapshotDocCount = snapshotDocCount;
+            return this;
+        }
+
+        public Builder setModelSizeStats(ModelSizeStats.Builder modelSizeStats) {
+            this.modelSizeStats = modelSizeStats.build();
+            return this;
+        }
+
+        public Builder setModelSizeStats(ModelSizeStats modelSizeStats) {
+            this.modelSizeStats = modelSizeStats;
+            return this;
+        }
+
+        public Builder setLatestRecordTimeStamp(Date latestRecordTimeStamp) {
+            this.latestRecordTimeStamp = latestRecordTimeStamp;
+            return this;
+        }
+
+        public Builder setLatestResultTimeStamp(Date latestResultTimeStamp) {
+            this.latestResultTimeStamp = latestResultTimeStamp;
+            return this;
+        }
+
+        public Builder setQuantiles(Quantiles quantiles) {
+            this.quantiles = quantiles;
+            return this;
+        }
+
+        public ModelSnapshot build() {
+            return new ModelSnapshot(jobId, timestamp, description, snapshotId, snapshotDocCount, modelSizeStats, latestRecordTimeStamp,
+                    latestResultTimeStamp, quantiles);
         }
     }
 }

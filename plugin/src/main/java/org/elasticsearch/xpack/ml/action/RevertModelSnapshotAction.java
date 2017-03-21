@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Date;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -312,8 +311,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
                 }
                 // The quantiles can be large, and totally dominate the output -
                 // it's clearer to remove them as they are not necessary for the revert op
-                modelSnapshot.setQuantiles(null);
-                handler.accept(modelSnapshot);
+                handler.accept(new ModelSnapshot.Builder(modelSnapshot).setQuantiles(null).build());
             }, errorHandler);
         }
 

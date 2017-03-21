@@ -146,8 +146,8 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
         totalPartitionFieldCount = in.readVLong();
         bucketAllocationFailuresCount = in.readVLong();
         memoryStatus = MemoryStatus.readFromStream(in);
-        logTime = new Date(in.readLong());
-        timestamp = in.readBoolean() ? new Date(in.readLong()) : null;
+        logTime = new Date(in.readVLong());
+        timestamp = in.readBoolean() ? new Date(in.readVLong()) : null;
     }
 
     @Override
@@ -159,11 +159,11 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
         out.writeVLong(totalPartitionFieldCount);
         out.writeVLong(bucketAllocationFailuresCount);
         memoryStatus.writeTo(out);
-        out.writeLong(logTime.getTime());
+        out.writeVLong(logTime.getTime());
         boolean hasTimestamp = timestamp != null;
         out.writeBoolean(hasTimestamp);
         if (hasTimestamp) {
-            out.writeLong(timestamp.getTime());
+            out.writeVLong(timestamp.getTime());
         }
     }
 

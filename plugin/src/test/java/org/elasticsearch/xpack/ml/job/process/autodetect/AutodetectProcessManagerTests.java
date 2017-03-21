@@ -80,7 +80,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private NormalizerFactory normalizerFactory;
 
     private DataCounts dataCounts = new DataCounts("foo");
-    private ModelSnapshot modelSnapshot = new ModelSnapshot("foo");
+    private ModelSnapshot modelSnapshot = new ModelSnapshot.Builder("foo").build();
     private Quantiles quantiles = new Quantiles("foo", new Date(), "state");
     private Set<MlFilter> filters = new HashSet<>();
 
@@ -164,7 +164,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory, normalizerFactory));
 
         DataCounts dataCounts = new DataCounts("foo");
-        ModelSnapshot modelSnapshot = new ModelSnapshot("foo");
+        ModelSnapshot modelSnapshot = new ModelSnapshot.Builder("foo").build();
         Quantiles quantiles = new Quantiles("foo", new Date(), "state");
         Set<MlFilter> filters = new HashSet<>();
         doAnswer(invocationOnMock -> {

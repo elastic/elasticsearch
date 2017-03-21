@@ -262,8 +262,8 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, false, bulkBuilder);
         context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
-        ModelSnapshot modelSnapshot = new ModelSnapshot(JOB_ID);
-        modelSnapshot.setSnapshotId("a_snapshot_id");
+        ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(JOB_ID)
+                .setSnapshotId("a_snapshot_id").build();
         when(result.getModelSnapshot()).thenReturn(modelSnapshot);
         processorUnderTest.processResult(context, result);
 

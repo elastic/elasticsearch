@@ -80,9 +80,8 @@ public class JobDataDeleterTests extends ESTestCase {
 
     public void testDeleteModelSnapShot() {
         String jobId = "foo";
-        ModelSnapshot snapshot = new ModelSnapshot(jobId);
-        snapshot.setSnapshotDocCount(5);
-        snapshot.setSnapshotId("snap-1");
+        ModelSnapshot snapshot = new ModelSnapshot.Builder(jobId).setSnapshotDocCount(5)
+                .setSnapshotId("snap-1").build();
 
         BulkResponse bulkResponse = Mockito.mock(BulkResponse.class);
         Client client = new MockClientBuilder("myCluster").prepareBulk(bulkResponse).build();

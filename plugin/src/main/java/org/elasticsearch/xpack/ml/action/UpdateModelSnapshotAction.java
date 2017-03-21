@@ -258,14 +258,13 @@ UpdateModelSnapshotAction.RequestBuilder> {
                         logger.warn("More than one model found for [{}: {}, {}: {}] tuple.", Job.ID.getPreferredName(), request.getJobId(),
                                 ModelSnapshot.SNAPSHOT_ID.getPreferredName(), request.getSnapshotId());
                     }
-                    ModelSnapshot modelSnapshot = changeCandidates.get(0);
-                    modelSnapshot.setDescription(request.getDescriptionString());
-                    jobManager.updateModelSnapshot(modelSnapshot, b -> {
-                        modelSnapshot.setDescription(request.getDescriptionString());
+                    ModelSnapshot.Builder updatedSnapshotBuilder = new ModelSnapshot.Builder(changeCandidates.get(0));
+                    updatedSnapshotBuilder.setDescription(request.getDescriptionString());
+                    ModelSnapshot updatedSnapshot = updatedSnapshotBuilder.build();
+                    jobManager.updateModelSnapshot(updatedSnapshot, b -> {
                         // The quantiles can be large, and totally dominate the output -
                         // it's clearer to remove them
-                        modelSnapshot.setQuantiles(null);
-                        listener.onResponse(new Response(modelSnapshot));
+                        listener.onResponse(new Response(new ModelSnapshot.Builder(updatedSnapshot).setQuantiles(null).build()));
                     }, listener::onFailure);
                 }, listener::onFailure);
             }, listener::onFailure);

@@ -6,10 +6,9 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.state;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats.MemoryStatus;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
 import java.util.Date;
 
@@ -21,117 +20,108 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
     private static final Date DEFAULT_LATEST_RESULT_TIMESTAMP = new Date(12345678901234L);
     private static final Date DEFAULT_LATEST_RECORD_TIMESTAMP = new Date(12345678904321L);
 
+    public void testCopyBuilder() {
+        ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
+        ModelSnapshot modelSnapshot2 = new ModelSnapshot.Builder(modelSnapshot1).build();
+        assertEquals(modelSnapshot1, modelSnapshot2);
+    }
 
     public void testEquals_GivenSameObject() {
-        ModelSnapshot modelSnapshot = new ModelSnapshot(randomAsciiOfLengthBetween(1, 20));
-
+        ModelSnapshot modelSnapshot = createFullyPopulated().build();
         assertTrue(modelSnapshot.equals(modelSnapshot));
     }
 
-
     public void testEquals_GivenObjectOfDifferentClass() {
-        ModelSnapshot modelSnapshot = new ModelSnapshot(randomAsciiOfLengthBetween(1, 20));
-
+        ModelSnapshot modelSnapshot = createFullyPopulated().build();
         assertFalse(modelSnapshot.equals("a string"));
     }
 
-
     public void testEquals_GivenEqualModelSnapshots() {
-        ModelSnapshot modelSnapshot1 = createFullyPopulated();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated();
-        modelSnapshot2.setTimestamp(modelSnapshot1.getTimestamp());
+        ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
+        ModelSnapshot modelSnapshot2 = createFullyPopulated().build();
 
         assertEquals(modelSnapshot1, modelSnapshot2);
         assertEquals(modelSnapshot2, modelSnapshot1);
         assertEquals(modelSnapshot1.hashCode(), modelSnapshot2.hashCode());
     }
 
-
     public void testEquals_GivenDifferentTimestamp() {
-        ModelSnapshot modelSnapshot1 = createFullyPopulated();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated();
-        modelSnapshot2.setTimestamp(new Date(modelSnapshot2.getTimestamp().getTime() + 1));
+        ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
+        ModelSnapshot modelSnapshot2 = createFullyPopulated().setTimestamp(
+                new Date(modelSnapshot1.getTimestamp().getTime() + 1)).build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
     }
 
-
     public void testEquals_GivenDifferentDescription() {
-        ModelSnapshot modelSnapshot1 = createFullyPopulated();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated();
-        modelSnapshot2.setDescription(modelSnapshot2.getDescription() + " blah");
+        ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
+        ModelSnapshot modelSnapshot2 = createFullyPopulated()
+                .setDescription(modelSnapshot1.getDescription() + " blah").build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
     }
 
     public void testEquals_GivenDifferentId() {
-        ModelSnapshot modelSnapshot1 = createFullyPopulated();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated();
-        modelSnapshot2.setSnapshotId(modelSnapshot2.getSnapshotId() + "_2");
+        ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
+        ModelSnapshot modelSnapshot2 = createFullyPopulated()
+                .setSnapshotId(modelSnapshot1.getSnapshotId() + "_2").build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
     }
-
 
     public void testEquals_GivenDifferentDocCount() {
-        ModelSnapshot modelSnapshot1 = createFullyPopulated();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated();
-        modelSnapshot2.setSnapshotDocCount(modelSnapshot2.getSnapshotDocCount() + 1);
+        ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
+        ModelSnapshot modelSnapshot2 = createFullyPopulated()
+                .setSnapshotDocCount(modelSnapshot1.getSnapshotDocCount() + 1).build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
     }
-
 
     public void testEquals_GivenDifferentModelSizeStats() {
-        ModelSnapshot modelSnapshot1 = createFullyPopulated();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated();
+        ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
         ModelSizeStats.Builder modelSizeStats = new ModelSizeStats.Builder("foo");
         modelSizeStats.setModelBytes(42L);
-        modelSnapshot2.setModelSizeStats(modelSizeStats);
+        ModelSnapshot modelSnapshot2 = createFullyPopulated().setModelSizeStats(modelSizeStats).build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
     }
-
 
     public void testEquals_GivenDifferentQuantiles() {
-        ModelSnapshot modelSnapshot1 = createFullyPopulated();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated();
-        modelSnapshot2.setQuantiles(new Quantiles("foo", modelSnapshot2.getQuantiles().getTimestamp(), "different state"));
+        ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
+        ModelSnapshot modelSnapshot2 = createFullyPopulated()
+                .setQuantiles(new Quantiles("foo", modelSnapshot1.getQuantiles().getTimestamp(),
+                        "different state")).build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
     }
-
 
     public void testEquals_GivenDifferentLatestResultTimestamp() {
-        ModelSnapshot modelSnapshot1 = createFullyPopulated();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated();
-        modelSnapshot2.setLatestResultTimeStamp(
-                new Date(modelSnapshot2.getLatestResultTimeStamp().getTime() + 1));
+        ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
+        ModelSnapshot modelSnapshot2 = createFullyPopulated().setLatestResultTimeStamp(
+                new Date(modelSnapshot1.getLatestResultTimeStamp().getTime() + 1)).build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
     }
-
 
     public void testEquals_GivenDifferentLatestRecordTimestamp() {
-        ModelSnapshot modelSnapshot1 = createFullyPopulated();
-        ModelSnapshot modelSnapshot2 = createFullyPopulated();
-        modelSnapshot2.setLatestRecordTimeStamp(
-                new Date(modelSnapshot2.getLatestRecordTimeStamp().getTime() + 1));
+        ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
+        ModelSnapshot modelSnapshot2 = createFullyPopulated().setLatestRecordTimeStamp(
+                new Date(modelSnapshot1.getLatestRecordTimeStamp().getTime() + 1)).build();
 
         assertFalse(modelSnapshot1.equals(modelSnapshot2));
         assertFalse(modelSnapshot2.equals(modelSnapshot1));
     }
 
-
-    private static ModelSnapshot createFullyPopulated() {
-        ModelSnapshot modelSnapshot = new ModelSnapshot("foo");
+    private static ModelSnapshot.Builder createFullyPopulated() {
+        ModelSnapshot.Builder modelSnapshot = new ModelSnapshot.Builder();
+        modelSnapshot.setJobId("foo");
         modelSnapshot.setTimestamp(DEFAULT_TIMESTAMP);
         modelSnapshot.setDescription(DEFAULT_DESCRIPTION);
         modelSnapshot.setSnapshotId(DEFAULT_ID);
@@ -147,46 +137,22 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
 
     @Override
     protected ModelSnapshot createTestInstance() {
-        ModelSnapshot modelSnapshot = new ModelSnapshot(randomAsciiOfLengthBetween(1, 20));
-        modelSnapshot.setTimestamp(new Date(TimeUtils.dateStringToEpoch(randomTimeValue())));
+        return createRandomized();
+    }
+
+    public static ModelSnapshot createRandomized() {
+        ModelSnapshot.Builder modelSnapshot = new ModelSnapshot.Builder(randomAsciiOfLengthBetween(1, 20));
+        modelSnapshot.setTimestamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
         modelSnapshot.setDescription(randomAsciiOfLengthBetween(1, 20));
         modelSnapshot.setSnapshotId(randomAsciiOfLengthBetween(1, 20));
         modelSnapshot.setSnapshotDocCount(randomInt());
-        ModelSizeStats.Builder stats = new ModelSizeStats.Builder(randomAsciiOfLengthBetween(1, 20));
-        if (randomBoolean()) {
-            stats.setBucketAllocationFailuresCount(randomNonNegativeLong());
-        }
-        if (randomBoolean()) {
-            stats.setModelBytes(randomNonNegativeLong());
-        }
-        if (randomBoolean()) {
-            stats.setTotalByFieldCount(randomNonNegativeLong());
-        }
-        if (randomBoolean()) {
-            stats.setTotalOverFieldCount(randomNonNegativeLong());
-        }
-        if (randomBoolean()) {
-            stats.setTotalPartitionFieldCount(randomNonNegativeLong());
-        }
-        if (randomBoolean()) {
-            stats.setLogTime(new Date(randomLong()));
-        }
-        if (randomBoolean()) {
-            stats.setTimestamp(new Date(randomLong()));
-        }
-        if (randomBoolean()) {
-            stats.setMemoryStatus(randomFrom(MemoryStatus.values()));
-        }
-        if (randomBoolean()) {
-            stats.setId(randomAsciiOfLengthBetween(1, 20));
-        }
-        modelSnapshot.setModelSizeStats(stats);
-        modelSnapshot.setLatestResultTimeStamp(new Date(TimeUtils.dateStringToEpoch(randomTimeValue())));
-        modelSnapshot.setLatestRecordTimeStamp(new Date(TimeUtils.dateStringToEpoch(randomTimeValue())));
-        Quantiles quantiles =
-                new Quantiles("foo", new Date(TimeUtils.dateStringToEpoch(randomTimeValue())), randomAsciiOfLengthBetween(0, 1000));
-        modelSnapshot.setQuantiles(quantiles);
-        return modelSnapshot;
+        modelSnapshot.setModelSizeStats(ModelSizeStatsTests.createRandomized());
+        modelSnapshot.setLatestResultTimeStamp(
+                new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
+        modelSnapshot.setLatestRecordTimeStamp(
+                new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
+        modelSnapshot.setQuantiles(QuantilesTests.createRandomized());
+        return modelSnapshot.build();
     }
 
     @Override
@@ -196,16 +162,13 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
 
     @Override
     protected ModelSnapshot parseInstance(XContentParser parser) {
-        return ModelSnapshot.PARSER.apply(parser, null);
+        return ModelSnapshot.PARSER.apply(parser, null).build();
     }
 
     public void testDocumentId() {
-        ModelSnapshot snapshot1 = new ModelSnapshot("foo");
-        snapshot1.setSnapshotId("1");
-        ModelSnapshot snapshot2 = new ModelSnapshot("foo");
-        snapshot2.setSnapshotId("2");
-        ModelSnapshot snapshot3 = new ModelSnapshot("bar");
-        snapshot3.setSnapshotId("1");
+        ModelSnapshot snapshot1 = new ModelSnapshot.Builder("foo").setSnapshotId("1").build();
+        ModelSnapshot snapshot2 = new ModelSnapshot.Builder("foo").setSnapshotId("2").build();
+        ModelSnapshot snapshot3 = new ModelSnapshot.Builder("bar").setSnapshotId("1").build();
 
         assertEquals("foo-1", ModelSnapshot.documentId(snapshot1));
         assertEquals("foo-2", ModelSnapshot.documentId(snapshot2));

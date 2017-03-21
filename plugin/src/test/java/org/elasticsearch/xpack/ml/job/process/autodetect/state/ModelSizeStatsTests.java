@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.state;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats.MemoryStatus;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
@@ -46,6 +47,10 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
 
     @Override
     protected ModelSizeStats createTestInstance() {
+        return createRandomized();
+    }
+
+    public static ModelSizeStats createRandomized() {
         ModelSizeStats.Builder stats = new ModelSizeStats.Builder("foo");
         if (randomBoolean()) {
             stats.setBucketAllocationFailuresCount(randomNonNegativeLong());
@@ -63,10 +68,10 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
             stats.setTotalPartitionFieldCount(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            stats.setLogTime(new Date(randomLong()));
+            stats.setLogTime(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
         }
         if (randomBoolean()) {
-            stats.setTimestamp(new Date(randomLong()));
+            stats.setTimestamp(new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
         }
         if (randomBoolean()) {
             stats.setMemoryStatus(randomFrom(MemoryStatus.values()));

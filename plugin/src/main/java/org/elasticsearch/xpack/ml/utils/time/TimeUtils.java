@@ -8,10 +8,8 @@ package org.elasticsearch.xpack.ml.utils.time;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.xpack.ml.job.messages.Messages;
 
 import java.util.concurrent.TimeUnit;
-import java.util.function.Predicate;
 
 public final class TimeUtils {
     private TimeUtils() {

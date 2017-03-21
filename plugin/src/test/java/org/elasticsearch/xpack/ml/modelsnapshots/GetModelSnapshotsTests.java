@@ -31,12 +31,12 @@ public class GetModelSnapshotsTests extends ESTestCase {
     }
 
     public void testModelSnapshots_clearQuantiles() {
-        ModelSnapshot m1 = new ModelSnapshot("jobId");
-        m1.setQuantiles(new Quantiles("jobId", new Date(), "quantileState"));
-        ModelSnapshot m2 = new ModelSnapshot("jobId");
+        ModelSnapshot m1 = new ModelSnapshot.Builder("jobId").setQuantiles(
+                new Quantiles("jobId", new Date(), "quantileState")).build();
+        ModelSnapshot m2 = new ModelSnapshot.Builder("jobId").build();
 
         QueryPage<ModelSnapshot> page = new QueryPage<>(Arrays.asList(m1, m2), 2, new ParseField("field"));
-        GetModelSnapshotsAction.TransportAction.clearQuantiles(page);
+        page = GetModelSnapshotsAction.TransportAction.clearQuantiles(page);
         assertEquals(2, page.results().size());
         for (ModelSnapshot modelSnapshot : page.results()) {
             assertNull(modelSnapshot.getQuantiles());

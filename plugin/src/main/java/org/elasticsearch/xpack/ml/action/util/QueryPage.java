@@ -80,6 +80,10 @@ public final class QueryPage<T extends ToXContent & Writeable> extends ToXConten
         return count;
     }
 
+    public ParseField getResultsField() {
+        return resultsField;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(results, count);

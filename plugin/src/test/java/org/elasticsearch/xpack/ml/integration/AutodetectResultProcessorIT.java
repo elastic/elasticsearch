@@ -53,7 +53,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.Matchers.any;
@@ -305,9 +304,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     }
 
     private ModelSnapshot createModelSnapshot() {
-        ModelSnapshot snapshot = new ModelSnapshot(JOB_ID);
-        snapshot.setSnapshotId(randomAsciiOfLength(12));
-        return snapshot;
+        return new ModelSnapshot.Builder(JOB_ID).setSnapshotId(randomAsciiOfLength(12)).build();
     }
 
     private Quantiles createQuantiles() {

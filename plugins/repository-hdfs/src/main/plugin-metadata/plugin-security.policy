@@ -42,14 +42,17 @@ grant {
   permission javax.security.auth.AuthPermission "getSubject";
   permission javax.security.auth.AuthPermission "doAs";
   permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
+  permission javax.security.auth.AuthPermission "modifyPublicCredentials";
   permission javax.security.auth.AuthPermission "modifyPrincipals";
   permission javax.security.auth.PrivateCredentialPermission "org.apache.hadoop.security.Credentials * \"*\"", "read";
   permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KerberosTicket * \"*\"", "read";
   permission javax.security.auth.kerberos.ServicePermission "*", "initiate";
 
   // Hadoop depends on OS level user information for simple authentication
-  // UnixLoginModule: com.sun.security.auth.module.UnixSystem.UnixSystem init
+  // Unix: UnixLoginModule: com.sun.security.auth.module.UnixSystem.UnixSystem init
   permission java.lang.RuntimePermission "loadLibrary.jaas_unix";
+  // Windows: NTLoginModule: com.sun.security.auth.module.NTSystem.loadNative
+  permission java.lang.RuntimePermission "loadLibrary.jaas_nt";
 
   // com.sun.security.auth.module.Krb5LoginModule.login()
   permission java.lang.RuntimePermission "accessClassInPackage.sun.security.krb5";

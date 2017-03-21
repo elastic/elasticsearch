@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -19,12 +20,12 @@ import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -108,7 +109,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
     @Override
     protected void doClose() {
         logger.debug("monitoring service is closing");
-        closeExecution();
+        monitor.close();
 
         for (Exporter exporter : exporters) {
             try {
@@ -136,14 +137,6 @@ public class MonitoringService extends AbstractLifecycleComponent {
             } finally {
                 scheduler = null;
             }
-        }
-    }
-
-    void closeExecution() {
-        try {
-            monitor.close();
-        } catch (IOException e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to close monitoring execution"), e);
         }
     }
 
@@ -197,22 +190,21 @@ public class MonitoringService extends AbstractLifecycleComponent {
                         }
                     }
                     if (isMonitoringActive()) {
-                        exporters.export(results);
+                        exporters.export(results, ActionListener.wrap(r -> semaphore.release(), this::onFailure));
+                    } else {
+                        semaphore.release();
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn("monitoring execution failed", e);
+                    semaphore.release();
                 }
 
                 @Override
                 public void onRejection(Exception e) {
                     logger.warn("monitoring execution has been rejected", e);
-                }
-
-                @Override
-                public void onAfter() {
                     semaphore.release();
                 }
             });
@@ -224,10 +216,13 @@ public class MonitoringService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() {
             try {
-                // Block until the lock can be acquired
-                semaphore.acquire();
+                // Block until the lock can be acquired or 10s. The timed try acquire is necessary as there may be a failure that causes
+                // the semaphore to not get released and then the node will hang forever on shutdown
+                if (semaphore.tryAcquire(10L, TimeUnit.SECONDS) == false) {
+                    logger.warn("monitoring execution did not complete after waiting for 10s");
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }

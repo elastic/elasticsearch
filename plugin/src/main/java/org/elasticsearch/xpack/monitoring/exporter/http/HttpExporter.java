@@ -28,6 +28,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
@@ -157,6 +158,7 @@ public class HttpExporter extends Exporter {
     private final HttpResource resource;
 
     private final ResolversRegistry resolvers;
+    private final ThreadContext threadContext;
 
     /**
      * Create an {@link HttpExporter}.
@@ -165,8 +167,8 @@ public class HttpExporter extends Exporter {
      * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
      * @throws SettingsException if any setting is malformed
      */
-    public HttpExporter(final Config config, final SSLService sslService) {
-        this(config, sslService, new NodeFailureListener());
+    public HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext) {
+        this(config, sslService, threadContext, new NodeFailureListener());
     }
 
     /**
@@ -177,8 +179,8 @@ public class HttpExporter extends Exporter {
      * @param listener The node failure listener used to notify an optional sniffer and resources
      * @throws SettingsException if any setting is malformed
      */
-    HttpExporter(final Config config, final SSLService sslService, final NodeFailureListener listener) {
-        this(config, createRestClient(config, sslService, listener), listener);
+    HttpExporter(final Config config, final SSLService sslService, final ThreadContext threadContext, final NodeFailureListener listener) {
+        this(config, createRestClient(config, sslService, listener), threadContext, listener);
     }
 
     /**
@@ -189,8 +191,8 @@ public class HttpExporter extends Exporter {
      * @param listener The node failure listener used to notify an optional sniffer and resources
      * @throws SettingsException if any setting is malformed
      */
-    HttpExporter(final Config config, final RestClient client, final NodeFailureListener listener) {
-        this(config, client, createSniffer(config, client, listener), listener, new ResolversRegistry(config.settings()));
+    HttpExporter(final Config config, final RestClient client, final ThreadContext threadContext, final NodeFailureListener listener) {
+        this(config, client, createSniffer(config, client, listener), threadContext, listener, new ResolversRegistry(config.settings()));
     }
 
     /**
@@ -202,9 +204,9 @@ public class HttpExporter extends Exporter {
      * @param resolvers The resolver registry used to load templates and resolvers
      * @throws SettingsException if any setting is malformed
      */
-    HttpExporter(final Config config, final RestClient client, @Nullable final Sniffer sniffer, final NodeFailureListener listener,
-                 final ResolversRegistry resolvers) {
-        this(config, client, sniffer, listener, resolvers, createResources(config, resolvers));
+    HttpExporter(final Config config, final RestClient client, @Nullable final Sniffer sniffer, final ThreadContext threadContext,
+                 final NodeFailureListener listener, final ResolversRegistry resolvers) {
+        this(config, client, sniffer, threadContext, listener, resolvers, createResources(config, resolvers));
     }
 
     /**
@@ -218,8 +220,8 @@ public class HttpExporter extends Exporter {
      * @param resource Blocking HTTP resource to prevent bulks until all requirements are met
      * @throws SettingsException if any setting is malformed
      */
-    HttpExporter(final Config config, final RestClient client, @Nullable final Sniffer sniffer, final NodeFailureListener listener,
-                 final ResolversRegistry resolvers, final HttpResource resource) {
+    HttpExporter(final Config config, final RestClient client, @Nullable final Sniffer sniffer, final ThreadContext threadContext,
+                 final NodeFailureListener listener, final ResolversRegistry resolvers, final HttpResource resource) {
         super(config);
 
         this.client = Objects.requireNonNull(client);
@@ -227,6 +229,7 @@ public class HttpExporter extends Exporter {
         this.resolvers = resolvers;
         this.resource = resource;
         this.defaultParams = createDefaultParams(config);
+        this.threadContext = threadContext;
 
         // mark resources as dirty after any node failure
         listener.setResource(resource);
@@ -565,7 +568,7 @@ public class HttpExporter extends Exporter {
     public HttpExportBulk openBulk() {
         // block until all resources are verified to exist
         if (resource.checkAndPublishIfDirty(client)) {
-            return new HttpExportBulk(settingFQN(config), client, defaultParams, resolvers);
+            return new HttpExportBulk(settingFQN(config), client, defaultParams, resolvers, threadContext);
         }
 
         return null;

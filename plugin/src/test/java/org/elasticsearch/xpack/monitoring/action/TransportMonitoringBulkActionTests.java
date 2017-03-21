@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -261,12 +262,13 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         private final Collection<MonitoringDoc> exported = ConcurrentCollections.newConcurrentSet();
 
         CapturingExporters() {
-            super(Settings.EMPTY, Collections.emptyMap(), clusterService);
+            super(Settings.EMPTY, Collections.emptyMap(), clusterService, threadPool.getThreadContext());
         }
 
         @Override
-        public synchronized void export(Collection<MonitoringDoc> docs) throws ExportException {
+        public synchronized void export(Collection<MonitoringDoc> docs, ActionListener<Void> listener) throws ExportException {
             exported.addAll(docs);
+            listener.onResponse(null);
         }
 
         public Collection<MonitoringDoc> getExported() {
@@ -282,13 +284,14 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         private final Consumer<Collection<? extends MonitoringDoc>> consumer;
 
         ConsumingExporters(Consumer<Collection<? extends MonitoringDoc>> consumer) {
-            super(Settings.EMPTY, Collections.emptyMap(), clusterService);
+            super(Settings.EMPTY, Collections.emptyMap(), clusterService, threadPool.getThreadContext());
             this.consumer = consumer;
         }
 
         @Override
-        public synchronized void export(Collection<MonitoringDoc> docs) throws ExportException {
+        public synchronized void export(Collection<MonitoringDoc> docs, ActionListener<Void> listener) throws ExportException {
             consumer.accept(docs);
+            listener.onResponse(null);
         }
     }
 

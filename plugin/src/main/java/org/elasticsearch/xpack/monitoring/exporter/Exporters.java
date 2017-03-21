@@ -8,11 +8,13 @@ package org.elasticsearch.xpack.monitoring.exporter;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 
@@ -23,6 +25,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -32,12 +35,15 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
 
     private final Map<String, Exporter.Factory> factories;
     private final AtomicReference<Map<String, Exporter>> exporters;
+    private final ThreadContext threadContext;
 
-    public Exporters(Settings settings, Map<String, Exporter.Factory> factories, ClusterService clusterService) {
+    public Exporters(Settings settings, Map<String, Exporter.Factory> factories, ClusterService clusterService,
+                     ThreadContext threadContext) {
         super(settings);
 
         this.factories = factories;
         this.exporters = new AtomicReference<>(emptyMap());
+        this.threadContext = Objects.requireNonNull(threadContext);
 
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MonitoringSettings.EXPORTERS_SETTINGS, this::setExportersSetting);
     }
@@ -100,7 +106,7 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
                         (Supplier<?>) () -> new ParameterizedMessage("exporter [{}] failed to open exporting bulk", exporter.name()), e);
             }
         }
-        return bulks.isEmpty() ? null : new ExportBulk.Compound(bulks);
+        return bulks.isEmpty() ? null : new ExportBulk.Compound(bulks, threadContext);
     }
 
     Map<String, Exporter> initExporters(Settings settings) {
@@ -154,20 +160,32 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
     /**
      * Exports a collection of monitoring documents using the configured exporters
      */
-    public void export(Collection<MonitoringDoc> docs) throws ExportException {
+    public void export(Collection<MonitoringDoc> docs, ActionListener<Void> listener) throws ExportException {
         if (this.lifecycleState() != Lifecycle.State.STARTED) {
-            throw new ExportException("Export service is not started");
-        }
-        if (docs != null && docs.size() > 0) {
+            listener.onFailure(new ExportException("Export service is not started"));
+        } else if (docs != null && docs.size() > 0) {
             final ExportBulk bulk = openBulk();
 
             if (bulk != null) {
+                final AtomicReference<ExportException> exceptionRef = new AtomicReference<>();
                 try {
                     bulk.add(docs);
+                } catch (ExportException e) {
+                    exceptionRef.set(e);
                 } finally {
-                    bulk.close(lifecycleState() == Lifecycle.State.STARTED);
+                    bulk.close(lifecycleState() == Lifecycle.State.STARTED, ActionListener.wrap(r -> {
+                        if (exceptionRef.get() == null) {
+                            listener.onResponse(null);
+                        } else {
+                            listener.onFailure(exceptionRef.get());
+                        }
+                    }, listener::onFailure));
                 }
+            } else {
+                listener.onResponse(null);
             }
+        } else {
+            listener.onResponse(null);
         }
     }
 }

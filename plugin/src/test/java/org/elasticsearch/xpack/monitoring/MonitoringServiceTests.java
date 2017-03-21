@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.xpack.ml.action.CloseJobAction.Response;
 import org.elasticsearch.xpack.monitoring.exporter.ExportException;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
@@ -124,12 +126,13 @@ public class MonitoringServiceTests extends ESTestCase {
         private final AtomicInteger exports = new AtomicInteger(0);
 
         CountingExporter() {
-            super(Settings.EMPTY, Collections.emptyMap(), clusterService);
+            super(Settings.EMPTY, Collections.emptyMap(), clusterService, threadPool.getThreadContext());
         }
 
         @Override
-        public void export(Collection<MonitoringDoc> docs) throws ExportException {
+        public void export(Collection<MonitoringDoc> docs, ActionListener<Void> listener) {
             exports.incrementAndGet();
+            listener.onResponse(null);
         }
 
         int getExportsCount() {
@@ -159,13 +162,16 @@ public class MonitoringServiceTests extends ESTestCase {
         }
 
         @Override
-        public void export(Collection<MonitoringDoc> docs) throws ExportException {
-            super.export(docs);
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                throw new ExportException("BlockingExporter failed", e);
-            }
+        public void export(Collection<MonitoringDoc> docs, ActionListener<Void> listener) {
+            super.export(docs, ActionListener.wrap(r -> {
+                try {
+                    latch.await();
+                    listener.onResponse(null);
+                } catch (InterruptedException e) {
+                    listener.onFailure(new ExportException("BlockingExporter failed", e));
+                }
+            }, listener::onFailure));
+
         }
 
         @Override

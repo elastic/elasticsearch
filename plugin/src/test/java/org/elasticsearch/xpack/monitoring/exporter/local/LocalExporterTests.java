@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -166,8 +167,9 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
 
             LocalBulk bulk = (LocalBulk) exporter.openBulk();
             bulk.add(Collections.singletonList(newRandomMonitoringDoc()));
-            bulk.close(true);
-
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            bulk.close(true, future);
+            future.get();
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("failed to flush export bulk [_local]"));
             assertThat(e.getCause(), instanceOf(ExportException.class));
@@ -188,7 +190,9 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
 
         // Wait for exporting bulks to be ready to export
         assertBusy(() -> exporters.forEach(exporter -> assertThat(exporter.openBulk(), notNullValue())));
-        exporters.export(docs);
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        exporters.export(docs, future);
+        future.get();
     }
 
     private LocalExporter getLocalExporter(String name) throws Exception {

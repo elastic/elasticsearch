@@ -12,10 +12,12 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -57,8 +59,8 @@ class HttpExportBulk extends ExportBulk {
     private byte[] payload = null;
 
     HttpExportBulk(final String name, final RestClient client, final Map<String, String> parameters,
-                          final ResolversRegistry registry) {
-        super(name);
+                   final ResolversRegistry registry, ThreadContext threadContext) {
+        super(name, threadContext);
 
         this.client = client;
         this.params = parameters;
@@ -85,9 +87,9 @@ class HttpExportBulk extends ExportBulk {
     }
 
     @Override
-    public void doFlush() throws ExportException {
+    public void doFlush(ActionListener<Void> listener) throws ExportException {
         if (payload == null) {
-            throw new ExportException("unable to send documents because none were loaded for export bulk [{}]", name);
+            listener.onFailure(new ExportException("unable to send documents because none were loaded for export bulk [{}]", name));
         } else if (payload.length != 0) {
             final HttpEntity body = new ByteArrayEntity(payload, ContentType.APPLICATION_JSON);
 
@@ -95,13 +97,15 @@ class HttpExportBulk extends ExportBulk {
 
             // free the memory
             payload = null;
+            listener.onResponse(null);
         }
     }
 
     @Override
-    protected void doClose() {
+    protected void doClose(ActionListener<Void> listener) {
         // nothing serious to do at this stage
         assert payload == null;
+        listener.onResponse(null);
     }
 
     private byte[] toBulkBytes(final MonitoringDoc doc) throws IOException {

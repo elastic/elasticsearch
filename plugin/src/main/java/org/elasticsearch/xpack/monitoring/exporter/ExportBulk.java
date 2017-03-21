@@ -5,21 +5,30 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.xpack.common.IteratingActionListener;
+
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 /**
- * An export bulk holds one of more documents until it got flushed. The {@link ExportBulk#flush()} usually triggers the exporting of the
- * documents to their final destination.
+ * An export bulk holds one of more documents until it got flushed. The {@link ExportBulk#flush(ActionListener)} usually triggers the
+ * exporting of the documents to their final destination.
  */
 public abstract class ExportBulk {
 
     protected final String name;
+    protected final ThreadContext threadContext;
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZING);
 
-    public ExportBulk(String name) {
+    public ExportBulk(String name, ThreadContext threadContext) {
         this.name = Objects.requireNonNull(name);
+        this.threadContext = Objects.requireNonNull(threadContext);
     }
 
     /**
@@ -45,51 +54,61 @@ public abstract class ExportBulk {
     /**
      * Flush the exporting bulk
      */
-    public void flush() throws ExportException {
+    public void flush(ActionListener<Void> listener) {
         if (state.compareAndSet(State.INITIALIZING, State.FLUSHING)) {
-            doFlush();
+            doFlush(listener);
+        } else {
+            listener.onResponse(null);
         }
     }
 
-    protected abstract void doFlush();
+    protected abstract void doFlush(ActionListener<Void> listener);
 
     /**
      * Close the exporting bulk
      */
-    public void close(boolean flush) throws ExportException {
+    public void close(boolean flush, ActionListener<Void> listener) {
         if (state.getAndSet(State.CLOSED) != State.CLOSED) {
-
-            ExportException exception = null;
-            try {
-                if (flush) {
-                    doFlush();
-                }
-            } catch (ExportException e) {
-                if (exception != null) {
-                    exception.addSuppressed(e);
-                } else {
-                    exception = e;
-                }
-            } finally {
-                try {
-                    doClose();
-                } catch (Exception e) {
-                    if (exception != null) {
-                        exception.addSuppressed(e);
-                    } else {
-                        exception = new ExportException("Exception when closing export bulk", e);
-                    }
-                }
+            if (flush) {
+                flushAndClose(listener);
+            } else {
+                doClose(listener);
             }
-
-            // rethrow exception
-            if (exception != null) {
-                throw exception;
-            }
+        } else {
+            listener.onResponse(null);
         }
     }
 
-    protected abstract void doClose() throws ExportException;
+    private void flushAndClose(ActionListener<Void> listener) {
+        doFlush(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void aVoid) {
+                doClose(listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // we need to close in spite of the failure, but we will return the failure
+                doClose(new ActionListener<Void>() {
+
+                    private final ExportException exportException = new ExportException("Exception when closing export bulk", e);
+
+                    @Override
+                    public void onResponse(Void aVoid) {
+                        listener.onFailure(exportException);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        exportException.addSuppressed(e);
+                        listener.onFailure(exportException);
+                    }
+                });
+            }
+        });
+    }
+
+    protected abstract void doClose(ActionListener<Void> listener);
 
     protected boolean isClosed() {
         return state.get() == State.CLOSED;
@@ -100,10 +119,10 @@ public abstract class ExportBulk {
      */
     public static class Compound extends ExportBulk {
 
-        private final Collection<ExportBulk> bulks;
+        private final List<ExportBulk> bulks;
 
-        public Compound(Collection<ExportBulk> bulks) {
-            super("all");
+        public Compound(List<ExportBulk> bulks, ThreadContext threadContext) {
+            super("all", threadContext);
             this.bulks = bulks;
         }
 
@@ -126,41 +145,72 @@ public abstract class ExportBulk {
         }
 
         @Override
-        protected void doFlush() {
-            ExportException exception = null;
-            for (ExportBulk bulk : bulks) {
-                try {
-                    bulk.flush();
-                } catch (ExportException e) {
-                    if (exception == null) {
-                        exception = new ExportException("failed to flush export bulks", e);
+        protected void doFlush(ActionListener<Void> listener) {
+            final SetOnce<ExportException> exceptionRef = new SetOnce<>();
+            final BiConsumer<ExportBulk, ActionListener<Void>> bulkBiConsumer = (exportBulk, iteratingListener) -> {
+                // for every export bulk we flush and pass back the response, which should always be
+                // null. When we have an exception, we wrap the first and then add suppressed exceptions
+                exportBulk.flush(ActionListener.wrap(iteratingListener::onResponse, e -> {
+                    if (exceptionRef.get() == null) {
+                        exceptionRef.set(new ExportException("failed to flush export bulks", e));
+                    } else if (e instanceof ExportException) {
+                        exceptionRef.get().addExportException((ExportException) e);
+                    } else {
+                        exceptionRef.get().addSuppressed(e);
                     }
-                    exception.addExportException(e);
-                }
-            }
-            if (exception != null) {
-                throw exception;
-            }
+                    // this is tricky to understand but basically we suppress the exception for use
+                    // later on and call the passed in listener so that iteration continues
+                    iteratingListener.onResponse(null);
+                }));
+            };
+            IteratingActionListener<Void, ExportBulk> iteratingActionListener =
+                    new IteratingActionListener<>(newExceptionHandlingListener(exceptionRef, listener), bulkBiConsumer, bulks,
+                            threadContext);
+            iteratingActionListener.run();
         }
 
         @Override
-        protected void doClose() throws ExportException {
-            ExportException exception = null;
-            for (ExportBulk bulk : bulks) {
-                try {
-                    // We can close without flushing since doFlush()
-                    // would have been called by the parent class
-                    bulk.close(false);
-                } catch (ExportException e) {
-                    if (exception == null) {
-                        exception = new ExportException("failed to close export bulks");
+        protected void doClose(ActionListener<Void> listener) {
+            final SetOnce<ExportException> exceptionRef = new SetOnce<>();
+            final BiConsumer<ExportBulk, ActionListener<Void>> bulkBiConsumer = (exportBulk, iteratingListener) -> {
+                // for every export bulk we close and pass back the response, which should always be
+                // null. When we have an exception, we wrap the first and then add suppressed exceptions
+                exportBulk.doClose(ActionListener.wrap(iteratingListener::onResponse, e -> {
+                    if (exceptionRef.get() == null) {
+                        exceptionRef.set(new ExportException("failed to close export bulks", e));
+                    } else if (e instanceof ExportException) {
+                        exceptionRef.get().addExportException((ExportException) e);
+                    } else {
+                        exceptionRef.get().addSuppressed(e);
                     }
-                    exception.addExportException(e);
+                    // this is tricky to understand but basically we suppress the exception for use
+                    // later on and call the passed in listener so that iteration continues
+                    iteratingListener.onResponse(null);
+                }));
+            };
+            IteratingActionListener<Void, ExportBulk> iteratingActionListener =
+                    new IteratingActionListener<>(newExceptionHandlingListener(exceptionRef, listener), bulkBiConsumer, bulks,
+                            threadContext);
+            iteratingActionListener.run();
+        }
+
+        private static ActionListener<Void> newExceptionHandlingListener(SetOnce<ExportException> exceptionRef,
+                                                                         ActionListener<Void> listener) {
+            return new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void aVoid) {
+                    if (exceptionRef.get() == null) {
+                        listener.onResponse(null);
+                    } else {
+                        listener.onFailure(exceptionRef.get());
+                    }
                 }
-            }
-            if (exception != null) {
-                throw exception;
-            }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            };
         }
     }
 

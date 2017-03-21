@@ -113,9 +113,9 @@ public class Monitoring implements ActionPlugin {
         // TODO: https://github.com/elastic/x-plugins/issues/3117 (remove dynamic need with static exporters)
         final SSLService dynamicSSLService = sslService.createDynamicSSLService();
         Map<String, Exporter.Factory> exporterFactories = new HashMap<>();
-        exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, dynamicSSLService));
+        exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, dynamicSSLService, threadPool.getThreadContext()));
         exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, clusterService, cleanerService));
-        final Exporters exporters = new Exporters(settings, exporterFactories, clusterService);
+        final Exporters exporters = new Exporters(settings, exporterFactories, clusterService, threadPool.getThreadContext());
 
         Set<Collector> collectors = new HashSet<>();
         collectors.add(new IndicesStatsCollector(settings, clusterService, monitoringSettings, licenseState, client));

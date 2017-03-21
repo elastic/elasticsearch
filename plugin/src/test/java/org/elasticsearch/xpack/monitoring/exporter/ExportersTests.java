@@ -6,13 +6,17 @@
 package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
@@ -50,21 +54,27 @@ public class ExportersTests extends ESTestCase {
     private Map<String, Exporter.Factory> factories;
     private ClusterService clusterService;
     private ClusterSettings clusterSettings;
+    private ThreadContext threadContext;
 
     @Before
     public void init() throws Exception {
         factories = new HashMap<>();
 
-        InternalClient client = mock(InternalClient.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        threadContext = new ThreadContext(Settings.EMPTY);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        InternalClient internalClient = new InternalClient(Settings.EMPTY, threadPool, client);
         clusterService = mock(ClusterService.class);
         clusterSettings = new ClusterSettings(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(MonitoringSettings.INTERVAL, MonitoringSettings.EXPORTERS_SETTINGS)));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         // we always need to have the local exporter as it serves as the default one
-        factories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, clusterService, mock(CleanerService.class)));
+        factories.put(LocalExporter.TYPE, config -> new LocalExporter(config, internalClient, clusterService, mock(CleanerService.class)));
 
-        exporters = new Exporters(Settings.EMPTY, factories, clusterService);
+        exporters = new Exporters(Settings.EMPTY, factories, clusterService, threadContext);
     }
 
     public void testInitExportersDefault() throws Exception {
@@ -165,7 +175,7 @@ public class ExportersTests extends ESTestCase {
         clusterSettings = new ClusterSettings(nodeSettings, new HashSet<>(Arrays.asList(MonitoringSettings.EXPORTERS_SETTINGS)));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
-        exporters = new Exporters(nodeSettings, factories, clusterService) {
+        exporters = new Exporters(nodeSettings, factories, clusterService, threadContext) {
             @Override
             Map<String, Exporter> initExporters(Settings settings) {
                 settingsHolder.set(settings);
@@ -215,9 +225,9 @@ public class ExportersTests extends ESTestCase {
             settings.put("xpack.monitoring.exporters._name" + String.valueOf(i) + ".type", "record");
         }
 
-        factories.put("record", CountingExporter::new);
+        factories.put("record", (s) -> new CountingExporter(s, threadContext));
 
-        Exporters exporters = new Exporters(settings.build(), factories, clusterService);
+        Exporters exporters = new Exporters(settings.build(), factories, clusterService, threadContext);
         exporters.start();
 
         final Thread[] threads = new Thread[3 + randomInt(7)];
@@ -249,12 +259,9 @@ public class ExportersTests extends ESTestCase {
                         docs.add(new MonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString()));
                     }
                     barrier.await(10, TimeUnit.SECONDS);
-                    try {
-                        exporters.export(docs);
-                        logger.debug("--> thread [{}] successfully exported {} documents", threadNum, threadDocs);
-                    } catch (Exception e) {
-                        logger.debug("--> thread [{}] failed to export {} documents", threadNum, threadDocs);
-                    }
+                    exporters.export(docs, ActionListener.wrap(
+                            r -> logger.debug("--> thread [{}] successfully exported {} documents", threadNum, threadDocs),
+                            e -> logger.debug("--> thread [{}] failed to export {} documents", threadNum, threadDocs)));
 
                 }
             }, "export_thread_" + i);
@@ -318,14 +325,16 @@ public class ExportersTests extends ESTestCase {
 
         private static final AtomicInteger count = new AtomicInteger(0);
         private List<CountingBulk> bulks = new CopyOnWriteArrayList<>();
+        private final ThreadContext threadContext;
 
-        CountingExporter(Config config) {
+        CountingExporter(Config config, ThreadContext threadContext) {
             super(config);
+            this.threadContext = threadContext;
         }
 
         @Override
         public ExportBulk openBulk() {
-            CountingBulk bulk = new CountingBulk(config.type() + "#" + count.getAndIncrement());
+            CountingBulk bulk = new CountingBulk(config.type() + "#" + count.getAndIncrement(), threadContext);
             bulks.add(bulk);
             return bulk;
         }
@@ -347,8 +356,8 @@ public class ExportersTests extends ESTestCase {
 
         private final AtomicInteger count = new AtomicInteger();
 
-        CountingBulk(String name) {
-            super(name);
+        CountingBulk(String name, ThreadContext threadContext) {
+            super(name, threadContext);
         }
 
         @Override
@@ -357,11 +366,13 @@ public class ExportersTests extends ESTestCase {
         }
 
         @Override
-        protected void doFlush() {
+        protected void doFlush(ActionListener<Void> listener) {
+            listener.onResponse(null);
         }
 
         @Override
-        protected void doClose() throws ExportException {
+        protected void doClose(ActionListener<Void> listener) {
+            listener.onResponse(null);
         }
 
         int getCount() {

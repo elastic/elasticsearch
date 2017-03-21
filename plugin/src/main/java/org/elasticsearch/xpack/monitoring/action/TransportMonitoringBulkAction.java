@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
@@ -106,22 +105,26 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
          */
         void executeExport(final Collection<MonitoringDoc> docs, final long startTimeNanos,
                            final ActionListener<MonitoringBulkResponse> listener) {
-            threadPool.generic().execute(new AbstractRunnable() {
-                @Override
-                protected void doRun() throws Exception {
-                    exportService.export(docs);
-                    listener.onResponse(new MonitoringBulkResponse(buildTookInMillis(startTimeNanos)));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onResponse(new MonitoringBulkResponse(buildTookInMillis(startTimeNanos), new MonitoringBulkResponse.Error(e)));
-                }
-            });
+            try {
+                exportService.export(docs, ActionListener.wrap(
+                        r -> listener.onResponse(response(startTimeNanos)),
+                        e -> listener.onResponse(response(startTimeNanos, e))));
+            } catch (Exception e) {
+                listener.onResponse(response(startTimeNanos, e));
+            }
         }
     }
 
-    private long buildTookInMillis(long startTimeNanos) {
-        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeNanos);
+    private MonitoringBulkResponse response(final long start) {
+        return new MonitoringBulkResponse(took(start));
     }
+
+    private MonitoringBulkResponse response(final long start, final Exception e) {
+        return new MonitoringBulkResponse(took(start), new MonitoringBulkResponse.Error(e));
+    }
+
+    private long took(final long start) {
+        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+    }
+
 }

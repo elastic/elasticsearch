@@ -10,6 +10,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -550,7 +551,9 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
         // Wait for exporting bulks to be ready to export
         assertBusy(() -> exporters.forEach(exporter -> assertThat(exporter.openBulk(), notNullValue())));
-        exporters.export(docs);
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        exporters.export(docs, future);
+        future.get();
     }
 
     private HttpExporter getExporter(String nodeName) {

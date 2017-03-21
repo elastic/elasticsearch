@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.exporter.local;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -132,15 +133,16 @@ public class LocalExporterTemplateTests extends MonitoringIntegTestCase {
 
     protected void doExporting() throws Exception {
         // TODO: these should be unit tests, not using guice (copied from now-deleted AbstractExporterTemplateTestCase)
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
-        XPackLicenseState licenseState = internalCluster().getInstance(XPackLicenseState.class);
-        LicenseService licenseService = internalCluster().getInstance(LicenseService.class);
-        InternalClient client = internalCluster().getInstance(InternalClient.class);
+        final String node = randomFrom(internalCluster().getNodeNames());
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node);
+        XPackLicenseState licenseState = internalCluster().getInstance(XPackLicenseState.class, node);
+        LicenseService licenseService = internalCluster().getInstance(LicenseService.class, node);
+        InternalClient client = internalCluster().getInstance(InternalClient.class, node);
         Collector collector = new ClusterStatsCollector(clusterService.getSettings(), clusterService,
                 new MonitoringSettings(clusterService.getSettings(), clusterService.getClusterSettings()),
                 licenseState, client, licenseService);
 
-        Exporters exporters = internalCluster().getInstance(Exporters.class);
+        Exporters exporters = internalCluster().getInstance(Exporters.class, node);
         assertNotNull(exporters);
 
         Exporter exporter = exporters.getExporter("_exporter");
@@ -148,7 +150,9 @@ public class LocalExporterTemplateTests extends MonitoringIntegTestCase {
         // Wait for exporting bulks to be ready to export
         Runnable busy = () -> assertThat(exporter.openBulk(), notNullValue());
         assertBusy(busy);
-        exporters.export(collector.collect());
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        exporters.export(collector.collect(), future);
+        future.get();
     }
 
     private String dataTemplateName() {

@@ -14,6 +14,7 @@ import org.elasticsearch.client.sniff.Sniffer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter.Config;
@@ -51,6 +52,7 @@ import static org.mockito.Mockito.when;
 public class HttpExporterTests extends ESTestCase {
 
     private final SSLService sslService = mock(SSLService.class);
+    private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
     public void testExporterWithBlacklistedHeaders() {
         final String blacklistedHeader = randomFrom(HttpExporter.BLACKLISTED_HEADERS);
@@ -67,7 +69,8 @@ public class HttpExporterTests extends ESTestCase {
 
         final Config config = createConfig(builder.build());
 
-        final SettingsException exception = expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService));
+        final SettingsException exception =
+                expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext));
 
         assertThat(exception.getMessage(), equalTo(expected));
     }
@@ -86,7 +89,8 @@ public class HttpExporterTests extends ESTestCase {
 
         final Config config = createConfig(builder.build());
 
-        final SettingsException exception = expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService));
+        final SettingsException exception =
+                expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext));
 
         assertThat(exception.getMessage(), equalTo(expected));
     }
@@ -101,7 +105,8 @@ public class HttpExporterTests extends ESTestCase {
 
         final Config config = createConfig(builder.build());
 
-        final SettingsException exception = expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService));
+        final SettingsException exception = expectThrows(SettingsException.class,
+                () -> new HttpExporter(config, sslService, threadContext));
 
         assertThat(exception.getMessage(), equalTo(expected));
     }
@@ -121,7 +126,8 @@ public class HttpExporterTests extends ESTestCase {
 
         final Config config = createConfig(builder.build());
 
-        final SettingsException exception = expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService));
+        final SettingsException exception =
+                expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext));
 
         assertThat(exception.getMessage(), equalTo("missing required setting [xpack.monitoring.exporters._http.host]"));
     }
@@ -133,7 +139,8 @@ public class HttpExporterTests extends ESTestCase {
 
         final Config config = createConfig(builder.build());
 
-        final SettingsException exception = expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService));
+        final SettingsException exception =
+                expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext));
 
         assertThat(exception.getMessage(),
                    equalTo("[xpack.monitoring.exporters._http.host] must use a consistent scheme: http or https"));
@@ -158,7 +165,8 @@ public class HttpExporterTests extends ESTestCase {
 
         final Config config = createConfig(builder.build());
 
-        final SettingsException exception = expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService));
+        final SettingsException exception =
+                expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext));
 
         assertThat(exception.getMessage(), equalTo("[xpack.monitoring.exporters._http.host] invalid host: [" + invalidHost + "]"));
     }
@@ -173,7 +181,7 @@ public class HttpExporterTests extends ESTestCase {
 
         final Config config = createConfig(builder.build());
 
-        new HttpExporter(config, sslService).close();
+        new HttpExporter(config, sslService, threadContext).close();
     }
 
     public void testCreateRestClient() throws IOException {
@@ -365,7 +373,7 @@ public class HttpExporterTests extends ESTestCase {
         final ResolversRegistry resolvers = mock(ResolversRegistry.class);
         final HttpResource resource = new MockHttpResource(exporterName(), true, PublishableHttpResource.CheckResponse.ERROR, false);
 
-        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, listener, resolvers, resource)) {
+        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resolvers, resource)) {
             verify(listener).setResource(resource);
 
             assertThat(exporter.openBulk(), nullValue());
@@ -381,7 +389,7 @@ public class HttpExporterTests extends ESTestCase {
         // sometimes dirty to start with and sometimes not; but always succeeds on checkAndPublish
         final HttpResource resource = new MockHttpResource(exporterName(), randomBoolean());
 
-        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, listener, resolvers, resource)) {
+        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resolvers, resource)) {
             verify(listener).setResource(resource);
 
             final HttpExportBulk bulk = exporter.openBulk();
@@ -406,7 +414,7 @@ public class HttpExporterTests extends ESTestCase {
             doThrow(randomFrom(new IOException("expected"), new RuntimeException("expected"))).when(client).close();
         }
 
-        new HttpExporter(config, client, sniffer, listener, resolvers, resource).close();
+        new HttpExporter(config, client, sniffer, threadContext, listener, resolvers, resource).close();
 
         // order matters; sniffer must close first
         if (sniffer != null) {

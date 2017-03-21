@@ -306,7 +306,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
     private static StartDatafeedAction.DatafeedTask createDatafeedTask(String datafeedId, long startTime, Long endTime) {
         StartDatafeedAction.DatafeedTask task = mock(StartDatafeedAction.DatafeedTask.class);
         when(task.getDatafeedId()).thenReturn(datafeedId);
-        when(task.getStartTime()).thenReturn(startTime);
+        when(task.getDatafeedStartTime()).thenReturn(startTime);
         when(task.getEndTime()).thenReturn(endTime);
         return task;
     }

@@ -104,7 +104,7 @@ public class DatafeedJobRunner extends AbstractComponent {
                 if (e != null) {
                     handler.accept(e);
                 } else {
-                    innerRun(holder, task.getStartTime(), task.getEndTime());
+                    innerRun(holder, task.getDatafeedStartTime(), task.getEndTime());
                 }
             });
         }, handler);

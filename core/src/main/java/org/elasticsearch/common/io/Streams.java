@@ -20,9 +20,14 @@
 package org.elasticsearch.common.io;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Callback;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.BufferedReader;
+import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -234,6 +239,59 @@ public abstract class Streams {
             while ((line = reader.readLine()) != null) {
                 callback.handle(line);
             }
+        }
+    }
+
+    /**
+     * Wraps the given {@link BytesStreamOutput} in a {@link StreamOutput} that simply flushes when
+     * close is called. The returned values from this method also implements the {@link BytesStream}
+     * interface.
+     */
+    public static StreamOutput flushOnCloseStream(BytesStreamOutput os) {
+        return new FlushOnCloseOutputStream(os);
+    }
+
+    /**
+     * A wrapper around a {@link BytesStreamOutput} that makes the close operation a flush. This is
+     * needed as sometimes a stream will be closed but the bytes that the stream holds still need
+     * to be used and the stream cannot be closed until the bytes have been consumed.
+     */
+    private static class FlushOnCloseOutputStream extends StreamOutput implements BytesStream {
+
+        private final BytesStreamOutput delegate;
+
+        private FlushOnCloseOutputStream(BytesStreamOutput bytesStreamOutput) {
+            this.delegate = bytesStreamOutput;
+        }
+
+        @Override
+        public void writeByte(byte b) throws IOException {
+            delegate.writeByte(b);
+        }
+
+        @Override
+        public void writeBytes(byte[] b, int offset, int length) throws IOException {
+            delegate.writeBytes(b, offset, length);
+        }
+
+        @Override
+        public void flush() throws IOException {
+            delegate.flush();
+        }
+
+        @Override
+        public void close() throws IOException {
+            flush();
+        }
+
+        @Override
+        public void reset() throws IOException {
+            delegate.reset();
+        }
+
+        @Override
+        public BytesReference bytes() {
+            return delegate.bytes();
         }
     }
 }

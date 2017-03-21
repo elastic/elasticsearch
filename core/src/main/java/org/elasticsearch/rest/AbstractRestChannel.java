@@ -22,6 +22,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.BytesStream;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -101,7 +102,7 @@ public abstract class AbstractRestChannel implements RestChannel {
             excludes = filters.stream().filter(EXCLUDE_FILTER).map(f -> f.substring(1)).collect(toSet());
         }
 
-        OutputStream unclosableOutputStream = new UnclosableBytesStream(bytesOutput());
+        OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
         XContentBuilder builder =
             new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream, includes, excludes);
         if (pretty) {
@@ -147,28 +148,5 @@ public abstract class AbstractRestChannel implements RestChannel {
     @Override
     public boolean detailedErrorsEnabled() {
         return detailedErrorsEnabled;
-    }
-
-    /**
-     * A wrapper around a {@link BytesStreamOutput} that makes the close operation a no-op. This is
-     * needed as closing a {@link XContentBuilder} will close the output stream, which in some
-     * cases releases resources that we still need to use to send a response.
-     */
-    private static class UnclosableBytesStream extends FilterOutputStream implements BytesStream {
-
-        private final BytesStreamOutput delegate;
-
-        private UnclosableBytesStream(BytesStreamOutput bytesStreamOutput) {
-            super(bytesStreamOutput);
-            this.delegate = bytesStreamOutput;
-        }
-
-        @Override
-        public void close() {}
-
-        @Override
-        public BytesReference bytes() {
-            return delegate.bytes();
-        }
     }
 }

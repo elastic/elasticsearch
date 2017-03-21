@@ -22,13 +22,11 @@ package org.elasticsearch.common.compress;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
-import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -48,7 +46,7 @@ public class DeflateCompressor implements Compressor {
     // It needs to be different from other compressors and to not be specific
     // enough so that no stream starting with these bytes could be detected as
     // a XContent
-    private static final byte[] HEADER = new byte[] { 'D', 'F', 'L', '\0' };
+    private static final byte[] HEADER = new byte[]{'D', 'F', 'L', '\0'};
     // 3 is a good trade-off between speed and compression ratio
     private static final int LEVEL = 3;
     // We use buffering on the input and output of in/def-laters in order to
@@ -89,6 +87,7 @@ public class DeflateCompressor implements Compressor {
         decompressedIn = new BufferedInputStream(decompressedIn, BUFFER_SIZE);
         return new InputStreamStreamInput(decompressedIn) {
             final AtomicBoolean closed = new AtomicBoolean(false);
+
             public void close() throws IOException {
                 try {
                     super.close();
@@ -104,35 +103,15 @@ public class DeflateCompressor implements Compressor {
 
     @Override
     public StreamOutput streamOutput(StreamOutput out) throws IOException {
-        return streamOutput(out, true);
-    }
-
-    @Override
-    public StreamOutput streamOutput(ReleasableBytesStreamOutput out) throws IOException {
-        return streamOutput(out, false);
-    }
-
-    private StreamOutput streamOutput(StreamOutput out, final boolean close) throws IOException {
         out.writeBytes(HEADER);
         final boolean nowrap = true;
         final Deflater deflater = new Deflater(LEVEL, nowrap);
         final boolean syncFlush = true;
-        OutputStream outputStream;
-        if (close == false) {
-            outputStream = new FilterOutputStream(out) {
-                @Override
-                public void close() throws IOException {
-                    // just flush the stream
-                    flush();
-                }
-            };
-        } else {
-            outputStream = out;
-        }
-        DeflaterOutputStream deflaterOutputStream = new DeflaterOutputStream(outputStream, deflater, BUFFER_SIZE, syncFlush);
+        DeflaterOutputStream deflaterOutputStream = new DeflaterOutputStream(out, deflater, BUFFER_SIZE, syncFlush);
         OutputStream compressedOut = new BufferedOutputStream(deflaterOutputStream, BUFFER_SIZE);
         return new OutputStreamStreamOutput(compressedOut) {
             final AtomicBoolean closed = new AtomicBoolean(false);
+
             public void close() throws IOException {
                 try {
                     super.close();

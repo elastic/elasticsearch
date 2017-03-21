@@ -37,11 +37,4 @@ public interface Compressor {
      * output. Closing the returned {@link StreamOutput} will close the provided stream output.
      */
     StreamOutput streamOutput(StreamOutput out) throws IOException;
-
-    /**
-     * Creates a new stream output that compresses the contents and writes to the provided stream
-     * output. Closing the returned {@link StreamOutput} will not close the provided stream output
-     * as closing would also release the bytes of the {@link ReleasableBytesStreamOutput}
-     */
-    StreamOutput streamOutput(ReleasableBytesStreamOutput out) throws IOException;
 }

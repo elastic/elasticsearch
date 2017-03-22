@@ -3487,7 +3487,7 @@ public class InternalEngineTests extends ESTestCase {
      * second is the primary term.
      */
     private Tuple<Long, Long> getSequenceID(Engine engine, Engine.Get get) throws EngineException {
-        try (final Searcher searcher = engine.acquireSearcher("get")) {
+        try (Searcher searcher = engine.acquireSearcher("get")) {
             long seqNum = VersionsResolver.loadSeqNo(searcher.reader(), get.uid());
             long primaryTerm = VersionsResolver.loadPrimaryTerm(searcher.reader(), get.uid());
             return new Tuple<>(seqNum, primaryTerm);

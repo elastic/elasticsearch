@@ -48,8 +48,8 @@ import static org.elasticsearch.common.lucene.uid.Versions.NOT_FOUND;
 /** Utility class to resolve the Lucene doc ID and version for a given uid. */
 public class VersionsResolver {
 
-    static final ConcurrentMap<Object, CloseableThreadLocal<PerThreadIDAndVersionLookup>> lookupStates =
-        ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    static final ConcurrentMap<Object, CloseableThreadLocal<PerThreadIDAndVersionLookup>>
+        lookupStates = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     // Evict this reader from lookupStates once it's closed:
     private static final CoreClosedListener removeLookupState = key -> {
@@ -59,14 +59,16 @@ public class VersionsResolver {
         }
     };
 
-    private static PerThreadIDAndVersionLookup getLookupState(LeafReader reader) throws IOException {
+    private static PerThreadIDAndVersionLookup getLookupState(LeafReader reader)
+        throws IOException {
         Object key = reader.getCoreCacheKey();
         CloseableThreadLocal<PerThreadIDAndVersionLookup> ctl = lookupStates.get(key);
         if (ctl == null) {
             // First time we are seeing this reader's core; make a
             // new CTL:
             ctl = new CloseableThreadLocal<>();
-            CloseableThreadLocal<PerThreadIDAndVersionLookup> other = lookupStates.putIfAbsent(key, ctl);
+            CloseableThreadLocal<PerThreadIDAndVersionLookup> other =
+                lookupStates.putIfAbsent(key, ctl);
             if (other == null) {
                 // Our CTL won, we must remove it when the
                 // core is closed:
@@ -90,7 +92,10 @@ public class VersionsResolver {
     private VersionsResolver() {
     }
 
-    /** Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b> and a version. */
+    /**
+     * Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b> and
+     * a version.
+     **/
     public static class DocIdAndVersion {
         public final int docId;
         public final long version;
@@ -103,7 +108,10 @@ public class VersionsResolver {
         }
     }
 
-    /** Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b> and a seqNo. */
+    /**
+     * Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b>
+     * and a seqNo.
+     **/
     public static class DocIdAndSeqNo {
         public final int docId;
         public final long seqNo;
@@ -123,7 +131,8 @@ public class VersionsResolver {
      * <li>a doc ID and a version otherwise
      * </ul>
      */
-    public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term) throws IOException {
+    public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term)
+        throws IOException {
         assert term.field().equals(UidFieldMapper.NAME);
         List<LeafReaderContext> leaves = reader.leaves();
         if (leaves.isEmpty()) {
@@ -135,7 +144,8 @@ public class VersionsResolver {
             LeafReaderContext context = leaves.get(i);
             LeafReader leaf = context.reader();
             PerThreadIDAndVersionLookup lookup = getLookupState(leaf);
-            DocIdAndVersion result = lookup.lookupVersion(term.bytes(), leaf.getLiveDocs(), context);
+            DocIdAndVersion result =
+                lookup.lookupVersion(term.bytes(), leaf.getLiveDocs(), context);
             if (result != null) {
                 return result;
             }
@@ -190,7 +200,8 @@ public class VersionsResolver {
                         // case of nested docs, so we want the last one:
                         docsEnum = termsEnum.postings(docsEnum, 0);
                         int docID = DocIdSetIterator.NO_MORE_DOCS;
-                        for (int d = docsEnum.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docsEnum.nextDoc()) {
+                        for (int d = docsEnum.nextDoc();
+                             d != DocIdSetIterator.NO_MORE_DOCS; d = docsEnum.nextDoc()) {
                             if (liveDocs != null && liveDocs.get(d) == false) {
                                 continue;
                             }
@@ -199,8 +210,9 @@ public class VersionsResolver {
 
                         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
                             dvField.setDocument(docID);
-                            assert dvField.count() == 1 : "expected only a single value for _seq_no but got " +
-                                dvField.count();
+                            assert dvField.count() == 1 :
+                                "expected only a single value for _seq_no but got " +
+                                    dvField.count();
                             return dvField.valueAt(0);
                         }
                     }
@@ -246,7 +258,9 @@ public class VersionsResolver {
                         // case of nested docs, so we want the last one:
                         docsEnum = termsEnum.postings(docsEnum, 0);
                         int docID = DocIdSetIterator.NO_MORE_DOCS;
-                        for (int d = docsEnum.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docsEnum.nextDoc()) {
+                        for (int d = docsEnum.nextDoc();
+                             d != DocIdSetIterator.NO_MORE_DOCS;
+                             d = docsEnum.nextDoc()) {
                             if (liveDocs != null && liveDocs.get(d) == false) {
                                 continue;
                             }

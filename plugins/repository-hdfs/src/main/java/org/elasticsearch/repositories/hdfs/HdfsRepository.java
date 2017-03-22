@@ -32,7 +32,7 @@ import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -40,6 +40,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -49,7 +50,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 public final class HdfsRepository extends BlobStoreRepository {
 
-    private static final Logger LOGGER = Logger.getLogger(HdfsRepository.class);
+    private static final Logger LOGGER = Loggers.getLogger(HdfsRepository.class);
 
     private final BlobPath basePath = BlobPath.cleanPath();
     private final ByteSizeValue chunkSize;
@@ -122,13 +123,8 @@ public final class HdfsRepository extends BlobStoreRepository {
         UserGroupInformation.setConfiguration(cfg);
 
         // Debugging
-        if (UserGroupInformation.isSecurityEnabled()) {
-            LOGGER.info("Hadoop Security Is [ENABLED]");
-        } else {
-            LOGGER.info("Hadoop Security is [DISABLED]");
-        }
-        UserGroupInformation.AuthenticationMethod method = SecurityUtil.getAuthenticationMethod(cfg);
-        LOGGER.info("Using Hadoop authentication method : [" + method + "]");
+        LOGGER.debug("Hadoop security enabled: [{}]", UserGroupInformation.isSecurityEnabled());
+        LOGGER.debug("Using Hadoop authentication method: [{}]", SecurityUtil.getAuthenticationMethod(cfg));
 
         // Create a hadoop user
         // UserGroupInformation (UGI) instance is just a Hadoop specific wrapper

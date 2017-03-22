@@ -427,9 +427,9 @@ public class MachineLearning implements ActionPlugin {
                 maxNumberOfJobs * 2, 1000, "xpack.ml.thread_pool");
 
         // fail quick to run autodetect process / datafeed, so no queues
-        // 4 threads: for c++ logging, result processing, state processing and restore state
+        // 3 threads: for c++ logging, result processing, state processing
         FixedExecutorBuilder autoDetect = new FixedExecutorBuilder(settings, AUTODETECT_PROCESS_THREAD_POOL_NAME,
-                maxNumberOfJobs * 4, 200, "xpack.ml.autodetect_process_thread_pool");
+                maxNumberOfJobs * 3, 200, "xpack.ml.autodetect_process_thread_pool");
 
         // TODO: if datafeed and non datafeed jobs are considered more equal and the datafeed and
         // autodetect process are created at the same time then these two different TPs can merge.

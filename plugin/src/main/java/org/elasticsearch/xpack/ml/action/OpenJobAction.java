@@ -334,11 +334,22 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
                     return;
                 }
 
-                autodetectProcessManager.openJob(request.getJobId(), task.getPersistentTaskId(), request.isIgnoreDowntime(), e2 -> {
-                    if (e2 == null) {
-                        listener.onResponse(new TransportResponse.Empty());
-                    } else {
-                        listener.onFailure(e2);
+                // We need to fork, otherwise we open a job on a network thread:
+                threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        autodetectProcessManager.openJob(request.getJobId(), task.getPersistentTaskId(), request.isIgnoreDowntime(), e2 -> {
+                            if (e2 == null) {
+                                listener.onResponse(new TransportResponse.Empty());
+                            } else {
+                                listener.onFailure(e2);
+                            }
+                        });
                     }
                 });
             });

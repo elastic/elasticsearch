@@ -75,15 +75,12 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         try {
             autodetect.start(executorService, stateProcessor, processPipes.getPersistStream().get());
             if (modelSnapshot != null) {
-                // TODO (norelease): I don't think we should do this in the background. If this happens then we should wait
-                // until restore it is done before we can accept data.
-                executorService.execute(() -> {
-                    try (OutputStream r = processPipes.getRestoreStream().get()) {
-                        jobProvider.restoreStateToStream(job.getId(), modelSnapshot, r);
-                    } catch (Exception e) {
-                        LOGGER.error("Error restoring model state for job " + job.getId(), e);
-                    }
-                });
+                try (OutputStream r = processPipes.getRestoreStream().get()) {
+                    jobProvider.restoreStateToStream(job.getId(), modelSnapshot, r);
+                } catch (Exception e) {
+                    // TODO: should we fail to start?
+                    LOGGER.error("Error restoring model state for job " + job.getId(), e);
+                }
             }
             return autodetect;
         } catch (EsRejectedExecutionException e) {

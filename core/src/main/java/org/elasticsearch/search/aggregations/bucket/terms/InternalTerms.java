@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -140,6 +141,21 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
             return newBucket(docCount, aggs, docCountError);
         }
+
+        @Override
+        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            keyToXContent(builder);
+            builder.field(CommonFields.DOC_COUNT, getDocCount());
+            if (showDocCountError) {
+                builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, getDocCountError());
+            }
+            aggregations.toXContentInternal(builder, params);
+            builder.endObject();
+            return builder;
+        }
+
+        protected abstract XContentBuilder keyToXContent(XContentBuilder builder) throws IOException;
 
         @Override
         public boolean equals(Object obj) {
@@ -318,5 +334,17 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     @Override
     protected int doHashCode() {
         return Objects.hash(minDocCount, order, requiredSize);
+    }
+
+    protected static XContentBuilder doXContentCommon(XContentBuilder builder, Params params,
+                                               long docCountError, long otherDocCount, List<? extends Bucket> buckets) throws IOException {
+        builder.field(DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, docCountError);
+        builder.field(SUM_OF_OTHER_DOC_COUNTS, otherDocCount);
+        builder.startArray(CommonFields.BUCKETS);
+        for (Bucket bucket : buckets) {
+            bucket.toXContent(builder, params);
+        }
+        builder.endArray();
+        return builder;
     }
 }

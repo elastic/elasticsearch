@@ -38,6 +38,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
 /**
@@ -47,7 +48,7 @@ public class Retry {
     private final Class<? extends Throwable> retryOnThrowable;
 
     private BackoffPolicy backoffPolicy;
-    private Scheduler scheduler;
+    private BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduleFn;
 
     public static Retry on(Class<? extends Throwable> retryOnThrowable) {
         return new Retry(retryOnThrowable);
@@ -66,17 +67,17 @@ public class Retry {
     }
 
     public Retry using(ThreadPool threadPool) {
-        this.scheduler = Scheduler.fromThreadPool(threadPool);
+        this.scheduleFn = fromThreadPool(threadPool);
         return this;
     }
 
     public Retry using(ScheduledExecutorService scheduledExecutorService) {
-        this.scheduler = Scheduler.fromScheduledExecutorService(scheduledExecutorService);
+        this.scheduleFn = fromScheduledExecutorService(scheduledExecutorService);
         return this;
     }
 
-    public Retry using(Scheduler scheduler) {
-        this.scheduler = scheduler;
+    public Retry using(BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduler) {
+        this.scheduleFn = scheduler;
         return this;
     }
 
@@ -90,7 +91,7 @@ public class Retry {
      */
     public void withAsyncBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Settings settings) {
         ensureScheduler(settings);
-        RetryHandler r = new RetryHandler(retryOnThrowable, backoffPolicy, consumer, listener, settings, scheduler);
+        RetryHandler r = new RetryHandler(retryOnThrowable, backoffPolicy, consumer, listener, settings, scheduleFn);
         r.execute(bulkRequest);
     }
 
@@ -107,36 +108,31 @@ public class Retry {
     public BulkResponse withSyncBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, Settings settings) throws Exception {
         PlainActionFuture<BulkResponse> actionFuture = PlainActionFuture.newFuture();
         ensureScheduler(settings);
-        RetryHandler r = new RetryHandler(retryOnThrowable, backoffPolicy, consumer, actionFuture, settings, scheduler);
+        RetryHandler r = new RetryHandler(retryOnThrowable, backoffPolicy, consumer, actionFuture, settings, scheduleFn);
         r.execute(bulkRequest);
         return actionFuture.actionGet();
     }
 
     private void ensureScheduler(Settings settings) {
-        if (scheduler == null) {
+        if (scheduleFn == null) {
             ScheduledThreadPoolExecutor stpe = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(settings, "retry_handler"));
             stpe.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
             stpe.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-            scheduler = Scheduler.fromScheduledExecutorService(stpe);
+            scheduleFn = fromScheduledExecutorService(stpe);
         }
     }
 
-    @FunctionalInterface
-    public interface Scheduler {
-        ScheduledFuture<?> schedule(TimeValue value, Runnable runnable);
+    static BiFunction<TimeValue, Runnable, ScheduledFuture<?>> fromThreadPool(ThreadPool threadPool) {
+        return (tv, r) -> threadPool.schedule(tv, ThreadPool.Names.SAME, threadPool.getThreadContext().preserveContext(r));
+    }
 
-        static Scheduler fromThreadPool(ThreadPool threadPool) {
-            return (tv, r) -> threadPool.schedule(tv, ThreadPool.Names.SAME, threadPool.getThreadContext().preserveContext(r));
-        }
-
-        static Scheduler fromScheduledExecutorService(ScheduledExecutorService scheduledExecutorService) {
-            return (tv, r) -> scheduledExecutorService.schedule(r, tv.getMillis(), TimeUnit.MILLISECONDS);
-        }
+    static BiFunction<TimeValue, Runnable, ScheduledFuture<?>> fromScheduledExecutorService(ScheduledExecutorService ses) {
+        return (tv, r) -> ses.schedule(r, tv.getMillis(), TimeUnit.MILLISECONDS);
     }
 
     static class RetryHandler implements ActionListener<BulkResponse> {
         private final Logger logger;
-        private final Scheduler scheduler;
+        private final BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduleFn;
         private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
         private final ActionListener<BulkResponse> listener;
         private final Iterator<TimeValue> backoff;
@@ -151,13 +147,13 @@ public class Retry {
 
         RetryHandler(Class<? extends Throwable> retryOnThrowable, BackoffPolicy backoffPolicy,
                      BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, ActionListener<BulkResponse> listener,
-                     Settings settings, Scheduler scheduler) {
+                     Settings settings, BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduleFn) {
             this.retryOnThrowable = retryOnThrowable;
             this.backoff = backoffPolicy.iterator();
             this.consumer = consumer;
             this.listener = listener;
             this.logger = Loggers.getLogger(getClass(), settings);
-            this.scheduler = scheduler;
+            this.scheduleFn = scheduleFn;
             // in contrast to System.currentTimeMillis(), nanoTime() uses a monotonic clock under the hood
             this.startTimestampNanos = System.nanoTime();
         }
@@ -192,7 +188,7 @@ public class Retry {
             assert backoff.hasNext();
             TimeValue next = backoff.next();
             logger.trace("Retry of bulk request scheduled in {} ms.", next.millis());
-            scheduledRequestFuture = scheduler.schedule(next, () -> this.execute(bulkRequestForRetry));
+            scheduledRequestFuture = scheduleFn.apply(next, () -> this.execute(bulkRequestForRetry));
         }
 
         private BulkRequest createBulkRequestForRetry(BulkResponse bulkItemResponses) {

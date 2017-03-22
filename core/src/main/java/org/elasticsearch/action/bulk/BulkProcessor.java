@@ -45,6 +45,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 
 /**
  * A bulk processor is a thread safe bulk processing class, allowing to easily set when to "flush" a new bulk request
@@ -95,6 +96,7 @@ public class BulkProcessor implements Closeable {
         private BackoffPolicy backoffPolicy = BackoffPolicy.exponentialBackoff();
         private Settings settings;
         private ThreadPool threadPool;
+        private BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduleFunction;
 
         /**
          * Creates a builder of bulk processor with the client to use and the listener that will be used
@@ -161,6 +163,14 @@ public class BulkProcessor implements Closeable {
             return this;
         }
 
+        /**
+         * Sets an optional BiFunction to schedule flush actions and request retries
+         */
+        public Builder setScheduleFunction(BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduleFunction) {
+            this.scheduleFunction = scheduleFunction;
+            return this;
+        }
+
         public Builder setBackoffPolicy(BackoffPolicy backoffPolicy) {
             if (backoffPolicy == null) {
                 throw new NullPointerException("'backoffPolicy' must not be null. To disable backoff, pass BackoffPolicy.noBackoff()");
@@ -205,23 +215,23 @@ public class BulkProcessor implements Closeable {
         this.bulkSize = bulkSize.getBytes();
         this.bulkRequest = new BulkRequest();
 
-        Retry.Scheduler scheduler;
+        BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduleFn;
         if (threadPool == null) {
             ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, (name != null ? "[" + name + "]" : "") + "bulk_processor");
             ScheduledThreadPoolExecutor scheduledExecutor = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, threadFactory);
             scheduledExecutor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
             scheduledExecutor.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
             this.schedulerToStop = scheduledExecutor;
-            scheduler = Retry.Scheduler.fromScheduledExecutorService(scheduledExecutor);
+            scheduleFn = Retry.fromScheduledExecutorService(scheduledExecutor);
         } else {
             this.schedulerToStop = null;
-            scheduler = Retry.Scheduler.fromThreadPool(threadPool);
+            scheduleFn = Retry.fromThreadPool(threadPool);
         }
 
         if (concurrentRequests == 0) {
-            this.bulkRequestHandler = BulkRequestHandler.syncHandler(consumer, backoffPolicy, listener, settings, scheduler);
+            this.bulkRequestHandler = BulkRequestHandler.syncHandler(consumer, backoffPolicy, listener, settings, scheduleFn);
         } else {
-            this.bulkRequestHandler = BulkRequestHandler.asyncHandler(consumer, backoffPolicy, listener, settings, scheduler, concurrentRequests);
+            this.bulkRequestHandler = BulkRequestHandler.asyncHandler(consumer, backoffPolicy, listener, settings, scheduleFn, concurrentRequests);
         }
 
         // Start period flushing task after everything is setup

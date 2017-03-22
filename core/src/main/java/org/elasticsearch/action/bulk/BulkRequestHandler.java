@@ -24,12 +24,15 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 
 /**
  * Abstracts the low-level details of bulk request handling
@@ -38,9 +41,10 @@ abstract class BulkRequestHandler {
     protected final Logger logger;
     protected final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
     protected final Settings settings;
-    protected final Retry.Scheduler scheduler;
+    protected final BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduler;
 
-    protected BulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Settings settings, Retry.Scheduler scheduler) {
+    protected BulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Settings settings,
+                                 BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduler) {
         this.logger = Loggers.getLogger(getClass(), settings);
         this.consumer = consumer;
         this.settings = settings;
@@ -53,20 +57,26 @@ abstract class BulkRequestHandler {
     public abstract boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException;
 
 
-    public static BulkRequestHandler syncHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, Settings settings, Retry.Scheduler scheduler) {
-        return new SyncBulkRequestHandler(consumer, backoffPolicy, listener, settings, scheduler);
+    public static BulkRequestHandler syncHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
+                                                 BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, Settings settings,
+                                                 BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduleFn) {
+        return new SyncBulkRequestHandler(consumer, backoffPolicy, listener, settings, scheduleFn);
     }
 
-    public static BulkRequestHandler asyncHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, Settings settings, Retry.Scheduler scheduler, int concurrentRequests) {
-        return new AsyncBulkRequestHandler(consumer, backoffPolicy, listener, settings, scheduler, concurrentRequests);
+    public static BulkRequestHandler asyncHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
+                                                  BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, Settings settings,
+                                                  BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduleFn, int concurrentRequests) {
+        return new AsyncBulkRequestHandler(consumer, backoffPolicy, listener, settings, scheduleFn, concurrentRequests);
     }
 
     private static class SyncBulkRequestHandler extends BulkRequestHandler {
         private final BulkProcessor.Listener listener;
         private final BackoffPolicy backoffPolicy;
 
-        SyncBulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, Settings settings, Retry.Scheduler scheduler) {
-            super(consumer, settings, scheduler);
+        SyncBulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy,
+                               BulkProcessor.Listener listener, Settings settings,
+                               BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduleFn) {
+            super(consumer, settings, scheduleFn);
             this.backoffPolicy = backoffPolicy;
             this.listener = listener;
         }
@@ -110,8 +120,10 @@ abstract class BulkRequestHandler {
         private final Semaphore semaphore;
         private final int concurrentRequests;
 
-        private AsyncBulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, Settings settings, Retry.Scheduler scheduler, int concurrentRequests) {
-            super(consumer, settings, scheduler);
+        private AsyncBulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy,
+                                        BulkProcessor.Listener listener, Settings settings,
+                                        BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduleFn, int concurrentRequests) {
+            super(consumer, settings, scheduleFn);
             this.backoffPolicy = backoffPolicy;
             assert concurrentRequests > 0;
             this.listener = listener;

@@ -164,16 +164,16 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
 
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
-        private final PersistentTaskClusterService persistentTaskClusterService;
+        private final PersistentTasksClusterService persistentTasksClusterService;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                ThreadPool threadPool, ActionFilters actionFilters,
-                               PersistentTaskClusterService persistentTaskClusterService,
+                               PersistentTasksClusterService persistentTasksClusterService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(settings, UpdatePersistentTaskStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
-            this.persistentTaskClusterService = persistentTaskClusterService;
+            this.persistentTasksClusterService = persistentTasksClusterService;
         }
 
         @Override
@@ -194,7 +194,7 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
 
         @Override
         protected final void masterOperation(final Request request, ClusterState state, final ActionListener<Response> listener) {
-            persistentTaskClusterService.updatePersistentTaskStatus(request.taskId, request.status, new ActionListener<Empty>() {
+            persistentTasksClusterService.updatePersistentTaskStatus(request.taskId, request.status, new ActionListener<Empty>() {
                 @Override
                 public void onResponse(Empty empty) {
                     listener.onResponse(new Response(true));

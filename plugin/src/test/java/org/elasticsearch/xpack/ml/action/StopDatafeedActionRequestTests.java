@@ -15,9 +15,9 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.persistent.PersistentActionRequest;
-import org.elasticsearch.xpack.persistent.PersistentTasks;
-import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
+import org.elasticsearch.xpack.persistent.PersistentTaskRequest;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.util.Collections;
 
@@ -47,10 +47,10 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
     }
 
     public void testValidate() {
-        PersistentTask<?> task = new PersistentTask<PersistentActionRequest>(1L, StartDatafeedAction.NAME,
-                new StartDatafeedAction.Request("foo", 0L), false, false, new PersistentTasks.Assignment("node_id", ""));
+        PersistentTask<?> task = new PersistentTask<PersistentTaskRequest>(1L, StartDatafeedAction.NAME,
+                new StartDatafeedAction.Request("foo", 0L), false, false, new PersistentTasksCustomMetaData.Assignment("node_id", ""));
         task = new PersistentTask<>(task, DatafeedState.STARTED);
-        PersistentTasks tasks = new PersistentTasks(1L, Collections.singletonMap(1L, task));
+        PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(1L, task));
 
         Job job = createDatafeedJob().build();
         MlMetadata mlMetadata1 = new MlMetadata.Builder().putJob(job, false).build();
@@ -66,14 +66,14 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
     }
 
     public void testValidate_alreadyStopped() {
-        PersistentTasks tasks;
+        PersistentTasksCustomMetaData tasks;
         if (randomBoolean()) {
-            PersistentTask<?> task = new PersistentTask<PersistentActionRequest>(1L, StartDatafeedAction.NAME,
-                    new StartDatafeedAction.Request("foo", 0L), false, false, new PersistentTasks.Assignment("node_id", ""));
+            PersistentTask<?> task = new PersistentTask<PersistentTaskRequest>(1L, StartDatafeedAction.NAME,
+                    new StartDatafeedAction.Request("foo", 0L), false, false, new PersistentTasksCustomMetaData.Assignment("node_id", ""));
             task = new PersistentTask<>(task, DatafeedState.STOPPED);
-            tasks = new PersistentTasks(1L, Collections.singletonMap(1L, task));
+            tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(1L, task));
         } else {
-            tasks = randomBoolean() ? null : new PersistentTasks(0L, Collections.emptyMap());
+            tasks = randomBoolean() ? null : new PersistentTasksCustomMetaData(0L, Collections.emptyMap());
         }
 
         Job job = createDatafeedJob().build();

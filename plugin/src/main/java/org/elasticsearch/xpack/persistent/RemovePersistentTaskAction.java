@@ -148,16 +148,16 @@ public class RemovePersistentTaskAction extends Action<RemovePersistentTaskActio
 
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
-        private final PersistentTaskClusterService persistentTaskClusterService;
+        private final PersistentTasksClusterService persistentTasksClusterService;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                ThreadPool threadPool, ActionFilters actionFilters,
-                               PersistentTaskClusterService persistentTaskClusterService,
+                               PersistentTasksClusterService persistentTasksClusterService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(settings, RemovePersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
-            this.persistentTaskClusterService = persistentTaskClusterService;
+            this.persistentTasksClusterService = persistentTasksClusterService;
         }
 
         @Override
@@ -178,7 +178,7 @@ public class RemovePersistentTaskAction extends Action<RemovePersistentTaskActio
 
         @Override
         protected final void masterOperation(final Request request, ClusterState state, final ActionListener<Response> listener) {
-            persistentTaskClusterService.removePersistentTask(request.taskId, new ActionListener<Empty>() {
+            persistentTasksClusterService.removePersistentTask(request.taskId, new ActionListener<Empty>() {
                 @Override
                 public void onResponse(Empty empty) {
                     listener.onResponse(new Response(true));

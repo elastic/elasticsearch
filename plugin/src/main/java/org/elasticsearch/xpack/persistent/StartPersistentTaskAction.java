@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * This action can be used to start persistent action previously created using {@link CreatePersistentTaskAction}
+ * This action can be used to start a persistent task previously created using {@link CreatePersistentTaskAction}
  */
 public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.Request,
         StartPersistentTaskAction.Response,
@@ -151,16 +151,16 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
 
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
-        private final PersistentTaskClusterService persistentTaskClusterService;
+        private final PersistentTasksClusterService persistentTasksClusterService;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                ThreadPool threadPool, ActionFilters actionFilters,
-                               PersistentTaskClusterService persistentTaskClusterService,
+                               PersistentTasksClusterService persistentTasksClusterService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(settings, StartPersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
-            this.persistentTaskClusterService = persistentTaskClusterService;
+            this.persistentTasksClusterService = persistentTasksClusterService;
         }
 
         @Override
@@ -181,7 +181,7 @@ public class StartPersistentTaskAction extends Action<StartPersistentTaskAction.
 
         @Override
         protected final void masterOperation(final Request request, ClusterState state, final ActionListener<Response> listener) {
-            persistentTaskClusterService.startPersistentTask(request.taskId, new ActionListener<Empty>() {
+            persistentTasksClusterService.startPersistentTask(request.taskId, new ActionListener<Empty>() {
                 @Override
                 public void onResponse(Empty empty) {
                     listener.onResponse(new Response(true));

@@ -38,8 +38,8 @@ import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.persistent.PersistentTasks;
-import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -318,7 +318,7 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
                             .map(d -> d.getId()).collect(Collectors.toList())
                     : Collections.singletonList(request.getDatafeedId());
 
-            PersistentTasks tasksInProgress = state.getMetaData().custom(PersistentTasks.TYPE);
+            PersistentTasksCustomMetaData tasksInProgress = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             List<DatafeedStats> results = expandedDatafeedsIds.stream()
                     .map(datafeedId -> getDatafeedStats(datafeedId, state, tasksInProgress))
                     .collect(Collectors.toList());
@@ -328,7 +328,7 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
         }
 
         private static DatafeedStats getDatafeedStats(String datafeedId, ClusterState state,
-                                                      PersistentTasks tasks) {
+                                                      PersistentTasksCustomMetaData tasks) {
             PersistentTask<?> task = MlMetadata.getDatafeedTask(datafeedId, tasks);
             DatafeedState datafeedState = MlMetadata.getDatafeedState(datafeedId, tasks);
             DiscoveryNode node = null;

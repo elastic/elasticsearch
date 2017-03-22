@@ -43,7 +43,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 /**
  * A cluster state record that contains a list of all running persistent tasks
  */
-public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom {
+public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom {
     public static final String TYPE = "persistent_tasks";
 
     private static final String API_CONTEXT = MetaData.XContentContext.API.toString();
@@ -53,21 +53,21 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
 
     private final long currentId;
 
-    public PersistentTasks(long currentId, Map<Long, PersistentTask<?>> tasks) {
+    public PersistentTasksCustomMetaData(long currentId, Map<Long, PersistentTask<?>> tasks) {
         this.currentId = currentId;
         this.tasks = tasks;
     }
 
     private static final ObjectParser<Builder, Void> PERSISTENT_TASKS_PARSER = new ObjectParser<>(TYPE, Builder::new);
 
-    private static final ObjectParser<TaskBuilder<PersistentActionRequest>, Void> PERSISTENT_TASK_PARSER =
+    private static final ObjectParser<TaskBuilder<PersistentTaskRequest>, Void> PERSISTENT_TASK_PARSER =
             new ObjectParser<>("tasks", TaskBuilder::new);
 
     public static final ConstructingObjectParser<Assignment, Void> ASSIGNMENT_PARSER =
             new ConstructingObjectParser<>("assignment", objects -> new Assignment((String) objects[0], (String) objects[1]));
 
-    private static final NamedObjectParser<PersistentActionRequest, Void> REQUEST_PARSER =
-            (XContentParser p, Void c, String name) -> p.namedObject(PersistentActionRequest.class, name, null);
+    private static final NamedObjectParser<PersistentTaskRequest, Void> REQUEST_PARSER =
+            (XContentParser p, Void c, String name) -> p.namedObject(PersistentTaskRequest.class, name, null);
     private static final NamedObjectParser<Status, Void> STATUS_PARSER =
             (XContentParser p, Void c, String name) -> p.namedObject(Status.class, name, null);
 
@@ -82,20 +82,20 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
 
         // Task parser initialization
         PERSISTENT_TASK_PARSER.declareLong(TaskBuilder::setId, new ParseField("id"));
-        PERSISTENT_TASK_PARSER.declareString(TaskBuilder::setAction, new ParseField("action"));
+        PERSISTENT_TASK_PARSER.declareString(TaskBuilder::setTaskName, new ParseField("name"));
         PERSISTENT_TASK_PARSER.declareLong(TaskBuilder::setAllocationId, new ParseField("allocation_id"));
         PERSISTENT_TASK_PARSER.declareBoolean(TaskBuilder::setRemoveOnCompletion, new ParseField("remove_on_completion"));
         PERSISTENT_TASK_PARSER.declareBoolean(TaskBuilder::setStopped, new ParseField("stopped"));
         PERSISTENT_TASK_PARSER.declareNamedObjects(
-                (TaskBuilder<PersistentActionRequest> taskBuilder, List<PersistentActionRequest> objects) -> {
+                (TaskBuilder<PersistentTaskRequest> taskBuilder, List<PersistentTaskRequest> objects) -> {
                     if (objects.size() != 1) {
-                        throw new IllegalArgumentException("only one action request per task is allowed");
+                        throw new IllegalArgumentException("only one request per task is allowed");
                     }
                     taskBuilder.setRequest(objects.get(0));
                 }, REQUEST_PARSER, new ParseField("request"));
 
         PERSISTENT_TASK_PARSER.declareNamedObjects(
-                (TaskBuilder<PersistentActionRequest> taskBuilder, List<Status> objects) -> {
+                (TaskBuilder<PersistentTaskRequest> taskBuilder, List<Status> objects) -> {
                     if (objects.size() != 1) {
                         throw new IllegalArgumentException("only one status per task is allowed");
                     }
@@ -120,16 +120,16 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
         return this.tasks.get(id);
     }
 
-    public Collection<PersistentTask<?>> findTasks(String actionName, Predicate<PersistentTask<?>> predicate) {
+    public Collection<PersistentTask<?>> findTasks(String taskName, Predicate<PersistentTask<?>> predicate) {
         return this.tasks().stream()
-                .filter(p -> actionName.equals(p.getAction()))
+                .filter(p -> taskName.equals(p.getTaskName()))
                 .filter(predicate)
                 .collect(Collectors.toList());
     }
 
-    public boolean tasksExist(String actionName, Predicate<PersistentTask<?>> predicate) {
+    public boolean tasksExist(String taskName, Predicate<PersistentTask<?>> predicate) {
         return this.tasks().stream()
-                .filter(p -> actionName.equals(p.getAction()))
+                .filter(p -> taskName.equals(p.getTaskName()))
                 .anyMatch(predicate);
     }
 
@@ -137,7 +137,7 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PersistentTasks that = (PersistentTasks) o;
+        PersistentTasksCustomMetaData that = (PersistentTasksCustomMetaData) o;
         return currentId == that.currentId &&
                 Objects.equals(tasks, that.tasks);
     }
@@ -152,8 +152,9 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
         return Strings.toString(this);
     }
 
-    public long getNumberOfTasksOnNode(String nodeId, String action) {
-        return tasks.values().stream().filter(task -> action.equals(task.action) && nodeId.equals(task.assignment.executorNode)).count();
+    public long getNumberOfTasksOnNode(String nodeId, String taskName) {
+        return tasks.values().stream().filter(
+                task -> taskName.equals(task.taskName) && nodeId.equals(task.assignment.executorNode)).count();
     }
 
     @Override
@@ -166,7 +167,7 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
         return ALL_CONTEXTS;
     }
 
-    public static PersistentTasks fromXContent(XContentParser parser) throws IOException {
+    public static PersistentTasksCustomMetaData fromXContent(XContentParser parser) throws IOException {
         return PERSISTENT_TASKS_PARSER.parse(parser, null).build();
     }
 
@@ -221,10 +222,10 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
     /**
      * A record that represents a single running persistent task
      */
-    public static class PersistentTask<Request extends PersistentActionRequest> implements Writeable, ToXContent {
+    public static class PersistentTask<Request extends PersistentTaskRequest> implements Writeable, ToXContent {
         private final long id;
         private final long allocationId;
-        private final String action;
+        private final String taskName;
         private final Request request;
         private final boolean stopped;
         private final boolean removeOnCompletion;
@@ -235,25 +236,25 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
         private final Long allocationIdOnLastStatusUpdate;
 
 
-        public PersistentTask(long id, String action, Request request, boolean stopped, boolean removeOnCompletion, Assignment assignment) {
-            this(id, 0L, action, request, stopped, removeOnCompletion, null, assignment, null);
+        public PersistentTask(long id, String taskName, Request request, boolean stopped, boolean removeOnCompletion, Assignment assignment) {
+            this(id, 0L, taskName, request, stopped, removeOnCompletion, null, assignment, null);
         }
 
         public PersistentTask(PersistentTask<Request> task, boolean stopped, Assignment assignment) {
-            this(task.id, task.allocationId + 1L, task.action, task.request, stopped, task.removeOnCompletion, task.status,
+            this(task.id, task.allocationId + 1L, task.taskName, task.request, stopped, task.removeOnCompletion, task.status,
                     assignment, task.allocationId);
         }
 
         public PersistentTask(PersistentTask<Request> task, Status status) {
-            this(task.id, task.allocationId, task.action, task.request, task.stopped, task.removeOnCompletion, status,
+            this(task.id, task.allocationId, task.taskName, task.request, task.stopped, task.removeOnCompletion, status,
                     task.assignment, task.allocationId);
         }
 
-        private PersistentTask(long id, long allocationId, String action, Request request, boolean stopped, boolean removeOnCompletion,
+        private PersistentTask(long id, long allocationId, String taskName, Request request, boolean stopped, boolean removeOnCompletion,
                                Status status, Assignment assignment, Long allocationIdOnLastStatusUpdate) {
             this.id = id;
             this.allocationId = allocationId;
-            this.action = action;
+            this.taskName = taskName;
             this.request = request;
             this.status = status;
             this.stopped = stopped;
@@ -268,8 +269,8 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
         private PersistentTask(StreamInput in) throws IOException {
             id = in.readLong();
             allocationId = in.readLong();
-            action = in.readString();
-            request = (Request) in.readNamedWriteable(PersistentActionRequest.class);
+            taskName = in.readString();
+            request = (Request) in.readNamedWriteable(PersistentTaskRequest.class);
             stopped = in.readBoolean();
             removeOnCompletion = in.readBoolean();
             status = in.readOptionalNamedWriteable(Task.Status.class);
@@ -281,7 +282,7 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
         public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(id);
             out.writeLong(allocationId);
-            out.writeString(action);
+            out.writeString(taskName);
             out.writeNamedWriteable(request);
             out.writeBoolean(stopped);
             out.writeBoolean(removeOnCompletion);
@@ -298,7 +299,7 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
             PersistentTask<?> that = (PersistentTask<?>) o;
             return id == that.id &&
                     allocationId == that.allocationId &&
-                    Objects.equals(action, that.action) &&
+                    Objects.equals(taskName, that.taskName) &&
                     Objects.equals(request, that.request) &&
                     stopped == that.stopped &&
                     removeOnCompletion == that.removeOnCompletion &&
@@ -309,7 +310,7 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, allocationId, action, request, stopped, removeOnCompletion, status, assignment,
+            return Objects.hash(id, allocationId, taskName, request, stopped, removeOnCompletion, status, assignment,
                     allocationIdOnLastStatusUpdate);
         }
 
@@ -326,8 +327,8 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
             return allocationId;
         }
 
-        public String getAction() {
-            return action;
+        public String getTaskName() {
+            return taskName;
         }
 
         public Request getRequest() {
@@ -380,7 +381,7 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
             builder.startObject();
             {
                 builder.field("id", id);
-                builder.field("action", action);
+                builder.field("name", taskName);
                 builder.startObject("request");
                 {
                     builder.field(request.getWriteableName(), request, params);
@@ -420,10 +421,10 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
         }
     }
 
-    private static class TaskBuilder<Request extends PersistentActionRequest> {
+    private static class TaskBuilder<Request extends PersistentTaskRequest> {
         private long id;
         private long allocationId;
-        private String action;
+        private String taskName;
         private Request request;
         private boolean stopped = true;
         private boolean removeOnCompletion;
@@ -441,8 +442,8 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
             return this;
         }
 
-        public TaskBuilder<Request> setAction(String action) {
-            this.action = action;
+        public TaskBuilder<Request> setTaskName(String taskName) {
+            this.taskName = taskName;
             return this;
         }
 
@@ -478,7 +479,7 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
         }
 
         public PersistentTask<Request> build() {
-            return new PersistentTask<>(id, allocationId, action, request, stopped, removeOnCompletion, status,
+            return new PersistentTask<>(id, allocationId, taskName, request, stopped, removeOnCompletion, status,
                     assignment, allocationIdOnLastStatusUpdate);
         }
     }
@@ -488,7 +489,7 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
         return TYPE;
     }
 
-    public PersistentTasks(StreamInput in) throws IOException {
+    public PersistentTasksCustomMetaData(StreamInput in) throws IOException {
         currentId = in.readLong();
         tasks = in.readMap(StreamInput::readLong, PersistentTask::new);
     }
@@ -525,7 +526,7 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
         return new Builder();
     }
 
-    public static Builder builder(PersistentTasks tasks) {
+    public static Builder builder(PersistentTasksCustomMetaData tasks) {
         return new Builder(tasks);
     }
 
@@ -537,7 +538,7 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
         public Builder() {
         }
 
-        public Builder(PersistentTasks tasksInProgress) {
+        public Builder(PersistentTasksCustomMetaData tasksInProgress) {
             if (tasksInProgress != null) {
                 tasks.putAll(tasksInProgress.tasks);
                 currentId = tasksInProgress.currentId;
@@ -551,7 +552,7 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
             return this;
         }
 
-        private <Request extends PersistentActionRequest> Builder setTasks(List<TaskBuilder<Request>> tasks) {
+        private <Request extends PersistentTaskRequest> Builder setTasks(List<TaskBuilder<Request>> tasks) {
             for (TaskBuilder builder : tasks) {
                 PersistentTask<?> task = builder.build();
                 this.tasks.put(task.getId(), task);
@@ -564,11 +565,11 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
          * <p>
          * After the task is added its id can be found by calling {{@link #getCurrentId()}} method.
          */
-        public <Request extends PersistentActionRequest> Builder addTask(String action, Request request, boolean stopped,
-                                                                         boolean removeOnCompletion, Assignment assignment) {
+        public <Request extends PersistentTaskRequest> Builder addTask(String taskName, Request request, boolean stopped,
+                                                                       boolean removeOnCompletion, Assignment assignment) {
             changed = true;
             currentId++;
-            tasks.put(currentId, new PersistentTask<>(currentId, action, request, stopped, removeOnCompletion, assignment));
+            tasks.put(currentId, new PersistentTask<>(currentId, taskName, request, stopped, removeOnCompletion, assignment));
             return this;
         }
 
@@ -591,11 +592,11 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
          * {@link #reassignTask(long, BiFunction)} instead
          */
         @SuppressWarnings("unchecked")
-        public <Request extends PersistentActionRequest> Builder assignTask(long taskId,
-                                                                            BiFunction<String, Request, Assignment> executorNodeFunc) {
+        public <Request extends PersistentTaskRequest> Builder assignTask(long taskId,
+                                                                          BiFunction<String, Request, Assignment> executorNodeFunc) {
             PersistentTask<Request> taskInProgress = (PersistentTask<Request>) tasks.get(taskId);
             if (taskInProgress != null && taskInProgress.assignment.isAssigned() == false) { // only assign unassigned tasks
-                Assignment assignment = executorNodeFunc.apply(taskInProgress.action, taskInProgress.request);
+                Assignment assignment = executorNodeFunc.apply(taskInProgress.taskName, taskInProgress.request);
                 if (assignment.isAssigned() || taskInProgress.isStopped()) {
                     changed = true;
                     tasks.put(taskId, new PersistentTask<>(taskInProgress, false, assignment));
@@ -608,12 +609,12 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
          * Reassigns the task to another node if the task exist
          */
         @SuppressWarnings("unchecked")
-        public <Request extends PersistentActionRequest> Builder reassignTask(long taskId,
-                                                                              BiFunction<String, Request, Assignment> executorNodeFunc) {
+        public <Request extends PersistentTaskRequest> Builder reassignTask(long taskId,
+                                                                            BiFunction<String, Request, Assignment> executorNodeFunc) {
             PersistentTask<Request> taskInProgress = (PersistentTask<Request>) tasks.get(taskId);
             if (taskInProgress != null) {
                 changed = true;
-                Assignment assignment = executorNodeFunc.apply(taskInProgress.action, taskInProgress.request);
+                Assignment assignment = executorNodeFunc.apply(taskInProgress.taskName, taskInProgress.request);
                 tasks.put(taskId, new PersistentTask<>(taskInProgress, false, assignment));
             }
             return this;
@@ -680,8 +681,8 @@ public final class PersistentTasks extends AbstractNamedDiffable<MetaData.Custom
             return changed;
         }
 
-        public PersistentTasks build() {
-            return new PersistentTasks(currentId, Collections.unmodifiableMap(tasks));
+        public PersistentTasksCustomMetaData build() {
+            return new PersistentTasksCustomMetaData(currentId, Collections.unmodifiableMap(tasks));
         }
     }
 }

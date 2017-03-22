@@ -19,7 +19,6 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.ml.MlMetadata;
-import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction;
@@ -34,7 +33,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobStorageDeletionTask;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.persistent.PersistentTasks;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
 import java.util.Collections;
 import java.util.List;
@@ -129,7 +128,7 @@ public class JobManager extends AbstractComponent {
     }
 
     public JobState getJobState(String jobId) {
-        PersistentTasks tasks = clusterService.state().getMetaData().custom(PersistentTasks.TYPE);
+        PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         return MlMetadata.getJobState(jobId, tasks);
     }
 
@@ -281,7 +280,7 @@ public class JobManager extends AbstractComponent {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     MlMetadata.Builder builder = createMlMetadataBuilder(currentState);
-                    builder.deleteJob(jobId, currentState.getMetaData().custom(PersistentTasks.TYPE));
+                    builder.deleteJob(jobId, currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
                     return buildNewClusterState(currentState, builder);
                 }
             });
@@ -307,7 +306,7 @@ public class JobManager extends AbstractComponent {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 MlMetadata currentMlMetadata = currentState.metaData().custom(MlMetadata.TYPE);
-                PersistentTasks tasks = currentState.metaData().custom(PersistentTasks.TYPE);
+                PersistentTasksCustomMetaData tasks = currentState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
                 MlMetadata.Builder builder = new MlMetadata.Builder(currentMlMetadata);
                 builder.markJobAsDeleted(jobId, tasks);
                 return buildNewClusterState(currentState, builder);

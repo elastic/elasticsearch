@@ -34,7 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *  This action can be used to add the record for the persistent action to the cluster state.
  */
 public class CreatePersistentTaskAction extends Action<CreatePersistentTaskAction.Request,
-        PersistentActionResponse,
+        PersistentTaskResponse,
         CreatePersistentTaskAction.RequestBuilder> {
 
     public static final CreatePersistentTaskAction INSTANCE = new CreatePersistentTaskAction();
@@ -50,15 +50,15 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
     }
 
     @Override
-    public PersistentActionResponse newResponse() {
-        return new PersistentActionResponse();
+    public PersistentTaskResponse newResponse() {
+        return new PersistentTaskResponse();
     }
 
     public static class Request extends MasterNodeRequest<Request> {
 
         private String action;
 
-        private PersistentActionRequest request;
+        private PersistentTaskRequest request;
 
         private boolean stopped;
 
@@ -68,7 +68,7 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
 
         }
 
-        public Request(String action, PersistentActionRequest request) {
+        public Request(String action, PersistentTaskRequest request) {
             this.action = action;
             this.request = request;
             this.stopped = false;
@@ -79,7 +79,7 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             action = in.readString();
-            request = in.readNamedWriteable(PersistentActionRequest.class);
+            request = in.readNamedWriteable(PersistentTaskRequest.class);
             stopped = in.readBoolean();
             removeOnCompletion = in.readBoolean();
         }
@@ -129,11 +129,11 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
             this.action = action;
         }
 
-        public PersistentActionRequest getRequest() {
+        public PersistentTaskRequest getRequest() {
             return request;
         }
 
-        public void setRequest(PersistentActionRequest request) {
+        public void setRequest(PersistentTaskRequest request) {
             this.request = request;
         }
 
@@ -155,7 +155,7 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
     }
 
     public static class RequestBuilder extends MasterNodeOperationRequestBuilder<CreatePersistentTaskAction.Request,
-            PersistentActionResponse, CreatePersistentTaskAction.RequestBuilder> {
+            PersistentTaskResponse, CreatePersistentTaskAction.RequestBuilder> {
 
         protected RequestBuilder(ElasticsearchClient client, CreatePersistentTaskAction action) {
             super(client, action, new Request());
@@ -166,8 +166,8 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
             return this;
         }
 
-        public RequestBuilder setRequest(PersistentActionRequest persistentActionRequest) {
-            request.setRequest(persistentActionRequest);
+        public RequestBuilder setRequest(PersistentTaskRequest persistentTaskRequest) {
+            request.setRequest(persistentTaskRequest);
             return this;
         }
 
@@ -188,23 +188,23 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
         }
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, PersistentActionResponse> {
+    public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 
-        private final PersistentTaskClusterService persistentTaskClusterService;
+        private final PersistentTasksClusterService persistentTasksClusterService;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                ThreadPool threadPool, ActionFilters actionFilters,
-                               PersistentTaskClusterService persistentTaskClusterService,
-                               PersistentActionRegistry persistentActionRegistry,
-                               PersistentActionService persistentActionService,
+                               PersistentTasksClusterService persistentTasksClusterService,
+                               PersistentTasksExecutorRegistry persistentTasksExecutorRegistry,
+                               PersistentTasksService persistentTasksService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(settings, CreatePersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
-            this.persistentTaskClusterService = persistentTaskClusterService;
-            PersistentActionExecutor executor = new PersistentActionExecutor(threadPool);
-            clusterService.addListener(new PersistentActionCoordinator(settings, persistentActionService, persistentActionRegistry,
-                    transportService.getTaskManager(), executor));
+            this.persistentTasksClusterService = persistentTasksClusterService;
+            NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor(threadPool);
+            clusterService.addListener(new PersistentTasksNodeService(settings, persistentTasksService, persistentTasksExecutorRegistry,
+                    transportService.getTaskManager(), threadPool, executor));
         }
 
         @Override
@@ -213,8 +213,8 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
         }
 
         @Override
-        protected PersistentActionResponse newResponse() {
-            return new PersistentActionResponse();
+        protected PersistentTaskResponse newResponse() {
+            return new PersistentTaskResponse();
         }
 
         @Override
@@ -225,12 +225,12 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
 
         @Override
         protected final void masterOperation(final Request request, ClusterState state,
-                                             final ActionListener<PersistentActionResponse> listener) {
-            persistentTaskClusterService.createPersistentTask(request.action, request.request, request.stopped, request.removeOnCompletion,
+                                             final ActionListener<PersistentTaskResponse> listener) {
+            persistentTasksClusterService.createPersistentTask(request.action, request.request, request.stopped, request.removeOnCompletion,
                     new ActionListener<Long>() {
                 @Override
                 public void onResponse(Long newTaskId) {
-                    listener.onResponse(new PersistentActionResponse(newTaskId));
+                    listener.onResponse(new PersistentTaskResponse(newTaskId));
                 }
 
                 @Override

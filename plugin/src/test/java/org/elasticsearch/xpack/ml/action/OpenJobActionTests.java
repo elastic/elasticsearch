@@ -29,12 +29,11 @@ import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
-import org.elasticsearch.xpack.persistent.PersistentTasks;
-import org.elasticsearch.xpack.persistent.PersistentTasks.Assignment;
-import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -58,14 +57,14 @@ public class OpenJobActionTests extends ESTestCase {
 
         PersistentTask<OpenJobAction.Request> task =
                 createJobTask(1L, "job_id", "_node_id", randomFrom(JobState.CLOSED, JobState.FAILED));
-        PersistentTasks tasks = new PersistentTasks(1L, Collections.singletonMap(1L, task));
+        PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(1L, task));
 
         OpenJobAction.validate("job_id", mlBuilder.build(), tasks, nodes);
-        OpenJobAction.validate("job_id", mlBuilder.build(), new PersistentTasks(1L, Collections.emptyMap()), nodes);
+        OpenJobAction.validate("job_id", mlBuilder.build(), new PersistentTasksCustomMetaData(1L, Collections.emptyMap()), nodes);
         OpenJobAction.validate("job_id", mlBuilder.build(), null, nodes);
 
         task = createJobTask(1L, "job_id", "_other_node_id", JobState.OPENED);
-        tasks = new PersistentTasks(1L, Collections.singletonMap(1L, task));
+        tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(1L, task));
         OpenJobAction.validate("job_id", mlBuilder.build(), tasks, nodes);
     }
 
@@ -95,7 +94,7 @@ public class OpenJobActionTests extends ESTestCase {
 
         JobState jobState = randomFrom(JobState.OPENING, JobState.OPENED, JobState.CLOSING);
         PersistentTask<OpenJobAction.Request> task = createJobTask(1L, "job_id", "_node_id", jobState);
-        PersistentTasks tasks1 = new PersistentTasks(1L, Collections.singletonMap(1L, task));
+        PersistentTasksCustomMetaData tasks1 = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(1L, task));
 
         Exception e = expectThrows(ElasticsearchStatusException.class,
                 () -> OpenJobAction.validate("job_id", mlBuilder.build(), tasks1, nodes));
@@ -103,7 +102,7 @@ public class OpenJobActionTests extends ESTestCase {
 
         jobState = randomFrom(JobState.OPENING, JobState.CLOSING);
         task = createJobTask(1L, "job_id", "_other_node_id", jobState);
-        PersistentTasks tasks2 = new PersistentTasks(1L, Collections.singletonMap(1L, task));
+        PersistentTasksCustomMetaData tasks2 = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(1L, task));
 
         e = expectThrows(ElasticsearchStatusException.class,
                 () -> OpenJobAction.validate("job_id", mlBuilder.build(), tasks2, nodes));
@@ -129,14 +128,14 @@ public class OpenJobActionTests extends ESTestCase {
                 new Assignment("_node_id1", "test assignment")));
         taskMap.put(2L, new PersistentTask<>(2L, OpenJobAction.NAME, new OpenJobAction.Request("job_id3"), false, true,
                 new Assignment("_node_id2", "test assignment")));
-        PersistentTasks tasks = new PersistentTasks(3L, taskMap);
+        PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(3L, taskMap);
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addJobAndIndices(metaData, routingTable, "job_id1", "job_id2", "job_id3", "job_id4");
         cs.nodes(nodes);
-        metaData.putCustom(PersistentTasks.TYPE, tasks);
+        metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
         Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id4", cs.build(), 2, logger);
@@ -160,14 +159,14 @@ public class OpenJobActionTests extends ESTestCase {
                 taskMap.put(id, createJobTask(id, "job_id" + id, nodeId, JobState.OPENED));
             }
         }
-        PersistentTasks tasks = new PersistentTasks(numNodes * maxRunningJobsPerNode, taskMap);
+        PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(numNodes * maxRunningJobsPerNode, taskMap);
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addJobAndIndices(metaData, routingTable, "job_id1", "job_id2");
         cs.nodes(nodes);
-        metaData.putCustom(PersistentTasks.TYPE, tasks);
+        metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
         Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, logger);
@@ -187,14 +186,14 @@ public class OpenJobActionTests extends ESTestCase {
         PersistentTask<OpenJobAction.Request> task =
                 new PersistentTask<>(1L, OpenJobAction.NAME, new OpenJobAction.Request("job_id1"), false, true,
                         new Assignment("_node_id1", "test assignment"));
-        PersistentTasks tasks = new PersistentTasks(1L, Collections.singletonMap(1L, task));
+        PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(1L, task));
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addJobAndIndices(metaData, routingTable, "job_id1", "job_id2");
         cs.nodes(nodes);
-        metaData.putCustom(PersistentTasks.TYPE, tasks);
+        metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
         cs.routingTable(routingTable.build());
         Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id2", cs.build(), 2, logger);
@@ -220,7 +219,7 @@ public class OpenJobActionTests extends ESTestCase {
         taskMap.put(2L, createJobTask(2L, "job_id3", "_node_id2", JobState.OPENING));
         taskMap.put(3L, createJobTask(3L, "job_id4", "_node_id2", JobState.OPENING));
         taskMap.put(4L, createJobTask(4L, "job_id5", "_node_id3", JobState.OPENING));
-        PersistentTasks tasks = new PersistentTasks(5L, taskMap);
+        PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(5L, taskMap);
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.nodes(nodes);
@@ -228,7 +227,7 @@ public class OpenJobActionTests extends ESTestCase {
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addJobAndIndices(metaData, routingTable, "job_id1", "job_id2", "job_id3", "job_id4", "job_id5", "job_id6", "job_id7");
         csBuilder.routingTable(routingTable.build());
-        metaData.putCustom(PersistentTasks.TYPE, tasks);
+        metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         csBuilder.metaData(metaData);
 
         ClusterState cs = csBuilder.build();
@@ -237,30 +236,30 @@ public class OpenJobActionTests extends ESTestCase {
 
         PersistentTask<OpenJobAction.Request> lastTask = createJobTask(5L, "job_id6", "_node_id3", JobState.OPENING);
         taskMap.put(5L, lastTask);
-        tasks = new PersistentTasks(6L, taskMap);
+        tasks = new PersistentTasksCustomMetaData(6L, taskMap);
 
         csBuilder = ClusterState.builder(cs);
-        csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasks.TYPE, tasks));
+        csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
         result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, logger);
         assertNull("no node selected, because OPENING state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
         taskMap.put(5L, new PersistentTask<>(lastTask, false, new Assignment("_node_id3", "test assignment")));
-        tasks = new PersistentTasks(6L, taskMap);
+        tasks = new PersistentTasksCustomMetaData(6L, taskMap);
 
         csBuilder = ClusterState.builder(cs);
-        csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasks.TYPE, tasks));
+        csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
         result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, logger);
         assertNull("no node selected, because stale task", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
         taskMap.put(5L, new PersistentTask<>(lastTask, null));
-        tasks = new PersistentTasks(6L, taskMap);
+        tasks = new PersistentTasksCustomMetaData(6L, taskMap);
 
         csBuilder = ClusterState.builder(cs);
-        csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasks.TYPE, tasks));
+        csBuilder.metaData(MetaData.builder(cs.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks));
         cs = csBuilder.build();
         result = OpenJobAction.selectLeastLoadedMlNode("job_id7", cs, 2, logger);
         assertNull("no node selected, because null state", result.getExecutorNode());

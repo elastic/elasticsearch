@@ -13,11 +13,11 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.MlMetadata;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
-import org.elasticsearch.xpack.persistent.PersistentTasks;
-import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,10 +35,11 @@ public class CloseJobActionTests extends ESTestCase {
                 createJobTask(1L, "job_id", null, randomFrom(JobState.OPENED, JobState.FAILED));
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
-                        .putCustom(PersistentTasks.TYPE, new PersistentTasks(1L, Collections.singletonMap(1L, task))));
+                        .putCustom(PersistentTasksCustomMetaData.TYPE,
+                                new PersistentTasksCustomMetaData(1L, Collections.singletonMap(1L, task))));
         ClusterState result = CloseJobAction.moveJobToClosingState("job_id", csBuilder.build());
 
-        PersistentTasks actualTasks = result.getMetaData().custom(PersistentTasks.TYPE);
+        PersistentTasksCustomMetaData actualTasks = result.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         assertEquals(JobState.CLOSING, actualTasks.getTask(1L).getStatus());
 
         MlMetadata actualMetadata = result.metaData().custom(MlMetadata.TYPE);
@@ -49,7 +50,7 @@ public class CloseJobActionTests extends ESTestCase {
         MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
-                        .putCustom(PersistentTasks.TYPE, new PersistentTasks(1L, Collections.emptyMap())));
+                        .putCustom(PersistentTasksCustomMetaData.TYPE, new PersistentTasksCustomMetaData(1L, Collections.emptyMap())));
         expectThrows(ResourceNotFoundException.class, () -> CloseJobAction.moveJobToClosingState("job_id", csBuilder.build()));
     }
 
@@ -59,14 +60,15 @@ public class CloseJobActionTests extends ESTestCase {
         PersistentTask<OpenJobAction.Request> task = createJobTask(1L, "job_id", null, JobState.OPENING);
         ClusterState.Builder csBuilder1 = ClusterState.builder(new ClusterName("_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
-                        .putCustom(PersistentTasks.TYPE, new PersistentTasks(1L, Collections.singletonMap(1L, task))));
+                        .putCustom(PersistentTasksCustomMetaData.TYPE,
+                                new PersistentTasksCustomMetaData(1L, Collections.singletonMap(1L, task))));
         ElasticsearchStatusException result =
                 expectThrows(ElasticsearchStatusException.class, () -> CloseJobAction.moveJobToClosingState("job_id", csBuilder1.build()));
         assertEquals("cannot close job [job_id], expected job state [opened], but got [opening]", result.getMessage());
 
         ClusterState.Builder csBuilder2 = ClusterState.builder(new ClusterName("_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
-                        .putCustom(PersistentTasks.TYPE, new PersistentTasks(1L, Collections.emptyMap())));
+                        .putCustom(PersistentTasksCustomMetaData.TYPE, new PersistentTasksCustomMetaData(1L, Collections.emptyMap())));
         result = expectThrows(ElasticsearchStatusException.class, () -> CloseJobAction.moveJobToClosingState("job_id", csBuilder2.build()));
         assertEquals("cannot close job [job_id], expected job state [opened], but got [closed]", result.getMessage());
     }
@@ -81,7 +83,7 @@ public class CloseJobActionTests extends ESTestCase {
         tasks.put(2L, createDatafeedTask(2L, "datafeed_id", 0L, null, DatafeedState.STARTED));
         ClusterState cs1 = ClusterState.builder(new ClusterName("_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
-                        .putCustom(PersistentTasks.TYPE, new PersistentTasks(1L, tasks))).build();
+                        .putCustom(PersistentTasksCustomMetaData.TYPE, new PersistentTasksCustomMetaData(1L, tasks))).build();
 
         ElasticsearchStatusException e =
                 expectThrows(ElasticsearchStatusException.class, () -> CloseJobAction.validateAndFindTask("job_id", cs1));
@@ -95,7 +97,7 @@ public class CloseJobActionTests extends ESTestCase {
         }
         ClusterState cs2 = ClusterState.builder(new ClusterName("_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
-                        .putCustom(PersistentTasks.TYPE, new PersistentTasks(1L, tasks))).build();
+                        .putCustom(PersistentTasksCustomMetaData.TYPE, new PersistentTasksCustomMetaData(1L, tasks))).build();
         assertEquals(jobTask, CloseJobAction.validateAndFindTask("job_id", cs2));
     }
 
@@ -103,7 +105,7 @@ public class CloseJobActionTests extends ESTestCase {
                                                                                  String nodeId, DatafeedState datafeedState) {
         PersistentTask<StartDatafeedAction.Request> task =
                 new PersistentTask<>(id, StartDatafeedAction.NAME, new StartDatafeedAction.Request(datafeedId, startTime), false, true,
-                        new PersistentTasks.Assignment(nodeId, "test assignment"));
+                        new PersistentTasksCustomMetaData.Assignment(nodeId, "test assignment"));
         task = new PersistentTask<>(task, datafeedState);
         return task;
     }

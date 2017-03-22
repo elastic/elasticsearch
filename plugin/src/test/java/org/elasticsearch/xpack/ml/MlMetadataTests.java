@@ -26,8 +26,8 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobTests;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.persistent.PersistentTasks;
-import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.createJobTask
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedConfig;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedJob;
 import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
-import static org.elasticsearch.xpack.persistent.PersistentTasks.INITIAL_ASSIGNMENT;
+import static org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -133,7 +133,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         assertThat(result.getJobs().get("1"), sameInstance(job1));
         assertThat(result.getDatafeeds().get("1"), nullValue());
 
-        builder.deleteJob("1", new PersistentTasks(0L, Collections.emptyMap()));
+        builder.deleteJob("1", new PersistentTasksCustomMetaData(0L, Collections.emptyMap()));
         result = builder.build();
         assertThat(result.getJobs().get("1"), nullValue());
         assertThat(result.getDatafeeds().get("1"), nullValue());
@@ -151,7 +151,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         PersistentTask<OpenJobAction.Request> task = createJobTask(0L, "1", null, JobState.CLOSED);
         MlMetadata.Builder builder2 = new MlMetadata.Builder(result);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> builder2.deleteJob("1", new PersistentTasks(0L, Collections.singletonMap(0L, task))));
+                () -> builder2.deleteJob("1", new PersistentTasksCustomMetaData(0L, Collections.singletonMap(0L, task))));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
     }
 
@@ -163,7 +163,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         builder.putDatafeed(datafeedConfig1);
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> builder.deleteJob(job1.getId(), new PersistentTasks(0L, Collections.emptyMap())));
+                () -> builder.deleteJob(job1.getId(), new PersistentTasksCustomMetaData(0L, Collections.emptyMap())));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
         String expectedMsg = "Cannot delete job [" + job1.getId() + "] while datafeed [" + datafeedConfig1.getId() + "] refers to it";
         assertThat(e.getMessage(), equalTo(expectedMsg));
@@ -172,7 +172,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
     public void testRemoveJob_failBecauseJobDoesNotExist() {
         MlMetadata.Builder builder1 = new MlMetadata.Builder();
         expectThrows(ResourceNotFoundException.class,
-                () -> builder1.deleteJob("1", new PersistentTasks(0L, Collections.emptyMap())));
+                () -> builder1.deleteJob("1", new PersistentTasksCustomMetaData(0L, Collections.emptyMap())));
     }
 
     public void testCrudDatafeed() {
@@ -187,7 +187,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         assertThat(result.getDatafeeds().get("datafeed1"), sameInstance(datafeedConfig1));
 
         builder = new MlMetadata.Builder(result);
-        builder.removeDatafeed("datafeed1", new PersistentTasks(0, Collections.emptyMap()));
+        builder.removeDatafeed("datafeed1", new PersistentTasksCustomMetaData(0, Collections.emptyMap()));
         result = builder.build();
         assertThat(result.getJobs().get("job_id"), sameInstance(job1));
         assertThat(result.getDatafeeds().get("datafeed1"), nullValue());
@@ -271,8 +271,8 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         StartDatafeedAction.Request request = new StartDatafeedAction.Request(datafeedConfig1.getId(), 0L);
         PersistentTask<StartDatafeedAction.Request> taskInProgress =
                 new PersistentTask<>(0, StartDatafeedAction.NAME, request, false, true, INITIAL_ASSIGNMENT);
-        PersistentTasks tasksInProgress =
-                new PersistentTasks(1, Collections.singletonMap(taskInProgress.getId(), taskInProgress));
+        PersistentTasksCustomMetaData tasksInProgress =
+                new PersistentTasksCustomMetaData(1, Collections.singletonMap(taskInProgress.getId(), taskInProgress));
 
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeedConfig1.getId());
         update.setScrollSize(5000);
@@ -333,8 +333,8 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         StartDatafeedAction.Request request = new StartDatafeedAction.Request("datafeed1", 0L);
         PersistentTask<StartDatafeedAction.Request> taskInProgress =
                 new PersistentTask<>(0, StartDatafeedAction.NAME, request, false, true, INITIAL_ASSIGNMENT);
-        PersistentTasks tasksInProgress =
-                new PersistentTasks(1, Collections.singletonMap(taskInProgress.getId(), taskInProgress));
+        PersistentTasksCustomMetaData tasksInProgress =
+                new PersistentTasksCustomMetaData(1, Collections.singletonMap(taskInProgress.getId(), taskInProgress));
 
         MlMetadata.Builder builder2 = new MlMetadata.Builder(result);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,

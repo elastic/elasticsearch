@@ -23,9 +23,9 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.persistent.PersistentTasks;
-import org.elasticsearch.xpack.persistent.PersistentTasks.Assignment;
-import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.net.InetAddress;
 import java.util.Collections;
@@ -35,7 +35,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.createJobTask;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
-import static org.elasticsearch.xpack.persistent.PersistentTasks.INITIAL_ASSIGNMENT;
+import static org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT;
 import static org.hamcrest.Matchers.equalTo;
 
 public class StartDatafeedActionTests extends ESTestCase {
@@ -48,7 +48,7 @@ public class StartDatafeedActionTests extends ESTestCase {
 
         JobState jobState = randomFrom(JobState.FAILED, JobState.CLOSED, JobState.CLOSING, JobState.OPENING);
         PersistentTask<OpenJobAction.Request> task = createJobTask(0L, job.getId(), "node_id", jobState);
-        PersistentTasks tasks = new PersistentTasks(1L, Collections.singletonMap(0L, task));
+        PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(0L, task));
 
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("node_name", "node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
@@ -57,7 +57,7 @@ public class StartDatafeedActionTests extends ESTestCase {
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("cluster_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlMetadata.build())
-                        .putCustom(PersistentTasks.TYPE, tasks))
+                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasks))
                 .nodes(nodes);
 
         Assignment result = StartDatafeedAction.selectNode(logger, "datafeed_id", cs.build());
@@ -66,10 +66,10 @@ public class StartDatafeedActionTests extends ESTestCase {
                 "] while state [opened] is required", result.getExplanation());
 
         task = createJobTask(0L, job.getId(), "node_id", JobState.OPENED);
-        tasks = new PersistentTasks(1L, Collections.singletonMap(0L, task));
+        tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(0L, task));
         cs = ClusterState.builder(new ClusterName("cluster_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlMetadata.build())
-                        .putCustom(PersistentTasks.TYPE, tasks))
+                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasks))
                 .nodes(nodes);
         result = StartDatafeedAction.selectNode(logger, "datafeed_id", cs.build());
         assertEquals("node_id", result.getExecutorNode());
@@ -83,7 +83,7 @@ public class StartDatafeedActionTests extends ESTestCase {
 
         String nodeId = randomBoolean() ? "node_id2" : null;
         PersistentTask<OpenJobAction.Request> task = createJobTask(0L, job.getId(), nodeId, JobState.OPENED);
-        PersistentTasks tasks = new PersistentTasks(1L, Collections.singletonMap(0L, task));
+        PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(0L, task));
 
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("node_name", "node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
@@ -92,7 +92,7 @@ public class StartDatafeedActionTests extends ESTestCase {
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("cluster_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlMetadata.build())
-                        .putCustom(PersistentTasks.TYPE, tasks))
+                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasks))
                 .nodes(nodes);
 
         Assignment result = StartDatafeedAction.selectNode(logger, "datafeed_id", cs.build());
@@ -101,10 +101,10 @@ public class StartDatafeedActionTests extends ESTestCase {
                 result.getExplanation());
 
         task = createJobTask(0L, job.getId(), "node_id1", JobState.OPENED);
-        tasks = new PersistentTasks(1L, Collections.singletonMap(0L, task));
+        tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(0L, task));
         cs = ClusterState.builder(new ClusterName("cluster_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlMetadata.build())
-                        .putCustom(PersistentTasks.TYPE, tasks))
+                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasks))
                 .nodes(nodes);
         result = StartDatafeedAction.selectNode(logger, "datafeed_id", cs.build());
         assertEquals("node_id1", result.getExecutorNode());
@@ -128,7 +128,7 @@ public class StartDatafeedActionTests extends ESTestCase {
         PersistentTask<OpenJobAction.Request> task =
                 new PersistentTask<>(0L, OpenJobAction.NAME, new OpenJobAction.Request("job_id"), false, true,
                         INITIAL_ASSIGNMENT);
-        PersistentTasks tasks = new PersistentTasks(0L, Collections.singletonMap(0L, task));
+        PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(0L, Collections.singletonMap(0L, task));
         DatafeedConfig datafeedConfig1 = DatafeedJobRunnerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
         MlMetadata mlMetadata2 = new MlMetadata.Builder(mlMetadata1)
                 .putDatafeed(datafeedConfig1)
@@ -158,7 +158,7 @@ public class StartDatafeedActionTests extends ESTestCase {
         Map<Long, PersistentTask<?>> taskMap = new HashMap<>();
         taskMap.put(0L, jobTask);
         taskMap.put(1L, datafeedTask);
-        PersistentTasks tasks = new PersistentTasks(2L, taskMap);
+        PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(2L, taskMap);
 
         Exception e = expectThrows(ElasticsearchStatusException.class,
                 () -> StartDatafeedAction.validate("datafeed_id", mlMetadata1, tasks, nodes));
@@ -186,7 +186,7 @@ public class StartDatafeedActionTests extends ESTestCase {
         Map<Long, PersistentTask<?>> taskMap = new HashMap<>();
         taskMap.put(0L, jobTask);
         taskMap.put(1L, datafeedTask);
-        PersistentTasks tasks = new PersistentTasks(2L, taskMap);
+        PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(2L, taskMap);
         StartDatafeedAction.validate("datafeed_id", mlMetadata1, tasks, nodes);
 
         datafeedTask = new PersistentTask<>(0L, StartDatafeedAction.NAME, new StartDatafeedAction.Request("datafeed_id", 0L),

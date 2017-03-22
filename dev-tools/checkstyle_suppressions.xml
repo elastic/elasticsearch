@@ -376,16 +376,17 @@
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]CompletionPersistentTaskAction.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]CreatePersistentTaskAction.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]NodePersistentTask.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentActionCoordinator.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentActionExecutor.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentActionRegistry.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentActionRequest.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentActionService.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentTaskClusterService.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentTasks.java" checks="LineLength" />
+  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]NodePersistentTasksExecutor.java" checks="LineLength" />
+  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentTaskRequest.java" checks="LineLength" />
+  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentTaskResponse.java" checks="LineLength" />
+  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentTasksClusterService.java" checks="LineLength" />
+  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentTasksCustomMetaData.java" checks="LineLength" />
+  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentTasksExecutor.java" checks="LineLength" />
+  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentTasksExecutorRegistry.java" checks="LineLength" />
+  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentTasksNodeService.java" checks="LineLength" />
+  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentTasksService.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]RemovePersistentTaskAction.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]StartPersistentTaskAction.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]TransportPersistentAction.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]UpdatePersistentTaskStatusAction.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]package-info.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]rest[/\\]XPackRestHandler.java" checks="LineLength" />
@@ -1089,16 +1090,15 @@
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]notification[/\\]slack[/\\]SlackAccountsTests.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]notification[/\\]slack[/\\]message[/\\]SlackMessageDefaultsTests.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]notification[/\\]slack[/\\]message[/\\]SlackMessageTests.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentActionCoordinatorStatusTests.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentActionCoordinatorTests.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentActionFullRestartIT.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentActionIT.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentActionRegistryTests.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentActionResponseTests.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentTaskClusterServiceTests.java" checks="LineLength" />
+  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentTasksClusterServiceTests.java" checks="LineLength" />
+  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentTasksCustomMetaDataTests.java" checks="LineLength" />
+  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentTasksExecutorFullRestartIT.java" checks="LineLength" />
+  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentTasksExecutorIT.java" checks="LineLength" />
+  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentTasksExecutorResponseTests.java" checks="LineLength" />
+  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentTasksNodeServiceTests.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]PersistentTasksTests.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]StartPersistentActionRequestTests.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]TestPersistentActionPlugin.java" checks="LineLength" />
+  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]TestPersistentTasksPlugin.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]InternalClientIntegTests.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]InternalClientTests.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]SecurityContextTests.java" checks="LineLength" />

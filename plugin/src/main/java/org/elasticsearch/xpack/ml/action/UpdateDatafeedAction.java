@@ -32,7 +32,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.ml.MlMetadata;
-import org.elasticsearch.xpack.persistent.PersistentTasks;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -161,8 +161,8 @@ public class UpdateDatafeedAction extends Action<UpdateDatafeedAction.Request, P
                         public ClusterState execute(ClusterState currentState) throws Exception {
                             DatafeedUpdate update = request.getUpdate();
                             MlMetadata currentMetadata = state.getMetaData().custom(MlMetadata.TYPE);
-                            PersistentTasks persistentTasks =
-                                    state.getMetaData().custom(PersistentTasks.TYPE);
+                            PersistentTasksCustomMetaData persistentTasks =
+                                    state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
                             MlMetadata newMetadata = new MlMetadata.Builder(currentMetadata)
                                     .updateDatafeed(update, persistentTasks).build();
                             updatedDatafeed = newMetadata.getDatafeed(update.getId());

@@ -16,7 +16,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.JobState;
-import org.elasticsearch.xpack.persistent.PersistentTasks;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -66,7 +66,7 @@ public class JobStateObserver {
                         handler.accept(null);
                     }
                 } else {
-                    PersistentTasks tasks = state.getMetaData().custom(PersistentTasks.TYPE);
+                    PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
                     JobState actual = MlMetadata.getJobState(jobId, tasks);
                     Exception e = new IllegalArgumentException("Timeout expired while waiting for job state [" + actual +
                             "] to change to [" + expectedState + "]");
@@ -90,7 +90,7 @@ public class JobStateObserver {
 
         @Override
         public boolean test(ClusterState newState) {
-            PersistentTasks tasks = newState.getMetaData().custom(PersistentTasks.TYPE);
+            PersistentTasksCustomMetaData tasks = newState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             JobState jobState = MlMetadata.getJobState(jobId, tasks);
             if (jobState == JobState.FAILED) {
                 failed = true;

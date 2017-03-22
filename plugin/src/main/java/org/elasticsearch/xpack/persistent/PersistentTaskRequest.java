@@ -12,9 +12,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 /**
- * Base class for a request for a persistent action
+ * Base class for a request for a persistent task
  */
-public abstract class PersistentActionRequest extends ActionRequest implements NamedWriteable, ToXContent {
+public abstract class PersistentTaskRequest extends ActionRequest implements NamedWriteable, ToXContent {
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId) {
         return new NodePersistentTask(id, type, action, getDescription(), parentTaskId);

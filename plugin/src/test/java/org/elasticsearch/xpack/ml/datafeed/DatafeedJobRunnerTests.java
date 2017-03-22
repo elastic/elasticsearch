@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,10 +40,10 @@ import org.elasticsearch.xpack.ml.job.persistence.MockClientBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.persistent.PersistentTasks;
-import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
-import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
-import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction.Response;
+import org.elasticsearch.xpack.persistent.PersistentTasksService;
+import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -84,6 +83,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
     private DatafeedJobRunner datafeedJobRunner;
     private long currentTime = 120000;
     private Auditor auditor;
+    private PersistentTasksService persistentTasksService;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -93,14 +93,14 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         mlMetadata.putJob(job, false);
         mlMetadata.putDatafeed(createDatafeedConfig("datafeed_id", job.getId()).build());
         PersistentTask<OpenJobAction.Request> task = createJobTask(0L, job.getId(), "node_id", JobState.OPENED);
-        PersistentTasks tasks = new PersistentTasks(1L, Collections.singletonMap(0L, task));
+        PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(0L, task));
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("node_name", "node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                         Collections.emptyMap(), Collections.emptySet(), Version.CURRENT))
                 .build();
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("cluster_name"))
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlMetadata.build())
-                        .putCustom(PersistentTasks.TYPE, tasks))
+                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasks))
                 .nodes(nodes);
 
         clusterService = mock(ClusterService.class);
@@ -140,7 +140,9 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         when(client.execute(same(PostDataAction.INSTANCE), any())).thenReturn(jobDataFuture);
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
 
-        datafeedJobRunner = new DatafeedJobRunner(threadPool, client, clusterService, jobProvider, () -> currentTime, auditor) {
+        persistentTasksService = mock(PersistentTasksService.class);
+        datafeedJobRunner = new DatafeedJobRunner(threadPool, client, clusterService, jobProvider, () -> currentTime,
+                persistentTasksService, auditor) {
             @Override
             DataExtractorFactory createDataExtractorFactory(DatafeedConfig datafeedConfig, Job job) {
                 return dataExtractorFactory;
@@ -153,13 +155,12 @@ public class DatafeedJobRunnerTests extends ESTestCase {
             consumer.accept(new ResourceNotFoundException("dummy"));
             return null;
         }).when(jobProvider).bucketsViaInternalClient(any(), any(), any(), any());
-
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
-            ActionListener<Response> listener = (ActionListener<Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(new Response(true));
+            PersistentTaskOperationListener listener = (PersistentTaskOperationListener) invocationOnMock.getArguments()[2];
+            listener.onResponse(0L);
             return null;
-        }).when(client).execute(same(UpdatePersistentTaskStatusAction.INSTANCE), any(), any());
+        }).when(persistentTasksService).updateStatus(anyLong(), any(), any());
     }
 
     public void testLookbackOnly_WarnsWhenNoDataIsRetrieved() throws Exception {

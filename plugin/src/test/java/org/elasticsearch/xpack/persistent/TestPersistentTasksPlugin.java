@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.persistent;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.FailedNodeException;
@@ -49,7 +48,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.persistent.PersistentTasks.Assignment;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -72,12 +71,11 @@ import static org.junit.Assert.fail;
 /**
  * A plugin that adds a test persistent task.
  */
-public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
+public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
-                new ActionHandler<>(TestPersistentAction.INSTANCE, TransportTestPersistentAction.class),
                 new ActionHandler<>(TestTaskAction.INSTANCE, TransportTestTaskAction.class),
                 new ActionHandler<>(CreatePersistentTaskAction.INSTANCE, CreatePersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class),
@@ -91,24 +89,28 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry) {
-
-        PersistentActionService persistentActionService = new PersistentActionService(Settings.EMPTY, threadPool, clusterService, client);
-        PersistentActionRegistry persistentActionRegistry = new PersistentActionRegistry(Settings.EMPTY);
+        PersistentTasksService persistentTasksService = new PersistentTasksService(Settings.EMPTY, clusterService, client);
+        TestPersistentTasksExecutor testPersistentAction = new TestPersistentTasksExecutor(Settings.EMPTY, persistentTasksService,
+                clusterService);
+        PersistentTasksExecutorRegistry persistentTasksExecutorRegistry = new PersistentTasksExecutorRegistry(Settings.EMPTY,
+                Collections.singletonList(testPersistentAction));
         return Arrays.asList(
-                persistentActionService,
-                persistentActionRegistry,
-                new PersistentTaskClusterService(Settings.EMPTY, persistentActionRegistry, clusterService)
+                persistentTasksService,
+                persistentTasksExecutorRegistry,
+                new PersistentTasksClusterService(Settings.EMPTY, persistentTasksExecutorRegistry, clusterService)
         );
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
-                new NamedWriteableRegistry.Entry(PersistentActionRequest.class, TestPersistentAction.NAME, TestRequest::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskRequest.class, TestPersistentTasksExecutor.NAME, TestRequest::new),
                 new NamedWriteableRegistry.Entry(Task.Status.class,
-                        PersistentActionCoordinator.Status.NAME, PersistentActionCoordinator.Status::new),
-                new NamedWriteableRegistry.Entry(MetaData.Custom.class, PersistentTasks.TYPE, PersistentTasks::new),
-                new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasks.TYPE, PersistentTasks::readDiffFrom),
+                        PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new),
+                new NamedWriteableRegistry.Entry(MetaData.Custom.class, PersistentTasksCustomMetaData.TYPE,
+                        PersistentTasksCustomMetaData::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasksCustomMetaData.TYPE,
+                        PersistentTasksCustomMetaData::readDiffFrom),
                 new NamedWriteableRegistry.Entry(Task.Status.class, Status.NAME, Status::new)
         );
     }
@@ -116,18 +118,18 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return Arrays.asList(
-                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(PersistentTasks.TYPE),
-                        PersistentTasks::fromXContent),
-                new NamedXContentRegistry.Entry(PersistentActionRequest.class, new ParseField(TestPersistentAction.NAME),
+                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(PersistentTasksCustomMetaData.TYPE),
+                        PersistentTasksCustomMetaData::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskRequest.class, new ParseField(TestPersistentTasksExecutor.NAME),
                         TestRequest::fromXContent),
                 new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(Status.NAME), Status::fromXContent)
         );
     }
 
-    public static class TestRequest extends PersistentActionRequest {
+    public static class TestRequest extends PersistentTaskRequest {
 
         public static final ConstructingObjectParser<TestRequest, Void> REQUEST_PARSER =
-                new ConstructingObjectParser<>(TestPersistentAction.NAME, args -> new TestRequest((String) args[0]));
+                new ConstructingObjectParser<>(TestPersistentTasksExecutor.NAME, args -> new TestRequest((String) args[0]));
 
         static {
             REQUEST_PARSER.declareString(constructorArg(), new ParseField("param"));
@@ -158,7 +160,7 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
 
         @Override
         public String getWriteableName() {
-            return TestPersistentAction.NAME;
+            return TestPersistentTasksExecutor.NAME;
         }
 
         public void setExecutorNodeAttr(String executorNodeAttr) {
@@ -226,53 +228,13 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
         }
     }
 
-    public static class TestPersistentTaskRequestBuilder extends
-            ActionRequestBuilder<TestRequest, PersistentActionResponse, TestPersistentTaskRequestBuilder> {
-
-        protected TestPersistentTaskRequestBuilder(ElasticsearchClient client, Action<TestRequest, PersistentActionResponse,
-                TestPersistentTaskRequestBuilder> action, TestRequest request) {
-            super(client, action, request);
-        }
-
-        public TestPersistentTaskRequestBuilder testParam(String testParam) {
-            request.setTestParam(testParam);
-            return this;
-        }
-
-        public TestPersistentTaskRequestBuilder executorNodeAttr(String targetNode) {
-            request.setExecutorNodeAttr(targetNode);
-            return this;
-        }
-
-    }
-
-    public static class TestPersistentAction extends Action<TestRequest, PersistentActionResponse, TestPersistentTaskRequestBuilder> {
-
-        public static final TestPersistentAction INSTANCE = new TestPersistentAction();
-        public static final String NAME = "cluster:admin/persistent/test";
-
-        private TestPersistentAction() {
-            super(NAME);
-        }
-
-        @Override
-        public PersistentActionResponse newResponse() {
-            return new PersistentActionResponse();
-        }
-
-        @Override
-        public TestPersistentTaskRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-            return new TestPersistentTaskRequestBuilder(client, this, new TestRequest());
-        }
-    }
-
     public static class Status implements Task.Status {
         public static final String NAME = "test";
 
         private final String phase;
 
         public static final ConstructingObjectParser<Status, Void> STATUS_PARSER =
-                new ConstructingObjectParser<>(TestPersistentAction.NAME, args -> new Status((String) args[0]));
+                new ConstructingObjectParser<>(TestPersistentTasksExecutor.NAME, args -> new Status((String) args[0]));
 
         static {
             STATUS_PARSER.declareString(constructorArg(), new ParseField("phase"));
@@ -336,19 +298,15 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
     }
 
 
-    public static class TransportTestPersistentAction extends TransportPersistentAction<TestRequest> {
+    public static class TestPersistentTasksExecutor extends PersistentTasksExecutor<TestRequest> {
 
-        private final TransportService transportService;
+        public static final String NAME = "cluster:admin/persistent/test";
+        private final ClusterService clusterService;
 
-        @Inject
-        public TransportTestPersistentAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                             PersistentActionService persistentActionService,
-                                             PersistentActionRegistry persistentActionRegistry, ActionFilters actionFilters,
-                                             IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(settings, TestPersistentAction.NAME, false, threadPool, transportService, persistentActionService,
-                    persistentActionRegistry, actionFilters, indexNameExpressionResolver, TestRequest::new,
-                    ThreadPool.Names.GENERIC);
-            this.transportService = transportService;
+        public TestPersistentTasksExecutor(Settings settings, PersistentTasksService persistentTasksService,
+                                           ClusterService clusterService) {
+            super(settings, NAME, persistentTasksService, ThreadPool.Names.GENERIC);
+            this.clusterService = clusterService;
         }
 
         @Override
@@ -377,9 +335,9 @@ public class TestPersistentActionPlugin extends Plugin implements ActionPlugin {
                     // wait for something to happen
                     assertTrue(awaitBusy(() -> testTask.isCancelled() ||
                                     testTask.getOperation() != null ||
-                                    transportService.lifecycleState() != Lifecycle.State.STARTED,   // speedup finishing on closed nodes
+                                    clusterService.lifecycleState() != Lifecycle.State.STARTED,   // speedup finishing on closed nodes
                             30, TimeUnit.SECONDS)); // This can take a while during large cluster restart
-                    if (transportService.lifecycleState() != Lifecycle.State.STARTED) {
+                    if (clusterService.lifecycleState() != Lifecycle.State.STARTED) {
                         return;
                     }
                     if ("finish".equals(testTask.getOperation())) {

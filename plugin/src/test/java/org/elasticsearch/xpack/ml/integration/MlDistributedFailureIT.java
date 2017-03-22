@@ -24,8 +24,8 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
-import org.elasticsearch.xpack.persistent.PersistentTasks;
-import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
@@ -125,7 +125,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         disrupt.run();
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            PersistentTasks tasks = clusterState.metaData().custom(PersistentTasks.TYPE);
+            PersistentTasksCustomMetaData tasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
             assertNotNull(tasks);
             assertEquals(2, tasks.taskMap().size());
             for (PersistentTask<?> task : tasks.tasks()) {

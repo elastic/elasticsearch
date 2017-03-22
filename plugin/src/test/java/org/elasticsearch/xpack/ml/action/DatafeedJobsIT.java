@@ -24,10 +24,9 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.persistent.PersistentActionCoordinator;
-import org.elasticsearch.xpack.persistent.PersistentActionRequest;
-import org.elasticsearch.xpack.persistent.PersistentActionResponse;
-import org.elasticsearch.xpack.persistent.PersistentTasks;
+import org.elasticsearch.xpack.persistent.PersistentTasksNodeService;
+import org.elasticsearch.xpack.persistent.PersistentTaskRequest;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.security.Security;
 import org.junit.After;
 
@@ -70,12 +69,13 @@ public class DatafeedJobsIT extends SecurityIntegTestCase {
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedWriteables());
             entries.addAll(new SearchModule(Settings.EMPTY, true, Collections.emptyList()).getNamedWriteables());
             entries.add(new NamedWriteableRegistry.Entry(MetaData.Custom.class, "ml", MlMetadata::new));
-            entries.add(new NamedWriteableRegistry.Entry(MetaData.Custom.class, PersistentTasks.TYPE, PersistentTasks::new));
-            entries.add(new NamedWriteableRegistry.Entry(PersistentActionRequest.class, StartDatafeedAction.NAME,
+            entries.add(new NamedWriteableRegistry.Entry(MetaData.Custom.class, PersistentTasksCustomMetaData.TYPE,
+                    PersistentTasksCustomMetaData::new));
+            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskRequest.class, StartDatafeedAction.NAME,
                     StartDatafeedAction.Request::new));
-            entries.add(new NamedWriteableRegistry.Entry(PersistentActionRequest.class, OpenJobAction.NAME, OpenJobAction.Request::new));
-            entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, PersistentActionCoordinator.Status.NAME,
-                    PersistentActionCoordinator.Status::new));
+            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskRequest.class, OpenJobAction.NAME, OpenJobAction.Request::new));
+            entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME,
+                    PersistentTasksNodeService.Status::new));
             entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, JobState.NAME, JobState::fromStream));
             entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, DatafeedState.NAME, DatafeedState::fromStream));
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
@@ -187,8 +187,7 @@ public class DatafeedJobsIT extends SecurityIntegTestCase {
         assertTrue(putDatafeedResponse.isAcknowledged());
 
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(datafeedConfig.getId(), 0L);
-        PersistentActionResponse startDatafeedResponse =
-                client().execute(StartDatafeedAction.INSTANCE, startDatafeedRequest).get();
+        StartDatafeedAction.Response startDatafeedResponse = client().execute(StartDatafeedAction.INSTANCE, startDatafeedRequest).get();
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
             assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs1));

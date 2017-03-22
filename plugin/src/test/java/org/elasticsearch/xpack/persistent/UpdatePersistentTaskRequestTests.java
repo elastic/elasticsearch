@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.persistent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.persistent.TestPersistentActionPlugin.Status;
+import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.Status;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction.Request;
 
 import java.util.Collections;

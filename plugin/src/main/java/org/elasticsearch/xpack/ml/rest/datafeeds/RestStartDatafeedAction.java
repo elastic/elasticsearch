@@ -20,7 +20,6 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.persistent.PersistentActionResponse;
 
 import java.io.IOException;
 
@@ -55,12 +54,12 @@ public class RestStartDatafeedAction extends BaseRestHandler {
         }
         return channel -> {
             client.execute(StartDatafeedAction.INSTANCE, jobDatafeedRequest,
-                    new RestBuilderListener<PersistentActionResponse>(channel) {
+                    new RestBuilderListener<StartDatafeedAction.Response>(channel) {
 
                         @Override
-                        public RestResponse buildResponse(PersistentActionResponse r, XContentBuilder builder) throws Exception {
+                        public RestResponse buildResponse(StartDatafeedAction.Response r, XContentBuilder builder) throws Exception {
                             builder.startObject();
-                            builder.field("started", true);
+                            builder.field("started", r.isAcknowledged());
                             builder.endObject();
                             return new BytesRestResponse(RestStatus.OK, builder);
                         }

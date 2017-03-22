@@ -105,6 +105,36 @@ public class CompletionPersistentTaskAction extends Action<CompletionPersistentT
     }
 
     public static class Response extends AcknowledgedResponse {
+        public Response() {
+            super();
+        }
+
+        public Response(boolean acknowledged) {
+            super(acknowledged);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            readAcknowledged(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            writeAcknowledged(out);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AcknowledgedResponse that = (AcknowledgedResponse) o;
+            return isAcknowledged() == that.isAcknowledged();
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(isAcknowledged());
+        }
 
     }
 
@@ -118,16 +148,16 @@ public class CompletionPersistentTaskAction extends Action<CompletionPersistentT
 
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
-        private final PersistentTaskClusterService persistentTaskClusterService;
+        private final PersistentTasksClusterService persistentTasksClusterService;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                ThreadPool threadPool, ActionFilters actionFilters,
-                               PersistentTaskClusterService persistentTaskClusterService,
+                               PersistentTasksClusterService persistentTasksClusterService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(settings, CompletionPersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
-            this.persistentTaskClusterService = persistentTaskClusterService;
+            this.persistentTasksClusterService = persistentTasksClusterService;
         }
 
         @Override
@@ -148,7 +178,7 @@ public class CompletionPersistentTaskAction extends Action<CompletionPersistentT
 
         @Override
         protected final void masterOperation(final Request request, ClusterState state, final ActionListener<Response> listener) {
-            persistentTaskClusterService.completeOrRestartPersistentTask(request.taskId, request.exception, new ActionListener<Empty>() {
+            persistentTasksClusterService.completeOrRestartPersistentTask(request.taskId, request.exception, new ActionListener<Empty>() {
                 @Override
                 public void onResponse(Empty empty) {
                     listener.onResponse(newResponse());

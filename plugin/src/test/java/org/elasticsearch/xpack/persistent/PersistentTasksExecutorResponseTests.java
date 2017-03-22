@@ -7,15 +7,15 @@ package org.elasticsearch.xpack.persistent;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
 
-public class PersistentActionResponseTests extends AbstractStreamableTestCase<PersistentActionResponse> {
+public class PersistentTasksExecutorResponseTests extends AbstractStreamableTestCase<PersistentTaskResponse> {
 
     @Override
-    protected PersistentActionResponse createTestInstance() {
-        return new PersistentActionResponse(randomLong());
+    protected PersistentTaskResponse createTestInstance() {
+        return new PersistentTaskResponse(randomLong());
     }
 
     @Override
-    protected PersistentActionResponse createBlankInstance() {
-        return new PersistentActionResponse();
+    protected PersistentTaskResponse createBlankInstance() {
+        return new PersistentTaskResponse();
     }
 }

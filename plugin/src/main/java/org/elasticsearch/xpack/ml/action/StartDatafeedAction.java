@@ -14,6 +14,8 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -55,21 +57,20 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.NodePersistentTask;
-import org.elasticsearch.xpack.persistent.PersistentActionRegistry;
-import org.elasticsearch.xpack.persistent.PersistentActionRequest;
-import org.elasticsearch.xpack.persistent.PersistentActionResponse;
-import org.elasticsearch.xpack.persistent.PersistentActionService;
-import org.elasticsearch.xpack.persistent.PersistentTasks;
-import org.elasticsearch.xpack.persistent.PersistentTasks.Assignment;
-import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
-import org.elasticsearch.xpack.persistent.TransportPersistentAction;
+import org.elasticsearch.xpack.persistent.PersistentTaskRequest;
+import org.elasticsearch.xpack.persistent.PersistentTasksService;
+import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
 public class StartDatafeedAction
-        extends Action<StartDatafeedAction.Request, PersistentActionResponse, StartDatafeedAction.RequestBuilder> {
+        extends Action<StartDatafeedAction.Request, StartDatafeedAction.Response, StartDatafeedAction.RequestBuilder> {
 
     public static final ParseField START_TIME = new ParseField("start");
     public static final ParseField END_TIME = new ParseField("end");
@@ -88,11 +89,11 @@ public class StartDatafeedAction
     }
 
     @Override
-    public PersistentActionResponse newResponse() {
-        return new PersistentActionResponse();
+    public Response newResponse() {
+        return new Response();
     }
 
-    public static class Request extends PersistentActionRequest implements ToXContent {
+    public static class Request extends PersistentTaskRequest implements ToXContent {
 
         public static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -250,7 +251,41 @@ public class StartDatafeedAction
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, PersistentActionResponse, RequestBuilder> {
+    public static class Response extends AcknowledgedResponse {
+        public Response() {
+            super();
+        }
+
+        public Response(boolean acknowledged) {
+            super(acknowledged);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            readAcknowledged(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            writeAcknowledged(out);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AcknowledgedResponse that = (AcknowledgedResponse) o;
+            return isAcknowledged() == that.isAcknowledged();
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(isAcknowledged());
+        }
+
+    }
+
+    static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
         RequestBuilder(ElasticsearchClient client, StartDatafeedAction action) {
             super(client, action, new Request());
@@ -303,47 +338,67 @@ public class StartDatafeedAction
         }
     }
 
-    public static class TransportAction extends TransportPersistentAction<Request> {
+    public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         private final DatafeedStateObserver observer;
-        private final DatafeedJobRunner datafeedJobRunner;
         private final XPackLicenseState licenseState;
-        private final Auditor auditor;
+        private final PersistentTasksService persistentTasksService;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, XPackLicenseState licenseState,
-                               PersistentActionService persistentActionService, PersistentActionRegistry persistentActionRegistry,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ClusterService clusterService, DatafeedJobRunner datafeedJobRunner, Auditor auditor) {
-            super(settings, NAME, false, threadPool, transportService, persistentActionService, persistentActionRegistry,
-                    actionFilters, indexNameExpressionResolver, Request::new, ThreadPool.Names.MANAGEMENT);
+                               PersistentTasksService persistentTasksService, ActionFilters actionFilters,
+                               IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService) {
+            super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.licenseState = licenseState;
-            this.datafeedJobRunner = datafeedJobRunner;
-            this.auditor = auditor;
+            this.persistentTasksService = persistentTasksService;
             this.observer = new DatafeedStateObserver(threadPool, clusterService);
         }
 
         @Override
-        protected void doExecute(Request request, ActionListener<PersistentActionResponse> listener) {
+        protected void doExecute(Request request, ActionListener<Response> listener) {
             if (licenseState.isMachineLearningAllowed()) {
-                ActionListener<PersistentActionResponse> finalListener = ActionListener
-                        .wrap(response -> waitForDatafeedStarted(request, response, listener), listener::onFailure);
-                super.doExecute(request, finalListener);
+                PersistentTaskOperationListener finalListener = new PersistentTaskOperationListener() {
+                    @Override
+                    public void onResponse(long taskId) {
+                        waitForDatafeedStarted(request, listener);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+                };
+                persistentTasksService.createPersistentActionTask(NAME, request, finalListener);
             } else {
                 listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING));
             }
         }
 
-        void waitForDatafeedStarted(Request request,
-                                    PersistentActionResponse response,
-                                    ActionListener<PersistentActionResponse> listener) {
+        void waitForDatafeedStarted(Request request, ActionListener<Response> listener) {
             observer.waitForState(request.getDatafeedId(), request.timeout, DatafeedState.STARTED, e -> {
                 if (e != null) {
                     listener.onFailure(e);
                 } else {
-                    listener.onResponse(response);
+                    listener.onResponse(new Response(true));
                 }
             });
+        }
+    }
+
+    public static class StartDatafeedPersistentTasksExecutor extends PersistentTasksExecutor<Request> {
+        private final DatafeedJobRunner datafeedJobRunner;
+        private final XPackLicenseState licenseState;
+        private final Auditor auditor;
+        private final ThreadPool threadPool;
+
+        public StartDatafeedPersistentTasksExecutor(Settings settings, ThreadPool threadPool, XPackLicenseState licenseState,
+                                                    PersistentTasksService persistentTasksService, DatafeedJobRunner datafeedJobRunner,
+                                                    Auditor auditor) {
+            super(settings, NAME, persistentTasksService, ThreadPool.Names.MANAGEMENT);
+            this.licenseState = licenseState;
+            this.datafeedJobRunner = datafeedJobRunner;
+            this.auditor = auditor;
+            this.threadPool = threadPool;
         }
 
         @Override
@@ -355,10 +410,14 @@ public class StartDatafeedAction
 
         @Override
         public void validate(Request request, ClusterState clusterState) {
-            MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
-            PersistentTasks tasks = clusterState.getMetaData().custom(PersistentTasks.TYPE);
-            DiscoveryNodes nodes = clusterState.getNodes();
-            StartDatafeedAction.validate(request.getDatafeedId(), mlMetadata, tasks, nodes);
+            if (licenseState.isMachineLearningAllowed()) {
+                MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
+                PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                DiscoveryNodes nodes = clusterState.getNodes();
+                StartDatafeedAction.validate(request.getDatafeedId(), mlMetadata, tasks, nodes);
+            } else {
+                throw LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING);
+            }
         }
 
         @Override
@@ -403,7 +462,7 @@ public class StartDatafeedAction
 
     }
 
-    static void validate(String datafeedId, MlMetadata mlMetadata, PersistentTasks tasks, DiscoveryNodes nodes) {
+    static void validate(String datafeedId, MlMetadata mlMetadata, PersistentTasksCustomMetaData tasks, DiscoveryNodes nodes) {
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         if (datafeed == null) {
             throw ExceptionsHelper.missingDatafeedException(datafeedId);
@@ -441,7 +500,7 @@ public class StartDatafeedAction
 
     public static Assignment selectNode(Logger logger, String datafeedId, ClusterState clusterState) {
         MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
-        PersistentTasks tasks = clusterState.getMetaData().custom(PersistentTasks.TYPE);
+        PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         DiscoveryNodes nodes = clusterState.getNodes();
 

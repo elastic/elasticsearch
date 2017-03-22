@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
@@ -41,7 +40,8 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ScoresUpdater;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ShortCircuitingRenormalizer;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
+import org.elasticsearch.xpack.persistent.PersistentTasksService;
+import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -74,6 +74,7 @@ public class AutodetectProcessManager extends AbstractComponent {
 
     private final JobResultsPersister jobResultsPersister;
     private final JobDataCountsPersister jobDataCountsPersister;
+    private final PersistentTasksService persistentTasksService;
 
     private final ConcurrentMap<String, AutodetectCommunicator> autoDetectCommunicatorByJob;
 
@@ -82,7 +83,8 @@ public class AutodetectProcessManager extends AbstractComponent {
     public AutodetectProcessManager(Settings settings, Client client, ThreadPool threadPool, JobManager jobManager,
                                     JobProvider jobProvider, JobResultsPersister jobResultsPersister,
                                     JobDataCountsPersister jobDataCountsPersister,
-                                    AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory) {
+                                    AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
+                                    PersistentTasksService persistentTasksService) {
         super(settings);
         this.client = client;
         this.threadPool = threadPool;
@@ -94,6 +96,7 @@ public class AutodetectProcessManager extends AbstractComponent {
 
         this.jobResultsPersister = jobResultsPersister;
         this.jobDataCountsPersister = jobDataCountsPersister;
+        this.persistentTasksService = persistentTasksService;
 
         this.autoDetectCommunicatorByJob = new ConcurrentHashMap<>();
     }
@@ -113,18 +116,18 @@ public class AutodetectProcessManager extends AbstractComponent {
      * Passes data to the native process.
      * This is a blocking call that won't return until all the data has been
      * written to the process.
-     *
+     * <p>
      * An ElasticsearchStatusException will be thrown is any of these error conditions occur:
      * <ol>
-     *     <li>If a configured field is missing from the CSV header</li>
-     *     <li>If JSON data is malformed and we cannot recover parsing</li>
-     *     <li>If a high proportion of the records the timestamp field that cannot be parsed</li>
-     *     <li>If a high proportion of the records chronologically out of order</li>
+     * <li>If a configured field is missing from the CSV header</li>
+     * <li>If JSON data is malformed and we cannot recover parsing</li>
+     * <li>If a high proportion of the records the timestamp field that cannot be parsed</li>
+     * <li>If a high proportion of the records chronologically out of order</li>
      * </ol>
      *
-     * @param jobId     the jobId
-     * @param input     Data input stream
-     * @param params    Data processing parameters
+     * @param jobId  the jobId
+     * @param input  Data input stream
+     * @param params Data processing parameters
      * @return Count of records, fields, bytes, etc written
      */
     public DataCounts processData(String jobId, InputStream input, DataLoadParams params) {
@@ -152,9 +155,9 @@ public class AutodetectProcessManager extends AbstractComponent {
      * opportunity to process all data previously sent to it with none left
      * sitting in buffers.
      *
-     * @param jobId The job to flush
+     * @param jobId  The job to flush
      * @param params Parameters about whether interim results calculation
-     * should occur and for which period of time
+     *               should occur and for which period of time
      */
     public void flushJob(String jobId, InterimResultsParams params) {
         logger.debug("Flushing job {}", jobId);
@@ -278,9 +281,10 @@ public class AutodetectProcessManager extends AbstractComponent {
 
     /**
      * Stop the running job and mark it as finished.<br>
-     * @param jobId         The job to stop
-     * @param restart       Whether the job should be restarted by persistent tasks
-     * @param reason        The reason for closing the job
+     *
+     * @param jobId   The job to stop
+     * @param restart Whether the job should be restarted by persistent tasks
+     * @param reason  The reason for closing the job
      */
     public void closeJob(String jobId, boolean restart, String reason) {
         logger.debug("Attempting to close job [{}], because [{}]", jobId, reason);
@@ -321,34 +325,39 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     private void setJobState(long taskId, String jobId, JobState state) {
-        UpdatePersistentTaskStatusAction.Request request = new UpdatePersistentTaskStatusAction.Request(taskId, state);
-        client.execute(UpdatePersistentTaskStatusAction.INSTANCE, request, new ActionListener<UpdatePersistentTaskStatusAction.Response>() {
+        persistentTasksService.updateStatus(taskId, state, new PersistentTaskOperationListener() {
             @Override
-            public void onResponse(UpdatePersistentTaskStatusAction.Response response) {
-                if (response.isAcknowledged()) {
-                    logger.info("Successfully set job state to [{}] for job [{}]", state, jobId);
-                } else {
-                    logger.info("Changing job state to [{}] for job [{}] wasn't acked", state, jobId);
-                }
+            public void onResponse(long taskId) {
+                logger.info("Successfully set job state to [{}] for job [{}]", state, jobId);
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("Could not set job state to [" + state + "] for job [" + jobId +"]", e);
+                logger.error("Could not set job state to [" + state + "] for job [" + jobId + "]", e);
             }
         });
     }
 
     public void setJobState(long taskId, JobState state, CheckedConsumer<Exception, IOException> handler) {
-        UpdatePersistentTaskStatusAction.Request request = new UpdatePersistentTaskStatusAction.Request(taskId, state);
-        client.execute(UpdatePersistentTaskStatusAction.INSTANCE, request,
-                ActionListener.wrap(r -> handler.accept(null), e -> {
-                    try {
-                        handler.accept(e);
-                    } catch (IOException e1) {
-                        logger.warn("Error while delagating exception [" + e.getMessage() + "]", e1);
+        persistentTasksService.updateStatus(taskId, state, new PersistentTaskOperationListener() {
+                    @Override
+                    public void onResponse(long taskId) {
+                        try {
+                            handler.accept(null);
+                        } catch (IOException e1) {
+                            logger.warn("Error while delegating response", e1);
+                        }
                     }
-                }));
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        try {
+                            handler.accept(e);
+                        } catch (IOException e1) {
+                            logger.warn("Error while delegating exception [" + e.getMessage() + "]", e1);
+                        }
+                    }
+                });
     }
 
     public Optional<Tuple<DataCounts, ModelSizeStats>> getStatistics(String jobId) {

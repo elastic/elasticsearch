@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
-import org.elasticsearch.xpack.persistent.PersistentTasks;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
 public class TooManyJobsIT extends BaseMlIntegTestCase {
 
@@ -49,10 +49,10 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                 client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request("2")).actionGet();
         assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.CLOSED);
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        PersistentTasks tasks = state.getMetaData().custom(PersistentTasks.TYPE);
+        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         assertEquals(1, tasks.taskMap().size());
         // now just double check that the first job is still opened:
-        PersistentTasks.PersistentTask task = tasks.taskMap().values().iterator().next();
+        PersistentTasksCustomMetaData.PersistentTask task = tasks.taskMap().values().iterator().next();
         assertEquals(JobState.OPENED, task.getStatus());
         OpenJobAction.Request openJobRequest = (OpenJobAction.Request) task.getRequest();
         assertEquals("1", openJobRequest.getJobId());

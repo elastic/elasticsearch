@@ -9,7 +9,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.Nullable;
@@ -19,12 +18,15 @@ import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse.Empty;
-import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
+import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -37,33 +39,35 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.Objects.requireNonNull;
 
 /**
- * This component is responsible for coordination of execution of persistent actions on individual nodes. It runs on all
+ * This component is responsible for coordination of execution of persistent tasks on individual nodes. It runs on all
  * non-transport client nodes in the cluster and monitors cluster state changes to detect started commands.
  */
-public class PersistentActionCoordinator extends AbstractComponent implements ClusterStateListener {
+public class PersistentTasksNodeService extends AbstractComponent implements ClusterStateListener {
     private final Map<PersistentTaskId, RunningPersistentTask> runningTasks = new HashMap<>();
-    private final PersistentActionService persistentActionService;
-    private final PersistentActionRegistry persistentActionRegistry;
+    private final PersistentTasksService persistentTasksService;
+    private final PersistentTasksExecutorRegistry persistentTasksExecutorRegistry;
     private final TaskManager taskManager;
-    private final PersistentActionExecutor persistentActionExecutor;
+    private final ThreadPool threadPool;
+    private final NodePersistentTasksExecutor nodePersistentTasksExecutor;
 
 
-    public PersistentActionCoordinator(Settings settings,
-                                       PersistentActionService persistentActionService,
-                                       PersistentActionRegistry persistentActionRegistry,
-                                       TaskManager taskManager,
-                                       PersistentActionExecutor persistentActionExecutor) {
+    public PersistentTasksNodeService(Settings settings,
+                                      PersistentTasksService persistentTasksService,
+                                      PersistentTasksExecutorRegistry persistentTasksExecutorRegistry,
+                                      TaskManager taskManager, ThreadPool threadPool,
+                                      NodePersistentTasksExecutor nodePersistentTasksExecutor) {
         super(settings);
-        this.persistentActionService = persistentActionService;
-        this.persistentActionRegistry = persistentActionRegistry;
+        this.persistentTasksService = persistentTasksService;
+        this.persistentTasksExecutorRegistry = persistentTasksExecutorRegistry;
         this.taskManager = taskManager;
-        this.persistentActionExecutor = persistentActionExecutor;
+        this.threadPool = threadPool;
+        this.nodePersistentTasksExecutor = nodePersistentTasksExecutor;
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        PersistentTasks tasks = event.state().getMetaData().custom(PersistentTasks.TYPE);
-        PersistentTasks previousTasks = event.previousState().getMetaData().custom(PersistentTasks.TYPE);
+        PersistentTasksCustomMetaData tasks = event.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetaData previousTasks = event.previousState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
 
         if (Objects.equals(tasks, previousTasks) == false || event.nodesChanged()) {
             // We have some changes let's check if they are related to our node
@@ -111,10 +115,9 @@ public class PersistentActionCoordinator extends AbstractComponent implements Cl
 
     }
 
-    private <Request extends PersistentActionRequest> void startTask(PersistentTask<Request> taskInProgress) {
-        PersistentActionRegistry.PersistentActionHolder<Request> holder =
-                persistentActionRegistry.getPersistentActionHolderSafe(taskInProgress.getAction());
-        NodePersistentTask task = (NodePersistentTask) taskManager.register("persistent", taskInProgress.getAction() + "[c]",
+    private <Request extends PersistentTaskRequest> void startTask(PersistentTask<Request> taskInProgress) {
+        PersistentTasksExecutor<Request> action = persistentTasksExecutorRegistry.getPersistentTaskExecutorSafe(taskInProgress.getTaskName());
+        NodePersistentTask task = (NodePersistentTask) taskManager.register("persistent", taskInProgress.getTaskName() + "[c]",
                 taskInProgress.getRequest());
         boolean processed = false;
         try {
@@ -124,7 +127,7 @@ public class PersistentActionCoordinator extends AbstractComponent implements Cl
             PersistentTaskListener listener = new PersistentTaskListener(runningPersistentTask);
             try {
                 runningTasks.put(new PersistentTaskId(taskInProgress.getId(), taskInProgress.getAllocationId()), runningPersistentTask);
-                persistentActionExecutor.executeAction(taskInProgress.getRequest(), task, holder, listener);
+                nodePersistentTasksExecutor.executeTask(taskInProgress.getRequest(), task, action, listener);
             } catch (Exception e) {
                 // Submit task failure
                 listener.onFailure(e);
@@ -149,9 +152,11 @@ public class PersistentActionCoordinator extends AbstractComponent implements Cl
         RunningPersistentTask task = runningTasks.remove(persistentTaskId);
         if (task != null && task.getTask() != null) {
             if (task.markAsCancelled()) {
-                persistentActionService.sendCancellation(task.getTask().getId(), new ActionListener<CancelTasksResponse>() {
+                persistentTasksService.sendCancellation(task.getTask().getId(), new PersistentTaskOperationListener() {
                     @Override
-                    public void onResponse(CancelTasksResponse cancelTasksResponse) {
+                    public void onResponse(long taskId) {
+                        logger.trace("Persistent task with id {} was cancelled", taskId);
+
                     }
 
                     @Override
@@ -171,7 +176,24 @@ public class PersistentActionCoordinator extends AbstractComponent implements Cl
             taskManager.unregister(task.getTask());
         } else {
             if (task.restartCompletionNotification()) {
-                persistentActionService.sendCompletionNotification(task.getId(), task.getFailure(), new PublishedResponseListener(task));
+                // Need to fork otherwise: java.lang.AssertionError: should not be called by a cluster state applier.
+                // reason [the applied cluster state is not yet available])
+                PublishedResponseListener listener = new PublishedResponseListener(task);
+                try {
+                    threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+
+                        @Override
+                        protected void doRun() throws Exception {
+                            persistentTasksService.sendCompletionNotification(task.getId(), task.getFailure(), listener);
+                        }
+                    });
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
             } else {
                 logger.warn("attempt to resend notification for task {} in the {} state", task.getId(), task.getState());
             }
@@ -184,7 +206,7 @@ public class PersistentActionCoordinator extends AbstractComponent implements Cl
         } else {
             logger.trace("sending notification for failed task {}", task.getId());
             if (task.startNotification(e)) {
-                persistentActionService.sendCompletionNotification(task.getId(), e, new PublishedResponseListener(task));
+                persistentTasksService.sendCompletionNotification(task.getId(), e, new PublishedResponseListener(task));
             } else {
                 logger.warn("attempt to send notification for task {} in the {} state", task.getId(), task.getState());
             }
@@ -223,7 +245,7 @@ public class PersistentActionCoordinator extends AbstractComponent implements Cl
         }
     }
 
-    private class PublishedResponseListener implements ActionListener<CompletionPersistentTaskAction.Response> {
+    private class PublishedResponseListener implements PersistentTaskOperationListener {
         private final RunningPersistentTask task;
 
         PublishedResponseListener(final RunningPersistentTask task) {
@@ -232,7 +254,7 @@ public class PersistentActionCoordinator extends AbstractComponent implements Cl
 
 
         @Override
-        public void onResponse(CompletionPersistentTaskAction.Response response) {
+        public void onResponse(long taskId) {
             logger.trace("notification for task {} was successful", task.getId());
             if (task.markAsNotified() == false) {
                 logger.warn("attempt to mark task {} in the {} state as NOTIFIED", task.getId(), task.getState());

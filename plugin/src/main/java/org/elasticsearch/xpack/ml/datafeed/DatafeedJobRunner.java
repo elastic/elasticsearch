@@ -34,9 +34,10 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.persistent.PersistentTasksService;
+import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
-import org.elasticsearch.xpack.persistent.PersistentTasks.Assignment;
-import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -60,17 +61,19 @@ public class DatafeedJobRunner extends AbstractComponent {
     private final JobProvider jobProvider;
     private final ThreadPool threadPool;
     private final Supplier<Long> currentTimeSupplier;
+    private final PersistentTasksService persistentTasksService;
     private final Auditor auditor;
     private final ConcurrentMap<String, Holder> runningDatafeeds = new ConcurrentHashMap<>();
 
     public DatafeedJobRunner(ThreadPool threadPool, Client client, ClusterService clusterService, JobProvider jobProvider,
-                              Supplier<Long> currentTimeSupplier, Auditor auditor) {
+                             Supplier<Long> currentTimeSupplier, PersistentTasksService persistentTasksService, Auditor auditor) {
         super(Settings.EMPTY);
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.jobProvider = Objects.requireNonNull(jobProvider);
         this.threadPool = threadPool;
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
+        this.persistentTasksService = persistentTasksService;
         this.auditor = auditor;
     }
 
@@ -268,10 +271,17 @@ public class DatafeedJobRunner extends AbstractComponent {
     }
 
     private void updateDatafeedState(long persistentTaskId, DatafeedState datafeedState, Consumer<Exception> handler) {
-        UpdatePersistentTaskStatusAction.Request request = new UpdatePersistentTaskStatusAction.Request(persistentTaskId, datafeedState);
-        client.execute(UpdatePersistentTaskStatusAction.INSTANCE, request, ActionListener.wrap(r -> {
-            handler.accept(null);
-        }, handler));
+        persistentTasksService.updateStatus(persistentTaskId, datafeedState, new PersistentTaskOperationListener() {
+                    @Override
+                    public void onResponse(long taskId) {
+                        handler.accept(null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        handler.accept(e);
+                    }
+                });
     }
 
     private static Duration getFrequencyOrDefault(DatafeedConfig datafeed, Job job) {

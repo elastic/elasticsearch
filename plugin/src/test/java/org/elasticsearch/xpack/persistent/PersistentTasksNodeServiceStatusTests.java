@@ -7,12 +7,12 @@ package org.elasticsearch.xpack.persistent;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.persistent.PersistentActionCoordinator.State;
-import org.elasticsearch.xpack.persistent.PersistentActionCoordinator.Status;
+import org.elasticsearch.xpack.persistent.PersistentTasksNodeService.State;
+import org.elasticsearch.xpack.persistent.PersistentTasksNodeService.Status;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class PersistentActionCoordinatorStatusTests extends AbstractWireSerializingTestCase<Status> {
+public class PersistentTasksNodeServiceStatusTests extends AbstractWireSerializingTestCase<Status> {
 
     @Override
     protected Status createTestInstance() {

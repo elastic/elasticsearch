@@ -123,12 +123,12 @@ import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
 import org.elasticsearch.xpack.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.xpack.persistent.CreatePersistentTaskAction;
-import org.elasticsearch.xpack.persistent.PersistentActionCoordinator;
-import org.elasticsearch.xpack.persistent.PersistentActionRegistry;
-import org.elasticsearch.xpack.persistent.PersistentActionRequest;
-import org.elasticsearch.xpack.persistent.PersistentActionService;
-import org.elasticsearch.xpack.persistent.PersistentTaskClusterService;
-import org.elasticsearch.xpack.persistent.PersistentTasks;
+import org.elasticsearch.xpack.persistent.PersistentTasksClusterService;
+import org.elasticsearch.xpack.persistent.PersistentTasksNodeService;
+import org.elasticsearch.xpack.persistent.PersistentTasksExecutorRegistry;
+import org.elasticsearch.xpack.persistent.PersistentTaskRequest;
+import org.elasticsearch.xpack.persistent.PersistentTasksService;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
 import org.elasticsearch.xpack.persistent.StartPersistentTaskAction;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
@@ -208,16 +208,18 @@ public class MachineLearning implements ActionPlugin {
                 // Custom metadata
                 new NamedWriteableRegistry.Entry(MetaData.Custom.class, "ml", MlMetadata::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, "ml", MlMetadata.MlMetadataDiff::new),
-                new NamedWriteableRegistry.Entry(MetaData.Custom.class, PersistentTasks.TYPE, PersistentTasks::new),
-                new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasks.TYPE, PersistentTasks::readDiffFrom),
+                new NamedWriteableRegistry.Entry(MetaData.Custom.class, PersistentTasksCustomMetaData.TYPE,
+                        PersistentTasksCustomMetaData::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, PersistentTasksCustomMetaData.TYPE,
+                        PersistentTasksCustomMetaData::readDiffFrom),
 
                 // Persistent action requests
-                new NamedWriteableRegistry.Entry(PersistentActionRequest.class, StartDatafeedAction.NAME, StartDatafeedAction.Request::new),
-                new NamedWriteableRegistry.Entry(PersistentActionRequest.class, OpenJobAction.NAME, OpenJobAction.Request::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskRequest.class, StartDatafeedAction.NAME, StartDatafeedAction.Request::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskRequest.class, OpenJobAction.NAME, OpenJobAction.Request::new),
 
                 // Task statuses
-                new NamedWriteableRegistry.Entry(Task.Status.class, PersistentActionCoordinator.Status.NAME,
-                        PersistentActionCoordinator.Status::new),
+                new NamedWriteableRegistry.Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME,
+                        PersistentTasksNodeService.Status::new),
                 new NamedWriteableRegistry.Entry(Task.Status.class, JobState.NAME, JobState::fromStream),
                 new NamedWriteableRegistry.Entry(Task.Status.class, DatafeedState.NAME, DatafeedState::fromStream)
         );
@@ -228,13 +230,13 @@ public class MachineLearning implements ActionPlugin {
                 // Custom metadata
                 new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField("ml"),
                         parser -> MlMetadata.ML_METADATA_PARSER.parse(parser, null).build()),
-                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(PersistentTasks.TYPE),
-                        PersistentTasks::fromXContent),
+                new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(PersistentTasksCustomMetaData.TYPE),
+                        PersistentTasksCustomMetaData::fromXContent),
 
                 // Persistent action requests
-                new NamedXContentRegistry.Entry(PersistentActionRequest.class, new ParseField(StartDatafeedAction.NAME),
+                new NamedXContentRegistry.Entry(PersistentTaskRequest.class, new ParseField(StartDatafeedAction.NAME),
                         StartDatafeedAction.Request::fromXContent),
-                new NamedXContentRegistry.Entry(PersistentActionRequest.class, new ParseField(OpenJobAction.NAME),
+                new NamedXContentRegistry.Entry(PersistentTaskRequest.class, new ParseField(OpenJobAction.NAME),
                         OpenJobAction.Request::fromXContent),
 
                 // Task statuses
@@ -290,16 +292,21 @@ public class MachineLearning implements ActionPlugin {
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.THREAD_POOL_NAME));
+        PersistentTasksService persistentTasksService = new PersistentTasksService(Settings.EMPTY, clusterService, internalClient);
         AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(settings, internalClient, threadPool,
                 jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
-                normalizerFactory);
+                normalizerFactory, persistentTasksService);
         DatafeedJobRunner datafeedJobRunner = new DatafeedJobRunner(threadPool, internalClient, clusterService, jobProvider,
-                System::currentTimeMillis, auditor);
-        PersistentActionService persistentActionService = new PersistentActionService(Settings.EMPTY, threadPool, clusterService,
-                internalClient);
-        PersistentActionRegistry persistentActionRegistry = new PersistentActionRegistry(Settings.EMPTY);
+                System::currentTimeMillis, persistentTasksService, auditor);
         InvalidLicenseEnforcer invalidLicenseEnforcer =
                 new InvalidLicenseEnforcer(settings, licenseState, threadPool, datafeedJobRunner, autodetectProcessManager);
+
+        PersistentTasksExecutorRegistry persistentTasksExecutorRegistry = new PersistentTasksExecutorRegistry(Settings.EMPTY, Arrays.asList(
+                new OpenJobAction.OpenJobPersistentTasksExecutor(settings, threadPool, licenseState, persistentTasksService, clusterService,
+                        autodetectProcessManager, auditor),
+                new StartDatafeedAction.StartDatafeedPersistentTasksExecutor(settings, threadPool, licenseState, persistentTasksService,
+                        datafeedJobRunner, auditor)
+        ));
 
         return Arrays.asList(
                 mlLifeCycleService,
@@ -310,9 +317,9 @@ public class MachineLearning implements ActionPlugin {
                 new MlInitializationService(settings, threadPool, clusterService, internalClient),
                 jobDataCountsPersister,
                 datafeedJobRunner,
-                persistentActionService,
-                persistentActionRegistry,
-                new PersistentTaskClusterService(Settings.EMPTY, persistentActionRegistry, clusterService),
+                persistentTasksService,
+                persistentTasksExecutorRegistry,
+                new PersistentTasksClusterService(Settings.EMPTY, persistentTasksExecutorRegistry, clusterService),
                 auditor,
                 new CloseJobService(internalClient, threadPool, clusterService),
                 invalidLicenseEnforcer

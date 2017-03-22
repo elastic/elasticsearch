@@ -45,7 +45,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManage
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.persistent.PersistentTasks;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -410,10 +410,10 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             String jobId = task.getJobId();
             logger.debug("Get stats for job [{}]", jobId);
             ClusterState state = clusterService.state();
-            PersistentTasks tasks = state.getMetaData().custom(PersistentTasks.TYPE);
+            PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             Optional<Tuple<DataCounts, ModelSizeStats>> stats = processManager.getStatistics(jobId);
             if (stats.isPresent()) {
-                PersistentTasks.PersistentTask<?> pTask = MlMetadata.getJobTask(jobId, tasks);
+                PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlMetadata.getJobTask(jobId, tasks);
                 DiscoveryNode node = state.nodes().get(pTask.getExecutorNode());
                 JobState jobState = MlMetadata.getJobState(jobId, tasks);
                 String assignmentExplanation = pTask.getAssignment().getExplanation();
@@ -437,13 +437,13 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
             AtomicInteger counter = new AtomicInteger(jobIds.size());
             AtomicArray<Response.JobStats> jobStats = new AtomicArray<>(jobIds.size());
-            PersistentTasks tasks = clusterService.state().getMetaData().custom(PersistentTasks.TYPE);
+            PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             for (int i = 0; i < jobIds.size(); i++) {
                 int slot = i;
                 String jobId = jobIds.get(i);
                 gatherDataCountsAndModelSizeStats(jobId, (dataCounts, modelSizeStats) -> {
                     JobState jobState = MlMetadata.getJobState(request.jobId, tasks);
-                    PersistentTasks.PersistentTask<?> pTask = MlMetadata.getJobTask(jobId, tasks);
+                    PersistentTasksCustomMetaData.PersistentTask<?> pTask = MlMetadata.getJobTask(jobId, tasks);
                     String assignmentExplanation = null;
                     if (pTask != null) {
                         assignmentExplanation = pTask.getAssignment().getExplanation();

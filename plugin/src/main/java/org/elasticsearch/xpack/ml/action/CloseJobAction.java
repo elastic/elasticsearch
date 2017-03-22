@@ -43,8 +43,8 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.persistent.PersistentTasks;
-import org.elasticsearch.xpack.persistent.PersistentTasks.PersistentTask;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.Date;
@@ -286,7 +286,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             throw ExceptionsHelper.missingJobException(jobId);
         }
 
-        PersistentTasks tasks = state.getMetaData().custom(PersistentTasks.TYPE);
+        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         Optional<DatafeedConfig> datafeed = mlMetadata.getDatafeedByJobId(jobId);
         if (datafeed.isPresent()) {
             DatafeedState datafeedState = MlMetadata.getDatafeedState(datafeed.get().getId(), tasks);
@@ -311,12 +311,12 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
     static ClusterState moveJobToClosingState(String jobId, ClusterState currentState) {
         PersistentTask<?> task = validateAndFindTask(jobId, currentState);
-        PersistentTasks currentTasks = currentState.getMetaData().custom(PersistentTasks.TYPE);
+        PersistentTasksCustomMetaData currentTasks = currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         Map<Long, PersistentTask<?>> updatedTasks = new HashMap<>(currentTasks.taskMap());
         PersistentTask<?> taskToUpdate = currentTasks.getTask(task.getId());
         taskToUpdate = new PersistentTask<>(taskToUpdate, JobState.CLOSING);
         updatedTasks.put(taskToUpdate.getId(), taskToUpdate);
-        PersistentTasks newTasks = new PersistentTasks(currentTasks.getCurrentId(), updatedTasks);
+        PersistentTasksCustomMetaData newTasks = new PersistentTasksCustomMetaData(currentTasks.getCurrentId(), updatedTasks);
 
         MlMetadata mlMetadata = currentState.metaData().custom(MlMetadata.TYPE);
         Job.Builder jobBuilder = new Job.Builder(mlMetadata.getJobs().get(jobId));
@@ -328,7 +328,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         return builder
                 .metaData(new MetaData.Builder(currentState.metaData())
                         .putCustom(MlMetadata.TYPE, mlMetadataBuilder.build())
-                        .putCustom(PersistentTasks.TYPE, newTasks))
+                        .putCustom(PersistentTasksCustomMetaData.TYPE, newTasks))
                 .build();
     }
 }

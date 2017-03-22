@@ -11,20 +11,20 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse.Empty;
 
 /**
- * This component is responsible for execution of persistent actions.
+ * This component is responsible for execution of persistent tasks.
  */
-public class PersistentActionExecutor {
+public class NodePersistentTasksExecutor {
     private final ThreadPool threadPool;
 
-    public PersistentActionExecutor(ThreadPool threadPool) {
+    public NodePersistentTasksExecutor(ThreadPool threadPool) {
         this.threadPool = threadPool;
     }
 
-    public <Request extends PersistentActionRequest> void executeAction(Request request,
-                                                                        NodePersistentTask task,
-                                                                        PersistentActionRegistry.PersistentActionHolder<Request> holder,
-                                                                        ActionListener<Empty> listener) {
-        threadPool.executor(holder.getExecutor()).execute(new AbstractRunnable() {
+    public <Request extends PersistentTaskRequest> void executeTask(Request request,
+                                                                    NodePersistentTask task,
+                                                                    PersistentTasksExecutor<Request> action,
+                                                                    ActionListener<Empty> listener) {
+        threadPool.executor(action.getExecutor()).execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
                 listener.onFailure(e);
@@ -34,7 +34,7 @@ public class PersistentActionExecutor {
             @Override
             protected void doRun() throws Exception {
                 try {
-                    holder.getPersistentAction().nodeOperation(task, request, listener);
+                    action.nodeOperation(task, request, listener);
                 } catch (Exception ex) {
                     listener.onFailure(ex);
                 }

@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.common.IteratingActionListener;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
@@ -248,7 +250,7 @@ public class CompositeRolesStore extends AbstractComponent {
                 .runAs(runAsPrivilege);
         indicesPrivilegesMap.entrySet().forEach((entry) -> {
             MergeableIndicesPrivilege privilege = entry.getValue();
-            builder.add(fieldPermissionsCache.getFieldPermissions(privilege.grantedFields, privilege.deniedFields), privilege.query,
+            builder.add(fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition), privilege.query,
                     IndexPrivilege.get(privilege.privileges), privilege.indices.toArray(Strings.EMPTY_ARRAY));
         });
         return builder.build();
@@ -293,16 +295,14 @@ public class CompositeRolesStore extends AbstractComponent {
     private static class MergeableIndicesPrivilege {
         private Set<String> indices;
         private Set<String> privileges;
-        private Set<String> grantedFields = null;
-        private Set<String> deniedFields = null;
+        private FieldPermissionsDefinition fieldPermissionsDefinition;
         private Set<BytesReference> query = null;
 
         MergeableIndicesPrivilege(String[] indices, String[] privileges, @Nullable String[] grantedFields, @Nullable String[] deniedFields,
                                   @Nullable BytesReference query) {
             this.indices = Sets.newHashSet(Objects.requireNonNull(indices));
             this.privileges = Sets.newHashSet(Objects.requireNonNull(privileges));
-            this.grantedFields = grantedFields == null ? null : Sets.newHashSet(grantedFields);
-            this.deniedFields = deniedFields == null ? null : Sets.newHashSet(deniedFields);
+            this.fieldPermissionsDefinition = new FieldPermissionsDefinition(grantedFields, deniedFields);
             if (query != null) {
                 this.query = Sets.newHashSet(query);
             }
@@ -310,24 +310,16 @@ public class CompositeRolesStore extends AbstractComponent {
 
         void merge(MergeableIndicesPrivilege other) {
             assert indices.equals(other.indices) : "index names must be equivalent in order to merge";
-            this.grantedFields = combineFieldSets(this.grantedFields, other.grantedFields);
-            this.deniedFields = combineFieldSets(this.deniedFields, other.deniedFields);
+            Set<FieldGrantExcludeGroup> groups = new HashSet<>();
+            groups.addAll(this.fieldPermissionsDefinition.getFieldGrantExcludeGroups());
+            groups.addAll(other.fieldPermissionsDefinition.getFieldGrantExcludeGroups());
+            this.fieldPermissionsDefinition = new FieldPermissionsDefinition(groups);
             this.privileges.addAll(other.privileges);
 
             if (this.query == null || other.query == null) {
                 this.query = null;
             } else {
                 this.query.addAll(other.query);
-            }
-        }
-
-        private static Set<String> combineFieldSets(Set<String> set, Set<String> other) {
-            if (set == null || other == null) {
-                // null = grant all so it trumps others
-                return null;
-            } else {
-                set.addAll(other);
-                return set;
             }
         }
     }

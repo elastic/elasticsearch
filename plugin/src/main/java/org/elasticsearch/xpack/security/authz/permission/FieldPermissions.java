@@ -14,19 +14,20 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.AllFieldMapper;
-import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.accesscontrol.FieldSubsetReader;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
 import org.elasticsearch.xpack.security.support.Automatons;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.apache.lucene.util.automaton.Operations.subsetOf;
 import static org.elasticsearch.xpack.security.support.Automatons.minusAndMinimize;
@@ -39,71 +40,72 @@ import static org.elasticsearch.xpack.security.support.Automatons.minusAndMinimi
  * 1. It has to match the patterns in grantedFieldsArray
  * 2. it must not match the patterns in deniedFieldsArray
  */
-public final class FieldPermissions implements Writeable, Accountable {
+public final class FieldPermissions implements Accountable {
 
     public static final FieldPermissions DEFAULT = new FieldPermissions();
 
-    // the patterns for fields which we allow access to. if gratedFieldsArray is null we assume that all fields are grated access to
-    private final String[] grantedFieldsArray;
-    // the patterns for fields which we deny access to. if this is an empty list or null we assume that we do not deny access to any
-    // field explicitly
-    private final String[] deniedFieldsArray;
-    // an automaton that matches all strings that match the patterns in permittedFieldsArray but does not match those that also match a
-    // pattern in deniedFieldsArray. If permittedFieldsAutomaton is null we assume that all fields are granted access to.
+    private static final long BASE_FIELD_PERM_DEF_BYTES = RamUsageEstimator.shallowSizeOf(new FieldPermissionsDefinition(null, null));
+    private static final long BASE_FIELD_GROUP_BYTES = RamUsageEstimator.shallowSizeOf(new FieldGrantExcludeGroup(null, null));
+    private static final long BASE_HASHSET_SIZE = RamUsageEstimator.shallowSizeOfInstance(HashSet.class);
+    private static final long BASE_HASHSET_ENTRY_SIZE;
+    static {
+        HashMap<String, Object> map = new HashMap<>();
+        map.put(FieldPermissions.class.getName(), new Object());
+        long mapEntryShallowSize = RamUsageEstimator.shallowSizeOf(map.entrySet().iterator().next());
+        // assume a load factor of 50%
+        // for each entry, we need two object refs, one for the entry itself
+        // and one for the free space that is due to the fact hash tables can
+        // not be fully loaded
+        BASE_HASHSET_ENTRY_SIZE = mapEntryShallowSize + 2 * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+    }
+
+    private final FieldPermissionsDefinition fieldPermissionsDefinition;
+    // an automaton that represents a union of one more sets of permitted and denied fields
     private final CharacterRunAutomaton permittedFieldsAutomaton;
     private final boolean permittedFieldsAutomatonIsTotal;
+    private final Automaton originalAutomaton;
 
     private final long ramBytesUsed;
 
     /** Constructor that does not enable field-level security: all fields are accepted. */
     public FieldPermissions() {
-        this(null, null);
-    }
-
-    public FieldPermissions(StreamInput in) throws IOException {
-        this(in.readOptionalStringArray(), in.readOptionalStringArray());
+        this(new FieldPermissionsDefinition(null, null), Automatons.MATCH_ALL);
     }
 
     /** Constructor that enables field-level security based on include/exclude rules. Exclude rules
      *  have precedence over include rules. */
-    public FieldPermissions(@Nullable String[] grantedFieldsArray, @Nullable String[] deniedFieldsArray) {
-        this(grantedFieldsArray, deniedFieldsArray, initializePermittedFieldsAutomaton(grantedFieldsArray, deniedFieldsArray));
+    public FieldPermissions(FieldPermissionsDefinition fieldPermissionsDefinition) {
+        this(fieldPermissionsDefinition, initializePermittedFieldsAutomaton(fieldPermissionsDefinition));
     }
 
-    private FieldPermissions(@Nullable String[] grantedFieldsArray, @Nullable String[] deniedFieldsArray,
-                             Automaton permittedFieldsAutomaton) {
+    /** Constructor that enables field-level security based on include/exclude rules. Exclude rules
+     *  have precedence over include rules. */
+    FieldPermissions(FieldPermissionsDefinition fieldPermissionsDefinition, Automaton permittedFieldsAutomaton) {
         if (permittedFieldsAutomaton.isDeterministic() == false && permittedFieldsAutomaton.getNumStates() > 1) {
             // we only accept deterministic automata so that the CharacterRunAutomaton constructor
             // directly wraps the provided automaton
             throw new IllegalArgumentException("Only accepts deterministic automata");
         }
-        this.grantedFieldsArray = grantedFieldsArray;
-        this.deniedFieldsArray = deniedFieldsArray;
+        this.fieldPermissionsDefinition = fieldPermissionsDefinition;
+        this.originalAutomaton = permittedFieldsAutomaton;
         this.permittedFieldsAutomaton = new CharacterRunAutomaton(permittedFieldsAutomaton);
         // we cache the result of isTotal since this might be a costly operation
         this.permittedFieldsAutomatonIsTotal = Operations.isTotal(permittedFieldsAutomaton);
 
-        long ramBytesUsed = ramBytesUsed(grantedFieldsArray);
-        ramBytesUsed += ramBytesUsed(deniedFieldsArray);
+        long ramBytesUsed = BASE_FIELD_PERM_DEF_BYTES;
+
+        for (FieldGrantExcludeGroup group : fieldPermissionsDefinition.getFieldGrantExcludeGroups()) {
+            ramBytesUsed += BASE_FIELD_GROUP_BYTES + BASE_HASHSET_ENTRY_SIZE;
+            if (group.getGrantedFields() != null) {
+                ramBytesUsed += RamUsageEstimator.shallowSizeOf(group.getGrantedFields());
+            }
+            if (group.getExcludedFields() != null) {
+                ramBytesUsed += RamUsageEstimator.shallowSizeOf(group.getExcludedFields());
+            }
+        }
         ramBytesUsed += permittedFieldsAutomaton.ramBytesUsed();
         ramBytesUsed += runAutomatonRamBytesUsed(permittedFieldsAutomaton);
         this.ramBytesUsed = ramBytesUsed;
-    }
-
-    /**
-     * Return an estimation of the ram bytes used by the given {@link String}
-     * array.
-     */
-    private static long ramBytesUsed(String[] array) {
-        long ramBytesUsed = 0;
-        if (array != null) {
-            ramBytesUsed += RamUsageEstimator.shallowSizeOf(array);
-            for (String s : array) {
-                // might be overestimated because of compact strings but it is better to overestimate here
-                ramBytesUsed += s.length() * Character.BYTES;
-            }
-        }
-        return ramBytesUsed;
     }
 
     /**
@@ -114,22 +116,32 @@ public final class FieldPermissions implements Writeable, Accountable {
         return a.getNumStates() * 5; // wild guess, better than 0
     }
 
-    private static Automaton initializePermittedFieldsAutomaton(final String[] grantedFieldsArray, final String[] deniedFieldsArray) {
+    static Automaton initializePermittedFieldsAutomaton(FieldPermissionsDefinition fieldPermissionsDefinition) {
+        Set<FieldGrantExcludeGroup> groups = fieldPermissionsDefinition.getFieldGrantExcludeGroups();
+        assert groups.size() > 0 : "there must always be a single group for field inclusion/exclusion";
+        List<Automaton> automatonList =
+                groups.stream()
+                        .map(g -> FieldPermissions.initializePermittedFieldsAutomaton(g.getGrantedFields(), g.getExcludedFields()))
+                        .collect(Collectors.toList());
+        return Automatons.unionAndMinimize(automatonList);
+    }
+
+    private static Automaton initializePermittedFieldsAutomaton(final String[] grantedFields, final String[] deniedFields) {
         Automaton grantedFieldsAutomaton;
-        if (grantedFieldsArray == null || Arrays.stream(grantedFieldsArray).anyMatch(Regex::isMatchAllPattern)) {
+        if (grantedFields == null || Arrays.stream(grantedFields).anyMatch(Regex::isMatchAllPattern)) {
             grantedFieldsAutomaton = Automatons.MATCH_ALL;
         } else {
             // an automaton that includes metadata fields, including join fields created by the _parent field such
             // as _parent#type
             Automaton metaFieldsAutomaton = Operations.concatenate(Automata.makeChar('_'), Automata.makeAnyString());
-            grantedFieldsAutomaton = Operations.union(Automatons.patterns(grantedFieldsArray), metaFieldsAutomaton);
+            grantedFieldsAutomaton = Operations.union(Automatons.patterns(grantedFields), metaFieldsAutomaton);
         }
 
         Automaton deniedFieldsAutomaton;
-        if (deniedFieldsArray == null || deniedFieldsArray.length == 0) {
+        if (deniedFields == null || deniedFields.length == 0) {
             deniedFieldsAutomaton = Automatons.EMPTY;
         } else {
-            deniedFieldsAutomaton = Automatons.patterns(deniedFieldsArray);
+            deniedFieldsAutomaton = Automatons.patterns(deniedFields);
         }
 
         grantedFieldsAutomaton = MinimizationOperations.minimize(grantedFieldsAutomaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
@@ -137,12 +149,12 @@ public final class FieldPermissions implements Writeable, Accountable {
 
         if (subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
             throw new ElasticsearchSecurityException("Exceptions for field permissions must be a subset of the " +
-                    "granted fields but " + Arrays.toString(deniedFieldsArray) + " is not a subset of " +
-                    Arrays.toString(grantedFieldsArray));
+                    "granted fields but " + Strings.arrayToCommaDelimitedString(deniedFields) + " is not a subset of " +
+                    Strings.arrayToCommaDelimitedString(grantedFields));
         }
 
-        if ((grantedFieldsArray == null || Arrays.asList(grantedFieldsArray).contains(AllFieldMapper.NAME) == false) &&
-                (deniedFieldsArray == null || Arrays.asList(deniedFieldsArray).contains(AllFieldMapper.NAME) == false)) {
+        if ((grantedFields == null || Arrays.binarySearch(grantedFields, AllFieldMapper.NAME) < 0) &&
+                (deniedFields == null || Arrays.binarySearch(deniedFields, AllFieldMapper.NAME) < 0)) {
             // It is not explicitly stated whether _all should be allowed
             // In that case we automatically disable _all, unless all fields would match
             if (Operations.isTotal(grantedFieldsAutomaton) && Operations.isEmpty(deniedFieldsAutomaton)) {
@@ -156,36 +168,6 @@ public final class FieldPermissions implements Writeable, Accountable {
         return grantedFieldsAutomaton;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalStringArray(grantedFieldsArray);
-        out.writeOptionalStringArray(deniedFieldsArray);
-    }
-
-    @Override
-    public String toString() {
-        StringBuilder sb = new StringBuilder();
-        if (grantedFieldsArray != null || deniedFieldsArray != null) {
-            sb.append(RoleDescriptor.Fields.FIELD_PERMISSIONS).append("=[");
-            if (grantedFieldsArray == null) {
-                sb.append(RoleDescriptor.Fields.GRANT_FIELDS).append("=null");
-            } else {
-                sb.append(RoleDescriptor.Fields.GRANT_FIELDS).append("=[")
-                        .append(Strings.arrayToCommaDelimitedString(grantedFieldsArray));
-                sb.append("]");
-            }
-            if (deniedFieldsArray == null) {
-                sb.append(", ").append(RoleDescriptor.Fields.EXCEPT_FIELDS).append("=null");
-            } else {
-                sb.append(", ").append(RoleDescriptor.Fields.EXCEPT_FIELDS).append("=[")
-                        .append(Strings.arrayToCommaDelimitedString(deniedFieldsArray));
-                sb.append("]");
-            }
-            sb.append("]");
-        }
-        return sb.toString();
-    }
-
     /**
      * Returns true if this field permission policy allows access to the field and false if not.
      * fieldName can be a wildcard.
@@ -194,14 +176,8 @@ public final class FieldPermissions implements Writeable, Accountable {
         return permittedFieldsAutomatonIsTotal || permittedFieldsAutomaton.run(fieldName);
     }
 
-    @Nullable
-    String[] getGrantedFieldsArray() {
-        return grantedFieldsArray;
-    }
-
-    @Nullable
-    String[] getDeniedFieldsArray() {
-        return deniedFieldsArray;
+    FieldPermissionsDefinition getFieldPermissionsDefinition() {
+        return fieldPermissionsDefinition;
     }
 
     /** Return whether field-level security is enabled, ie. whether any field might be filtered out. */
@@ -218,8 +194,8 @@ public final class FieldPermissions implements Writeable, Accountable {
     }
 
     // for testing only
-    CharacterRunAutomaton getIncludeAutomaton() {
-        return permittedFieldsAutomaton;
+    Automaton getIncludeAutomaton() {
+        return originalAutomaton;
     }
 
     @Override
@@ -229,16 +205,15 @@ public final class FieldPermissions implements Writeable, Accountable {
 
         FieldPermissions that = (FieldPermissions) o;
 
-        // Probably incorrect - comparing Object[] arrays with Arrays.equals
-        if (!Arrays.equals(grantedFieldsArray, that.grantedFieldsArray)) return false;
-        // Probably incorrect - comparing Object[] arrays with Arrays.equals
-        return Arrays.equals(deniedFieldsArray, that.deniedFieldsArray);
+        if (permittedFieldsAutomatonIsTotal != that.permittedFieldsAutomatonIsTotal) return false;
+        return fieldPermissionsDefinition != null ?
+                fieldPermissionsDefinition.equals(that.fieldPermissionsDefinition) : that.fieldPermissionsDefinition == null;
     }
 
     @Override
     public int hashCode() {
-        int result = Arrays.hashCode(grantedFieldsArray);
-        result = 31 * result + Arrays.hashCode(deniedFieldsArray);
+        int result = fieldPermissionsDefinition != null ? fieldPermissionsDefinition.hashCode() : 0;
+        result = 31 * result + (permittedFieldsAutomatonIsTotal ? 1 : 0);
         return result;
     }
 

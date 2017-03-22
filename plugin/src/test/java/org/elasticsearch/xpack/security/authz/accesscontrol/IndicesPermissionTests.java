@@ -20,6 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
@@ -50,7 +51,7 @@ public class IndicesPermissionTests extends ESTestCase {
         Set<BytesReference> query = Collections.singleton(new BytesArray("{}"));
         String[] fields = new String[]{"_field"};
         Role role = Role.builder("_role")
-                .add(new FieldPermissions(fields, null), query, IndexPrivilege.ALL, "_index").build();
+                .add(new FieldPermissions(fieldPermissionDef(fields, null)), query, IndexPrivilege.ALL, "_index").build();
         IndicesAccessControl permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), md, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
@@ -60,7 +61,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
         // no document level security:
         role = Role.builder("_role")
-                .add(new FieldPermissions(fields, null), null, IndexPrivilege.ALL, "_index").build();
+                .add(new FieldPermissions(fieldPermissionDef(fields, null)), null, IndexPrivilege.ALL, "_index").build();
         permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), md, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
@@ -76,7 +77,9 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_index").getQueries(), equalTo(query));
 
         // index group associated with an alias:
-        role = Role.builder("_role").add(new FieldPermissions(fields, null), query, IndexPrivilege.ALL, "_alias").build();
+        role = Role.builder("_role")
+                .add(new FieldPermissions(fieldPermissionDef(fields, null)), query, IndexPrivilege.ALL, "_alias")
+                .build();
         permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), md, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
@@ -88,7 +91,7 @@ public class IndicesPermissionTests extends ESTestCase {
         String[] allFields = randomFrom(new String[]{"*"}, new String[]{"foo", "*"},
         new String[]{randomAsciiOfLengthBetween(1, 10), "*"});
         role = Role.builder("_role")
-                .add(new FieldPermissions(allFields, null), query, IndexPrivilege.ALL, "_alias").build();
+                .add(new FieldPermissions(fieldPermissionDef(allFields, null)), query, IndexPrivilege.ALL, "_alias").build();
         permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), md, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -139,8 +142,8 @@ public class IndicesPermissionTests extends ESTestCase {
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         IndicesPermission.Group group1 = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, "a1");
-        IndicesPermission.Group group2 = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(null, new
-                String[]{"denied_field"}), null, "a1");
+        IndicesPermission.Group group2 = new IndicesPermission.Group(IndexPrivilege.ALL,
+                new FieldPermissions(fieldPermissionDef(null, new String[]{"denied_field"})), null, "a1");
         IndicesPermission core = new IndicesPermission(group1, group2);
         Map<String, IndicesAccessControl.IndexAccessControl> authzMap =
                 core.authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), metaData, fieldPermissionsCache);
@@ -154,12 +157,12 @@ public class IndicesPermissionTests extends ESTestCase {
 
         // test with two indices
         group1 = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, "a1");
-        group2 = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(null, new
-                String[]{"denied_field"}), null, "a1");
-        IndicesPermission.Group group3 = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(new String[]{"*_field"}
-                , new String[]{"denied_field"}), null, "a2");
-        IndicesPermission.Group group4 = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(new String[]{"*_field2"}
-                , new String[]{"denied_field2"}), null, "a2");
+        group2 = new IndicesPermission.Group(IndexPrivilege.ALL,
+                new FieldPermissions(fieldPermissionDef(null, new String[]{"denied_field"})), null, "a1");
+        IndicesPermission.Group group3 = new IndicesPermission.Group(IndexPrivilege.ALL,
+                new FieldPermissions(fieldPermissionDef(new String[]{"*_field"}, new String[]{"denied_field"})), null, "a2");
+        IndicesPermission.Group group4 = new IndicesPermission.Group(IndexPrivilege.ALL,
+                new FieldPermissions(fieldPermissionDef(new String[]{"*_field2"}, new String[]{"denied_field2"})), null, "a2");
         core = new IndicesPermission(group1, group2, group3, group4);
         authzMap = core.authorize(SearchAction.NAME, Sets.newHashSet("a1", "a2"), metaData, fieldPermissionsCache);
         assertFalse(authzMap.get("a1").getFieldPermissions().hasFieldLevelSecurity());
@@ -171,5 +174,9 @@ public class IndicesPermissionTests extends ESTestCase {
 
         assertTrue(core.check(SearchAction.NAME));
         assertFalse(core.check("unknown"));
+    }
+
+    private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {
+        return new FieldPermissionsDefinition(granted, denied);
     }
 }

@@ -147,9 +147,13 @@ public final class Role {
                                                                           @Nullable FieldPermissionsCache fieldPermissionsCache) {
             List<IndicesPermission.Group> list = new ArrayList<>(indicesPrivileges.length);
             for (RoleDescriptor.IndicesPrivileges privilege : indicesPrivileges) {
-                final FieldPermissions fieldPermissions = fieldPermissionsCache != null ?
-                        fieldPermissionsCache.getFieldPermissions(privilege.getGrantedFields(), privilege.getDeniedFields()) :
-                        new FieldPermissions(privilege.getGrantedFields(), privilege.getDeniedFields());
+                final FieldPermissions fieldPermissions;
+                if (fieldPermissionsCache != null) {
+                    fieldPermissions = fieldPermissionsCache.getFieldPermissions(privilege.getGrantedFields(), privilege.getDeniedFields());
+                } else {
+                    fieldPermissions = new FieldPermissions(
+                            new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields()));
+                }
                 final Set<BytesReference> query = privilege.getQuery() == null ? null : Collections.singleton(privilege.getQuery());
                 list.add(new IndicesPermission.Group(IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())),
                         fieldPermissions,

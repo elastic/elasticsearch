@@ -5,8 +5,11 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -16,6 +19,7 @@ import org.elasticsearch.license.TestUtils.UpdatableLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
@@ -24,6 +28,7 @@ import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
@@ -277,6 +282,45 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }
 
         verifyNoMoreInteractions(inMemoryProvider1, inMemoryProvider2);
+    }
+
+    /**
+     * This test is a direct result of a issue where field level security permissions were not
+     * being merged correctly. The improper merging resulted in an allow all result when merging
+     * permissions from different roles instead of properly creating a union of their languages
+     */
+    public void testMergingRolesWithFls() {
+        RoleDescriptor flsRole = new RoleDescriptor("fls", null, new IndicesPrivileges[] {
+                IndicesPrivileges.builder()
+                        .grantedFields("*")
+                        .deniedFields("L1.*", "L2.*")
+                        .indices("*")
+                        .privileges("read")
+                        .query("{ \"match\": {\"eventType.typeCode\": \"foo\"} }")
+                        .build()
+        }, null);
+        RoleDescriptor addsL1Fields = new RoleDescriptor("dls", null, new IndicesPrivileges[] {
+                IndicesPrivileges.builder()
+                        .indices("*")
+                        .grantedFields("L1.*")
+                        .privileges("read")
+                        .query("{ \"match\": {\"eventType.typeCode\": \"foo\"} }")
+                        .build()
+        }, null);
+        FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
+        Role role = CompositeRolesStore.buildRoleFromDescriptors(Sets.newHashSet(flsRole, addsL1Fields), cache);
+
+        MetaData metaData = MetaData.builder()
+                .put(new IndexMetaData.Builder("test")
+                        .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                        .numberOfShards(1).numberOfReplicas(0).build(), true)
+                .build();
+        Map<String, IndicesAccessControl.IndexAccessControl> acls =
+                role.indices().authorize("indices:data/read/search", Collections.singleton("test"), metaData, cache);
+        assertFalse(acls.isEmpty());
+        assertTrue(acls.get("test").getFieldPermissions().grantsAccessTo("L1.foo"));
+        assertFalse(acls.get("test").getFieldPermissions().grantsAccessTo("L2.foo"));
+        assertTrue(acls.get("test").getFieldPermissions().grantsAccessTo("L3.foo"));
     }
 
     public void testCustomRolesProviderFailures() throws Exception {

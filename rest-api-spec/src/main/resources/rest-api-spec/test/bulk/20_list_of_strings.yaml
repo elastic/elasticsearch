@@ -1,11 +1,6 @@
 ---
 "List of strings":
   - do:
-      indices.create:
-        index: text_index
-        wait_for_active_shards: all
-
-  - do:
       bulk:
         refresh: true
         body:
@@ -16,6 +11,8 @@
 
   - do:
       count:
+        # we count through the primary in case there is a replica that has not yet fully recovered
+        preference: _primary
         index: test_index
 
   - match: {count: 2}

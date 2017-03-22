@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -102,11 +103,8 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
     }
 
     @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, 0);
-        builder.field(SUM_OF_OTHER_DOC_COUNTS, 0);
-        builder.startArray(CommonFields.BUCKETS).endArray();
-        return builder;
+    public final XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        return doXContentCommon(builder, params, 0, 0, Collections.emptyList());
     }
 
     @Override

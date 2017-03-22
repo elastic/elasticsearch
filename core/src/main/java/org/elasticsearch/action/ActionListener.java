@@ -24,6 +24,7 @@ import org.elasticsearch.common.CheckedConsumer;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -65,6 +66,33 @@ public interface ActionListener<Response> {
             @Override
             public void onFailure(Exception e) {
                 onFailure.accept(e);
+            }
+        };
+    }
+
+    /**
+     * Creates a listener that delegates a response (or failure) and to the listener provided. However,
+     * this listener will only allow the delegate to be notified once.
+     *
+     * @param actionListener the listener that will be notified
+     * @param <Response> the type of the response
+     * @return a listener that listens for responses
+     */
+    static <Response> ActionListener<Response> notifyOnce(ActionListener<Response> actionListener) {
+        AtomicBoolean hasBeenCalled = new AtomicBoolean(false);
+        return new ActionListener<Response>() {
+            @Override
+            public void onResponse(Response response) {
+                if (hasBeenCalled.compareAndSet(false, true)) {
+                    actionListener.onResponse(response);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (hasBeenCalled.compareAndSet(false, true)) {
+                    actionListener.onFailure(e);
+                }
             }
         };
     }

@@ -1061,23 +1061,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      */
     private void internalSendMessage(Channel targetChannel, BytesReference message, ActionListener<Channel> listener) {
         AtomicBoolean hasBeenCalled = new AtomicBoolean(false);
-        ActionListener<Channel> wrapped = new ActionListener<Channel>() {
-            @Override
-            public void onResponse(Channel channel) {
-                if (hasBeenCalled.compareAndSet(false, true)) {
-                    listener.onResponse(channel);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (hasBeenCalled.compareAndSet(false, true)) {
-                    listener.onFailure(e);
-                }
-            }
-        };
         try {
-            sendMessage(targetChannel, message, wrapped);
+            sendMessage(targetChannel, message, ActionListener.notifyOnce(listener));
         } catch (Exception ex) {
             // call listener to ensure that any resources are released
             listener.onFailure(ex);

@@ -68,3 +68,34 @@ The following settings are supported:
 
     Override the chunk size. (Disabled by default)
 
+[[repository-hdfs-security]]
+[float]
+===== Hadoop Security
+
+The HDFS Repository Plugin integrates seamlessly with Hadoop's security model. To enable security, simply pass the authentication method to the underlying Hadoop configuration through the repository creation request:
+
+[source,js]
+----
+PUT _snapshot/my_hdfs_repository
+{
+  "type": "hdfs",
+  "settings": {
+    "uri": "hdfs://namenode:8020/",
+    "path": "/user/elasticsearch/respositories/my_hdfs_repository",
+    "conf.hadoop.security.authentication": "kerberos"
+  }
+}
+----
+// CONSOLE
+// TEST[skip:we don't have hdfs set up while testing this]
+
+The following authentication methods are supported by the plugin:
+
+[horizontal]
+`simple`::
+
+    Also means "no security". Uses information from underlying operating system account to inform Hadoop of who the current user is.
+
+`kerberos`::
+
+    Authenticates to Hadoop through the usage of a Kerberos principal and ticket. The Kerberos ticket must be available to the user running the Elasticsearch process by means of the credential cache (ccache).

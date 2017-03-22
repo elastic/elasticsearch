@@ -47,6 +47,7 @@ PUT /my_index
     }
 }
 ------------------------------------
+// CONSOLE
 
 or a predefined language-specific list:
 
@@ -66,6 +67,7 @@ PUT /my_index
     }
 }
 ------------------------------------
+// CONSOLE
 
 Elasticsearch provides the following predefined list of languages:
 

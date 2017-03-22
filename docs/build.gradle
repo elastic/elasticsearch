@@ -76,8 +76,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/analysis/tokenfilters/pattern-capture-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/snowball-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/stemmer-override-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/stemmer-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/stop-tokenfilter.asciidoc',
   'reference/cat/snapshots.asciidoc',
   'reference/cat/templates.asciidoc',
   'reference/cat/thread_pool.asciidoc',

@@ -23,25 +23,29 @@ Here is an example:
 
 [source,js]
 --------------------------------------------------
+PUT /test_index
 {
-    "index" : {
-        "analysis" : {
-            "analyzer" : {
-                "search_synonyms" : {
-                    "tokenizer" : "whitespace",
-                    "filter" : ["graph_synonyms"]
-                }
-            },
-            "filter" : {
-                "graph_synonyms" : {
-                    "type" : "synonym_graph",
-                    "synonyms_path" : "analysis/synonym.txt"
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "analyzer" : {
+                    "search_synonyms" : {
+                        "tokenizer" : "whitespace",
+                        "filter" : ["graph_synonyms"]
+                    }
+                },
+                "filter" : {
+                    "graph_synonyms" : {
+                        "type" : "synonym_graph",
+                        "synonyms_path" : "analysis/synonym.txt"
+                    }
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The above configures a `search_synonyms` filter, with a path of
 `analysis/synonym.txt` (relative to the `config` location). The
@@ -59,39 +63,9 @@ Two synonym formats are supported: Solr, WordNet.
 
 The following is a sample format of the file:
 
-[source,js]
+[source,synonyms]
 --------------------------------------------------
-# Blank lines and lines starting with pound are comments.
-
-# Explicit mappings match any token sequence on the LHS of "=>"
-# and replace with all alternatives on the RHS.  These types of mappings
-# ignore the expand parameter in the schema.
-# Examples:
-i-pod, i pod => ipod,
-sea biscuit, sea biscit => seabiscuit
-
-# Equivalent synonyms may be separated with commas and give
-# no explicit mapping.  In this case the mapping behavior will
-# be taken from the expand parameter in the schema.  This allows
-# the same synonym file to be used in different synonym handling strategies.
-# Examples:
-ipod, i-pod, i pod
-foozball , foosball
-universe , cosmos
-lol, laughing out loud
-
-# If expand==true, "ipod, i-pod, i pod" is equivalent
-# to the explicit mapping:
-ipod, i-pod, i pod => ipod, i-pod, i pod
-# If expand==false, "ipod, i-pod, i pod" is equivalent
-# to the explicit mapping:
-ipod, i-pod, i pod => ipod
-
-# Multiple synonym mapping entries are merged.
-foo => foo bar
-foo => baz
-# is equivalent to
-foo => foo bar, baz
+include::{docdir}/../src/test/cluster/config/analysis/synonym.txt[]
 --------------------------------------------------
 
 You can also define synonyms for the filter directly in the
@@ -99,18 +73,26 @@ configuration file (note use of `synonyms` instead of `synonyms_path`):
 
 [source,js]
 --------------------------------------------------
+PUT /test_index
 {
-    "filter" : {
-        "synonym" : {
-            "type" : "synonym_graph",
-            "synonyms" : [
-                "lol, laughing out loud",
-                "universe, cosmos"
-            ]
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "filter" : {
+                    "synonym" : {
+                        "type" : "synonym_graph",
+                        "synonyms" : [
+                            "lol, laughing out loud",
+                            "universe, cosmos"
+                        ]
+                    }
+                }
+            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 However, it is recommended to define large synonyms set in a file using
 `synonyms_path`, because specifying them inline increases cluster size unnecessarily.
@@ -123,20 +105,28 @@ declared using `format`:
 
 [source,js]
 --------------------------------------------------
+PUT /test_index
 {
-    "filter" : {
-        "synonym" : {
-            "type" : "synonym_graph",
-            "format" : "wordnet",
-            "synonyms" : [
-                "s(100000001,1,'abstain',v,1,0).",
-                "s(100000001,2,'refrain',v,1,0).",
-                "s(100000001,3,'desist',v,1,0)."
-            ]
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "filter" : {
+                    "synonym" : {
+                        "type" : "synonym_graph",
+                        "format" : "wordnet",
+                        "synonyms" : [
+                            "s(100000001,1,'abstain',v,1,0).",
+                            "s(100000001,2,'refrain',v,1,0).",
+                            "s(100000001,3,'desist',v,1,0)."
+                        ]
+                    }
+                }
+            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 Using `synonyms_path` to define WordNet synonyms in a file is supported
 as well.

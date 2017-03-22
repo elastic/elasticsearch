@@ -6,6 +6,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 5341: 100
 * 7601: JAH
 * 8217: Rocky Road
+* 8362: 1337
 * 9538: Krispy Belgian Cookies
 * 10096: jk
 * 10441: The Best Engineers, The Best
@@ -56,13 +57,14 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 23044: marathon
 * 23193: 100
 * 23208: java ych
+* 23231: Random 2
 * 23268: Your Choice
 * 23430: Honey Boo Boo Fan Club
 * 23435: The Best Engineers, The Best
 * 23436: JTeam1
 * 23446: JavaGeeks
 * 23609: marathon
+* 23661: Honey Boo Boo Fan Club`
 * 23646: Chicken Nugget Trio
 * 23664: Random 1
 * 23673: Random 1
-* 23231: Random 2

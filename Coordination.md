@@ -6,6 +6,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 5341: 100
 * 7601: JAH
 * 8217: Rocky Road
+* 8362: 1337
 * 9538: Krispy Belgian Cookies
 * 10096: jk
 * 10441: The Best Engineers, The Best

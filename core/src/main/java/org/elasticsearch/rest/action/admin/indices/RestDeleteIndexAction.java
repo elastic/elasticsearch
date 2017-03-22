@@ -19,17 +19,19 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import java.io.IOException;
+
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
-
-import java.io.IOException;
 
 public class RestDeleteIndexAction extends BaseRestHandler {
     public RestDeleteIndexAction(Settings settings, RestController controller) {
@@ -44,6 +46,11 @@ public class RestDeleteIndexAction extends BaseRestHandler {
         deleteIndexRequest.timeout(request.paramAsTime("timeout", deleteIndexRequest.timeout()));
         deleteIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteIndexRequest.masterNodeTimeout()));
         deleteIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteIndexRequest.indicesOptions()));
-        return channel -> client.admin().indices().delete(deleteIndexRequest, new AcknowledgedRestListener<>(channel));
+        return channel -> client.admin().indices().delete(deleteIndexRequest, new AcknowledgedRestListener<DeleteIndexResponse>(channel){
+          @Override
+          public void addCustomFields(XContentBuilder builder, DeleteIndexResponse response) throws IOException {
+            response.addCustomFields(builder);
+          }
+        });
     }
 }

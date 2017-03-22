@@ -89,15 +89,22 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
             return;
         }
 
+        Index[] indexArray = concreteIndices.toArray(new Index[concreteIndices.size()]);
         DeleteIndexClusterStateUpdateRequest deleteRequest = new DeleteIndexClusterStateUpdateRequest()
             .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-            .indices(concreteIndices.toArray(new Index[concreteIndices.size()]));
+            .indices(indexArray);
+
+        String[] indices = new String[concreteIndices.size()];
+
+        for(int i=0;i<concreteIndices.size();i++) {
+         indices[i] = indexArray[i].getName();
+        }
 
         deleteIndexService.deleteIndices(deleteRequest, new ActionListener<ClusterStateUpdateResponse>() {
 
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new DeleteIndexResponse(response.isAcknowledged()));
+                listener.onResponse(new DeleteIndexResponse(response.isAcknowledged(), indices));
             }
 
             @Override

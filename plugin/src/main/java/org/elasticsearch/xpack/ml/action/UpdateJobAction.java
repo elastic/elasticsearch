@@ -30,11 +30,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
-import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.persistent.PersistentTasks;
 
 import java.io.IOException;
@@ -94,17 +94,20 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
+            jobId = in.readString();
             update = new JobUpdate(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            out.writeString(jobId);
             update.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            // only serialize the update, as the job id is specified as part of the url
             update.toXContent(builder, params);
             return builder;
         }
@@ -114,12 +117,13 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             UpdateJobAction.Request request = (UpdateJobAction.Request) o;
-            return Objects.equals(update, request.update);
+            return Objects.equals(jobId, request.jobId) &&
+                    Objects.equals(update, request.update);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(update);
+            return Objects.hash(jobId, update);
         }
 
         @Override

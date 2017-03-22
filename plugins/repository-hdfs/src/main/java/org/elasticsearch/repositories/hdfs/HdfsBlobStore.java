@@ -111,6 +111,9 @@ final class HdfsBlobStore implements BlobStore {
     // we can do FS ops with only two elevated permissions:
     // 1) hadoop dynamic proxy is messy with access rules
     // 2) allow hadoop to add credentials to our Subject
+    // AND If Security is enabled:
+    // 3) allow hadoop to act as the logged in Subject
+    // 4) allow for kerberos connections to be made
     <V> V execute(Operation<V> operation) throws IOException {
         SpecialPermission.check();
         if (closed) {

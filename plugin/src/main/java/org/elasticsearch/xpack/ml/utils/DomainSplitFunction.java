@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.utils;
 
+import org.elasticsearch.common.io.Streams;
+
+import java.io.InputStream;
 import java.util.Collections;
-import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.Locale;
+import java.util.List;
 import java.util.Map;
-import java.util.ResourceBundle;
 
 public final class DomainSplitFunction {
 
@@ -21,13 +22,18 @@ public final class DomainSplitFunction {
 
     static {
         Map<String, Object> paramsMap = new HashMap<>();
-        ResourceBundle resource = ResourceBundle.getBundle("org/elasticsearch/xpack/ml/transforms/exact", Locale.ROOT);
-        Enumeration<String> keys = resource.getKeys();
+
         Map<String, String> exact = new HashMap<>(2048);
-        while (keys.hasMoreElements()) {
-            String key = keys.nextElement();
-            String value = resource.getString(key);
-            exact.put(key, value);
+        try {
+            InputStream resource =
+                    DomainSplitFunction.class.getClassLoader().getResourceAsStream("org/elasticsearch/xpack/ml/transforms/exact.properties");
+            List<String> lines = Streams.readAllLines(resource);
+            for (String line : lines) {
+                String[] split = line.split("=");
+                exact.put(split[0].trim(), split[1].trim());
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Could not load DomainSplit resource", e);
         }
         exact = Collections.unmodifiableMap(exact);
 

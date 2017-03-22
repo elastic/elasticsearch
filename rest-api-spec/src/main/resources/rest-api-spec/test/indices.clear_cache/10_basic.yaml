@@ -6,8 +6,8 @@
 ---
 "clear_cache with request set to false":
   - skip:
-      version: " - 5.3.99"
-      reason: this name was added in 5.4
+      version: " - 5.4.99"
+      reason: this name was added in 5.4 - temporarilly skipping 5.4 until snapshot is finished
 
   - do:
       indices.clear_cache:
@@ -16,8 +16,8 @@
 ---
 "clear_cache with request_cache set to false":
   - skip:
-      version: " - 5.3.99"
-      reason: request_cache was deprecated in 5.4.0
+      version: " - 5.4.99"
+      reason: request_cache was deprecated in 5.4.0 - temporarilly skipping 5.4 until snapshot is finished
       features: "warnings"
 
   - do:

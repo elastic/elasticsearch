@@ -34,12 +34,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
-import org.elasticsearch.persistent.PersistentTasks.Assignment;
-import org.elasticsearch.persistent.PersistentTasks.Builder;
-import org.elasticsearch.persistent.PersistentTasks.PersistentTask;
-import org.elasticsearch.persistent.TestPersistentActionPlugin.Status;
-import org.elasticsearch.persistent.TestPersistentActionPlugin.TestPersistentAction;
-import org.elasticsearch.persistent.TestPersistentActionPlugin.TestRequest;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Builder;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.Status;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,17 +48,17 @@ import java.util.Collections;
 
 import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_GATEWAY;
 import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_SNAPSHOT;
-import static org.elasticsearch.persistent.TransportPersistentAction.NO_NODE_FOUND;
+import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
 
-public class PersistentTasksTests extends AbstractDiffableSerializationTestCase<Custom> {
+public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializationTestCase<Custom> {
 
     @Override
-    protected PersistentTasks createTestInstance() {
+    protected PersistentTasksCustomMetaData createTestInstance() {
         int numberOfTasks = randomInt(10);
-        PersistentTasks.Builder tasks = PersistentTasks.builder();
+        PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder();
         for (int i = 0; i < numberOfTasks; i++) {
             boolean stopped = randomBoolean();
-            tasks.addTask(TestPersistentAction.NAME, new TestRequest(randomAsciiOfLength(10)),
+            tasks.addTask(TestPersistentTasksExecutor.NAME, new TestRequest(randomAsciiOfLength(10)),
                     stopped, randomBoolean(), stopped ? new Assignment(null, "stopped") : randomAssignment());
             if (randomBoolean()) {
                 // From time to time update status
@@ -70,22 +70,22 @@ public class PersistentTasksTests extends AbstractDiffableSerializationTestCase<
 
     @Override
     protected Writeable.Reader<Custom> instanceReader() {
-        return PersistentTasks::new;
+        return PersistentTasksCustomMetaData::new;
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(Arrays.asList(
-                new Entry(MetaData.Custom.class, PersistentTasks.TYPE, PersistentTasks::new),
-                new Entry(NamedDiff.class, PersistentTasks.TYPE, PersistentTasks::readDiffFrom),
-                new Entry(PersistentActionRequest.class, TestPersistentAction.NAME, TestRequest::new),
+                new Entry(MetaData.Custom.class, PersistentTasksCustomMetaData.TYPE, PersistentTasksCustomMetaData::new),
+                new Entry(NamedDiff.class, PersistentTasksCustomMetaData.TYPE, PersistentTasksCustomMetaData::readDiffFrom),
+                new Entry(PersistentTaskRequest.class, TestPersistentTasksExecutor.NAME, TestRequest::new),
                 new Entry(Task.Status.class, Status.NAME, Status::new)
         ));
     }
 
     @Override
     protected Custom makeTestChanges(Custom testInstance) {
-        PersistentTasks tasksInProgress = (PersistentTasks) testInstance;
+        PersistentTasksCustomMetaData tasksInProgress = (PersistentTasksCustomMetaData) testInstance;
         Builder builder = new Builder();
         switch (randomInt(3)) {
             case 0:
@@ -118,12 +118,12 @@ public class PersistentTasksTests extends AbstractDiffableSerializationTestCase<
 
     @Override
     protected Writeable.Reader<Diff<Custom>> diffReader() {
-        return PersistentTasks::readDiffFrom;
+        return PersistentTasksCustomMetaData::readDiffFrom;
     }
 
     @Override
-    protected PersistentTasks doParseInstance(XContentParser parser) throws IOException {
-        return PersistentTasks.fromXContent(parser);
+    protected PersistentTasksCustomMetaData doParseInstance(XContentParser parser) throws IOException {
+        return PersistentTasksCustomMetaData.fromXContent(parser);
     }
 
     @Override
@@ -150,19 +150,19 @@ public class PersistentTasksTests extends AbstractDiffableSerializationTestCase<
 
     private Builder addRandomTask(Builder builder) {
         boolean stopped = randomBoolean();
-        builder.addTask(TestPersistentAction.NAME, new TestRequest(randomAsciiOfLength(10)), stopped, randomBoolean(),
+        builder.addTask(TestPersistentTasksExecutor.NAME, new TestRequest(randomAsciiOfLength(10)), stopped, randomBoolean(),
                 stopped ? new Assignment(null, "stopped") : randomAssignment());
         return builder;
     }
 
-    private long pickRandomTask(PersistentTasks testInstance) {
+    private long pickRandomTask(PersistentTasksCustomMetaData testInstance) {
         return randomFrom(new ArrayList<>(testInstance.tasks())).getId();
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(Arrays.asList(
-                new NamedXContentRegistry.Entry(PersistentActionRequest.class, new ParseField(TestPersistentAction.NAME),
+                new NamedXContentRegistry.Entry(PersistentTaskRequest.class, new ParseField(TestPersistentTasksExecutor.NAME),
                         TestRequest::fromXContent),
                 new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(Status.NAME), Status::fromXContent)
         ));
@@ -170,9 +170,9 @@ public class PersistentTasksTests extends AbstractDiffableSerializationTestCase<
 
     @SuppressWarnings("unchecked")
     public void testSerializationContext() throws Exception {
-        PersistentTasks testInstance = createTestInstance();
+        PersistentTasksCustomMetaData testInstance = createTestInstance();
         for (int i = 0; i < randomInt(10); i++) {
-            testInstance = (PersistentTasks) makeTestChanges(testInstance);
+            testInstance = (PersistentTasksCustomMetaData) makeTestChanges(testInstance);
         }
 
         ToXContent.MapParams params = new ToXContent.MapParams(
@@ -183,7 +183,7 @@ public class PersistentTasksTests extends AbstractDiffableSerializationTestCase<
         XContentBuilder shuffled = shuffleXContent(builder);
 
         XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled.bytes());
-        PersistentTasks newInstance = doParseInstance(parser);
+        PersistentTasksCustomMetaData newInstance = doParseInstance(parser);
         assertNotSame(newInstance, testInstance);
 
         assertEquals(testInstance.tasks().size(), newInstance.tasks().size());
@@ -192,7 +192,7 @@ public class PersistentTasksTests extends AbstractDiffableSerializationTestCase<
             assertNotNull(newTask);
 
             // Things that should be serialized
-            assertEquals(testTask.getAction(), newTask.getAction());
+            assertEquals(testTask.getTaskName(), newTask.getTaskName());
             assertEquals(testTask.getId(), newTask.getId());
             assertEquals(testTask.getStatus(), newTask.getStatus());
             assertEquals(testTask.getRequest(), newTask.getRequest());
@@ -205,7 +205,7 @@ public class PersistentTasksTests extends AbstractDiffableSerializationTestCase<
     }
 
     public void testBuilder() {
-        PersistentTasks persistentTasks = null;
+        PersistentTasksCustomMetaData persistentTasks = null;
         long lastKnownTask = -1;
         for (int i = 0; i < randomIntBetween(10, 100); i++) {
             final Builder builder;

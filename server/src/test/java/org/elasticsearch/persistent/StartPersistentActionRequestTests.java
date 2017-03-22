@@ -21,8 +21,8 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.persistent.CreatePersistentTaskAction.Request;
-import org.elasticsearch.persistent.TestPersistentActionPlugin.TestPersistentAction;
-import org.elasticsearch.persistent.TestPersistentActionPlugin.TestRequest;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestRequest;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 
 import java.util.Collections;
@@ -52,7 +52,7 @@ public class StartPersistentActionRequestTests extends AbstractStreamableTestCas
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(Collections.singletonList(
-                new Entry(PersistentActionRequest.class, TestPersistentAction.NAME, TestRequest::new)
+                new Entry(PersistentTaskRequest.class, TestPersistentTasksExecutor.NAME, TestRequest::new)
         ));
     }
 }

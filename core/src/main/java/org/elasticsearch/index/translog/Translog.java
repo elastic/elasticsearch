@@ -34,6 +34,7 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.BigArrays;
@@ -420,31 +421,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.writeInt(operationSize);
             out.seek(end);
             final ReleasablePagedBytesReference bytes = out.bytes();
-            final Location location;
-            final boolean shouldRollGeneration;
             try (ReleasableLock ignored = readLock.acquire()) {
                 ensureOpen();
-                location = current.add(bytes, operation.seqNo());
-                // check if we should roll under the read lock
-                shouldRollGeneration =
-                        shouldRollGeneration() && rollingGeneration.compareAndSet(false, true);
+                return current.add(bytes, operation.seqNo());
             }
-            if (shouldRollGeneration) {
-                try (ReleasableLock ignored = writeLock.acquire()) {
-                    /*
-                     * We have to check the condition again lest we could roll twice if another
-                     * thread committed the translog (which rolls the generation) between us
-                     * releasing the read lock and acquiring the write lock.
-                     */
-                    if (shouldRollGeneration()) {
-                        this.rollGeneration();
-                    }
-                } finally {
-                    final boolean wasRolling = rollingGeneration.getAndSet(false);
-                    assert wasRolling;
-                }
-            }
-            return location;
         } catch (final AlreadyClosedException | IOException ex) {
             try {
                 closeOnTragicEvent(ex);
@@ -465,13 +445,24 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Tests whether or not the current generation of the translog should be rolled into a new
-     * generation. This test is based on the size of the current generation compared to the
-     * configured generation threshold size.
+     * Tests whether or not the translog should be flushed. This test is based on the current size
+     * of the translog comparted to the configured flush threshold size.
      *
-     * @return {@code true} if the current generation should be rolled into a new generation
+     * @return {@code true} if the translog should be flushed
      */
-    private boolean shouldRollGeneration() {
+    public boolean shouldFlush() {
+        final long size = this.sizeInBytes();
+        return size > this.indexSettings.getFlushThresholdSize().getBytes();
+    }
+
+    /**
+     * Tests whether or not the translog generation should be rolled to a new generation. This test
+     * is based on the size of the current generation compared to the configured generation
+     * threshold size.
+     *
+     * @return {@code true} if the current generation should be rolled to a new generation
+     */
+    public boolean shouldRollGeneration() {
         final long size = this.current.sizeInBytes();
         final long threshold = this.indexSettings.getGenerationThresholdSize().getBytes();
         return size > threshold;
@@ -1359,28 +1350,29 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     /**
      * Roll the current translog generation into a new generation. This does not commit the
-     * translog. The translog write lock must be held by the current thread.
+     * translog.
      *
      * @throws IOException if an I/O exception occurred during any file operations
      */
-    void rollGeneration() throws IOException {
-        assert writeLock.isHeldByCurrentThread() : "translog write lock not held by current thread";
-        try {
-            final TranslogReader reader = current.closeIntoReader();
-            readers.add(reader);
-            final Path checkpoint = location.resolve(CHECKPOINT_FILE_NAME);
-            assert Checkpoint.read(checkpoint).generation == current.getGeneration();
-            final Path generationCheckpoint =
-                    location.resolve(getCommitCheckpointFileName(current.getGeneration()));
-            Files.copy(checkpoint, generationCheckpoint);
-            IOUtils.fsync(generationCheckpoint, false);
-            IOUtils.fsync(generationCheckpoint.getParent(), true);
-            // create a new translog file; this will sync it and update the checkpoint data;
-            current = createWriter(current.getGeneration() + 1);
-            logger.trace("current translog set to [{}]", current.getGeneration());
-        } catch (final Exception e) {
-            IOUtils.closeWhileHandlingException(this); // tragic event
-            throw e;
+    public void rollGeneration() throws IOException {
+        try (Releasable ignored = writeLock.acquire()) {
+            try {
+                final TranslogReader reader = current.closeIntoReader();
+                readers.add(reader);
+                final Path checkpoint = location.resolve(CHECKPOINT_FILE_NAME);
+                assert Checkpoint.read(checkpoint).generation == current.getGeneration();
+                final Path generationCheckpoint =
+                        location.resolve(getCommitCheckpointFileName(current.getGeneration()));
+                Files.copy(checkpoint, generationCheckpoint);
+                IOUtils.fsync(generationCheckpoint, false);
+                IOUtils.fsync(generationCheckpoint.getParent(), true);
+                // create a new translog file; this will sync it and update the checkpoint data;
+                current = createWriter(current.getGeneration() + 1);
+                logger.trace("current translog set to [{}]", current.getGeneration());
+            } catch (final Exception e) {
+                IOUtils.closeWhileHandlingException(this); // tragic event
+                throw e;
+            }
         }
     }
 
@@ -1428,7 +1420,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             long minReferencedGen = outstandingViews.stream().mapToLong(View::minTranslogGeneration).min().orElse(Long.MAX_VALUE);
             minReferencedGen = Math.min(lastCommittedTranslogFileGeneration, minReferencedGen);
             final long finalMinReferencedGen = minReferencedGen;
-            List<TranslogReader> unreferenced = readers.stream().filter(r -> r.getGeneration() < finalMinReferencedGen).collect(Collectors.toList());
+            List<TranslogReader> unreferenced = readers.stream().filter(r -> r.getGeneration() <= finalMinReferencedGen).collect(Collectors.toList());
             for (final TranslogReader unreferencedReader : unreferenced) {
                 Path translogPath = unreferencedReader.path();
                 logger.trace("delete translog file - not referenced and not current anymore {}", translogPath);

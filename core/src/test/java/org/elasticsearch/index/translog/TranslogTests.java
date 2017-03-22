@@ -103,7 +103,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
-import static org.elasticsearch.common.util.BigArrays.PAGE_SIZE_IN_BYTES;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -2120,37 +2119,6 @@ public class TranslogTests extends ESTestCase {
         assertFileIsPresent(translog, generation + rolls + 1);
     }
 
-    public void testGenerationThreshold() throws IOException {
-        translog.close();
-        final int generationThreshold = randomIntBetween(1, 512);
-        final Settings settings = Settings
-                .builder()
-                .put("index.translog.generation_threshold_size", generationThreshold + "b")
-                .build();
-        long seqNo = 0;
-        long rolls = 0;
-        final TranslogConfig config = getTranslogConfig(translogDir, settings);
-        try (Translog translog =
-                     new Translog(config, null, () -> SequenceNumbersService.UNASSIGNED_SEQ_NO)) {
-            final long generation = translog.currentFileGeneration();
-            for (int i = 0; i < randomIntBetween(32, 128); i++) {
-                assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
-                final Location location = translog.add(new Translog.NoOp(seqNo++, 0, "test"));
-                if (location.translogLocation + location.size > generationThreshold) {
-                    rolls++;
-                    assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
-                    for (int j = 0; j < rolls; j++) {
-                        assertFileIsPresent(translog, generation + j);
-                    }
-                }
-            }
-
-            for (int j = 0; j < rolls; j++) {
-                assertFileIsPresent(translog, generation + j);
-            }
-        }
-    }
-
     public void testRollGenerationBetweenPrepareCommitAndCommit() throws IOException {
         final long generation = translog.currentFileGeneration();
         int seqNo = 0;
@@ -2201,10 +2169,10 @@ public class TranslogTests extends ESTestCase {
 
         translog.commit();
 
-        for (int i = 0; i < rollsBefore; i++) {
+        for (int i = 0; i <= rollsBefore; i++) {
             assertFileDeleted(translog, generation + i);
         }
-        for (int i = rollsBefore; i <= rollsBefore + 1 + rollsBetween; i++) {
+        for (int i = rollsBefore + 1; i <= rollsBefore + 1 + rollsBetween; i++) {
             assertFileIsPresent(translog, generation + i);
         }
 

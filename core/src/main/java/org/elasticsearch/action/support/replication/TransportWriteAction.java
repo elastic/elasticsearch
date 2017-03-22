@@ -22,16 +22,12 @@ package org.elasticsearch.action.support.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteResponse;
-import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -46,7 +42,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
-import org.apache.logging.log4j.core.pattern.ConverterKeys;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -302,15 +297,21 @@ public abstract class TransportWriteAction<
         }
 
         void run() {
-            // we either respond immediately ie. if we we don't fsync per request or wait for refresh
-            // OR we got an pass async operations on and wait for them to return to respond.
-            indexShard.maybeFlush();
-            maybeFinish(); // decrement the pendingOpts by one, if there is nothing else to do we just respond with success.
+            /*
+             * We either respond immediately (i.e., if we do not fsync per request or wait for
+             * refresh), or we there are past async operations and we wait for them to return to
+             * respond.
+             */
+            indexShard.maybeFlushOrRollTranslogGeneration();
+            // decrement pending by one, if there is nothing else to do we just respond with success
+            maybeFinish();
             if (waitUntilRefresh) {
                 assert pendingOps.get() > 0;
                 indexShard.addRefreshListener(location, forcedRefresh -> {
                     if (forcedRefresh) {
-                        logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
+                        logger.warn(
+                                "block until refresh ran out of slots and forced a refresh: [{}]",
+                                request);
                     }
                     refreshed.set(forcedRefresh);
                     maybeFinish();

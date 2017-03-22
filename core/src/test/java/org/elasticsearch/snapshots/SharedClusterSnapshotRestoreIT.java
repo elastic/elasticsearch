@@ -806,6 +806,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> total number of simulated failures during restore: [{}]", getFailureCount("test-repo"));
     }
 
+    @TestLogging("org.elasticsearch.snapshots:TRACE,org.elasticsearch.cluster:TRACE")
     public void testDataFileCorruptionDuringRestore() throws Exception {
         Path repositoryLocation = randomRepoPath();
         Client client = client();

@@ -61,7 +61,7 @@ final class JNACLibrary {
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList(new String[] { "rlim_cur", "rlim_max" });
+            return Arrays.asList("rlim_cur", "rlim_max");
         }
     }
 

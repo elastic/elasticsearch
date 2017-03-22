@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -45,7 +46,8 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
                 }
             }
         }
-        return new FieldDataStats(totalMetric.count(), evictionsMetric.count(), fieldTotals);
+        return new FieldDataStats(totalMetric.count(), evictionsMetric.count(), fieldTotals == null ? null :
+            new FieldMemoryStats(fieldTotals));
     }
 
     @Override

@@ -207,23 +207,6 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
             createIndex("test").mapperService().documentMapperParser().parse("", new CompressedXContent(mapping));
         });
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
-
-        // empty name allowed in index created before 5.0
-        Version oldVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_2_0_0, Version.V_2_3_5);
-        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
-        DocumentMapperParser parser = createIndex("test_old", oldIndexSettings).mapperService().documentMapperParser();
-
-        DocumentMapper defaultMapper = parser.parse("", new CompressedXContent(mapping));
-        String downgradedMapping = XContentFactory.jsonBuilder().startObject()
-                .startObject("")
-                    .startObject("properties")
-                        .startObject("name")
-                            .field("type", "string")
-                            .field("fielddata", false)
-                        .endObject()
-                    .endObject()
-                .endObject().endObject().string();
-        assertEquals(downgradedMapping, defaultMapper.mappingSource().string());
     }
 
     @Override

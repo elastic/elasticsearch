@@ -21,7 +21,6 @@ package org.elasticsearch.gradle.test
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
-import org.gradle.api.Task
 
 /**
  * A container for the files and configuration associated with a single node in a test cluster.
@@ -93,18 +92,22 @@ class NodeInfo {
     /** buffer for ant output when starting this node */
     ByteArrayOutputStream buffer = new ByteArrayOutputStream()
 
-    /** Creates a node to run as part of a cluster for the given task */
-    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, Task task, String nodeVersion, File sharedDir) {
+    /** the version of elasticsearch that this node runs */
+    String nodeVersion
+
+    /** Holds node configuration for part of a test cluster. */
+    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, String prefix, String nodeVersion, File sharedDir) {
         this.config = config
         this.nodeNum = nodeNum
         this.sharedDir = sharedDir
         if (config.clusterName != null) {
             clusterName = config.clusterName
         } else {
-            clusterName = "${task.path.replace(':', '_').substring(1)}"
+            clusterName = project.path.replace(':', '_').substring(1) + '_' + prefix
         }
-        baseDir = new File(project.buildDir, "cluster/${task.name} node${nodeNum}")
+        baseDir = new File(project.buildDir, "cluster/${prefix} node${nodeNum}")
         pidFile = new File(baseDir, 'es.pid')
+        this.nodeVersion = nodeVersion
         homeDir = homeDir(baseDir, config.distribution, nodeVersion)
         confDir = confDir(baseDir, config.distribution, nodeVersion)
         if (config.dataDir != null) {
@@ -147,6 +150,9 @@ class NodeInfo {
         args.addAll("-E", "node.portsfile=true")
         String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
         String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs
+        if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {
+            esJavaOpts += " -ea -esa"
+        }
         env.put('ES_JAVA_OPTS', esJavaOpts)
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
             if (property.key.startsWith('tests.es.')) {

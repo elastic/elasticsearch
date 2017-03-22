@@ -106,4 +106,9 @@ public final class EConditional extends AExpression {
         right.write(writer, globals);
         writer.mark(end);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(condition, left, right);
+    }
 }

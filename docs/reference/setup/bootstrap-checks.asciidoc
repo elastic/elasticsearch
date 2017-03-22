@@ -29,13 +29,18 @@ fine for downloading and playing with Elasticsearch, and everyday
 development but it's useless for production systems. To form a cluster,
 Elasticsearch instances must be reachable via transport communication so
 they must bind transport to an external interface. Thus, we consider an
-Elaticsearch instance to be in development mode if it does not bind
+Elasticsearch instance to be in development mode if it does not bind
 transport to an external interface (the default), and is otherwise in
 production mode if it does bind transport to an external interface. Note
 that HTTP can be configured independently of transport via
 <<modules-http,`http.host`>> and <<modules-transport,`transport.host`>>;
 this can be useful for configuring a single instance to be reachable via
-HTTP for testing purposes without triggering production mode.
+HTTP for testing purposes without triggering production mode. If you do
+want to force enforcement of the bootstrap checks independent of the
+binding of the transport protocal, you can set the system property
+`es.enforce.bootstrap.checks` to `true` (this can be useful on a
+single-node production system that does not bind transport to an external
+interface).
 
 === Heap size check
 
@@ -145,6 +150,18 @@ with the serial collector (whether it's from the defaults for the JVM that
 you're using, or you've explicitly specified it with `-XX:+UseSerialGC`). Note
 that the default JVM configuration that ship with Elasticsearch configures
 Elasticsearch to use the CMS collector.
+
+=== System call filter check
+
+Elasticsearch installs system call filters of various flavors depending on the
+operating system (e.g., seccomp on Linux). These system call filters are
+installed to prevent the ability to execute system calls related to forking as
+a defense mechanism against arbitrary code execution attacks on Elasticsearch
+The system call filter check ensures that if system call filters are enabled,
+then they were successfully installed. To pass the system call filter check you
+must either fix any configuration errors on your system that prevented system
+call filters from installing (check your logs), or *at your own risk* disable
+system call filters by setting `bootstrap.system_call_filter` to `false`.
 
 === OnError and OnOutOfMemoryError checks
 

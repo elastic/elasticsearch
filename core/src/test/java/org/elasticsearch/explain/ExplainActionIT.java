@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
@@ -138,7 +137,6 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat(response.getGetResult().isExists(), equalTo(true));
         assertThat(response.getGetResult().getId(), equalTo("1"));
         Set<String> fields = new HashSet<>(response.getGetResult().getFields().keySet());
-        fields.remove(TimestampFieldMapper.NAME); // randomly added via templates
         assertThat(fields, equalTo(singleton("obj1.field1")));
         assertThat(response.getGetResult().getFields().get("obj1.field1").getValue().toString(), equalTo("value1"));
         assertThat(response.getGetResult().isSourceEmpty(), equalTo(true));
@@ -155,7 +153,6 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat(response.getGetResult().isExists(), equalTo(true));
         assertThat(response.getGetResult().getId(), equalTo("1"));
         fields = new HashSet<>(response.getGetResult().getFields().keySet());
-        fields.remove(TimestampFieldMapper.NAME); // randomly added via templates
         assertThat(fields, equalTo(singleton("obj1.field1")));
         assertThat(response.getGetResult().getFields().get("obj1.field1").getValue().toString(), equalTo("value1"));
         assertThat(response.getGetResult().isSourceEmpty(), equalTo(false));

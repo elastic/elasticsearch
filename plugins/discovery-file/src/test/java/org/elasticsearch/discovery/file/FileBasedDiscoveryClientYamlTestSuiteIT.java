@@ -21,9 +21,9 @@ package org.elasticsearch.discovery.file;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
 
 import java.io.IOException;
 
@@ -37,7 +37,7 @@ public class FileBasedDiscoveryClientYamlTestSuiteIT extends ESClientYamlSuiteTe
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException, ClientYamlTestParseException {
+    public static Iterable<Object[]> parameters() throws IOException {
         return ESClientYamlSuiteTestCase.createParameters();
     }
 }

@@ -77,15 +77,16 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
                 if (shardSnapshotStatus != null && !shardSnapshotStatus.state().completed() && shardSnapshotStatus.nodeId() != null &&
                         shardSnapshotStatus.nodeId().equals(shardRouting.currentNodeId())) {
                     if (logger.isTraceEnabled()) {
-                        logger.trace("Preventing snapshotted shard [{}] to be moved from node [{}]",
+                        logger.trace("Preventing snapshotted shard [{}] from being moved away from node [{}]",
                                 shardRouting.shardId(), shardSnapshotStatus.nodeId());
                     }
-                    return allocation.decision(Decision.NO, NAME, "snapshot for shard [%s] is currently running on node [%s]",
-                            shardRouting.shardId(), shardSnapshotStatus.nodeId());
+                    return allocation.decision(Decision.THROTTLE, NAME,
+                        "waiting for snapshotting of shard [%s] to complete on this node [%s]",
+                        shardRouting.shardId(), shardSnapshotStatus.nodeId());
                 }
             }
         }
-        return allocation.decision(Decision.YES, NAME, "the shard is not primary or relocation is disabled");
+        return allocation.decision(Decision.YES, NAME, "the shard is not being snapshotted");
     }
 
 }

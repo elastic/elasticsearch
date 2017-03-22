@@ -168,63 +168,65 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
 
     private void executeFetchPhase() throws Exception {
         sortedShardDocs = searchPhaseController.sortDocs(true, queryResults);
-        AtomicArray<IntArrayList> docIdsToLoad = new AtomicArray<>(queryResults.length());
-        searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardDocs);
-
-        if (docIdsToLoad.asList().isEmpty()) {
-            finishHim();
+        if (sortedShardDocs.length == 0) {
+            finishHim(searchPhaseController.reducedQueryPhase(queryResults.asList()));
             return;
         }
 
+        final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), sortedShardDocs);
+        SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(queryResults.asList());
+        final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, sortedShardDocs,
+            queryResults.length());
+        final AtomicInteger counter = new AtomicInteger(docIdsToLoad.length);
+        for (int i = 0; i < docIdsToLoad.length; i++) {
+            final int index = i;
+            final IntArrayList docIds = docIdsToLoad[index];
+            if (docIds != null) {
+                final QuerySearchResult querySearchResult = queryResults.get(index);
+                ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[index];
+                ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.id(), docIds, lastEmittedDoc);
+                DiscoveryNode node = nodes.get(querySearchResult.shardTarget().getNodeId());
+                searchTransportService.sendExecuteFetchScroll(node, shardFetchRequest, task, new ActionListener<FetchSearchResult>() {
+                    @Override
+                    public void onResponse(FetchSearchResult result) {
+                        result.shardTarget(querySearchResult.shardTarget());
+                        fetchResults.set(index, result);
+                        if (counter.decrementAndGet() == 0) {
+                            finishHim(reducedQueryPhase);
+                        }
+                    }
 
-        final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(queryResults.asList(),
-            sortedShardDocs, queryResults.length());
-        final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
-        for (final AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
-            IntArrayList docIds = entry.value;
-            final QuerySearchResult querySearchResult = queryResults.get(entry.index);
-            ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[entry.index];
-            ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.id(), docIds, lastEmittedDoc);
-            DiscoveryNode node = nodes.get(querySearchResult.shardTarget().nodeId());
-            searchTransportService.sendExecuteFetchScroll(node, shardFetchRequest, task, new ActionListener<FetchSearchResult>() {
-                @Override
-                public void onResponse(FetchSearchResult result) {
-                    result.shardTarget(querySearchResult.shardTarget());
-                    fetchResults.set(entry.index, result);
-                    if (counter.decrementAndGet() == 0) {
-                        finishHim();
+                    @Override
+                    public void onFailure(Exception t) {
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("Failed to execute fetch phase", t);
+                        }
+                        successfulOps.decrementAndGet();
+                        if (counter.decrementAndGet() == 0) {
+                            finishHim(reducedQueryPhase);
+                        }
                     }
+                });
+            } else {
+                // the counter is set to the total size of docIdsToLoad which can have null values so we have to count them down too
+                if (counter.decrementAndGet() == 0) {
+                    finishHim(reducedQueryPhase);
                 }
-
-                @Override
-                public void onFailure(Exception t) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("Failed to execute fetch phase", t);
-                    }
-                    successfulOps.decrementAndGet();
-                    if (counter.decrementAndGet() == 0) {
-                        finishHim();
-                    }
-                }
-            });
+            }
         }
     }
 
-    private void finishHim() {
+    private void finishHim(SearchPhaseController.ReducedQueryPhase queryPhase) {
         try {
-            innerFinishHim();
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(true, sortedShardDocs, queryPhase, fetchResults);
+            String scrollId = null;
+            if (request.scroll() != null) {
+                scrollId = request.scrollId();
+            }
+            listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.getContext().length, successfulOps.get(),
+                buildTookInMillis(), buildShardFailures()));
         } catch (Exception e) {
             listener.onFailure(new ReduceSearchPhaseException("fetch", "inner finish failed", e, buildShardFailures()));
         }
-    }
-
-    private void innerFinishHim() {
-        InternalSearchResponse internalResponse = searchPhaseController.merge(true, sortedShardDocs, queryResults, fetchResults);
-        String scrollId = null;
-        if (request.scroll() != null) {
-            scrollId = request.scrollId();
-        }
-        listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.getContext().length, successfulOps.get(),
-            buildTookInMillis(), buildShardFailures()));
     }
 }

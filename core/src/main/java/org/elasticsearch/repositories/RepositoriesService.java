@@ -25,7 +25,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -53,7 +53,7 @@ import java.util.stream.Collectors;
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
  */
-public class RepositoriesService extends AbstractComponent implements ClusterStateListener {
+public class RepositoriesService extends AbstractComponent implements ClusterStateApplier {
 
     private final Map<String, Repository.Factory> typesRegistry;
 
@@ -72,7 +72,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         // Doesn't make sense to maintain repositories on non-master and non-data nodes
         // Nothing happens there anyway
         if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isMasterNode(settings)) {
-            clusterService.add(this);
+            clusterService.addStateApplier(this);
         }
         this.verifyAction = new VerifyNodeRepositoryAction(settings, transportService, clusterService, this);
     }
@@ -253,7 +253,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
      * @param event cluster changed event
      */
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
+    public void applyClusterState(ClusterChangedEvent event) {
         try {
             RepositoriesMetaData oldMetaData = event.previousState().getMetaData().custom(RepositoriesMetaData.TYPE);
             RepositoriesMetaData newMetaData = event.state().getMetaData().custom(RepositoriesMetaData.TYPE);
@@ -401,7 +401,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
         private final ActionListener<ClusterStateUpdateResponse> listener;
 
-        public VerifyingRegisterRepositoryListener(String name, final ActionListener<ClusterStateUpdateResponse> listener) {
+        VerifyingRegisterRepositoryListener(String name, final ActionListener<ClusterStateUpdateResponse> listener) {
             this.name = name;
             this.listener = listener;
         }

@@ -54,7 +54,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
     }
 
     public void testRerouteOccursOnDiskPassingHighWatermark() throws Exception {
-        List<String> nodes = internalCluster().startNodesAsync(3).get();
+        List<String> nodes = internalCluster().startNodes(3);
 
         // Wait for all 3 nodes to be up
         assertBusy(new Runnable() {

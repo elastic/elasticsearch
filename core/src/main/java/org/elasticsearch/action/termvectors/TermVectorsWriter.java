@@ -71,7 +71,7 @@ final class TermVectorsWriter {
 
             // if no terms found, take the retrieved term vector fields for stats
             if (topLevelTerms == null) {
-                topLevelTerms = fieldTermVector;
+                topLevelTerms = EMPTY_TERMS;
             }
 
             TermsEnum topLevelIterator = topLevelTerms.iterator();
@@ -292,4 +292,18 @@ final class TermVectorsWriter {
         // further...
         output.writeVLong(Math.max(0, value + 1));
     }
+
+    /** Implements an empty {@link Terms}. */
+    private static final Terms EMPTY_TERMS = new Terms() {
+        @Override public TermsEnum iterator() throws IOException { return TermsEnum.EMPTY; }
+        @Override public long size() throws IOException { return 0; }
+        @Override public long getSumTotalTermFreq() throws IOException { return 0; }
+        @Override public long getSumDocFreq() throws IOException { return 0; }
+        @Override public int getDocCount() throws IOException { return 0; }
+        @Override public boolean hasFreqs() { return false; }
+        @Override public boolean hasOffsets() { return false; }
+        @Override public boolean hasPositions() { return false; }
+        @Override public boolean hasPayloads() { return false; }
+    };
+
 }

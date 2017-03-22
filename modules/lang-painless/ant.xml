@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <project name="ant-stuff">
 
-<!-- 
+<!--
  grammar regeneration logic
  we do this with ant for several reasons:
  * remove generated tabs for forbidden-apis
@@ -9,7 +9,7 @@
  * fix CRLF line endings for windows consistency
  * ability to make classes package-private
  * keeping in source code control is easier on IDEs
- * regeneration should be rare, no reason to be religious about generated files 
+ * regeneration should be rare, no reason to be religious about generated files
  * all logic already written and battle tested in lucene build
 -->
   <target name="regenerate" description="Regenerate antlr lexer and parser" depends="run-antlr"/>
@@ -134,6 +134,10 @@
       <move file="${output.path}/@{grammar}Parser.tokens" todir="${grammar.path}"/>
       <!-- make the generated classes package private -->
       <replaceregexp match="public ((interface|class) \Q@{grammar}\E\w+)" replace="\1" encoding="UTF-8">
+        <fileset refid="grammar.fileset"/>
+      </replaceregexp>
+      <!-- make the lexer abstract -->
+      <replaceregexp match="(class \Q@{grammar}\ELexer)" replace="abstract \1" encoding="UTF-8">
         <fileset refid="grammar.fileset"/>
       </replaceregexp>
       <!-- nuke timestamps/filenames in generated files -->

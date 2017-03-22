@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -31,11 +32,80 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class StreamTests extends ESTestCase {
+
+    public void testBooleanSerialization() throws IOException {
+        final BytesStreamOutput output = new BytesStreamOutput();
+        output.writeBoolean(false);
+        output.writeBoolean(true);
+
+        final BytesReference bytesReference = output.bytes();
+
+        final BytesRef bytesRef = bytesReference.toBytesRef();
+        assertThat(bytesRef.length, equalTo(2));
+        final byte[] bytes = bytesRef.bytes;
+        assertThat(bytes[0], equalTo((byte) 0));
+        assertThat(bytes[1], equalTo((byte) 1));
+
+        final StreamInput input = bytesReference.streamInput();
+        assertFalse(input.readBoolean());
+        assertTrue(input.readBoolean());
+
+        final Set<Byte> set = IntStream.range(Byte.MIN_VALUE, Byte.MAX_VALUE).mapToObj(v -> (byte) v).collect(Collectors.toSet());
+        set.remove((byte) 0);
+        set.remove((byte) 1);
+        final byte[] corruptBytes = new byte[] { randomFrom(set) };
+        final BytesReference corrupt = new BytesArray(corruptBytes);
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> corrupt.streamInput().readBoolean());
+        final String message = String.format(Locale.ROOT, "unexpected byte [0x%02x]", corruptBytes[0]);
+        assertThat(e, hasToString(containsString(message)));
+    }
+
+    public void testOptionalBooleanSerialization() throws IOException {
+        final BytesStreamOutput output = new BytesStreamOutput();
+        output.writeOptionalBoolean(false);
+        output.writeOptionalBoolean(true);
+        output.writeOptionalBoolean(null);
+
+        final BytesReference bytesReference = output.bytes();
+
+        final BytesRef bytesRef = bytesReference.toBytesRef();
+        assertThat(bytesRef.length, equalTo(3));
+        final byte[] bytes = bytesRef.bytes;
+        assertThat(bytes[0], equalTo((byte) 0));
+        assertThat(bytes[1], equalTo((byte) 1));
+        assertThat(bytes[2], equalTo((byte) 2));
+
+        final StreamInput input = bytesReference.streamInput();
+        final Boolean maybeFalse = input.readOptionalBoolean();
+        assertNotNull(maybeFalse);
+        assertFalse(maybeFalse);
+        final Boolean maybeTrue = input.readOptionalBoolean();
+        assertNotNull(maybeTrue);
+        assertTrue(maybeTrue);
+        assertNull(input.readOptionalBoolean());
+
+        final Set<Byte> set = IntStream.range(Byte.MIN_VALUE, Byte.MAX_VALUE).mapToObj(v -> (byte) v).collect(Collectors.toSet());
+        set.remove((byte) 0);
+        set.remove((byte) 1);
+        set.remove((byte) 2);
+        final byte[] corruptBytes = new byte[] { randomFrom(set) };
+        final BytesReference corrupt = new BytesArray(corruptBytes);
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> corrupt.streamInput().readOptionalBoolean());
+        final String message = String.format(Locale.ROOT, "unexpected byte [0x%02x]", corruptBytes[0]);
+        assertThat(e, hasToString(containsString(message)));
+    }
+
     public void testRandomVLongSerialization() throws IOException {
         for (int i = 0; i < 1024; i++) {
             long write = randomLong();
@@ -146,11 +216,11 @@ public class StreamTests extends ESTestCase {
     static final class WriteableString implements Writeable {
         final String string;
 
-        public WriteableString(String string) {
+        WriteableString(String string) {
             this.string = string;
         }
 
-        public WriteableString(StreamInput in) throws IOException {
+        WriteableString(StreamInput in) throws IOException {
             this(in.readString());
         }
 
@@ -179,4 +249,5 @@ public class StreamTests extends ESTestCase {
             out.writeString(string);
         }
     }
+
 }

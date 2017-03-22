@@ -24,6 +24,7 @@ import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.SortingNumericDocValues;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.joda.time.ReadableInstant;
 
 import java.lang.reflect.Array;
 import java.util.Collection;
@@ -50,15 +51,10 @@ public class ScriptLongValues extends SortingNumericDocValues implements ScorerA
             resize(0);
         }
 
-        else if (value instanceof Number) {
-            resize(1);
-            values[0] = ((Number) value).longValue();
-        }
-
         else if (value.getClass().isArray()) {
             resize(Array.getLength(value));
             for (int i = 0; i < count(); ++i) {
-                values[i] = ((Number) Array.get(value, i)).longValue();
+                values[i] = toLongValue(Array.get(value, i));
             }
         }
 
@@ -66,16 +62,34 @@ public class ScriptLongValues extends SortingNumericDocValues implements ScorerA
             resize(((Collection<?>) value).size());
             int i = 0;
             for (Iterator<?> it = ((Collection<?>) value).iterator(); it.hasNext(); ++i) {
-                values[i] = ((Number) it.next()).longValue();
+                values[i] = toLongValue(it.next());
             }
             assert i == count();
         }
 
         else {
-            throw new AggregationExecutionException("Unsupported script value [" + value + "]");
+            resize(1);
+            values[0] = toLongValue(value);
         }
 
         sort();
+    }
+
+    private static long toLongValue(Object o) {
+        if (o instanceof Number) {
+            return ((Number) o).longValue();
+        } else if (o instanceof ReadableInstant) {
+            // Dates are exposed in scripts as ReadableDateTimes but aggregations want them to be numeric
+            return ((ReadableInstant) o).getMillis();
+        } else if (o instanceof Boolean) {
+            // We do expose boolean fields as boolean in scripts, however aggregations still expect
+            // that scripts return the same internal representation as regular fields, so boolean
+            // values in scripts need to be converted to a number, and the value formatter will
+            // make sure of using true/false in the key_as_string field
+            return ((Boolean) o).booleanValue() ? 1L : 0L;
+        } else {
+            throw new AggregationExecutionException("Unsupported script value [" + o + "], expected a number, date, or boolean");
+        }
     }
 
     @Override

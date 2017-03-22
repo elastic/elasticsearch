@@ -110,24 +110,32 @@ command line with `es.node.name` or in the config file with `node.name`.
 [[logging]]
 == Logging configuration
 
-Elasticsearch uses http://logging.apache.org/log4j/2.x/[Log4j 2] for
+Elasticsearch uses https://logging.apache.org/log4j/2.x/[Log4j 2] for
 logging. Log4j 2 can be configured using the log4j2.properties
-file. Elasticsearch exposes a single property `${sys:es.logs}` that can be
-referenced in the configuration file to determine the location of the log files;
-this will resolve to a prefix for the Elasticsearch log file at runtime.
+file. Elasticsearch exposes three properties, `${sys:es.logs.base_path}`,
+`${sys:es.logs.cluster_name}`, and `${sys:es.logs.node_name}` (if the node name
+is explicitly set via `node.name`) that can be referenced in the configuration
+file to determine the location of the log files. The property
+`${sys:es.logs.base_path}` will resolve to the log directory,
+`${sys:es.logs.cluster_name}` will resolve to the cluster name (used as the
+prefix of log filenames in the default configuration), and
+`${sys:es.logs.node_name}` will resolve to the node name (if the node name is
+explicitly set).
 
 For example, if your log directory (`path.logs`) is `/var/log/elasticsearch` and
-your cluster is named `production` then `${sys:es.logs}` will resolve to
-`/var/log/elasticsearch/production`.
+your cluster is named `production` then `${sys:es.logs.base_path}` will resolve
+to `/var/log/elasticsearch` and
+`${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}.log`
+will resolve to `/var/log/elasticsearch/production.log`.
 
 [source,properties]
 --------------------------------------------------
 appender.rolling.type = RollingFile <1>
 appender.rolling.name = rolling
-appender.rolling.fileName = ${sys:es.logs}.log <2>
+appender.rolling.fileName = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}.log <2>
 appender.rolling.layout.type = PatternLayout
 appender.rolling.layout.pattern = [%d{ISO8601}][%-5p][%-25c] %.10000m%n
-appender.rolling.filePattern = ${sys:es.logs}-%d{yyyy-MM-dd}.log <3>
+appender.rolling.filePattern = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}-%d{yyyy-MM-dd}.log <3>
 appender.rolling.policies.type = Policies
 appender.rolling.policies.time.type = TimeBasedTriggeringPolicy <4>
 appender.rolling.policies.time.interval = 1 <5>
@@ -144,6 +152,31 @@ appender.rolling.policies.time.modulate = true <6>
 
 If you append `.gz` or `.zip` to `appender.rolling.filePattern`, then the logs
 will be compressed as they are rolled.
+
+If you want to retain log files for a specified period of time, you can use a
+rollover strategy with a delete action.
+
+[source,properties]
+--------------------------------------------------
+appender.rolling.strategy.type = DefaultRolloverStrategy <1>
+appender.rolling.strategy.action.type = Delete <2>
+appender.rolling.strategy.action.basepath = ${sys:es.logs.base_path} <3>
+appender.rolling.strategy.action.condition.type = IfLastModified <4>
+appender.rolling.strategy.action.condition.age = 7D <5>
+appender.rolling.strategy.action.PathConditions.type = IfFileName <6>
+appender.rolling.strategy.action.PathConditions.glob = ${sys:es.logs.cluster_name}-* <7>
+--------------------------------------------------
+
+<1> Configure the `DefaultRolloverStrategy`
+<2> Configure the `Delete` action for handling rollovers
+<3> The base path to the Elasticsearch logs
+<4> The condition to apply when handling rollovers
+<5> Retain logs for seven days
+<6> Only delete files older than seven days if they match the specified glob
+<7> Delete files from the base path matching the glob
+    `${sys:es.logs.cluster_name}-*`; this is the glob that log files are rolled
+    to; this is needed to only delete the rolled Elasticsearch logs but not also
+    delete the deprecation and slow logs
 
 Multiple configuration files can be loaded (in which case they will get merged)
 as long as they are named `log4j2.properties` and have the Elasticsearch config

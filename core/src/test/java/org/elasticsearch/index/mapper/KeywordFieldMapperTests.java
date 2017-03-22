@@ -24,23 +24,20 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -55,8 +52,12 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
     DocumentMapperParser parser;
 
     @Before
-    public void before() {
-        indexService = createIndex("test");
+    public void setup() {
+        indexService = createIndex("test", Settings.builder()
+                .put("index.analysis.normalizer.my_lowercase.type", "custom")
+                .putArray("index.analysis.normalizer.my_lowercase.filter", "lowercase")
+                .put("index.analysis.normalizer.my_asciifolding.type", "custom")
+                .putArray("index.analysis.normalizer.my_asciifolding.filter", "asciifolding").build());
         parser = indexService.mapperService().documentMapperParser();
     }
 
@@ -268,37 +269,6 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(mapping, mapper.mappingSource().toString());
     }
 
-    public void testBoostImplicitlyEnablesNormsOnOldIndex() throws IOException {
-        indexService = createIndex("test2",
-                Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0).build());
-        parser = indexService.mapperService().documentMapperParser();
-
-        String mapping = XContentFactory.jsonBuilder().startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("field")
-                            .field("type", "keyword")
-                            .field("boost", 2f)
-                        .endObject()
-                    .endObject()
-                .endObject().endObject().string();
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        String expectedMapping = XContentFactory.jsonBuilder().startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("field")
-                            .field("type", "string")
-                            .field("boost", 2f)
-                            .field("index", "not_analyzed")
-                            .field("norms", true)
-                            .field("fielddata", false)
-                        .endObject()
-                    .endObject()
-                .endObject().endObject().string();
-        assertEquals(expectedMapping, mapper.mappingSource().toString());
-    }
-
     public void testEnableNorms() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "keyword").field("norms", true).endObject().endObject()
@@ -319,6 +289,62 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         assertFalse(fields[0].fieldType().omitNorms());
     }
 
+    public void testNormalizer() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "keyword").field("normalizer", "my_lowercase").endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "AbC")
+                .endObject()
+                .bytes());
+
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+
+        assertEquals(new BytesRef("abc"), fields[0].binaryValue());
+        IndexableFieldType fieldType = fields[0].fieldType();
+        assertThat(fieldType.omitNorms(), equalTo(true));
+        assertFalse(fieldType.tokenized());
+        assertFalse(fieldType.stored());
+        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS));
+        assertThat(fieldType.storeTermVectors(), equalTo(false));
+        assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
+        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+
+        assertEquals(new BytesRef("abc"), fields[1].binaryValue());
+        fieldType = fields[1].fieldType();
+        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
+        assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
+    }
+
+    public void testUpdateNormalizer() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "keyword").field("normalizer", "my_lowercase").endObject().endObject()
+                .endObject().endObject().string();
+        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean());
+
+        String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "keyword").field("normalizer", "my_asciifolding").endObject().endObject()
+                .endObject().endObject().string();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> indexService.mapperService().merge("type",
+                        new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, randomBoolean()));
+        assertEquals(
+                "Mapper for [field] conflicts with existing mapping in other types:\n[mapper [field] has different [normalizer]]",
+                e.getMessage());
+    }
+
     public void testEmptyName() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
@@ -334,24 +360,5 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
-
-        // empty name allowed in index created before 5.0
-        Version oldVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_2_0_0, Version.V_2_3_5);
-        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
-        indexService = createIndex("test_old", oldIndexSettings);
-        parser = indexService.mapperService().documentMapperParser();
-
-        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
-        String downgradedMapping = XContentFactory.jsonBuilder().startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("")
-                            .field("type", "string")
-                            .field("index", "not_analyzed")
-                            .field("fielddata", false)
-                        .endObject()
-                    .endObject()
-                .endObject().endObject().string();
-        assertEquals(downgradedMapping, defaultMapper.mappingSource().string());
     }
 }

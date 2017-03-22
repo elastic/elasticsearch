@@ -186,4 +186,45 @@ public class GrokProcessorTests extends ESTestCase {
         combined = GrokProcessor.combinePatterns(Arrays.asList("foo", "bar"), true);
         assertThat(combined, equalTo("(?<_ingest._grok_match_index.0>foo)|(?<_ingest._grok_match_index.1>bar)"));
     }
+
+    public void testCombineSamePatternNameAcrossPatterns() throws Exception {
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        doc.setFieldValue(fieldName, "1-3");
+        Map<String, String> patternBank = new HashMap<>();
+        patternBank.put("ONE", "1");
+        patternBank.put("TWO", "2");
+        patternBank.put("THREE", "3");
+        GrokProcessor processor = new GrokProcessor(randomAsciiOfLength(10), patternBank,
+            Arrays.asList("%{ONE:first}-%{TWO:second}", "%{ONE:first}-%{THREE:second}"), fieldName, randomBoolean(), randomBoolean());
+        processor.execute(doc);
+        assertThat(doc.getFieldValue("first", String.class), equalTo("1"));
+        assertThat(doc.getFieldValue("second", String.class), equalTo("3"));
+    }
+
+    public void testFirstWinNamedCapture() throws Exception {
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        doc.setFieldValue(fieldName, "12");
+        Map<String, String> patternBank = new HashMap<>();
+        patternBank.put("ONETWO", "1|2");
+        GrokProcessor processor = new GrokProcessor(randomAsciiOfLength(10), patternBank,
+            Collections.singletonList("%{ONETWO:first}%{ONETWO:first}"), fieldName, randomBoolean(), randomBoolean());
+        processor.execute(doc);
+        assertThat(doc.getFieldValue("first", String.class), equalTo("1"));
+    }
+
+    public void testUnmatchedNamesNotIncludedInDocument()  throws Exception {
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        doc.setFieldValue(fieldName, "3");
+        Map<String, String> patternBank = new HashMap<>();
+        patternBank.put("ONETWO", "1|2");
+        patternBank.put("THREE", "3");
+        GrokProcessor processor = new GrokProcessor(randomAsciiOfLength(10), patternBank,
+            Collections.singletonList("%{ONETWO:first}|%{THREE:second}"), fieldName, randomBoolean(), randomBoolean());
+        processor.execute(doc);
+        assertFalse(doc.hasField("first"));
+        assertThat(doc.getFieldValue("second", String.class), equalTo("3"));
+    }
 }

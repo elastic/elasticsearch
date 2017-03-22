@@ -161,10 +161,20 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             if (false == test.continued) {
                 current.println('---')
                 current.println("\"line_$test.start\":")
+                /* The Elasticsearch test runner doesn't support the warnings
+                 * construct unless you output this skip. Since we don't know
+                 * if this snippet will use the warnings construct we emit this
+                 * warning every time. */
+                current.println("  - skip:")
+                current.println("      features: ")
+                current.println("        - warnings")
             }
             if (test.skipTest) {
-                current.println("  - skip:")
-                current.println("      features: always_skip")
+                if (test.continued) {
+                    throw new InvalidUserDataException("Continued snippets "
+                        + "can't be skipped")
+                }
+                current.println("        - always_skip")
                 current.println("      reason: $test.skipTest")
             }
             if (test.setup != null) {

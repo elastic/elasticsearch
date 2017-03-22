@@ -31,7 +31,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
- * Respresents a non-decimal numeric constant.
+ * Represents a non-decimal numeric constant.
  */
 public final class ENumeric extends AExpression {
 
@@ -120,5 +120,13 @@ public final class ENumeric extends AExpression {
     @Override
     void write(MethodWriter writer, Globals globals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
+    }
+
+    @Override
+    public String toString() {
+        if (radix != 10) {
+            return singleLineToString(value, radix);
+        }
+        return singleLineToString(value);
     }
 }

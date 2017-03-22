@@ -35,6 +35,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -181,9 +182,9 @@ public abstract class MetaDataStateFormat<T> {
      * Reads the state from a given file and compares the expected version against the actual version of
      * the state.
      */
-    public final T read(Path file) throws IOException {
+    public final T read(NamedXContentRegistry namedXContentRegistry, Path file) throws IOException {
         try (Directory dir = newDirectory(file.getParent())) {
-            try (final IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
+            try (IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
                  // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
                 final int fileVersion = CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION,
@@ -196,8 +197,8 @@ public abstract class MetaDataStateFormat<T> {
                 long filePointer = indexInput.getFilePointer();
                 long contentSize = indexInput.length() - CodecUtil.footerLength() - filePointer;
                 try (IndexInput slice = indexInput.slice("state_xcontent", filePointer, contentSize)) {
-                    try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(new InputStreamIndexInput(slice,
-                        contentSize))) {
+                    try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(namedXContentRegistry,
+                            new InputStreamIndexInput(slice, contentSize))) {
                         return fromXContent(parser);
                     }
                 }
@@ -260,7 +261,7 @@ public abstract class MetaDataStateFormat<T> {
      * @param dataLocations the data-locations to try.
      * @return the latest state or <code>null</code> if no state was found.
      */
-    public  T loadLatestState(Logger logger, Path... dataLocations) throws IOException {
+    public  T loadLatestState(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations) throws IOException {
         List<PathAndStateId> files = new ArrayList<>();
         long maxStateId = -1;
         boolean maxStateIdIsLegacy = true;
@@ -311,14 +312,14 @@ public abstract class MetaDataStateFormat<T> {
                         logger.debug("{}: no data for [{}], ignoring...", prefix, stateFile.toAbsolutePath());
                         continue;
                     }
-                    try (final XContentParser parser = XContentHelper.createParser(new BytesArray(data))) {
+                    try (XContentParser parser = XContentHelper.createParser(namedXContentRegistry, new BytesArray(data))) {
                         state = fromXContent(parser);
                     }
                     if (state == null) {
                         logger.debug("{}: no data for [{}], ignoring...", prefix, stateFile.toAbsolutePath());
                     }
                 } else {
-                    state = read(stateFile);
+                    state = read(namedXContentRegistry, stateFile);
                     logger.trace("state id [{}] read from [{}]", id, stateFile.getFileName());
                 }
                 return state;

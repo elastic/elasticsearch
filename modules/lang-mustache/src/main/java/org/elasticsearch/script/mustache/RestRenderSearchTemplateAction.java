@@ -20,12 +20,11 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.ScriptType;
 
@@ -35,8 +34,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestRenderSearchTemplateAction extends BaseRestHandler {
-
-    @Inject
     public RestRenderSearchTemplateAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_render/template", this);
@@ -48,7 +45,10 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         // Creates the render template request
-        SearchTemplateRequest renderRequest = RestSearchTemplateAction.parse(RestActions.getRestContent(request));
+        SearchTemplateRequest renderRequest;
+        try (XContentParser parser = request.contentOrSourceParamParser()) {
+            renderRequest = RestSearchTemplateAction.parse(parser);
+        }
         renderRequest.setSimulate(true);
 
         String id = request.param("id");

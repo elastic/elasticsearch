@@ -21,8 +21,9 @@ package org.elasticsearch.search.suggest.term;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
-import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.StringDistanceImpl;
@@ -215,32 +216,11 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
                          "    }\n" +
                          "  }\n" +
                          "}";
-        try {
-            final SuggestBuilder suggestBuilder = SuggestBuilder.fromXContent(newParseContext(suggest), suggesters);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, suggest)) {
+            final SuggestBuilder suggestBuilder = SuggestBuilder.fromXContent(parser);
             fail("Should not have been able to create SuggestBuilder from malformed JSON: " + suggestBuilder);
         } catch (Exception e) {
             assertThat(e.getMessage(), containsString("parsing failed"));
         }
     }
-
-    private void assertSpellcheckerSettings(DirectSpellcheckerSettings oldSettings, DirectSpellcheckerSettings newSettings) {
-        final double delta = 0.0d;
-        // make sure the objects aren't the same
-        assertNotSame(oldSettings, newSettings);
-        // make sure the objects aren't null
-        assertNotNull(oldSettings);
-        assertNotNull(newSettings);
-        // and now, make sure they are equal..
-        assertEquals(oldSettings.accuracy(), newSettings.accuracy(), delta);
-        assertEquals(oldSettings.maxEdits(), newSettings.maxEdits());
-        assertEquals(oldSettings.maxInspections(), newSettings.maxInspections());
-        assertEquals(oldSettings.maxTermFreq(), newSettings.maxTermFreq(), delta);
-        assertEquals(oldSettings.minDocFreq(), newSettings.minDocFreq(), delta);
-        assertEquals(oldSettings.minWordLength(), newSettings.minWordLength());
-        assertEquals(oldSettings.prefixLength(), newSettings.prefixLength());
-        assertEquals(oldSettings.sort(), newSettings.sort());
-        assertEquals(oldSettings.stringDistance().getClass(), newSettings.stringDistance().getClass());
-        assertEquals(oldSettings.suggestMode().getClass(), newSettings.suggestMode().getClass());
-    }
-
 }

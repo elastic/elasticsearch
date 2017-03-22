@@ -88,7 +88,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 currentSnapshotIds.add(snapshotId);
             }
             if (isCurrentSnapshotsOnly(request.snapshots()) == false) {
-                for (SnapshotId snapshotId : snapshotsService.snapshotIds(repository)) {
+                for (SnapshotId snapshotId : snapshotsService.getRepositoryData(repository).getAllSnapshotIds()) {
                     allSnapshotIds.put(snapshotId.getName(), snapshotId);
                 }
             }

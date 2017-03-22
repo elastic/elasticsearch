@@ -20,15 +20,15 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.CustomTypeSafeMatcher;
@@ -160,12 +160,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         doAnswer((InvocationOnMock invocationOnMock) -> {
             IngestDocument ingestDocument = (IngestDocument) invocationOnMock.getArguments()[0];
             for (IngestDocument.MetaData metaData : IngestDocument.MetaData.values()) {
-                if (metaData == IngestDocument.MetaData.TTL) {
-                    ingestDocument.setFieldValue(IngestDocument.MetaData.TTL.getFieldName(), "35d");
-                } else {
-                    ingestDocument.setFieldValue(metaData.getFieldName(), "update" + metaData.getFieldName());
-                }
-
+                ingestDocument.setFieldValue(metaData.getFieldName(), "update" + metaData.getFieldName());
             }
             return null;
         }).when(processor).execute(any());
@@ -186,8 +181,6 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         assertThat(indexRequest.id(), equalTo("update_id"));
         assertThat(indexRequest.routing(), equalTo("update_routing"));
         assertThat(indexRequest.parent(), equalTo("update_parent"));
-        assertThat(indexRequest.timestamp(), equalTo("update_timestamp"));
-        assertThat(indexRequest.ttl(), equalTo(new TimeValue(3024000000L)));
     }
 
     public void testExecuteFailure() throws Exception {
@@ -266,53 +259,6 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         verify(completionHandler, never()).accept(anyBoolean());
     }
 
-    public void testExecuteSetTTL() throws Exception {
-        Processor processor = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("_ttl", "5d"));
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", version, new CompoundProcessor(processor)));
-
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
-        @SuppressWarnings("unchecked")
-        Consumer<Exception> failureHandler = mock(Consumer.class);
-        @SuppressWarnings("unchecked")
-        Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
-
-        assertThat(indexRequest.ttl(), equalTo(TimeValue.parseTimeValue("5d", null, "ttl")));
-        verify(failureHandler, never()).accept(any());
-        verify(completionHandler, times(1)).accept(true);
-    }
-
-    public void testExecuteSetInvalidTTL() throws Exception {
-        Processor processor = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("_ttl", "abc"));
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", version, new CompoundProcessor(processor)));
-
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
-        @SuppressWarnings("unchecked")
-        Consumer<Exception> failureHandler = mock(Consumer.class);
-        @SuppressWarnings("unchecked")
-        Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
-        verify(failureHandler, times(1)).accept(any(ElasticsearchParseException.class));
-        verify(completionHandler, never()).accept(anyBoolean());
-    }
-
-    public void testExecuteProvidedTTL() throws Exception {
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", version, mock(CompoundProcessor.class)));
-
-        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").setPipeline("_id")
-                .source(Collections.emptyMap())
-                .ttl(1000L);
-        @SuppressWarnings("unchecked")
-        Consumer<Exception> failureHandler = mock(Consumer.class);
-        @SuppressWarnings("unchecked")
-        Consumer<Boolean> completionHandler = mock(Consumer.class);
-        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
-
-        assertThat(indexRequest.ttl(), equalTo(new TimeValue(1000L)));
-        verify(failureHandler, never()).accept(any());
-        verify(completionHandler, times(1)).accept(true);
-    }
-
     public void testBulkRequestExecutionWithFailures() throws Exception {
         BulkRequest bulkRequest = new BulkRequest();
         String pipelineId = "_id";
@@ -329,7 +275,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
                 }
             } else {
                 IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").setPipeline(pipelineId);
-                indexRequest.source("field1", "value1");
+                indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
                 request = indexRequest;
                 numIndexRequests++;
             }
@@ -359,7 +305,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         int numRequest = scaledRandomIntBetween(8, 64);
         for (int i = 0; i < numRequest; i++) {
             IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").setPipeline(pipelineId);
-            indexRequest.source("field1", "value1");
+            indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
             bulkRequest.add(indexRequest);
         }
 
@@ -387,8 +333,8 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         when(store.get("_id2")).thenReturn(new Pipeline("_id2", null, null, new CompoundProcessor(mock(Processor.class))));
 
         Map<String, PipelineConfiguration> configurationMap = new HashMap<>();
-        configurationMap.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{}")));
-        configurationMap.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{}")));
+        configurationMap.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{}"), XContentType.JSON));
+        configurationMap.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{}"), XContentType.JSON));
         executionService.updatePipelineStats(new IngestMetadata(configurationMap));
 
         @SuppressWarnings("unchecked")
@@ -417,14 +363,14 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     // issue: https://github.com/elastic/elasticsearch/issues/18126
     public void testUpdatingStatsWhenRemovingPipelineWorks() throws Exception {
         Map<String, PipelineConfiguration> configurationMap = new HashMap<>();
-        configurationMap.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{}")));
-        configurationMap.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{}")));
+        configurationMap.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{}"), XContentType.JSON));
+        configurationMap.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{}"), XContentType.JSON));
         executionService.updatePipelineStats(new IngestMetadata(configurationMap));
         assertThat(executionService.stats().getStatsPerPipeline(), hasKey("_id1"));
         assertThat(executionService.stats().getStatsPerPipeline(), hasKey("_id2"));
 
         configurationMap = new HashMap<>();
-        configurationMap.put("_id3", new PipelineConfiguration("_id3", new BytesArray("{}")));
+        configurationMap.put("_id3", new PipelineConfiguration("_id3", new BytesArray("{}"), XContentType.JSON));
         executionService.updatePipelineStats(new IngestMetadata(configurationMap));
         assertThat(executionService.stats().getStatsPerPipeline(), not(hasKey("_id1")));
         assertThat(executionService.stats().getStatsPerPipeline(), not(hasKey("_id2")));
@@ -438,8 +384,8 @@ public class PipelineExecutionServiceTests extends ESTestCase {
 
         private final IngestDocument ingestDocument;
 
-        public IngestDocumentMatcher(String index, String type, String id, Map<String, Object> source) {
-            this.ingestDocument = new IngestDocument(index, type, id, null, null, null, null, source);
+        IngestDocumentMatcher(String index, String type, String id, Map<String, Object> source) {
+            this.ingestDocument = new IngestDocument(index, type, id, null, null, source);
         }
 
         @Override

@@ -21,8 +21,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -31,15 +31,11 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
 /** A {@link FieldMapper} for full-text fields. */
@@ -47,14 +43,6 @@ public class TextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "text";
     private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
-
-    private static final List<String> SUPPORTED_PARAMETERS_FOR_AUTO_DOWNGRADE_TO_STRING = unmodifiableList(Arrays.asList(
-            "type",
-            // common text parameters, for which the upgrade is straightforward
-            "index", "store", "doc_values", "omit_norms", "norms", "boost", "fields", "copy_to",
-            "fielddata", "eager_global_ordinals", "fielddata_frequency_filter", "include_in_all",
-            "analyzer", "search_analyzer", "search_quote_analyzer",
-            "index_options", "position_increment_gap", "similarity"));
 
     public static class Defaults {
         public static double FIELDDATA_MIN_FREQUENCY = 0;
@@ -142,41 +130,6 @@ public class TextFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1)) {
-                // Downgrade "text" to "string" in indexes created in 2.x so you can use modern syntax against old indexes
-                Set<String> unsupportedParameters = new HashSet<>(node.keySet());
-                unsupportedParameters.removeAll(SUPPORTED_PARAMETERS_FOR_AUTO_DOWNGRADE_TO_STRING);
-                if (false == SUPPORTED_PARAMETERS_FOR_AUTO_DOWNGRADE_TO_STRING.containsAll(node.keySet())) {
-                    throw new IllegalArgumentException("Automatic downgrade from [text] to [string] failed because parameters "
-                            + unsupportedParameters + " are not supported for automatic downgrades.");
-                }
-                {   // Downgrade "index"
-                    Object index = node.get("index");
-                    if (index == null || Boolean.TRUE.equals(index)) {
-                        index = "analyzed";
-                    } else if (Boolean.FALSE.equals(index)) {
-                        index = "no";
-                    } else {
-                        throw new IllegalArgumentException(
-                                "Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [true] or [false]");
-                    }
-                    node.put("index", index);
-                }
-                {   // Downgrade "fielddata" (default in string is true, default in text is false)
-                    Object fielddata = node.get("fielddata");
-                    if (fielddata == null || Boolean.FALSE.equals(fielddata)) {
-                        fielddata = false;
-                    } else if (Boolean.TRUE.equals(fielddata)) {
-                        fielddata = true;
-                    } else {
-                        throw new IllegalArgumentException("can't parse [fielddata] value for [" + fielddata + "] for field ["
-                                + fieldName + "], expected [true] or [false]");
-                    }
-                    node.put("fielddata", fielddata);
-                }
-
-                return new StringFieldMapper.TypeParser().parse(fieldName, node, parserContext);
-            }
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(fieldName);
             builder.fieldType().setIndexAnalyzer(parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer());
             builder.fieldType().setSearchAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchAnalyzer());
@@ -191,10 +144,10 @@ public class TextFieldMapper extends FieldMapper {
                     builder.positionIncrementGap(newPositionIncrementGap);
                     iterator.remove();
                 } else if (propName.equals("fielddata")) {
-                    builder.fielddata(XContentMapValues.nodeBooleanValue(propNode));
+                    builder.fielddata(XContentMapValues.nodeBooleanValue(propNode, "fielddata"));
                     iterator.remove();
                 } else if (propName.equals("eager_global_ordinals")) {
-                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(propNode));
+                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(propNode, "eager_global_ordinals"));
                     iterator.remove();
                 } else if (propName.equals("fielddata_frequency_filter")) {
                     Map<?,?> frequencyFilter = (Map<?, ?>) propNode;
@@ -371,7 +324,7 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         final String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();

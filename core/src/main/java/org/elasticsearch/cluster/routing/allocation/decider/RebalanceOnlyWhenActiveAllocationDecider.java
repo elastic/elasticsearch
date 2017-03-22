@@ -37,8 +37,8 @@ public class RebalanceOnlyWhenActiveAllocationDecider extends AllocationDecider 
     @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (!allocation.routingNodes().allReplicasActive(shardRouting.shardId(), allocation.metaData())) {
-            return allocation.decision(Decision.NO, NAME, "rebalancing can not occur if not all replicas are active in the cluster");
+            return allocation.decision(Decision.NO, NAME, "rebalancing is not allowed until all replicas in the cluster are active");
         }
-        return allocation.decision(Decision.YES, NAME, "all replicas are active in the cluster, rebalancing can occur");
+        return allocation.decision(Decision.YES, NAME, "rebalancing is allowed as all replicas are active in the cluster");
     }
 }

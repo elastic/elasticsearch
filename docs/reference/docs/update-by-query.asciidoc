@@ -53,9 +53,9 @@ version number, documents with version equal to zero cannot be updated using
 All update and query failures cause the `_update_by_query` to abort and are
 returned in the `failures` of the response. The updates that have been
 performed still stick. In other words, the process is not rolled back, only
-aborted. While the first failure causes the abort all failures that are
-returned by the failing bulk request are returned in the `failures` element so
-it's possible for there to be quite a few.
+aborted. While the first failure causes the abort, all failures that are
+returned by the failing bulk request are returned in the `failures` element; therefore
+it's possible for there to be quite a few failed entities.
 
 If you want to simply count version conflicts not cause the `_update_by_query`
 to abort you can set `conflicts=proceed` on the url or `"conflicts": "proceed"`
@@ -501,6 +501,7 @@ Which results in a sensible `total` like this one:
 
 Adding `slices` to `_update_by_query` just automates the manual process used in
 the section above, creating sub-requests which means it has some quirks:
+
 * You can see these requests in the
 <<docs-update-by-query-task-api,Tasks APIs>>. These sub-requests are "child"
 tasks of the task for the request with `slices`.

@@ -24,12 +24,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -47,11 +44,7 @@ import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHead
 import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 public class RestCountAction extends BaseRestHandler {
-
-    private final IndicesQueriesRegistry indicesQueriesRegistry;
-
-    @Inject
-    public RestCountAction(Settings settings, RestController controller, IndicesQueriesRegistry indicesQueriesRegistry) {
+    public RestCountAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_count", this);
         controller.registerHandler(GET, "/_count", this);
@@ -59,7 +52,6 @@ public class RestCountAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/_count", this);
         controller.registerHandler(POST, "/{index}/{type}/_count", this);
         controller.registerHandler(GET, "/{index}/{type}/_count", this);
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
     }
 
     @Override
@@ -68,15 +60,16 @@ public class RestCountAction extends BaseRestHandler {
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
         countRequest.source(searchSourceBuilder);
-        if (RestActions.hasBodyContent(request)) {
-            BytesReference restContent = RestActions.getRestContent(request);
-            searchSourceBuilder.query(RestActions.getQueryContent(restContent, indicesQueriesRegistry, parseFieldMatcher));
-        } else {
-            QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
-            if (queryBuilder != null) {
-                searchSourceBuilder.query(queryBuilder);
+        request.withContentOrSourceParamParserOrNull(parser -> {
+            if (parser == null) {
+                QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+                if (queryBuilder != null) {
+                    searchSourceBuilder.query(queryBuilder);
+                }
+            } else {
+                searchSourceBuilder.query(RestActions.getQueryContent(parser));
             }
-        }
+        });
         countRequest.routing(request.param("routing"));
         float minScore = request.paramAsFloat("min_score", -1f);
         if (minScore != -1f) {
@@ -98,7 +91,7 @@ public class RestCountAction extends BaseRestHandler {
                 if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
                     builder.field("terminated_early", response.isTerminatedEarly());
                 }
-                builder.field("count", response.getHits().totalHits());
+                builder.field("count", response.getHits().getTotalHits());
                 buildBroadcastShardsHeader(builder, request, response.getTotalShards(), response.getSuccessfulShards(),
                         response.getFailedShards(), response.getShardFailures());
 

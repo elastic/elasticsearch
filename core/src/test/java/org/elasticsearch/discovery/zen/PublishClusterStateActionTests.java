@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -36,12 +37,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -166,11 +167,10 @@ public class PublishClusterStateActionTests extends ESTestCase {
                 .build();
 
         MockTransportService service = buildTransportService(settings, threadPool);
-        DiscoveryNode discoveryNode = DiscoveryNode.createLocal(settings, service.boundAddress().publishAddress(),
-            NodeEnvironment.generateNodeId(settings));
+        DiscoveryNode discoveryNode = service.getLocalDiscoNode();
         MockNode node = new MockNode(discoveryNode, service, listener, logger);
         node.action = buildPublishClusterStateAction(settings, service, () -> node.clusterState, node);
-        final CountDownLatch latch = new CountDownLatch(nodes.size() * 2 + 1);
+        final CountDownLatch latch = new CountDownLatch(nodes.size() * 2);
         TransportConnectionListener waitForConnection = new TransportConnectionListener() {
             @Override
             public void onNodeConnected(DiscoveryNode node) {
@@ -188,7 +188,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
             curNode.connectTo(node.discoveryNode);
             node.connectTo(curNode.discoveryNode);
         }
-        node.connectTo(node.discoveryNode);
         assertThat("failed to wait for all nodes to connect", latch.await(5, TimeUnit.SECONDS), equalTo(true));
         for (MockNode curNode : nodes.values()) {
             curNode.service.removeConnectionListener(waitForConnection);
@@ -248,9 +247,11 @@ public class PublishClusterStateActionTests extends ESTestCase {
     ) {
         DiscoverySettings discoverySettings =
                 new DiscoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         return new MockPublishAction(
                 settings,
                 transportService,
+                namedWriteableRegistry,
                 clusterStateSupplier,
                 listener,
                 discoverySettings,
@@ -873,10 +874,10 @@ public class PublishClusterStateActionTests extends ESTestCase {
         AtomicBoolean timeoutOnCommit = new AtomicBoolean();
         AtomicBoolean errorOnCommit = new AtomicBoolean();
 
-        public MockPublishAction(Settings settings, TransportService transportService,
+        public MockPublishAction(Settings settings, TransportService transportService, NamedWriteableRegistry namedWriteableRegistry,
                                  Supplier<ClusterState> clusterStateSupplier, NewPendingClusterStateListener listener,
                                  DiscoverySettings discoverySettings, ClusterName clusterName) {
-            super(settings, transportService, clusterStateSupplier, listener, discoverySettings, clusterName);
+            super(settings, transportService, namedWriteableRegistry, clusterStateSupplier, listener, discoverySettings, clusterName);
         }
 
         @Override

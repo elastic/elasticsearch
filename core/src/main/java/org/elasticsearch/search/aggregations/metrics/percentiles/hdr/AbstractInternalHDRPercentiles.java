@@ -30,8 +30,10 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.zip.DataFormatException;
 
 abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggregation.MultiValue {
@@ -40,7 +42,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     protected final DoubleHistogram state;
     private final boolean keyed;
 
-    public AbstractInternalHDRPercentiles(String name, double[] keys, DoubleHistogram state, boolean keyed, DocValueFormat format,
+    AbstractInternalHDRPercentiles(String name, double[] keys, DoubleHistogram state, boolean keyed, DocValueFormat format,
             List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
@@ -138,5 +140,21 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
             builder.endArray();
         }
         return builder;
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        AbstractInternalHDRPercentiles that = (AbstractInternalHDRPercentiles) obj;
+        return keyed == that.keyed
+                && Arrays.equals(keys, that.keys)
+                && Objects.equals(state, that.state);
+    }
+
+    @Override
+    protected int doHashCode() {
+        // we cannot use state.hashCode at the moment because of:
+        // https://github.com/HdrHistogram/HdrHistogram/issues/81
+        // TODO: upgrade the HDRHistogram library
+        return Objects.hash(keyed, Arrays.hashCode(keys), state.getIntegerToDoubleValueConversionRatio(), state.getTotalCount());
     }
 }

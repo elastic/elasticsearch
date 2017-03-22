@@ -75,4 +75,9 @@ public final class EDecimal extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(value);
+    }
 }

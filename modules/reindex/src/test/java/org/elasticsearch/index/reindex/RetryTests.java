@@ -26,6 +26,10 @@ import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.Retry;
+import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequestBuilder;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollTask;
+import org.elasticsearch.action.bulk.byscroll.BulkIndexByScrollResponseMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -118,7 +122,7 @@ public class RetryTests extends ESSingleNodeTestCase {
         NodeInfo nodeInfo = client().admin().cluster().prepareNodesInfo().get().getNodes().get(0);
         TransportAddress address = nodeInfo.getHttp().getAddress().publishAddress();
         RemoteInfo remote = new RemoteInfo("http", address.getAddress(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null,
-            null, emptyMap());
+            null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
         ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest")
                 .setRemoteInfo(remote);
         testCase(ReindexAction.NAME, request, matcher().created(DOC_COUNT));
@@ -143,7 +147,7 @@ public class RetryTests extends ESSingleNodeTestCase {
         request.source().setSize(DOC_COUNT / randomIntBetween(2, 10));
 
         logger.info("Starting request");
-        ListenableActionFuture<BulkIndexByScrollResponse> responseListener = request.execute();
+        ListenableActionFuture<BulkByScrollResponse> responseListener = request.execute();
 
         try {
             logger.info("Waiting for search rejections on the initial search");
@@ -170,13 +174,13 @@ public class RetryTests extends ESSingleNodeTestCase {
             scrollBlock.await();
 
             logger.info("Waiting for the request to finish");
-            BulkIndexByScrollResponse response = responseListener.get();
+            BulkByScrollResponse response = responseListener.get();
             assertThat(response, matcher);
             assertThat(response.getBulkRetries(), greaterThan(0L));
             assertThat(response.getSearchRetries(), greaterThan(initialSearchRejections));
         } finally {
             // Fetch the response just in case we blew up half way through. This will make sure the failure is thrown up to the top level.
-            BulkIndexByScrollResponse response = responseListener.get();
+            BulkByScrollResponse response = responseListener.get();
             assertThat(response.getSearchFailures(), empty());
             assertThat(response.getBulkFailures(), empty());
         }

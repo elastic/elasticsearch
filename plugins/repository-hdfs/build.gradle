@@ -42,7 +42,7 @@ dependencies {
   compile "org.apache.hadoop:hadoop-auth:${versions.hadoop2}"
   compile "org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}"
   compile 'org.apache.htrace:htrace-core:3.1.0-incubating'
-  compile 'com.google.guava:guava:16.0.1'
+  compile 'com.google.guava:guava:11.0.2'
   compile 'com.google.protobuf:protobuf-java:2.5.0'
   compile 'commons-logging:commons-logging:1.1.3'
   compile 'commons-cli:commons-cli:1.2'
@@ -68,33 +68,31 @@ task hdfsFixture(type: org.elasticsearch.gradle.test.Fixture) {
        baseDir
 }
 
-integTest {
-  boolean fixtureSupported = false;
-  if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-    // hdfs fixture will not start without hadoop native libraries on windows
-    String nativePath = System.getenv("HADOOP_HOME")
-    if (nativePath != null) {
-      Path path = Paths.get(nativePath);
-      if (Files.isDirectory(path) &&
-          Files.exists(path.resolve("bin").resolve("winutils.exe")) &&
-          Files.exists(path.resolve("bin").resolve("hadoop.dll")) &&
-          Files.exists(path.resolve("bin").resolve("hdfs.dll"))) {
-        fixtureSupported = true
-      } else {
-        throw new IllegalStateException("HADOOP_HOME: " + path.toString() + " is invalid, does not contain hadoop native libraries in $HADOOP_HOME/bin");
-      }
+boolean fixtureSupported = false;
+if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+  // hdfs fixture will not start without hadoop native libraries on windows
+  String nativePath = System.getenv("HADOOP_HOME")
+  if (nativePath != null) {
+    Path path = Paths.get(nativePath);
+    if (Files.isDirectory(path) &&
+        Files.exists(path.resolve("bin").resolve("winutils.exe")) &&
+        Files.exists(path.resolve("bin").resolve("hadoop.dll")) &&
+        Files.exists(path.resolve("bin").resolve("hdfs.dll"))) {
+      fixtureSupported = true
+    } else {
+      throw new IllegalStateException("HADOOP_HOME: " + path.toString() + " is invalid, does not contain hadoop native libraries in $HADOOP_HOME/bin");
     }
-  } else {
-    fixtureSupported = true
   }
+} else {
+  fixtureSupported = true
+}
 
-  if (fixtureSupported) {
-    dependsOn hdfsFixture
-  } else {
-    logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
-    // just tests that the plugin loads
-    systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
-  }
+if (fixtureSupported) {
+  integTest.dependsOn hdfsFixture
+} else {
+  logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
+  // just tests that the plugin loads
+  integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
 }
 
 thirdPartyAudit.excludes = [
@@ -340,9 +338,6 @@ thirdPartyAudit.excludes = [
   'org.apache.hadoop.security.SecurityUtil$QualifiedHostResolver',
 
   // internal java api: sun.misc.Unsafe
-  'com.google.common.cache.Striped64',
-  'com.google.common.cache.Striped64$1',
-  'com.google.common.cache.Striped64$Cell',
   'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator', 
   'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
   'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer',
@@ -368,3 +363,9 @@ thirdPartyAudit.excludes = [
   'org.apache.log4j.helpers.ISO8601DateFormat',
   'org.apache.log4j.spi.ThrowableInformation'
 ]
+
+// Gradle 2.13 bundles org.slf4j.impl.StaticLoggerBinder in its core.jar which leaks into the forbidden APIs ant task
+// Gradle 2.14+ does not bundle this class anymore so we need to properly exclude it here.
+if (GradleVersion.current() > GradleVersion.version("2.13")) {
+  thirdPartyAudit.excludes += ['org.slf4j.impl.StaticLoggerBinder']
+}

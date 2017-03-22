@@ -22,11 +22,14 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,13 +46,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
 /**
  * A field mapper for boolean fields.
  */
 public class BooleanFieldMapper extends FieldMapper {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(BooleanFieldMapper.class));
 
     public static final String CONTENT_TYPE = "boolean";
 
@@ -107,7 +110,7 @@ public class BooleanFieldMapper extends FieldMapper {
                     if (propNode == null) {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
-                    builder.nullValue(lenientNodeBooleanValue(propNode));
+                    builder.nullValue(TypeParsers.nodeBooleanValue(name, "null_value", propNode, parserContext));
                     iterator.remove();
                 }
             }
@@ -217,7 +220,7 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored() && !fieldType().hasDocValues()) {
             return;
         }
@@ -230,7 +233,15 @@ public class BooleanFieldMapper extends FieldMapper {
                     value = fieldType().nullValue();
                 }
             } else {
-                value = context.parser().booleanValue();
+                if (indexCreatedVersion.onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                    value = context.parser().booleanValue();
+                } else {
+                    value = context.parser().booleanValueLenient();
+                    if (context.parser().isBooleanValueLenient() != context.parser().isBooleanValue()) {
+                        String rawValue = context.parser().text();
+                        deprecationLogger.deprecated("Expected a boolean for property [{}] but got [{}]", fieldType().name(), rawValue);
+                    }
+                }
             }
         }
 

@@ -26,12 +26,13 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -207,10 +208,13 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
-        TermsQuery termsQuery = (TermsQuery) fieldType.createCandidateQuery(indexReader);
+        BooleanQuery candidateQuery = (BooleanQuery) fieldType.createCandidateQuery(indexReader);
+        assertEquals(2, candidateQuery.clauses().size());
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(0).getOccur());
+        TermInSetQuery termsQuery = (TermInSetQuery) candidateQuery.clauses().get(0).getQuery();
 
         PrefixCodedTerms terms = termsQuery.getTermData();
-        assertThat(terms.size(), equalTo(15L));
+        assertThat(terms.size(), equalTo(14L));
         PrefixCodedTerms.TermIterator termIterator = terms.iterator();
         assertTermIterator(termIterator, "_field3\u0000me", fieldType.queryTermsField.name());
         assertTermIterator(termIterator, "_field3\u0000unhide", fieldType.queryTermsField.name());
@@ -226,7 +230,10 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertTermIterator(termIterator, "field2\u0000some", fieldType.queryTermsField.name());
         assertTermIterator(termIterator, "field2\u0000text", fieldType.queryTermsField.name());
         assertTermIterator(termIterator, "field4\u0000123", fieldType.queryTermsField.name());
-        assertTermIterator(termIterator, EXTRACTION_FAILED, fieldType.extractionResultField.name());
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(1).getOccur());
+        assertEquals(new TermQuery(new Term(fieldType.extractionResultField.name(), EXTRACTION_FAILED)),
+                candidateQuery.clauses().get(1).getQuery());
     }
 
     private void assertTermIterator(PrefixCodedTerms.TermIterator termIterator, String expectedValue, String expectedField) {
@@ -332,12 +339,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         String percolatorMapper = XContentFactory.jsonBuilder().startObject().startObject(typeName)
             .startObject("properties").startObject(fieldName).field("type", "percolator").field("index", "no").endObject().endObject()
             .endObject().endObject().string();
-        try {
-            mapperService.merge(typeName, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, true);
-            fail("MapperParsingException expected");
-        } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), equalTo("Mapping definition for [" + fieldName + "] has unsupported parameters:  [index : no]"));
-        }
+        MapperParsingException e = expectThrows(MapperParsingException.class, () ->
+            mapperService.merge(typeName, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, true));
+        assertThat(e.getMessage(), containsString("Mapping definition for [" + fieldName + "] has unsupported parameters:  [index : no]"));
     }
 
     // multiple percolator fields are allowed in the mapping, but only one field can be used at index time.
@@ -359,7 +363,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                         .field("query_field2", queryBuilder)
                         .endObject().bytes()
         );
-        assertThat(doc.rootDoc().getFields().size(), equalTo(12)); // also includes all other meta fields
+        assertThat(doc.rootDoc().getFields().size(), equalTo(14)); // also includes all other meta fields
         BytesRef queryBuilderAsBytes = doc.rootDoc().getField("query_field1.query_builder_field").binaryValue();
         assertQueryBuilder(queryBuilderAsBytes, queryBuilder);
 
@@ -389,7 +393,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                             .field("query_field", queryBuilder)
                         .endObject().endObject().bytes()
         );
-        assertThat(doc.rootDoc().getFields().size(), equalTo(9)); // also includes all other meta fields
+        assertThat(doc.rootDoc().getFields().size(), equalTo(11)); // also includes all other meta fields
         BytesRef queryBuilderAsBytes = doc.rootDoc().getField("object_field.query_field.query_builder_field").binaryValue();
         assertQueryBuilder(queryBuilderAsBytes, queryBuilder);
 
@@ -400,7 +404,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                             .endArray()
                         .endObject().bytes()
         );
-        assertThat(doc.rootDoc().getFields().size(), equalTo(9)); // also includes all other meta fields
+        assertThat(doc.rootDoc().getFields().size(), equalTo(11)); // also includes all other meta fields
         queryBuilderAsBytes = doc.rootDoc().getField("object_field.query_field.query_builder_field").binaryValue();
         assertQueryBuilder(queryBuilderAsBytes, queryBuilder);
 
@@ -445,6 +449,53 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 }
         );
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        e = expectThrows(MapperParsingException.class, () -> {
+                mapperService.documentMapper(typeName).parse("test", typeName, "1",
+                    jsonBuilder().startObject()
+                        .field(fieldName, rangeQuery("date_field").from("now"))
+                        .endObject().bytes());
+            }
+        );
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        e = expectThrows(MapperParsingException.class, () -> {
+                mapperService.documentMapper(typeName).parse("test", typeName, "1",
+                    jsonBuilder().startObject()
+                        .field(fieldName, rangeQuery("date_field").to("now"))
+                        .endObject().bytes());
+            }
+        );
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+    }
+
+    // https://github.com/elastic/elasticsearch/issues/22355
+    public void testVerifyRangeQueryWithNullBounds() throws Exception {
+        addQueryMapping();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+                mapperService.documentMapper(typeName).parse("test", typeName, "1",
+                    jsonBuilder().startObject()
+                        .field(fieldName, rangeQuery("date_field").from("now").to(null))
+                        .endObject().bytes());
+            }
+        );
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        e = expectThrows(MapperParsingException.class, () -> {
+                mapperService.documentMapper(typeName).parse("test", typeName, "1",
+                    jsonBuilder().startObject()
+                        .field(fieldName, rangeQuery("date_field").from(null).to("now"))
+                        .endObject().bytes());
+            }
+        );
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+
+        // No validation failures:
+        mapperService.documentMapper(typeName).parse("test", typeName, "1",
+            jsonBuilder().startObject()
+                .field(fieldName, rangeQuery("date_field").from("2016-01-01").to(null))
+                .endObject().bytes());
+        mapperService.documentMapper(typeName).parse("test", typeName, "1",
+            jsonBuilder().startObject()
+                .field(fieldName, rangeQuery("date_field").from(null).to("2016-01-01"))
+                .endObject().bytes());
     }
 
     public void testUnsupportedQueries() {
@@ -475,14 +526,13 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     private void assertQueryBuilder(BytesRef actual, QueryBuilder expected) throws IOException {
-        XContentParser sourceParser = PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent()
-                .createParser(actual.bytes, actual.offset, actual.length);
+        XContentParser sourceParser = createParser(PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent(),
+                new BytesArray(actual));
         QueryParseContext qsc = indexService.newQueryShardContext(
                 randomInt(20), null, () -> { throw new UnsupportedOperationException(); })
                 .newParseContext(sourceParser);
-        assertThat(qsc.parseInnerQueryBuilder().get(), equalTo(expected));
+        assertThat(qsc.parseInnerQueryBuilder(), equalTo(expected));
     }
-
 
     public void testEmptyName() throws Exception {
         // after 5.x
@@ -522,7 +572,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         ParsedDocument doc = mapperService.documentMapper(typeName).parse("test", typeName, "1",
                 XContentFactory.jsonBuilder().startObject()
-                        .rawField(fieldName, new BytesArray(query.string()))
+                        .rawField(fieldName, new BytesArray(query.string()), query.contentType())
                         .endObject().bytes());
         BytesRef querySource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
         Map<String, Object> parsedQuery = XContentHelper.convertToMap(new BytesArray(querySource), true).v2();
@@ -549,7 +599,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         doc = mapperService.documentMapper(typeName).parse("test", typeName, "1",
                 XContentFactory.jsonBuilder().startObject()
-                        .rawField(fieldName, new BytesArray(query.string()))
+                        .rawField(fieldName, new BytesArray(query.string()), query.contentType())
                         .endObject().bytes());
         querySource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
         parsedQuery = XContentHelper.convertToMap(new BytesArray(querySource), true).v2();

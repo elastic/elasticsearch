@@ -95,4 +95,9 @@ public final class EVariable extends AStoreable {
     void store(MethodWriter writer, Globals globals) {
         writer.visitVarInsn(actual.type.getOpcode(Opcodes.ISTORE), variable.getSlot());
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(name);
+    }
 }

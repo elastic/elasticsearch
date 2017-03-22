@@ -20,8 +20,10 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.BufferedChecksum;
+import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
@@ -30,19 +32,18 @@ import java.util.zip.Checksum;
  * Similar to Lucene's BufferedChecksumIndexInput, however this wraps a
  * {@link StreamInput} so anything read will update the checksum
  */
-public final class BufferedChecksumStreamInput extends StreamInput {
+public final class BufferedChecksumStreamInput extends FilterStreamInput {
     private static final int SKIP_BUFFER_SIZE = 1024;
     private byte[] skipBuffer;
-    private final StreamInput in;
     private final Checksum digest;
 
     public BufferedChecksumStreamInput(StreamInput in) {
-        this.in = in;
+        super(in);
         this.digest = new BufferedChecksum(new CRC32());
     }
 
     public BufferedChecksumStreamInput(StreamInput in, BufferedChecksumStreamInput reuse) {
-        this.in = in;
+        super(in);
         if (reuse == null ) {
             this.digest = new BufferedChecksum(new CRC32());
         } else {
@@ -58,20 +59,20 @@ public final class BufferedChecksumStreamInput extends StreamInput {
 
     @Override
     public byte readByte() throws IOException {
-        final byte b = in.readByte();
+        final byte b = delegate.readByte();
         digest.update(b);
         return b;
     }
 
     @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
-        in.readBytes(b, offset, len);
+        delegate.readBytes(b, offset, len);
         digest.update(b, offset, len);
     }
 
     @Override
     public void reset() throws IOException {
-        in.reset();
+        delegate.reset();
         digest.reset();
     }
 
@@ -81,13 +82,8 @@ public final class BufferedChecksumStreamInput extends StreamInput {
     }
 
     @Override
-    public void close() throws IOException {
-        in.close();
-    }
-
-    @Override
     public boolean markSupported() {
-        return in.markSupported();
+        return delegate.markSupported();
     }
 
 
@@ -109,17 +105,14 @@ public final class BufferedChecksumStreamInput extends StreamInput {
         return skipped;
     }
 
-    @Override
-    public int available() throws IOException {
-        return in.available();
-    }
 
     @Override
     public synchronized void mark(int readlimit) {
-        in.mark(readlimit);
+        delegate.mark(readlimit);
     }
 
     public void resetDigest() {
         digest.reset();
     }
+
 }

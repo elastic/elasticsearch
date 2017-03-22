@@ -24,21 +24,15 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.allocation.command.AllocationCommandRegistry;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -51,10 +45,10 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class RestClusterRerouteAction extends BaseRestHandler {
-    private static final ObjectParser<ClusterRerouteRequest, ParseContext> PARSER = new ObjectParser<>("cluster_reroute");
+    private static final ObjectParser<ClusterRerouteRequest, Void> PARSER = new ObjectParser<>("cluster_reroute");
     static {
-        PARSER.declareField((p, v, c) -> v.commands(AllocationCommands.fromXContent(p, c.getParseFieldMatcher(), c.registry)),
-                new ParseField("commands"), ValueType.OBJECT_ARRAY);
+        PARSER.declareField((p, v, c) -> v.commands(AllocationCommands.fromXContent(p)), new ParseField("commands"),
+                ValueType.OBJECT_ARRAY);
         PARSER.declareBoolean(ClusterRerouteRequest::dryRun, new ParseField("dry_run"));
     }
 
@@ -62,20 +56,16 @@ public class RestClusterRerouteAction extends BaseRestHandler {
             .arrayToCommaDelimitedString(EnumSet.complementOf(EnumSet.of(ClusterState.Metric.METADATA)).toArray());
 
     private final SettingsFilter settingsFilter;
-    private final AllocationCommandRegistry registry;
 
-    @Inject
-    public RestClusterRerouteAction(Settings settings, RestController controller, SettingsFilter settingsFilter,
-            AllocationCommandRegistry registry) {
+    public RestClusterRerouteAction(Settings settings, RestController controller, SettingsFilter settingsFilter) {
         super(settings);
         this.settingsFilter = settingsFilter;
-        this.registry = registry;
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/reroute", this);
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ClusterRerouteRequest clusterRerouteRequest = createRequest(request, registry, parseFieldMatcher);
+        ClusterRerouteRequest clusterRerouteRequest = createRequest(request);
 
         // by default, return everything but metadata
         final String metric = request.param("metric");
@@ -113,35 +103,14 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         return RESPONSE_PARAMS;
     }
 
-    public static ClusterRerouteRequest createRequest(RestRequest request, AllocationCommandRegistry registry,
-                                                      ParseFieldMatcher parseFieldMatcher) throws IOException {
+    public static ClusterRerouteRequest createRequest(RestRequest request) throws IOException {
         ClusterRerouteRequest clusterRerouteRequest = Requests.clusterRerouteRequest();
         clusterRerouteRequest.dryRun(request.paramAsBoolean("dry_run", clusterRerouteRequest.dryRun()));
         clusterRerouteRequest.explain(request.paramAsBoolean("explain", clusterRerouteRequest.explain()));
         clusterRerouteRequest.timeout(request.paramAsTime("timeout", clusterRerouteRequest.timeout()));
         clusterRerouteRequest.setRetryFailed(request.paramAsBoolean("retry_failed", clusterRerouteRequest.isRetryFailed()));
         clusterRerouteRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterRerouteRequest.masterNodeTimeout()));
-        if (request.hasContent()) {
-            try (XContentParser parser = XContentHelper.createParser(request.content())) {
-                PARSER.parse(parser, clusterRerouteRequest, new ParseContext(registry, parseFieldMatcher));
-            }
-        }
+        request.applyContentParser(parser -> PARSER.parse(parser, clusterRerouteRequest, null));
         return clusterRerouteRequest;
     }
-
-    private static class ParseContext implements ParseFieldMatcherSupplier {
-        private final AllocationCommandRegistry registry;
-        private final ParseFieldMatcher parseFieldMatcher;
-
-        private ParseContext(AllocationCommandRegistry registry, ParseFieldMatcher parseFieldMatcher) {
-            this.registry = registry;
-            this.parseFieldMatcher = parseFieldMatcher;
-        }
-
-        @Override
-        public ParseFieldMatcher getParseFieldMatcher() {
-            return parseFieldMatcher;
-        }
-    }
-
 }

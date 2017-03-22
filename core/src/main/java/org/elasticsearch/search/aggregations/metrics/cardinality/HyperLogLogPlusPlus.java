@@ -433,7 +433,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
         private final BytesRef readSpare;
         private final ByteBuffer writeSpare;
 
-        public Hashset(long initialBucketCount) {
+        Hashset(long initialBucketCount) {
             capacity = m / 4; // because ints take 4 bytes
             threshold = (int) (capacity * MAX_LOAD_FACTOR);
             mask = capacity - 1;

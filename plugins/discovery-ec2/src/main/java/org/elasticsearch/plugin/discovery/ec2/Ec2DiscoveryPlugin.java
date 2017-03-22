@@ -44,7 +44,10 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
 import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
+import org.elasticsearch.cloud.aws.util.SocketAccess;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
@@ -55,7 +58,6 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.ec2.AwsEc2UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -70,24 +72,20 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     public static final String EC2 = "ec2";
 
     static {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            public Void run() {
-                try {
-                    // kick jackson to do some static caching of declared members info
-                    Jackson.jsonNodeOf("{}");
-                    // ClientConfiguration clinit has some classloader problems
-                    // TODO: fix that
-                    Class.forName("com.amazonaws.ClientConfiguration");
-                } catch (ClassNotFoundException e) {
-                    throw new RuntimeException(e);
-                }
-                return null;
+        SpecialPermission.check();
+        // Initializing Jackson requires RuntimePermission accessDeclaredMembers
+        // The ClientConfiguration class requires RuntimePermission getClassLoader
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            try {
+                // kick jackson to do some static caching of declared members info
+                Jackson.jsonNodeOf("{}");
+                // ClientConfiguration clinit has some classloader problems
+                // TODO: fix that
+                Class.forName("com.amazonaws.ClientConfiguration");
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException(e);
             }
+            return null;
         });
     }
 
@@ -101,10 +99,11 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
 
     @Override
     public Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
+                                                              NamedWriteableRegistry namedWriteableRegistry,
                                                               ClusterService clusterService, UnicastHostsProvider hostsProvider) {
         // this is for backcompat with pre 5.1, where users would set discovery.type to use ec2 hosts provider
         return Collections.singletonMap(EC2, () ->
-            new ZenDiscovery(settings, threadPool, transportService, clusterService, hostsProvider));
+            new ZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, clusterService, hostsProvider));
     }
 
     @Override
@@ -135,6 +134,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         AwsEc2Service.PROXY_PASSWORD_SETTING,
         AwsEc2Service.SIGNER_SETTING,
         AwsEc2Service.REGION_SETTING,
+        AwsEc2Service.READ_TIMEOUT,
         // Register EC2 specific settings: cloud.aws.ec2
         AwsEc2Service.CLOUD_EC2.KEY_SETTING,
         AwsEc2Service.CLOUD_EC2.SECRET_SETTING,
@@ -146,6 +146,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         AwsEc2Service.CLOUD_EC2.SIGNER_SETTING,
         AwsEc2Service.CLOUD_EC2.REGION_SETTING,
         AwsEc2Service.CLOUD_EC2.ENDPOINT_SETTING,
+        AwsEc2Service.CLOUD_EC2.READ_TIMEOUT,
         // Register EC2 discovery settings: discovery.ec2
         AwsEc2Service.DISCOVERY_EC2.HOST_TYPE_SETTING,
         AwsEc2Service.DISCOVERY_EC2.ANY_GROUP_SETTING,
@@ -164,9 +165,9 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         // setting existed. This check looks for the legacy setting, and sets hosts provider if set
         String discoveryType = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings);
         if (discoveryType.equals(EC2)) {
-            deprecationLogger.deprecated("Using " + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() +
-                " setting to set hosts provider is deprecated. " +
-                "Set \"" + DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + ": " + EC2 + "\" instead");
+            deprecationLogger.deprecated("using [" + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() +
+                "] setting to set hosts provider is deprecated; " +
+                "set [" + DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + ": " + EC2 + "] instead");
             if (DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.exists(settings) == false) {
                 builder.put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), EC2).build();
             }
@@ -179,6 +180,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     }
 
     // pkg private for testing
+    @SuppressForbidden(reason = "We call getInputStream in doPrivileged and provide SocketPermission")
     static Settings getAvailabilityZoneNodeAttributes(Settings settings, String azMetadataUrl) {
         if (AwsEc2Service.AUTO_ATTRIBUTE_SETTING.get(settings) == false) {
             return Settings.EMPTY;
@@ -190,14 +192,14 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         try {
             url = new URL(azMetadataUrl);
             logger.debug("obtaining ec2 [placement/availability-zone] from ec2 meta-data url {}", url);
-            urlConnection = url.openConnection();
+            urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
             urlConnection.setConnectTimeout(2000);
         } catch (IOException e) {
             // should not happen, we know the url is not malformed, and openConnection does not actually hit network
             throw new UncheckedIOException(e);
         }
 
-        try (InputStream in = urlConnection.getInputStream();
+        try (InputStream in = SocketAccess.doPrivilegedIOException(urlConnection::getInputStream);
              BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
 
             String metadataResult = urlReader.readLine();

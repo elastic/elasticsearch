@@ -74,7 +74,7 @@ public class RestIndicesActionTests extends ESTestCase {
 
     public void testBuildTable() {
         final Settings settings = Settings.EMPTY;
-        final RestController restController = new RestController(settings, Collections.emptySet());
+        final RestController restController = new RestController(settings, Collections.emptySet(), null, null, null);
         final RestIndicesAction action = new RestIndicesAction(settings, restController, new IndexNameExpressionResolver(settings));
 
         // build a (semi-)random table

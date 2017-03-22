@@ -46,14 +46,14 @@ This is particularly useful for indexing text like camel-case code, eg
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/test/  -d '
+PUT test
 {
    "settings" : {
       "analysis" : {
          "filter" : {
             "code" : {
                "type" : "pattern_capture",
-               "preserve_original" : 1,
+               "preserve_original" : true,
                "patterns" : [
                   "(\\p{Ll}+|\\p{Lu}\\p{Ll}+|\\p{Lu}+)",
                   "(\\d+)"
@@ -69,8 +69,8 @@ curl -XPUT localhost:9200/test/  -d '
       }
    }
 }
-'
 --------------------------------------------------
+// CONSOLE
 
 When used to analyze the text
 
@@ -87,14 +87,14 @@ Another example is analyzing email addresses:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/test/  -d '
+PUT test
 {
    "settings" : {
       "analysis" : {
          "filter" : {
             "email" : {
                "type" : "pattern_capture",
-               "preserve_original" : 1,
+               "preserve_original" : true,
                "patterns" : [
                   "([^@]+)",
                   "(\\p{L}+)",
@@ -112,8 +112,8 @@ curl -XPUT localhost:9200/test/  -d '
       }
    }
 }
-'
 --------------------------------------------------
+// CONSOLE
 
 When the above analyzer is used on an email address like:
 

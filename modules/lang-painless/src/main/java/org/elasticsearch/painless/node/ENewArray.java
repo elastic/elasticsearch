@@ -20,10 +20,10 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
@@ -107,5 +107,10 @@ public final class ENewArray extends AExpression {
                 writer.newArray(Definition.getType(actual.struct, 0).type);
             }
         }
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToStringWithOptionalArgs(arguments, type, initialize ? "init" : "dims");
     }
 }

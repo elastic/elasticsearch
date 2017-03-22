@@ -28,7 +28,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -225,32 +224,24 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequestBuilder setDoc(String source) {
-        request.doc(source);
+    public UpdateRequestBuilder setDoc(String source, XContentType xContentType) {
+        request.doc(source, xContentType);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequestBuilder setDoc(byte[] source) {
-        request.doc(source);
+    public UpdateRequestBuilder setDoc(byte[] source, XContentType xContentType) {
+        request.doc(source, xContentType);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequestBuilder setDoc(byte[] source, int offset, int length) {
-        request.doc(source, offset, length);
-        return this;
-    }
-
-    /**
-     * Sets the doc to use for updates when a script is not specified.
-     */
-    public UpdateRequestBuilder setDoc(String field, Object value) {
-        request.doc(field, value);
+    public UpdateRequestBuilder setDoc(byte[] source, int offset, int length, XContentType xContentType) {
+        request.doc(source, offset, length, xContentType);
         return this;
     }
 
@@ -260,6 +251,15 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      */
     public UpdateRequestBuilder setDoc(Object... source) {
         request.doc(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified, the doc provided
+     * is a field and value pairs.
+     */
+    public UpdateRequestBuilder setDoc(XContentType xContentType, Object... source) {
+        request.doc(xContentType, source);
         return this;
     }
 
@@ -299,24 +299,24 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(String source) {
-        request.upsert(source);
+    public UpdateRequestBuilder setUpsert(String source, XContentType xContentType) {
+        request.upsert(source, xContentType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(byte[] source) {
-        request.upsert(source);
+    public UpdateRequestBuilder setUpsert(byte[] source, XContentType xContentType) {
+        request.upsert(source, xContentType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(byte[] source, int offset, int length) {
-        request.upsert(source, offset, length);
+    public UpdateRequestBuilder setUpsert(byte[] source, int offset, int length, XContentType xContentType) {
+        request.upsert(source, offset, length, xContentType);
         return this;
     }
 
@@ -330,6 +330,15 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     }
 
     /**
+     * Sets the doc source of the update request to be used when the document does not exists. The doc
+     * includes field and value pairs.
+     */
+    public UpdateRequestBuilder setUpsert(XContentType xContentType, Object... source) {
+        request.upsert(xContentType, source);
+        return this;
+    }
+
+    /**
      * Sets whether the specified doc parameter should be used as upsert document.
      */
     public UpdateRequestBuilder setDocAsUpsert(boolean shouldUpsertDoc) {
@@ -339,7 +348,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
 
     /**
      * Sets whether to perform extra effort to detect noop updates via docAsUpsert.
-     * Defautls to true.
+     * Defaults to true.
      */
     public UpdateRequestBuilder setDetectNoop(boolean detectNoop) {
         request.detectNoop(detectNoop);
@@ -355,33 +364,4 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         return this;
     }
 
-    /**
-     * Set the new ttl of the document as a long. Note that if detectNoop is true (the default)
-     * and the source of the document isn't changed then the ttl update won't take
-     * effect.
-     */
-    public UpdateRequestBuilder setTtl(Long ttl) {
-        request.doc().ttl(ttl);
-        return this;
-    }
-
-    /**
-     * Set the new ttl of the document as a time value expression. Note that if detectNoop is true (the default)
-     * and the source of the document isn't changed then the ttl update won't take
-     * effect.
-     */
-    public UpdateRequestBuilder setTtl(String ttl) {
-        request.doc().ttl(ttl);
-        return this;
-    }
-
-    /**
-     * Set the new ttl of the document as a {@link TimeValue} instance. Note that if detectNoop is true (the default)
-     * and the source of the document isn't changed then the ttl update won't take
-     * effect.
-     */
-    public UpdateRequestBuilder setTtl(TimeValue ttl) {
-        request.doc().ttl(ttl);
-        return this;
-    }
 }

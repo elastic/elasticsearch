@@ -114,4 +114,9 @@ final class PSubDefCall extends AExpression {
         args.addAll(pointers);
         writer.invokeDefCall(name, methodType, DefBootstrap.METHOD_CALL, args.toArray());
     }
+
+    @Override
+    public String toString() {
+        return singleLineToStringWithOptionalArgs(arguments, prefix, name);
+    }
 }

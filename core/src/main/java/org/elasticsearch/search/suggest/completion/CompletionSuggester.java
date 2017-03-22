@@ -18,11 +18,7 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.IndexSearcher;
@@ -32,28 +28,15 @@ import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.TopSuggestDocs;
 import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggester;
-import org.elasticsearch.search.suggest.SuggestionBuilder;
-import org.elasticsearch.search.suggest.completion2x.Completion090PostingsFormat;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -94,70 +77,8 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 }
             }
             return completionSuggestion;
-        } else if (suggestionContext.getFieldType2x() != null) {
-            final IndexReader indexReader = searcher.getIndexReader();
-            org.elasticsearch.search.suggest.completion2x.CompletionSuggestion completionSuggestion =
-                new org.elasticsearch.search.suggest.completion2x.CompletionSuggestion(name, suggestionContext.getSize());
-            spare.copyUTF8Bytes(suggestionContext.getText());
-
-            org.elasticsearch.search.suggest.completion2x.CompletionSuggestion.Entry completionSuggestEntry =
-                new org.elasticsearch.search.suggest.completion2x.CompletionSuggestion.Entry(new Text(spare.toString()), 0, spare.length());
-            completionSuggestion.addTerm(completionSuggestEntry);
-
-            String fieldName = suggestionContext.getField();
-            Map<String, org.elasticsearch.search.suggest.completion2x.CompletionSuggestion.Entry.Option> results =
-                new HashMap<>(indexReader.leaves().size() * suggestionContext.getSize());
-            for (LeafReaderContext atomicReaderContext : indexReader.leaves()) {
-                LeafReader atomicReader = atomicReaderContext.reader();
-                Terms terms = atomicReader.fields().terms(fieldName);
-                if (terms instanceof Completion090PostingsFormat.CompletionTerms) {
-                    final Completion090PostingsFormat.CompletionTerms lookupTerms = (Completion090PostingsFormat.CompletionTerms) terms;
-                    final Lookup lookup = lookupTerms.getLookup(suggestionContext.getFieldType2x(), suggestionContext);
-                    if (lookup == null) {
-                        // we don't have a lookup for this segment.. this might be possible if a merge dropped all
-                        // docs from the segment that had a value in this segment.
-                        continue;
-                    }
-                    List<Lookup.LookupResult> lookupResults = lookup.lookup(spare.get(), false, suggestionContext.getSize());
-                    for (Lookup.LookupResult res : lookupResults) {
-
-                        final String key = res.key.toString();
-                        final float score = res.value;
-                        final org.elasticsearch.search.suggest.completion2x.CompletionSuggestion.Entry.Option value = results.get(key);
-                        if (value == null) {
-                            final org.elasticsearch.search.suggest.completion2x.CompletionSuggestion.Entry.Option option =
-                                new org.elasticsearch.search.suggest.completion2x.CompletionSuggestion.Entry.Option(new Text(key), score,
-                                res.payload == null ? null : new BytesArray(res.payload));
-                            results.put(key, option);
-                        } else if (value.getScore() < score) {
-                            value.setScore(score);
-                            value.setPayload(res.payload == null ? null : new BytesArray(res.payload));
-                        }
-                    }
-                }
-            }
-            final List<org.elasticsearch.search.suggest.completion2x.CompletionSuggestion.Entry.Option> options =
-                new ArrayList<>(results.values());
-            CollectionUtil.introSort(options, scoreComparator);
-
-            int optionCount = Math.min(suggestionContext.getSize(), options.size());
-            for (int i = 0; i < optionCount; i++) {
-                completionSuggestEntry.addOption(options.get(i));
-            }
-
-            return completionSuggestion;
         }
         return null;
-    }
-
-    private static final ScoreComparator scoreComparator = new ScoreComparator();
-    public static class ScoreComparator implements
-        Comparator<org.elasticsearch.search.suggest.completion2x.CompletionSuggestion.Entry.Option> {
-        @Override
-        public int compare(org.elasticsearch.search.suggest.completion2x.CompletionSuggestion.Entry.Option o1,
-                           org.elasticsearch.search.suggest.completion2x.CompletionSuggestion.Entry.Option o2) {
-            return Float.compare(o2.getScore(), o1.getScore());
-        }
     }
 
     private static void suggest(IndexSearcher searcher, CompletionQuery query, TopSuggestDocsCollector collector) throws IOException {
@@ -187,7 +108,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
             private List<TopSuggestDocs.SuggestScoreDoc> suggestScoreDocs;
 
-            public SuggestDoc(int doc, CharSequence key, CharSequence context, float score) {
+            SuggestDoc(int doc, CharSequence key, CharSequence context, float score) {
                 super(doc, key, context, score);
             }
 
@@ -231,7 +152,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
         private static final class SuggestDocPriorityQueue extends PriorityQueue<SuggestDoc> {
 
-            public SuggestDocPriorityQueue(int maxSize) {
+            SuggestDocPriorityQueue(int maxSize) {
                 super(maxSize);
             }
 
@@ -263,8 +184,10 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         private final SuggestDocPriorityQueue pq;
         private final Map<Integer, SuggestDoc> scoreDocMap;
 
-        public TopDocumentsCollector(int num) {
-            super(1); // TODO hack, we don't use the underlying pq, so we allocate a size of 1
+        // TODO: expose dup removal
+        
+        TopDocumentsCollector(int num) {
+            super(1, false); // TODO hack, we don't use the underlying pq, so we allocate a size of 1
             this.num = num;
             this.scoreDocMap = new LinkedHashMap<>(num);
             this.pq = new SuggestDocPriorityQueue(num);
@@ -315,15 +238,5 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 return TopSuggestDocs.EMPTY;
             }
         }
-    }
-
-    @Override
-    public SuggestionBuilder<?> innerFromXContent(QueryParseContext context) throws IOException {
-        return CompletionSuggestionBuilder.innerFromXContent(context);
-    }
-
-    @Override
-    public SuggestionBuilder<?> read(StreamInput in) throws IOException {
-        return new CompletionSuggestionBuilder(in);
     }
 }

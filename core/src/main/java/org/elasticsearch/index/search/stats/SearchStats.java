@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.search.stats;
 
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +33,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class SearchStats implements Streamable, ToXContent {
+public class SearchStats extends ToXContentToBytes implements Streamable {
 
     public static class Stats implements Streamable, ToXContent {
 
@@ -338,22 +339,12 @@ public class SearchStats implements Streamable, ToXContent {
         static final String SUGGEST_CURRENT = "suggest_current";
     }
 
-    public static SearchStats readSearchStats(StreamInput in) throws IOException {
-        SearchStats searchStats = new SearchStats();
-        searchStats.readFrom(in);
-        return searchStats;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         totalStats = Stats.readStats(in);
         openContexts = in.readVLong();
         if (in.readBoolean()) {
-            int size = in.readVInt();
-            groupStats = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                groupStats.put(in.readString(), Stats.readStats(in));
-            }
+            groupStats = in.readMap(StreamInput::readString, Stats::readStats);
         }
     }
 
@@ -365,24 +356,7 @@ public class SearchStats implements Streamable, ToXContent {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeVInt(groupStats.size());
-            for (Map.Entry<String, Stats> entry : groupStats.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
-        }
-    }
-
-    @Override
-    public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return builder.string();
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
+            out.writeMap(groupStats, StreamOutput::writeString, (stream, stats) -> stats.writeTo(stream));
         }
     }
 }

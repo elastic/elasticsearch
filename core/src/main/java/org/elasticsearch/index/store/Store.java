@@ -24,6 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -75,6 +76,8 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -207,6 +210,20 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     }
 
+    /**
+     * Loads the local checkpoint and the maximum sequence number from the latest Lucene commit point and returns the triplet of local and
+     * global checkpoints, and maximum sequence number as an instance of {@link SeqNoStats}. The global checkpoint must be provided
+     * externally as it is not stored in the commit point.
+     *
+     * @param globalCheckpoint the provided global checkpoint
+     * @return an instance of {@link SeqNoStats} populated with the local and global checkpoints, and the maximum sequence number
+     * @throws IOException if an I/O exception occurred reading the latest Lucene commit point from disk
+     */
+    public SeqNoStats loadSeqNoStats(final long globalCheckpoint) throws IOException {
+        final Map<String, String> userData = SegmentInfos.readLatestCommit(directory).getUserData();
+        return SequenceNumbers.loadSeqNoStatsFromLuceneCommit(globalCheckpoint, userData.entrySet());
+    }
+
     final void ensureOpen() {
         if (this.refCounter.refCount() <= 0) {
             throw new AlreadyClosedException("store is already closed");
@@ -245,7 +262,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             metadataLock.readLock().unlock();
         }
     }
-
 
     /**
      * Renames all the given files from the key of the map to the
@@ -338,7 +354,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Decreases the refCount of this Store instance.If the refCount drops to 0, then this
+     * Decreases the refCount of this Store instance. If the refCount drops to 0, then this
      * store is closed.
      *
      * @see #incRef
@@ -371,7 +387,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             IOUtils.closeWhileHandlingException(shardLock);
         }
     }
-
 
     /**
      * Reads a MetadataSnapshot from the given index locations or returns an empty snapshot if it can't be read.
@@ -414,15 +429,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * segment infos and possible corruption markers. If the index can not
      * be opened, an exception is thrown
      */
-    public static void tryOpenIndex(Path indexLocation, ShardId shardId, NodeEnvironment.ShardLocker shardLocker, Logger logger) throws IOException {
+    public static void tryOpenIndex(Path indexLocation, ShardId shardId, NodeEnvironment.ShardLocker shardLocker, Logger logger) throws IOException, ShardLockObtainFailedException {
         try (ShardLock lock = shardLocker.lock(shardId, TimeUnit.SECONDS.toMillis(5));
              Directory dir = new SimpleFSDirectory(indexLocation)) {
             failIfCorrupted(dir, shardId);
             SegmentInfos segInfo = Lucene.readSegmentInfos(dir);
             logger.trace("{} loaded segment info [{}]", shardId, segInfo);
-        } catch (ShardLockObtainFailedException ex) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("{} unable to acquire shard lock", shardId), ex);
-            throw new IOException(ex);
         }
     }
 
@@ -583,7 +595,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * This method deletes every file in this store that is not contained in the given source meta data or is a
      * legacy checksum file. After the delete it pulls the latest metadata snapshot from the store and compares it
-     * to the given snapshot. If the snapshots are inconsistent an illegal state exception is thrown
+     * to the given snapshot. If the snapshots are inconsistent an illegal state exception is thrown.
      *
      * @param reason         the reason for this cleanup operation logged for each deleted file
      * @param sourceMetaData the metadata used for cleanup. all files in this metadata should be kept around.
@@ -627,9 +639,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 for (StoreFileMetaData meta : recoveryDiff.different) {
                     StoreFileMetaData local = targetMetaData.get(meta.name());
                     StoreFileMetaData remote = sourceMetaData.get(meta.name());
-                    // if we have different files the they must have no checksums otherwise something went wrong during recovery.
-                    // we have that problem when we have an empty index is only a segments_1 file then we can't tell if it's a Lucene 4.8 file
-                    // and therefore no checksum. That isn't much of a problem since we simply copy it over anyway but those files come out as
+                    // if we have different files then they must have no checksums; otherwise something went wrong during recovery.
+                    // we have that problem when we have an empty index is only a segments_1 file so we can't tell if it's a Lucene 4.8 file
+                    // and therefore no checksum is included. That isn't a problem since we simply copy it over anyway but those files come out as
                     // different in the diff. That's why we have to double check here again if the rest of it matches.
 
                     // all is fine this file is just part of a commit or a segment that is different
@@ -661,7 +673,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             super(delegateDirectory);
             this.deletesLogger = deletesLogger;
         }
-
 
         @Override
         public void close() throws IOException {
@@ -844,7 +855,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 Logger logger, Version version, boolean readFileAsHash) throws IOException {
             final String checksum;
             final BytesRefBuilder fileHash = new BytesRefBuilder();
-            try (final IndexInput in = directory.openInput(file, IOContext.READONCE)) {
+            try (IndexInput in = directory.openInput(file, IOContext.READONCE)) {
                 final long length;
                 try {
                     length = in.length();
@@ -1180,11 +1191,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         private final byte[] checksum = new byte[8];
         private long verifiedPosition = 0;
 
-        public VerifyingIndexInput(IndexInput input) {
+        VerifyingIndexInput(IndexInput input) {
             this(input, new BufferedChecksum(new CRC32()));
         }
 
-        public VerifyingIndexInput(IndexInput input, Checksum digest) {
+        VerifyingIndexInput(IndexInput input, Checksum digest) {
             super("VerifyingIndexInput(" + input + ")");
             this.input = input;
             this.digest = digest;
@@ -1352,7 +1363,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private static class StoreStatsCache extends SingleObjectCache<StoreStats> {
         private final Directory directory;
 
-        public StoreStatsCache(TimeValue refreshInterval, Directory directory) throws IOException {
+        StoreStatsCache(TimeValue refreshInterval, Directory directory) throws IOException {
             super(refreshInterval, new StoreStats(estimateSize(directory)));
             this.directory = directory;
         }

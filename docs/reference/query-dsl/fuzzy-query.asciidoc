@@ -1,8 +1,6 @@
 [[query-dsl-fuzzy-query]]
 === Fuzzy Query
 
-deprecated[5.0.0, Will be removed in 6.0. Use match queries with fuzziness instead]
-
 The fuzzy query uses similarity based on Levenshtein edit distance.
 
 ==== String fields
@@ -24,7 +22,6 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:fuzzy query is deprecated. Instead use the [match] query with fuzziness parameter]
 
 Or with more advanced settings:
 
@@ -46,7 +43,6 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:fuzzy query is deprecated. Instead use the [match] query with fuzziness parameter]
 
 [float]
 ===== Parameters

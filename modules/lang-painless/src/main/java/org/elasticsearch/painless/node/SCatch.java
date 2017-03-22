@@ -117,4 +117,9 @@ public final class SCatch extends AStatement {
             writer.goTo(exception);
         }
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(type, name, block);
+    }
 }

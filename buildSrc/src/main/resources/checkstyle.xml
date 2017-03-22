@@ -10,12 +10,19 @@
     <property name="file" value="${suppressions}" />
   </module>
 
+  <!-- Checks Java files and forbids empty Javadoc comments -->
+  <module name="RegexpMultiline">
+    <property name="format" value="\/\*[\s\*]*\*\/"/>
+    <property name="fileExtensions" value="java"/>
+    <property name="message" value="Empty javadoc comments are forbidden"/>
+  </module>
+
   <module name="TreeWalker">
     <!-- Its our official line length! See checkstyle_suppressions.xml for the files that don't pass this. For now we
       suppress the check there but enforce it everywhere else. This prevents the list from getting longer even if it is
       unfair. -->
     <module name="LineLength">
-      <property name="max" value="140"/>
+      <property name="max" value="100"/>
     </module>
 
     <module name="AvoidStarImport" />

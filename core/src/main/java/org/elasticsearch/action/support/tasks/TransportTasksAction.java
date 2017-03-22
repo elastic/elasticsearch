@@ -278,7 +278,6 @@ public abstract class TransportTasksAction<
                         } else {
                             NodeTaskRequest nodeRequest = new NodeTaskRequest(request);
                             nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-                            taskManager.registerChildTask(task, node.getId());
                             transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
                                 new TransportResponseHandler<NodeTasksResponse>() {
                                     @Override
@@ -403,10 +402,10 @@ public abstract class TransportTasksAction<
         protected List<TaskOperationFailure> exceptions;
         protected List<TaskResponse> results;
 
-        public NodeTasksResponse() {
+        NodeTasksResponse() {
         }
 
-        public NodeTasksResponse(String nodeId,
+        NodeTasksResponse(String nodeId,
                                  List<TaskResponse> results,
                                  List<TaskOperationFailure> exceptions) {
             this.nodeId = nodeId;

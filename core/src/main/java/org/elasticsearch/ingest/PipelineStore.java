@@ -19,13 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -36,7 +29,7 @@ import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -45,7 +38,16 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 
-public class PipelineStore extends AbstractComponent implements ClusterStateListener {
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+
+public class PipelineStore extends AbstractComponent implements ClusterStateApplier {
 
     private final Pipeline.Factory factory = new Pipeline.Factory();
     private final Map<String, Processor.Factory> processorFactories;
@@ -62,7 +64,7 @@ public class PipelineStore extends AbstractComponent implements ClusterStateList
     }
 
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
+    public void applyClusterState(ClusterChangedEvent event) {
         innerUpdatePipelines(event.previousState(), event.state());
     }
 
@@ -111,17 +113,26 @@ public class PipelineStore extends AbstractComponent implements ClusterStateList
             return currentState;
         }
         Map<String, PipelineConfiguration> pipelines = currentIngestMetadata.getPipelines();
-        if (pipelines.containsKey(request.getId()) == false) {
-            throw new ResourceNotFoundException("pipeline [{}] is missing", request.getId());
-        } else {
-            pipelines = new HashMap<>(pipelines);
-            pipelines.remove(request.getId());
-            ClusterState.Builder newState = ClusterState.builder(currentState);
-            newState.metaData(MetaData.builder(currentState.getMetaData())
-                    .putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines))
-                    .build());
-            return newState.build();
+        Set<String> toRemove = new HashSet<>();
+        for (String pipelineKey : pipelines.keySet()) {
+            if (Regex.simpleMatch(request.getId(), pipelineKey)) {
+                toRemove.add(pipelineKey);
+            }
         }
+        if (toRemove.isEmpty() && Regex.isMatchAllPattern(request.getId()) == false) {
+            throw new ResourceNotFoundException("pipeline [{}] is missing", request.getId());
+        } else if (toRemove.isEmpty()) {
+            return currentState;
+        }
+        final Map<String, PipelineConfiguration> pipelinesCopy = new HashMap<>(pipelines);
+        for (String key : toRemove) {
+            pipelinesCopy.remove(key);
+        }
+        ClusterState.Builder newState = ClusterState.builder(currentState);
+        newState.metaData(MetaData.builder(currentState.getMetaData())
+                .putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelinesCopy))
+                .build());
+        return newState.build();
     }
 
     /**
@@ -151,14 +162,14 @@ public class PipelineStore extends AbstractComponent implements ClusterStateList
             throw new IllegalStateException("Ingest info is empty");
         }
 
-        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false).v2();
+        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
         Pipeline pipeline = factory.create(request.getId(), pipelineConfig, processorFactories);
-        List<IllegalArgumentException> exceptions = new ArrayList<>();
+        List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
             for (Map.Entry<DiscoveryNode, IngestInfo> entry : ingestInfos.entrySet()) {
                 if (entry.getValue().containsProcessor(processor.getType()) == false) {
                     String message = "Processor type [" + processor.getType() + "] is not installed on node [" + entry.getKey() + "]";
-                    exceptions.add(new IllegalArgumentException(message));
+                    exceptions.add(ConfigurationUtils.newConfigurationException(processor.getType(), processor.getTag(), null, message));
                 }
             }
         }
@@ -174,7 +185,7 @@ public class PipelineStore extends AbstractComponent implements ClusterStateList
             pipelines = new HashMap<>();
         }
 
-        pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), request.getSource()));
+        pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), request.getSource(), request.getXContentType()));
         ClusterState.Builder newState = ClusterState.builder(currentState);
         newState.metaData(MetaData.builder(currentState.getMetaData())
             .putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines))

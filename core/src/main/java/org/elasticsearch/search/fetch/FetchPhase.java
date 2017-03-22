@@ -46,9 +46,7 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsFetchSubPhase;
-import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHitField;
-import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -134,7 +132,7 @@ public class FetchPhase implements SearchPhase {
             }
         }
 
-        InternalSearchHit[] hits = new InternalSearchHit[context.docIdsToLoadSize()];
+        SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
         FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             if(context.isCancelled()) {
@@ -145,7 +143,7 @@ public class FetchPhase implements SearchPhase {
             LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
             int subDocId = docId - subReaderContext.docBase;
 
-            final InternalSearchHit searchHit;
+            final SearchHit searchHit;
             try {
                 int rootDocId = findRootDocumentIfNested(context, subReaderContext, subDocId);
                 if (rootDocId != -1) {
@@ -168,7 +166,7 @@ public class FetchPhase implements SearchPhase {
             fetchSubPhase.hitsExecute(context, hits);
         }
 
-        context.fetchResult().hits(new InternalSearchHits(hits, context.queryResult().topDocs().totalHits, context.queryResult().topDocs().getMaxScore()));
+        context.fetchResult().hits(new SearchHits(hits, context.queryResult().topDocs().totalHits, context.queryResult().topDocs().getMaxScore()));
     }
 
     private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
@@ -181,9 +179,9 @@ public class FetchPhase implements SearchPhase {
         return -1;
     }
 
-    private InternalSearchHit createSearchHit(SearchContext context, FieldsVisitor fieldsVisitor, int docId, int subDocId, LeafReaderContext subReaderContext) {
+    private SearchHit createSearchHit(SearchContext context, FieldsVisitor fieldsVisitor, int docId, int subDocId, LeafReaderContext subReaderContext) {
         if (fieldsVisitor == null) {
-            return new InternalSearchHit(docId);
+            return new SearchHit(docId);
         }
         loadStoredFields(context, subReaderContext, fieldsVisitor, subDocId);
         fieldsVisitor.postProcess(context.mapperService());
@@ -192,7 +190,7 @@ public class FetchPhase implements SearchPhase {
         if (!fieldsVisitor.fields().isEmpty()) {
             searchFields = new HashMap<>(fieldsVisitor.fields().size());
             for (Map.Entry<String, List<Object>> entry : fieldsVisitor.fields().entrySet()) {
-                searchFields.put(entry.getKey(), new InternalSearchHitField(entry.getKey(), entry.getValue()));
+                searchFields.put(entry.getKey(), new SearchHitField(entry.getKey(), entry.getValue()));
             }
         }
 
@@ -203,7 +201,7 @@ public class FetchPhase implements SearchPhase {
         } else {
             typeText = documentMapper.typeText();
         }
-        InternalSearchHit searchHit = new InternalSearchHit(docId, fieldsVisitor.uid().id(), typeText, searchFields);
+        SearchHit searchHit = new SearchHit(docId, fieldsVisitor.uid().id(), typeText, searchFields);
         // Set _source if requested.
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
@@ -213,7 +211,7 @@ public class FetchPhase implements SearchPhase {
         return searchHit;
     }
 
-    private InternalSearchHit createNestedSearchHit(SearchContext context, int nestedTopDocId, int nestedSubDocId, int rootSubDocId, Set<String> fieldNames, List<String> fieldNamePatterns, LeafReaderContext subReaderContext) throws IOException {
+    private SearchHit createNestedSearchHit(SearchContext context, int nestedTopDocId, int nestedSubDocId, int rootSubDocId, Set<String> fieldNames, List<String> fieldNamePatterns, LeafReaderContext subReaderContext) throws IOException {
         // Also if highlighting is requested on nested documents we need to fetch the _source from the root document,
         // otherwise highlighting will attempt to fetch the _source from the nested doc, which will fail,
         // because the entire _source is only stored with the root document.
@@ -228,7 +226,7 @@ public class FetchPhase implements SearchPhase {
 
         ObjectMapper nestedObjectMapper = documentMapper.findNestedObjectMapper(nestedSubDocId, context, subReaderContext);
         assert nestedObjectMapper != null;
-        InternalSearchHit.InternalNestedIdentity nestedIdentity = getInternalNestedIdentity(context, nestedSubDocId, subReaderContext, documentMapper, nestedObjectMapper);
+        SearchHit.NestedIdentity nestedIdentity = getInternalNestedIdentity(context, nestedSubDocId, subReaderContext, documentMapper, nestedObjectMapper);
 
         BytesReference source = rootFieldsVisitor.source();
         if (source != null) {
@@ -271,7 +269,7 @@ public class FetchPhase implements SearchPhase {
             context.lookup().source().setSourceContentType(contentType);
         }
 
-        return new InternalSearchHit(nestedTopDocId, rootFieldsVisitor.uid().id(), documentMapper.typeText(), nestedIdentity, searchFields);
+        return new SearchHit(nestedTopDocId, rootFieldsVisitor.uid().id(), documentMapper.typeText(), nestedIdentity, searchFields);
     }
 
     private Map<String, SearchHitField> getSearchFields(SearchContext context, int nestedSubDocId, Set<String> fieldNames, List<String> fieldNamePatterns, LeafReaderContext subReaderContext) {
@@ -285,7 +283,7 @@ public class FetchPhase implements SearchPhase {
                 if (!nestedFieldsVisitor.fields().isEmpty()) {
                     searchFields = new HashMap<>(nestedFieldsVisitor.fields().size());
                     for (Map.Entry<String, List<Object>> entry : nestedFieldsVisitor.fields().entrySet()) {
-                        searchFields.put(entry.getKey(), new InternalSearchHitField(entry.getKey(), entry.getValue()));
+                        searchFields.put(entry.getKey(), new SearchHitField(entry.getKey(), entry.getValue()));
                     }
                 }
             }
@@ -293,12 +291,12 @@ public class FetchPhase implements SearchPhase {
         return searchFields;
     }
 
-    private InternalSearchHit.InternalNestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId, LeafReaderContext subReaderContext, DocumentMapper documentMapper, ObjectMapper nestedObjectMapper) throws IOException {
+    private SearchHit.NestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId, LeafReaderContext subReaderContext, DocumentMapper documentMapper, ObjectMapper nestedObjectMapper) throws IOException {
         int currentParent = nestedSubDocId;
         ObjectMapper nestedParentObjectMapper;
         ObjectMapper current = nestedObjectMapper;
         String originalName = nestedObjectMapper.name();
-        InternalSearchHit.InternalNestedIdentity nestedIdentity = null;
+        SearchHit.NestedIdentity nestedIdentity = null;
         do {
             Query parentFilter;
             nestedParentObjectMapper = documentMapper.findParentObjectMapper(current);
@@ -335,7 +333,7 @@ public class FetchPhase implements SearchPhase {
             currentParent = nextParent;
             current = nestedObjectMapper = nestedParentObjectMapper;
             int currentPrefix = current == null ? 0 : current.name().length() + 1;
-            nestedIdentity = new InternalSearchHit.InternalNestedIdentity(originalName.substring(currentPrefix), offset, nestedIdentity);
+            nestedIdentity = new SearchHit.NestedIdentity(originalName.substring(currentPrefix), offset, nestedIdentity);
             if (current != null) {
                 originalName = current.name();
             }

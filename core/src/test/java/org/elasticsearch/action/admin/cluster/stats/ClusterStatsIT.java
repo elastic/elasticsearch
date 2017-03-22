@@ -162,7 +162,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
     }
 
     public void testValuesSmokeScreen() throws IOException, ExecutionException, InterruptedException {
-        internalCluster().startNodesAsync(randomIntBetween(1, 3)).get();
+        internalCluster().startNodes(randomIntBetween(1, 3));
         index("test1", "type", "1", "f", "f");
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
@@ -202,7 +202,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
     public void testAllocatedProcessors() throws Exception {
         // start one node with 7 processors.
-        internalCluster().startNodesAsync(Settings.builder().put(EsExecutors.PROCESSORS_SETTING.getKey(), 7).build()).get();
+        internalCluster().startNode(Settings.builder().put(EsExecutors.PROCESSORS_SETTING.getKey(), 7).build());
         waitForNodes(1);
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();

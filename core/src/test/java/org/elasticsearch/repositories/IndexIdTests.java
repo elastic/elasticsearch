@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
@@ -69,7 +68,7 @@ public class IndexIdTests extends ESTestCase {
         IndexId indexId = new IndexId(randomAsciiOfLength(8), UUIDs.randomBase64UUID());
         XContentBuilder builder = JsonXContent.contentBuilder();
         indexId.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = XContentType.JSON.xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
         String name = null;
         String id = null;

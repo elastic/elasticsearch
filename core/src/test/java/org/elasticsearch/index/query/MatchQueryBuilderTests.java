@@ -24,6 +24,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -32,7 +33,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
@@ -153,17 +153,17 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         case BOOLEAN:
             assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
                     .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)).or(instanceOf(MatchNoDocsQuery.class))
-                    .or(instanceOf(PointRangeQuery.class)));
+                    .or(instanceOf(PointRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
             break;
         case PHRASE:
             assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(PhraseQuery.class))
                     .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class))
-                    .or(instanceOf(PointRangeQuery.class)));
+                    .or(instanceOf(PointRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
             break;
         case PHRASE_PREFIX:
             assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
                     .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class))
-                    .or(instanceOf(PointRangeQuery.class)));
+                    .or(instanceOf(PointRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
             break;
         }
         QueryShardContext context = searchContext.getQueryShardContext();
@@ -311,20 +311,15 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 "    }\n" +
                 "  }\n" +
                 "}";
-        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, qb);
 
         assertEquals(json, expectedQB, qb);
 
         assertSerialization(qb);
 
-        checkWarningHeaders("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]",
+        assertWarnings("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]",
                 "Deprecated field [slop] used, replaced by [match_phrase query]");
-
-        // Now check with strict parsing an exception is thrown
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json, ParseFieldMatcher.STRICT));
-        assertThat(e.getMessage(),
-                containsString("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]"));
     }
 
     public void testLegacyMatchPhraseQuery() throws IOException {
@@ -347,48 +342,13 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 "    }\n" +
                 "  }\n" +
                 "}";
-        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, qb);
 
         assertEquals(json, expectedQB, qb);
-
         assertSerialization(qb);
-
-        checkWarningHeaders("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]",
+        assertWarnings("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]",
                 "Deprecated field [slop] used, replaced by [match_phrase query]");
-
-        // Now check with strict parsing an exception is thrown
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json, ParseFieldMatcher.STRICT));
-        assertThat(e.getMessage(),
-                containsString("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]"));
-    }
-
-    public void testLegacyFuzzyMatchQuery() throws IOException {
-        MatchQueryBuilder expectedQB = new MatchQueryBuilder("message", "to be or not to be");
-        String type = randomFrom("fuzzy_match", "match_fuzzy");
-        String json = "{\n" +
-                "  \"" + type + "\" : {\n" +
-                "    \"message\" : {\n" +
-                "      \"query\" : \"to be or not to be\",\n" +
-                "      \"operator\" : \"OR\",\n" +
-                "      \"slop\" : 0,\n" +
-                "      \"prefix_length\" : 0,\n" +
-                "      \"max_expansions\" : 50,\n" +
-                "      \"fuzzy_transpositions\" : true,\n" +
-                "      \"lenient\" : false,\n" +
-                "      \"zero_terms_query\" : \"NONE\",\n" +
-                "      \"boost\" : 1.0\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
-        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
-        assertThat(qb, equalTo(expectedQB));
-        checkWarningHeaders("Deprecated field [" + type + "] used, expected [match] instead",
-                "Deprecated field [slop] used, replaced by [match_phrase query]");
-
-        // Now check with strict parsing an exception is thrown
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json, ParseFieldMatcher.STRICT));
-        assertThat(e.getMessage(), containsString("Deprecated field [" + type + "] used, expected [match] instead"));
     }
 
     public void testFuzzinessOnNonStringField() throws Exception {

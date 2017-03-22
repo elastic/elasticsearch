@@ -31,40 +31,33 @@ import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.ScaledFloatFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.StringFieldMapper;
-import org.elasticsearch.index.mapper.TTLFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.TokenCountFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.index.mapper.internal.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
-import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
-import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.ArrayList;
@@ -101,12 +94,14 @@ public class IndicesModule extends AbstractModule {
         for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
             mappers.put(type.typeName(), new NumberFieldMapper.TypeParser(type));
         }
+        for (RangeFieldMapper.RangeType type : RangeFieldMapper.RangeType.values()) {
+            mappers.put(type.typeName(), new RangeFieldMapper.TypeParser(type));
+        }
         mappers.put(BooleanFieldMapper.CONTENT_TYPE, new BooleanFieldMapper.TypeParser());
         mappers.put(BinaryFieldMapper.CONTENT_TYPE, new BinaryFieldMapper.TypeParser());
         mappers.put(DateFieldMapper.CONTENT_TYPE, new DateFieldMapper.TypeParser());
         mappers.put(IpFieldMapper.CONTENT_TYPE, new IpFieldMapper.TypeParser());
         mappers.put(ScaledFloatFieldMapper.CONTENT_TYPE, new ScaledFloatFieldMapper.TypeParser());
-        mappers.put(StringFieldMapper.CONTENT_TYPE, new StringFieldMapper.TypeParser());
         mappers.put(TextFieldMapper.CONTENT_TYPE, new TextFieldMapper.TypeParser());
         mappers.put(KeywordFieldMapper.CONTENT_TYPE, new KeywordFieldMapper.TypeParser());
         mappers.put(TokenCountFieldMapper.CONTENT_TYPE, new TokenCountFieldMapper.TypeParser());
@@ -114,7 +109,6 @@ public class IndicesModule extends AbstractModule {
         mappers.put(ObjectMapper.NESTED_CONTENT_TYPE, new ObjectMapper.TypeParser());
         mappers.put(CompletionFieldMapper.CONTENT_TYPE, new CompletionFieldMapper.TypeParser());
         mappers.put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser());
-        mappers.put(LatLonPointFieldMapper.CONTENT_TYPE, new LatLonPointFieldMapper.TypeParser());
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             mappers.put(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
         }
@@ -143,8 +137,6 @@ public class IndicesModule extends AbstractModule {
         metadataMappers.put(SourceFieldMapper.NAME, new SourceFieldMapper.TypeParser());
         metadataMappers.put(TypeFieldMapper.NAME, new TypeFieldMapper.TypeParser());
         metadataMappers.put(AllFieldMapper.NAME, new AllFieldMapper.TypeParser());
-        metadataMappers.put(TimestampFieldMapper.NAME, new TimestampFieldMapper.TypeParser());
-        metadataMappers.put(TTLFieldMapper.NAME, new TTLFieldMapper.TypeParser());
         metadataMappers.put(VersionFieldMapper.NAME, new VersionFieldMapper.TypeParser());
         metadataMappers.put(ParentFieldMapper.NAME, new ParentFieldMapper.TypeParser());
         metadataMappers.put(SeqNoFieldMapper.NAME, new SeqNoFieldMapper.TypeParser());
@@ -172,7 +164,6 @@ public class IndicesModule extends AbstractModule {
         bind(IndicesClusterStateService.class).asEagerSingleton();
         bind(SyncedFlushService.class).asEagerSingleton();
         bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
-        bind(IndicesTTLService.class).asEagerSingleton();
         bind(GlobalCheckpointSyncAction.class).asEagerSingleton();
     }
 

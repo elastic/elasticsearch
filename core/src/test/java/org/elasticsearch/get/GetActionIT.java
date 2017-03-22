@@ -37,8 +37,8 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -88,7 +88,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
         Set<String> fields = new HashSet<>(response.getFields().keySet());
-        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
         assertThat(fields, equalTo(Collections.<String>emptySet()));
         assertThat(response.getSourceAsBytes(), nullValue());
 
@@ -97,7 +96,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
         fields = new HashSet<>(response.getFields().keySet());
-        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
         assertThat(fields, equalTo(Collections.<String>emptySet()));
         assertThat(response.getSourceAsBytes(), nullValue());
 
@@ -255,8 +253,8 @@ public class GetActionIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().endObject().string();
         assertAcked(prepareCreate("test")
-                .addMapping("type1", mapping1)
-                .addMapping("type2", mapping2)
+                .addMapping("type1", mapping1, XContentType.JSON)
+                .addMapping("type2", mapping2, XContentType.JSON)
                 .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
@@ -276,7 +274,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getType(), equalTo("type1"));
         Set<String> fields = new HashSet<>(response.getFields().keySet());
-        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
         assertThat(fields, equalTo(singleton("field")));
         assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
         assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
@@ -288,7 +285,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getType(), equalTo("type2"));
         assertThat(response.getId(), equalTo("1"));
         fields = new HashSet<>(response.getFields().keySet());
-        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
         assertThat(fields, equalTo(singleton("field")));
         assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
         assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
@@ -300,7 +296,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         fields = new HashSet<>(response.getFields().keySet());
-        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
         assertThat(fields, equalTo(singleton("field")));
         assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
         assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
@@ -310,7 +305,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         fields = new HashSet<>(response.getFields().keySet());
-        fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
         assertThat(fields, equalTo(singleton("field")));
         assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
         assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
@@ -540,8 +534,6 @@ public class GetActionIT extends ESIntegTestCase {
 
         client().prepareIndex("test", "my-type1", "1")
                 .setRouting("1")
-                .setTimestamp("205097")
-                .setTTL(10000000000000L)
                 .setParent("parent_1")
                 .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
                 .get();
@@ -638,8 +630,8 @@ public class GetActionIT extends ESIntegTestCase {
 
         logger.info("indexing documents");
 
-        client().prepareIndex("my-index", "my-type1", "1").setSource(source).get();
-        client().prepareIndex("my-index", "my-type2", "1").setSource(source).get();
+        client().prepareIndex("my-index", "my-type1", "1").setSource(source, XContentType.JSON).get();
+        client().prepareIndex("my-index", "my-type2", "1").setSource(source, XContentType.JSON).get();
 
         logger.info("checking real time retrieval");
 
@@ -691,30 +683,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
     }
 
-    public void testGetAllField() throws Exception {
-        assertAcked(prepareCreate("test")
-                .addAlias(new Alias("alias"))
-                .addMapping("my-type1", jsonBuilder()
-                        .startObject()
-                        .startObject("my-type1")
-                        .startObject("_all")
-                        .field("store", true)
-                        .endObject()
-                        .startObject("properties")
-                        .startObject("some_field")
-                        .field("type", "text")
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                        .endObject()));
-        index("test", "my-type1", "1", "some_field", "some text");
-        refresh();
-
-        GetResponse getResponse = client().prepareGet(indexOrAlias(), "my-type1", "1").setStoredFields("_all").get();
-        assertNotNull(getResponse.getField("_all").getValue());
-        assertThat(getResponse.getField("_all").getValue().toString(), equalTo("some text"));
-    }
-
     public void testUngeneratedFieldsThatAreNeverStored() throws IOException {
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
@@ -731,7 +699,7 @@ public class GetActionIT extends ESIntegTestCase {
                 "    }\n" +
                 "  }\n" +
                 "}";
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
         String doc = "{\n" +
                 "  \"suggest\": {\n" +
@@ -770,10 +738,10 @@ public class GetActionIT extends ESIntegTestCase {
                 "    }\n" +
                 "  }\n" +
                 "}";
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
 
-        client().prepareIndex("test", "doc").setId("1").setSource("{}").setParent("1").setTTL(TimeValue.timeValueHours(1).getMillis()).get();
+        client().prepareIndex("test", "doc").setId("1").setSource("{}", XContentType.JSON).setParent("1").get();
 
         String[] fieldsList = {"_parent"};
         // before refresh - document is only in translog
@@ -794,12 +762,12 @@ public class GetActionIT extends ESIntegTestCase {
             "  }\n" +
             "}";
 
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
         String doc = "{\n" +
             "  \"text\": \"some text.\"\n" +
             "}\n";
-        client().prepareIndex("test", "doc").setId("1").setSource(doc).setRouting("1").get();
+        client().prepareIndex("test", "doc").setId("1").setSource(doc, XContentType.JSON).setRouting("1").get();
         String[] fieldsList = {"_routing"};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
@@ -813,7 +781,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testGeneratedStringFieldsUnstored() throws IOException {
         indexSingleDocumentWithStringFieldsGeneratedFromText(false, randomBoolean());
-        String[] fieldsList = {"_all", "_field_names"};
+        String[] fieldsList = {"_field_names"};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
         refresh();
@@ -826,7 +794,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testGeneratedStringFieldsStored() throws IOException {
         indexSingleDocumentWithStringFieldsGeneratedFromText(true, randomBoolean());
-        String[] fieldsList = {"_all"};
+        String[] fieldsList = {"text1", "text2"};
         String[] alwaysNotStoredFieldsList = {"_field_names"};
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
         assertGetFieldsNull(indexOrAlias(), "doc", "1", alwaysNotStoredFieldsList);
@@ -847,12 +815,21 @@ public class GetActionIT extends ESIntegTestCase {
                 "  \"mappings\": {\n" +
                 "    \"doc\": {\n" +
                 "      \"_source\" : {\"enabled\" : " + sourceEnabled + "}," +
-                "      \"_all\" : {\"enabled\" : true, \"store\":\"" + storedString + "\" }" +
+                "      \"properties\": {\n" +
+                "        \"text1\": {\n" +
+                "          \"type\": \"text\",\n" +
+                "          \"store\": \"" + storedString + "\"" +
+                "        },\n" +
+                "        \"text2\": {\n" +
+                "          \"type\": \"text\",\n" +
+                "          \"store\": \"" + storedString + "\"" +
+                "        }" +
+                "      }\n" +
                 "    }\n" +
                 "  }\n" +
                 "}";
 
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
         String doc = "{\n" +
                 "  \"text1\": \"some text.\"\n," +
@@ -900,7 +877,7 @@ public class GetActionIT extends ESIntegTestCase {
                 "          \"store\": \"" + storedString + "\"" +
                 "        },\n" +
                 "        \"text\": {\n" +
-                "          \"type\": \"string\",\n" +
+                "          \"type\": \"text\",\n" +
                 "          \"fields\": {\n" +
                 "            \"token_count\": {\n" +
                 "              \"type\": \"token_count\",\n" +
@@ -914,7 +891,7 @@ public class GetActionIT extends ESIntegTestCase {
                 "  }\n" +
                 "}";
 
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
         String doc = "{\n" +
                 "  \"token_count\": \"A text with five words.\",\n" +

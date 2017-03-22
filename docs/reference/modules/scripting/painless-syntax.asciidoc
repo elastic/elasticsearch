@@ -175,6 +175,27 @@ There are only a few minor differences and add-ons:
 * `=~` true if a portion of the text matches a pattern (e.g. `x =~ /b/`)
 * `==~` true if the entire text matches a pattern (e.g. `x ==~ /[Bb]ob/`)
 
+The `?:` (aka Elvis) operator coalesces null values. So `x ?: 0` is `0` if `x`
+is `null` and whatever value `x` has otherwise. It is a convenient way to write
+default values like `doc['x'].value ?: 0` which is 0 if `x` is not in the
+document being processed. It can also work with null safe dereferences to
+efficiently handle null in chains. For example,
+`doc['foo.keyword'].value?.length() ?: 0` is 0 if the document being processed
+doesn't have a `foo.keyword` field but is the length of that field if it does.
+Lastly, `?:` is lazy so the right hand side is not evaluated at all if the left
+hand side isn't null.
+
+NOTE: Unlike Groovy, Painless' ++?:++ operator only coalesces `null`, not `false`
+or http://groovy-lang.org/semantics.html#Groovy-Truth[falsy] values. Strictly
+speaking Painless' ++?:++ is more like Kotlin's ++?:++ than Groovy's ++?:++.
+
+NOTE: The result of `?.` and `?:` can't be assigned to primitives. So
+`int[] someArray = null; int l = someArray?.length` and
+`int s = params.size ?: 100` don't work. Do
+`def someArray = null; def l = someArray?.length` and
+`def s = params.size ?: 100` instead.
+
+
 [float]
 [[painless-control-flow]]
 === Control flow

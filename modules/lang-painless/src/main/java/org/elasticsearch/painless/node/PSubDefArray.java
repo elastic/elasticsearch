@@ -104,4 +104,9 @@ final class PSubDefArray extends AStoreable {
             org.objectweb.asm.Type.getMethodType(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, index.actual.type, actual.type);
         writer.invokeDefCall("arrayStore", methodType, DefBootstrap.ARRAY_STORE);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(prefix, index);
+    }
 }

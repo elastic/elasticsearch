@@ -27,6 +27,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -50,12 +51,15 @@ import java.util.Set;
  */
 public class MetaDataIndexUpgradeService extends AbstractComponent {
 
+    private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
 
     @Inject
-    public MetaDataIndexUpgradeService(Settings settings, MapperRegistry mapperRegistry, IndexScopedSettings indexScopedSettings) {
+    public MetaDataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
+            IndexScopedSettings indexScopedSettings) {
         super(settings);
+        this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
     }
@@ -67,13 +71,13 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * If the index does not need upgrade it returns the index metadata unchanged, otherwise it returns a modified index metadata. If index
      * cannot be updated the method throws an exception.
      */
-    public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData) {
+    public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
         // Throws an exception if there are too-old segments:
         if (isUpgraded(indexMetaData)) {
             assert indexMetaData == archiveBrokenIndexSettings(indexMetaData) : "all settings must have been upgraded before";
             return indexMetaData;
         }
-        checkSupportedVersion(indexMetaData);
+        checkSupportedVersion(indexMetaData, minimumIndexCompatibilityVersion);
         IndexMetaData newMetaData = indexMetaData;
         // we have to run this first otherwise in we try to create IndexSettings
         // with broken settings and fail in checkMappingsCompatibility
@@ -92,21 +96,26 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     }
 
     /**
-     * Elasticsearch 5.0 no longer supports indices with pre Lucene v5.0 (Elasticsearch v2.0.0.beta1) segments. All indices
-     * that were created before Elasticsearch v2.0.0.beta1 should be reindexed in Elasticsearch 2.x
-     * before they can be opened by this version of elasticsearch.     */
-    private void checkSupportedVersion(IndexMetaData indexMetaData) {
-        if (indexMetaData.getState() == IndexMetaData.State.OPEN && isSupportedVersion(indexMetaData) == false) {
-            throw new IllegalStateException("The index [" + indexMetaData.getIndex() + "] was created before v2.0.0.beta1."
-                    + " It should be reindexed in Elasticsearch 2.x before upgrading to " + Version.CURRENT + ".");
+     * Elasticsearch v6.0 no longer supports indices created pre v5.0. All indices
+     * that were created before Elasticsearch v5.0 should be re-indexed in Elasticsearch 5.x
+     * before they can be opened by this version of elasticsearch.
+     */
+    private void checkSupportedVersion(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
+        if (indexMetaData.getState() == IndexMetaData.State.OPEN && isSupportedVersion(indexMetaData,
+            minimumIndexCompatibilityVersion) == false) {
+            throw new IllegalStateException("The index [" + indexMetaData.getIndex() + "] was created with version ["
+                + indexMetaData.getCreationVersion() + "] but the minimum compatible version is ["
+
+                + minimumIndexCompatibilityVersion + "]. It should be re-indexed in Elasticsearch " + minimumIndexCompatibilityVersion.major
+                + ".x before upgrading to " + Version.CURRENT + ".");
         }
     }
 
     /*
      * Returns true if this index can be supported by the current version of elasticsearch
      */
-    private static boolean isSupportedVersion(IndexMetaData indexMetaData) {
-        return indexMetaData.getCreationVersion().onOrAfter(Version.V_2_0_0_beta1);
+    private static boolean isSupportedVersion(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
+        return indexMetaData.getCreationVersion().onOrAfter(minimumIndexCompatibilityVersion);
     }
 
     /**
@@ -136,16 +145,13 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
 
                 @Override
                 public Set<Entry<String, NamedAnalyzer>> entrySet() {
-                    // just to ensure we can iterate over this single analzyer
-                    return Collections.singletonMap(fakeDefault.name(), fakeDefault).entrySet();
+                    return Collections.emptySet();
                 }
             };
-            try (IndexAnalyzers fakeIndexAnalzyers = new IndexAnalyzers(indexSettings, fakeDefault, fakeDefault, fakeDefault, analyzerMap)) {
-                MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, similarityService, mapperRegistry, () -> null);
-                for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
-                    MappingMetaData mappingMetaData = cursor.value;
-                    mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), MapperService.MergeReason.MAPPING_RECOVERY, false);
-                }
+            try (IndexAnalyzers fakeIndexAnalzyers = new IndexAnalyzers(indexSettings, fakeDefault, fakeDefault, fakeDefault, analyzerMap, analyzerMap)) {
+                MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
+                        mapperRegistry, () -> null);
+                mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY, false);
             }
         } catch (Exception ex) {
             // Wrap the inner exception so we have the index name in the exception message

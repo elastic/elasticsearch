@@ -47,8 +47,26 @@ dependencies {
 ant.references['regenerate.classpath'] = new Path(ant.project, configurations.regenerate.asPath)
 ant.importBuild 'ant.xml'
 
-integTest {
-  cluster {
-    setting 'script.max_compilations_per_minute', '1000'
-  }
+integTestCluster {
+  setting 'script.max_compilations_per_minute', '1000'
+}
+
+/* Build Javadoc for the Java classes in Painless's public API that are in the
+ * Painless plugin */
+task apiJavadoc(type: Javadoc) {
+  source = sourceSets.main.allJava
+  include '**/org/elasticsearch/painless/api/'
+  destinationDir = new File(docsDir, 'apiJavadoc')
+}
+task apiJavadocJar(type: Jar) {
+  classifier = 'apiJavadoc'
+  from apiJavadoc
+}
+assemble.dependsOn apiJavadocJar
+
+// Reference documentation for Painless's public API.
+task generatePainlessApi(type: JavaExec) {
+  main = 'org.elasticsearch.painless.PainlessDocGenerator'
+  classpath = sourceSets.test.runtimeClasspath
+  args file('../../docs/reference/painless-api-reference')
 }

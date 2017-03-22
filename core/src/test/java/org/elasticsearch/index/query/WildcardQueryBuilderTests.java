@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.ParsingException;
@@ -124,5 +125,15 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
                 "}";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[wildcard] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
+    }
+
+    public void testWithMetaDataField() throws IOException {
+        QueryShardContext context = createShardContext();
+        for (String field : new String[]{"_type", "_all"}) {
+            WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder(field, "toto");
+            Query query = wildcardQueryBuilder.toQuery(context);
+            Query expected = new WildcardQuery(new Term(field, "toto"));
+            assertEquals(expected, query);
+        }
     }
 }

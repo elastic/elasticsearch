@@ -125,4 +125,9 @@ public final class SDo extends AStatement {
         writer.goTo(start);
         writer.mark(end);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(condition, block);
+    }
 }

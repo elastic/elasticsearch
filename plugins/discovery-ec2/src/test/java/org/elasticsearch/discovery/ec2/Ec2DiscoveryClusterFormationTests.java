@@ -29,6 +29,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -96,7 +97,7 @@ public class Ec2DiscoveryClusterFormationTests extends ESIntegTestCase {
     @BeforeClass
     public static void startHttpd() throws Exception {
         logDir = createTempDir();
-        httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
+        httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
 
         httpServer.createContext("/", (s) -> {
             Headers headers = s.getResponseHeaders();
@@ -243,7 +244,7 @@ public class Ec2DiscoveryClusterFormationTests extends ESIntegTestCase {
         // only wait for the cluster to form
         assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(2)).get());
         // add one more node and wait for it to join
-        internalCluster().startDataOnlyNodeAsync().get();
+        internalCluster().startDataOnlyNode();
         assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(3)).get());
     }
 }

@@ -18,29 +18,11 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper.LegacyGeoPointFieldType;
-import org.junit.Before;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 
 public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
-        return new LegacyGeoPointFieldType();
-    }
-
-    @Before
-    public void setupProperties() {
-        addModifier(new Modifier("geohash", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((LegacyGeoPointFieldType)ft).setGeoHashEnabled(new StringFieldMapper.StringFieldType(), 1, true);
-            }
-        });
-        addModifier(new Modifier("lat_lon", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((LegacyGeoPointFieldType)ft).setLatLonEnabled(new LegacyDoubleFieldMapper.DoubleFieldType(),
-                    new LegacyDoubleFieldMapper.DoubleFieldType());
-            }
-        });
+        return new GeoPointFieldType();
     }
 }

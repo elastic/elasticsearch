@@ -61,3 +61,16 @@
 
   - match: {persistent: {}}
 
+---
+"Test get a default settings":
+
+ - skip:
+        version: " - 5.99.99" # this can't be bumped to 5.0.2 until snapshots are published
+        reason:  Fetching default group setting was buggy until 5.0.3
+
+ - do:
+      cluster.get_settings:
+        include_defaults: true
+
+ - match: {defaults.node.attr.testattr: "test"}
+

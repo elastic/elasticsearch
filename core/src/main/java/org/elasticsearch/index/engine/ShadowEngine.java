@@ -117,6 +117,11 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
+    public NoOpResult noOp(NoOp noOp) {
+        throw new UnsupportedOperationException(shardId + " no-op operation not allowed on shadow engine");
+    }
+
+    @Override
     public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) {
         throw new UnsupportedOperationException(shardId + " sync commit operation not allowed on shadow engine");
     }
@@ -192,9 +197,6 @@ public class ShadowEngine extends Engine {
             ensureOpen();
             searcherManager.maybeRefreshBlocking();
         } catch (AlreadyClosedException e) {
-            // This means there's a bug somewhere: don't suppress it
-            throw new AssertionError(e);
-        } catch (EngineClosedException e) {
             throw e;
         } catch (Exception e) {
             try {

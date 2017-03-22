@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Spawns native plugin controller processes if present.  Will only work prior to seccomp being set up.
+ * Spawns native plugin controller processes if present.  Will only work prior to a system call filter being installed.
  */
 final class Spawner implements Closeable {
 

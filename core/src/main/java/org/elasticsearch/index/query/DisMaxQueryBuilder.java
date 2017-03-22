@@ -33,8 +33,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * A query that generates the union of documents produced by its sub-queries, and that scores each document
@@ -122,7 +122,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
         builder.endObject();
     }
 
-    public static Optional<DisMaxQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static DisMaxQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -138,28 +138,28 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERIES_FIELD)) {
+                if (QUERIES_FIELD.match(currentFieldName)) {
                     queriesFound = true;
-                    parseContext.parseInnerQueryBuilder().ifPresent(queries::add);
+                    queries.add(parseContext.parseInnerQueryBuilder());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERIES_FIELD)) {
+                if (QUERIES_FIELD.match(currentFieldName)) {
                     queriesFound = true;
                     while (token != XContentParser.Token.END_ARRAY) {
-                        parseContext.parseInnerQueryBuilder().ifPresent(queries::add);
+                        queries.add(parseContext.parseInnerQueryBuilder());
                         token = parser.nextToken();
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, TIE_BREAKER_FIELD)) {
+                } else if (TIE_BREAKER_FIELD.match(currentFieldName)) {
                     tieBreaker = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[dis_max] query does not support [" + currentFieldName + "]");
@@ -178,7 +178,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
         for (QueryBuilder query : queries) {
             disMaxQuery.add(query);
         }
-        return Optional.of(disMaxQuery);
+        return disMaxQuery;
     }
 
     @Override
@@ -206,5 +206,12 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+        for (QueryBuilder query : queries) {
+            InnerHitBuilder.extractInnerHits(query, innerHits);
+        }
     }
 }

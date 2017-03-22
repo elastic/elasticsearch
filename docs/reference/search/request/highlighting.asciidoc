@@ -11,7 +11,7 @@ The following is an example of the search request body:
 GET /_search
 {
     "query" : {
-        "match": { "user": "kimchy" }
+        "match": { "content": "kimchy" }
     },
     "highlight" : {
         "fields" : {
@@ -103,8 +103,7 @@ If `term_vector` information is provided by setting `term_vector` to
 will be used instead of the plain highlighter.  The fast vector highlighter:
 
 * Is faster especially for large fields (> `1MB`)
-* Can be customized with `boundary_chars`, `boundary_max_scan`, and
- `fragment_offset` (see <<boundary-characters,below>>)
+* Can be customized with `boundary_scanner` (see <<boundary-scanners,below>>)
 * Requires setting `term_vector` to `with_positions_offsets` which
   increases the size of the index
 * Can combine matches from multiple fields into one result.  See
@@ -125,6 +124,25 @@ the index to be bigger):
     }
 }
 --------------------------------------------------
+
+==== Unified Highlighter
+
+experimental[]
+
+The `unified` highlighter can extract offsets from either postings, term vectors, or via re-analyzing text.
+Under the hood it uses Lucene UnifiedHighlighter which picks its strategy depending on the field and the query to highlight.
+Independently of the strategy this highlighter breaks the text into sentences and scores individual sentences as
+if they were documents in this corpus, using the BM25 algorithm.
+It supports accurate phrase and multi-term (fuzzy, prefix, regex) highlighting and can be used with the following options:
+
+* `force_source`
+* `encoder`
+* `highlight_query`
+* `pre_tags and `post_tags`
+* `require_field_match`
+* `boundary_scanner` (`sentence` (**default**)  or `word`)
+* `max_fragment_length` (only for `sentence` scanner)
+* `no_match_size`
 
 ==== Force highlighter type
 
@@ -330,7 +348,7 @@ parameter to control the margin to start highlighting from.
 In the case where there is no matching fragment to highlight, the default is
 to not return anything. Instead, we can return a snippet of text from the
 beginning of the field by setting `no_match_size` (default `0`) to the length
-of the text that you want returned. The actual length may be shorter than
+of the text that you want returned. The actual length may be shorter or longer than
 specified as it tries to break on a word boundary. When using the postings
 highlighter it is not possible to control the actual size of the snippet,
 therefore the first sentence gets returned whenever `no_match_size` is
@@ -486,17 +504,28 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
-[[boundary-characters]]
-==== Boundary Characters
+[[boundary-scanners]]
+==== Boundary Scanners
 
-When highlighting a field using the fast vector highlighter,
-`boundary_chars` can be configured to define what constitutes a boundary
-for highlighting. It's a single string with each boundary character
-defined in it. It defaults to `.,!? \t\n`.
+When highlighting a field using the unified highlighter or the fast vector highlighter,
+you can specify how to break the highlighted fragments using `boundary_scanner`, which accepts
+the following values:
 
-The `boundary_max_scan` allows to control how far to look for boundary
-characters, and defaults to `20`.
+* `chars` (default mode for the FVH): allows to configure which characters (`boundary_chars`)
+constitute a boundary for highlighting. It's a single string with each boundary
+character defined in it (defaults to `.,!? \t\n`). It also allows configuring
+the `boundary_max_scan` to control how far to look for boundary characters
+(defaults to `20`). Works only with the Fast Vector Highlighter.
 
+* `sentence` and `word`: use Java's https://docs.oracle.com/javase/8/docs/api/java/text/BreakIterator.html[BreakIterator]
+to break the highlighted fragments at the next  _sentence_ or _word_ boundary.
+You can further specify `boundary_scanner_locale` to control which Locale is used
+to search the text for these boundaries.
+
+[NOTE]
+When used with the `unified` highlighter, the `sentence` scanner splits sentence
+bigger than `fragment_size` at the first word boundary next to `fragment_size`.
+You can set `fragment_size` to 0 to never split any sentence.
 
 [[matched-fields]]
 ==== Matched Fields

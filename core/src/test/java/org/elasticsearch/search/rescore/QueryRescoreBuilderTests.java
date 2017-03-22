@@ -23,16 +23,16 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -42,7 +42,6 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
 import org.elasticsearch.test.ESTestCase;
@@ -59,7 +58,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;
-    private static IndicesQueriesRegistry indicesQueriesRegistry;
+    private static NamedXContentRegistry xContentRegistry;
 
     /**
      * setup for the whole base test class
@@ -68,13 +67,13 @@ public class QueryRescoreBuilderTests extends ESTestCase {
     public static void init() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-        indicesQueriesRegistry = searchModule.getQueryParserRegistry();
+        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
-        indicesQueriesRegistry = null;
+        xContentRegistry = null;
     }
 
     /**
@@ -118,8 +117,8 @@ public class QueryRescoreBuilderTests extends ESTestCase {
             XContentBuilder shuffled = shuffleXContent(builder);
 
 
-            XContentParser parser = XContentHelper.createParser(shuffled.bytes());
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
+            XContentParser parser = createParser(shuffled);
+            QueryParseContext context = new QueryParseContext(parser);
             parser.nextToken();
             RescoreBuilder<?> secondRescoreBuilder = RescoreBuilder.parseFromXContent(context);
             assertNotSame(rescoreBuilder, secondRescoreBuilder);
@@ -133,13 +132,13 @@ public class QueryRescoreBuilderTests extends ESTestCase {
      * than the test builder
      */
     public void testBuildRescoreSearchContext() throws ElasticsearchParseException, IOException {
-        final long nowInMillis = randomPositiveLong();
+        final long nowInMillis = randomNonNegativeLong();
         Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAsciiOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, indicesQueriesRegistry,
-                null, null, null, () -> nowInMillis) {
+        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
+                null, null, () -> nowInMillis) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
@@ -250,12 +249,17 @@ public class QueryRescoreBuilderTests extends ESTestCase {
     /**
      * create a new parser from the rescorer string representation and reset context with it
      */
-    private static QueryParseContext createContext(String rescoreElement) throws IOException {
-        XContentParser parser = XContentFactory.xContent(rescoreElement).createParser(rescoreElement);
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
+    private QueryParseContext createContext(String rescoreElement) throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, rescoreElement);
+        QueryParseContext context = new QueryParseContext(parser);
         // move to first token, this is where the internal fromXContent
         assertTrue(parser.nextToken() == XContentParser.Token.START_OBJECT);
         return context;
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
     }
 
     private static RescoreBuilder<?> mutate(RescoreBuilder<?> original) throws IOException {

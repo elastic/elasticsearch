@@ -20,8 +20,8 @@ package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheException;
+
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.CompiledScript;
@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class MustacheTests extends ESTestCase {
 
-    private ScriptEngineService engine = new MustacheScriptEngineService(Settings.EMPTY);
+    private ScriptEngineService engine = new MustacheScriptEngineService();
 
     public void testBasics() {
         String template = "GET _search {\"query\": " + "{\"boosting\": {"
@@ -279,7 +279,8 @@ public class MustacheTests extends ESTestCase {
                         .endArray()
                     .endObject();
 
-        Map<String, Object> ctx = Collections.singletonMap("ctx", XContentHelper.convertToMap(builder.bytes(), false).v2());
+        Map<String, Object> ctx =
+            Collections.singletonMap("ctx", XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2());
 
         assertScript("{{#ctx.bulks}}{{#toJson}}.{{/toJson}}{{/ctx.bulks}}", ctx,
                 equalTo("{\"index\":\"index-1\",\"id\":1,\"type\":\"type-1\"}{\"index\":\"index-2\",\"id\":2,\"type\":\"type-2\"}"));
@@ -320,7 +321,8 @@ public class MustacheTests extends ESTestCase {
                                                     .endArray()
                                                 .endObject();
 
-        Map<String, Object> ctx = Collections.singletonMap("ctx", XContentHelper.convertToMap(builder.bytes(), false).v2());
+        Map<String, Object> ctx =
+            Collections.singletonMap("ctx", XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2());
 
         assertScript("{{#join}}ctx.people.0.emails{{/join}}", ctx,
                 equalTo("john@smith.com,john.smith@email.com,jsmith@email.com"));

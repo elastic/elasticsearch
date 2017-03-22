@@ -97,7 +97,8 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
 
     @Override
     public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
-        return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger);
+        return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger,
+                AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
     }
 
     @Override
@@ -131,7 +132,7 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
 
         private int minFreq;
         private int maxFreq;
-        public FrequencyFilter(TermsEnum delegate, int minFreq, int maxFreq) {
+        FrequencyFilter(TermsEnum delegate, int minFreq, int maxFreq) {
             super(delegate, false);
             this.minFreq = minFreq;
             this.maxFreq = maxFreq;

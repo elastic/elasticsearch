@@ -73,8 +73,8 @@ class ClusterConfiguration {
 
     @Input
     String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
-            " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
-            " " + System.getProperty('tests.jvm.argline', '')
+        " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
+        " " + System.getProperty('tests.jvm.argline', '')
 
     /**
      * A closure to call which returns the unicast host to connect to for cluster formation.
@@ -125,6 +125,8 @@ class ClusterConfiguration {
 
     Map<String, Object> settings = new HashMap<>()
 
+    Map<String, String> keystoreSettings = new HashMap<>()
+
     // map from destination path, to source file
     Map<String, Object> extraConfigFiles = new HashMap<>()
 
@@ -142,6 +144,11 @@ class ClusterConfiguration {
     @Input
     void setting(String name, Object value) {
         settings.put(name, value)
+    }
+
+    @Input
+    void keystoreSetting(String name, String value) {
+        keystoreSettings.put(name, value)
     }
 
     @Input

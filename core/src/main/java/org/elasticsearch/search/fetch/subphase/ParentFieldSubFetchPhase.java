@@ -26,7 +26,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -41,7 +40,7 @@ public final class ParentFieldSubFetchPhase implements FetchSubPhase {
         if (context.storedFieldsContext() != null && context.storedFieldsContext().fetchFields() == false) {
             return ;
         }
-        ParentFieldMapper parentFieldMapper = context.mapperService().documentMapper(hitContext.hit().type()).parentFieldMapper();
+        ParentFieldMapper parentFieldMapper = context.mapperService().documentMapper(hitContext.hit().getType()).parentFieldMapper();
         if (parentFieldMapper.active() == false) {
             return;
         }
@@ -57,12 +56,16 @@ public final class ParentFieldSubFetchPhase implements FetchSubPhase {
             fields = new HashMap<>();
             hitContext.hit().fields(fields);
         }
-        fields.put(ParentFieldMapper.NAME, new InternalSearchHitField(ParentFieldMapper.NAME, Collections.singletonList(parentId)));
+        fields.put(ParentFieldMapper.NAME, new SearchHitField(ParentFieldMapper.NAME, Collections.singletonList(parentId)));
     }
 
     public static String getParentId(ParentFieldMapper fieldMapper, LeafReader reader, int docId) {
         try {
             SortedDocValues docValues = reader.getSortedDocValues(fieldMapper.name());
+            if (docValues == null) {
+                // hit has no _parent field.
+                return null;
+            }
             BytesRef parentId = docValues.get(docId);
             return parentId.length > 0 ? parentId.utf8ToString() : null;
         } catch (IOException e) {

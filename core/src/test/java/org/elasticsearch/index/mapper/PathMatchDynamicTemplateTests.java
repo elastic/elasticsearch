@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -36,11 +37,12 @@ public class PathMatchDynamicTemplateTests extends ESSingleNodeTestCase {
     public void testSimple() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/pathmatch/test-mapping.json");
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("person").setSource(mapping).get();
+        client().admin().indices().preparePutMapping("test").setType("person").setSource(mapping, XContentType.JSON).get();
         DocumentMapper docMapper = index.mapperService().documentMapper("person");
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/pathmatch/test-data.json");
         ParsedDocument parsedDoc = docMapper.parse("test", "person", "1", new BytesArray(json));
-        client().admin().indices().preparePutMapping("test").setType("person").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
+        client().admin().indices().preparePutMapping("test").setType("person")
+            .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
         docMapper = index.mapperService().documentMapper("person");
         Document doc = parsedDoc.rootDoc();
 

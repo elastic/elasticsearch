@@ -20,13 +20,11 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -142,8 +140,8 @@ public class AliasActionsTests extends ESTestCase {
         }
         b.endObject();
         b = shuffleXContent(b, "filter");
-        try (XContentParser parser = XContentHelper.createParser(b.bytes())) {
-            AliasActions action = AliasActions.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
+        try (XContentParser parser = createParser(b)) {
+            AliasActions action = AliasActions.PARSER.apply(parser, null);
             assertEquals(AliasActions.Type.ADD, action.actionType());
             assertThat(action.indices(), equalTo(indices));
             assertThat(action.aliases(), equalTo(aliases));
@@ -179,8 +177,8 @@ public class AliasActionsTests extends ESTestCase {
         }
         b.endObject();
         b = shuffleXContent(b);
-        try (XContentParser parser = XContentHelper.createParser(b.bytes())) {
-            AliasActions action = AliasActions.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
+        try (XContentParser parser = createParser(b)) {
+            AliasActions action = AliasActions.PARSER.apply(parser, null);
             assertEquals(AliasActions.Type.ADD, action.actionType());
             assertThat(action.indices(), arrayContaining(index));
             assertThat(action.aliases(), arrayContaining(alias));
@@ -210,8 +208,8 @@ public class AliasActionsTests extends ESTestCase {
         }
         b.endObject();
         b = shuffleXContent(b);
-        try (XContentParser parser = XContentHelper.createParser(b.bytes())) {
-            AliasActions action = AliasActions.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
+        try (XContentParser parser = createParser(b)) {
+            AliasActions action = AliasActions.PARSER.apply(parser, null);
             assertEquals(AliasActions.Type.REMOVE, action.actionType());
             assertThat(action.indices(), equalTo(indices));
             assertThat(action.aliases(), equalTo(aliases));
@@ -233,8 +231,8 @@ public class AliasActionsTests extends ESTestCase {
         }
         b.endObject();
         b = shuffleXContent(b);
-        try (XContentParser parser = XContentHelper.createParser(b.bytes())) {
-            AliasActions action = AliasActions.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
+        try (XContentParser parser = createParser(b)) {
+            AliasActions action = AliasActions.PARSER.apply(parser, null);
             assertEquals(AliasActions.Type.REMOVE_INDEX, action.actionType());
             assertArrayEquals(indices, action.indices());
             assertThat(action.aliases(), arrayWithSize(0));
@@ -252,8 +250,8 @@ public class AliasActionsTests extends ESTestCase {
             b.endObject();
         }
         b.endObject();
-        try (XContentParser parser = XContentHelper.createParser(b.bytes())) {
-            Exception e = expectThrows(ParsingException.class, () -> AliasActions.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT));
+        try (XContentParser parser = createParser(b)) {
+            Exception e = expectThrows(ParsingException.class, () -> AliasActions.PARSER.apply(parser, null));
             assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
             assertEquals("Only one of [index] and [indices] is supported", e.getCause().getCause().getMessage());
         }
@@ -270,8 +268,8 @@ public class AliasActionsTests extends ESTestCase {
             b.endObject();
         }
         b.endObject();
-        try (XContentParser parser = XContentHelper.createParser(b.bytes())) {
-            Exception e = expectThrows(ParsingException.class, () -> AliasActions.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT));
+        try (XContentParser parser = createParser(b)) {
+            Exception e = expectThrows(ParsingException.class, () -> AliasActions.PARSER.apply(parser, null));
             assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
             assertEquals("Only one of [alias] and [aliases] is supported", e.getCause().getCause().getMessage());
         }

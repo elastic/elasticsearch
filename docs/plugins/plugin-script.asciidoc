@@ -20,7 +20,7 @@ sudo bin/elasticsearch-plugin -h
 .Running as root
 =====================
 If Elasticsearch was installed using the deb or rpm package then run
-`/usr/share/elasticsearch-plugin` as `root` so it can write to the appropriate files on disk.
+`/usr/share/elasticsearch/bin/elasticsearch-plugin` as `root` so it can write to the appropriate files on disk.
 Otherwise run `bin/elasticsearch-plugin` as the user that owns all of the Elasticsearch
 files.
 =====================
@@ -80,8 +80,8 @@ to a local Java truststore and pass the location to the script as follows:
 sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://....
 -----------------------------------
 
-[[listing-removing]]
-=== Listing and Removing Installed Plugins
+[[listing-removing-updating]]
+=== Listing, Removing and Updating Installed Plugins
 
 [float]
 === Listing plugins
@@ -109,6 +109,18 @@ sudo bin/elasticsearch-plugin remove [pluginname]
 
 After a Java plugin has been removed, you will need to restart the node to complete the removal process.
 
+[float]
+=== Updating plugins
+
+Plugins are built for a specific version of Elasticsearch, and therefore must be reinstalled
+each time Elasticsearch is updated.
+
+[source,shell]
+-----------------------------------
+sudo bin/elasticsearch-plugin remove [pluginname]
+sudo bin/elasticsearch-plugin install [pluginname]
+-----------------------------------
+
 === Other command line parameters
 
 The `plugin` scripts supports a number of other command line parameters:
@@ -125,6 +137,24 @@ return the following exit codes:
 `64`:: unknown command or incorrect option parameter
 `74`:: IO error
 `70`:: any other error
+
+[float]
+=== Batch mode
+
+Certain plugins require more privileges than those provided by default in core
+Elasticsearch. These plugins will list the required privileges and ask the
+user for confirmation before continuing with installation.
+
+When running the plugin install script from another program (e.g. install
+automation scripts), the plugin script should detect that it is not being
+called from the console and skip the confirmation response, automatically
+granting all requested permissions.  If console detection fails, then batch
+mode can be forced by specifying `-b` or `--batch` as follows:
+
+[source,shell]
+-----------------------------------
+sudo bin/elasticsearch-plugin install --batch [pluginname]
+-----------------------------------
 
 [float]
 === Custom config directory

@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,7 +40,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
 /**
  * A {@link FieldMapper} that takes a string and writes a count of the tokens in that string
- * to the index.  In most ways the mapper acts just like an {@link LegacyIntegerFieldMapper}.
+ * to the index.  In most ways the mapper acts just like an {@link NumberFieldMapper}.
  */
 public class TokenCountFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "token_count";
@@ -77,9 +78,6 @@ public class TokenCountFieldMapper extends FieldMapper {
         @Override
         @SuppressWarnings("unchecked")
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha2)) {
-                return new LegacyTokenCountFieldMapper.TypeParser().parse(name, node, parserContext);
-            }
             TokenCountFieldMapper.Builder builder = new TokenCountFieldMapper.Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -114,7 +112,7 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         final String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();

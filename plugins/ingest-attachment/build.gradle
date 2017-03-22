@@ -23,10 +23,11 @@ esplugin {
 }
 
 versions << [
-  'tika': '1.13',
+  'tika': '1.14',
   'pdfbox': '2.0.3',
   'bouncycastle': '1.55',
-  'poi': '3.15'
+  'poi': '3.15',
+  'mime4j': '0.7.2'
 ]
 
 dependencies {
@@ -59,15 +60,25 @@ dependencies {
   compile "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
   compile 'org.apache.commons:commons-compress:1.10'
+  // Outlook documents
+  compile "org.apache.james:apache-mime4j-core:${versions.mime4j}"
+  compile "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
 }
 
 // TODO: stop using LanguageIdentifier...
 compileJava.options.compilerArgs << "-Xlint:-deprecation"
 
+
+dependencyLicenses {
+  mapping from: /apache-mime4j-.*/, to: 'apache-mime4j'
+}
+
 forbiddenPatterns {
+  exclude '**/*.doc'
   exclude '**/*.docx'
   exclude '**/*.pdf'
   exclude '**/*.epub'
+  exclude '**/*.vsdx'
 }
 
 thirdPartyAudit.excludes = [
@@ -526,27 +537,10 @@ thirdPartyAudit.excludes = [
   'org.apache.http.StatusLine',
   'org.apache.http.client.HttpClient',
   'org.apache.http.client.methods.HttpGet',
+  'org.apache.http.client.methods.HttpPost',
   'org.apache.http.client.utils.URIBuilder',
+  'org.apache.http.entity.ByteArrayEntity',
   'org.apache.http.impl.client.DefaultHttpClient',
-  'org.apache.james.mime4j.MimeException',
-  'org.apache.james.mime4j.codec.DecodeMonitor',
-  'org.apache.james.mime4j.codec.DecoderUtil',
-  'org.apache.james.mime4j.dom.FieldParser',
-  'org.apache.james.mime4j.dom.address.Address',
-  'org.apache.james.mime4j.dom.address.AddressList',
-  'org.apache.james.mime4j.dom.address.Mailbox',
-  'org.apache.james.mime4j.dom.address.MailboxList',
-  'org.apache.james.mime4j.dom.field.AddressListField',
-  'org.apache.james.mime4j.dom.field.DateTimeField',
-  'org.apache.james.mime4j.dom.field.MailboxListField',
-  'org.apache.james.mime4j.dom.field.ParsedField',
-  'org.apache.james.mime4j.dom.field.UnstructuredField',
-  'org.apache.james.mime4j.field.LenientFieldParser',
-  'org.apache.james.mime4j.parser.ContentHandler',
-  'org.apache.james.mime4j.parser.MimeStreamParser',
-  'org.apache.james.mime4j.stream.BodyDescriptor',
-  'org.apache.james.mime4j.stream.Field',
-  'org.apache.james.mime4j.stream.MimeConfig',
   'org.apache.jcp.xml.dsig.internal.dom.DOMDigestMethod',
   'org.apache.jcp.xml.dsig.internal.dom.DOMKeyInfo',
   'org.apache.jcp.xml.dsig.internal.dom.DOMReference',

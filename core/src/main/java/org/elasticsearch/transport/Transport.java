@@ -19,7 +19,9 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -28,12 +30,13 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 
 public interface Transport extends LifecycleComponent {
-
 
     Setting<Boolean> TRANSPORT_TCP_COMPRESS = Setting.boolSetting("transport.tcp.compress", false, Property.NodeScope);
 
@@ -53,12 +56,7 @@ public interface Transport extends LifecycleComponent {
     /**
      * Returns an address from its string representation.
      */
-    TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception;
-
-    /**
-     * Is the address type supported.
-     */
-    boolean addressSupported(Class<? extends TransportAddress> address);
+    TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException;
 
     /**
      * Returns <tt>true</tt> if the node is connected.
@@ -66,27 +64,16 @@ public interface Transport extends LifecycleComponent {
     boolean nodeConnected(DiscoveryNode node);
 
     /**
-     * Connects to the given node, if already connected, does nothing.
+     * Connects to a node with the given connection profile. If the node is already connected this method has no effect.
+     * Once a successful is established, it can be validated before being exposed.
      */
-    void connectToNode(DiscoveryNode node) throws ConnectTransportException;
-
-    /**
-     * Connects to a node in a light manner. Used when just connecting for ping and then
-     * disconnecting.
-     */
-    void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException;
+    void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                       CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator) throws ConnectTransportException;
 
     /**
      * Disconnected from the given node, if not connected, will do nothing.
      */
     void disconnectFromNode(DiscoveryNode node);
-
-    /**
-     * Sends the request to the node.
-     * @throws NodeNotConnectedException if the given node is not connected
-     */
-    void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws
-        IOException, TransportException;
 
     /**
      * Returns count of currently open connections
@@ -99,4 +86,51 @@ public interface Transport extends LifecycleComponent {
         return new NoopCircuitBreaker("in-flight-noop");
     }
 
+    /**
+     * Returns a new request ID to use when sending a message via {@link Connection#sendRequest(long, String,
+     * TransportRequest, TransportRequestOptions)}
+     */
+    long newRequestId();
+    /**
+     * Returns a connection for the given node if the node is connected.
+     * Connections returned from this method must not be closed. The lifecycle of this connection is maintained by the Transport
+     * implementation.
+     *
+     * @throws NodeNotConnectedException if the node is not connected
+     * @see #connectToNode(DiscoveryNode, ConnectionProfile, CheckedBiConsumer)
+     */
+    Connection getConnection(DiscoveryNode node);
+
+    /**
+     * Opens a new connection to the given node and returns it. In contrast to
+     * {@link #connectToNode(DiscoveryNode, ConnectionProfile, CheckedBiConsumer)} the returned connection is not managed by
+     * the transport implementation. This connection must be closed once it's not needed anymore.
+     * This connection type can be used to execute a handshake between two nodes before the node will be published via
+     * {@link #connectToNode(DiscoveryNode, ConnectionProfile, CheckedBiConsumer)}.
+     */
+    Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException;
+
+    /**
+     * A unidirectional connection to a {@link DiscoveryNode}
+     */
+    interface Connection extends Closeable {
+        /**
+         * The node this connection is associated with
+         */
+        DiscoveryNode getNode();
+
+        /**
+         * Sends the request to the node this connection is associated with
+         * @throws NodeNotConnectedException if the given node is not connected
+         */
+        void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) throws
+            IOException, TransportException;
+
+        /**
+         * Returns the version of the node this connection was established with.
+         */
+        default Version getVersion() {
+            return getNode().getVersion();
+        }
+    }
 }

@@ -144,15 +144,7 @@ public final class RandomDocumentPicks {
         if (random.nextBoolean()) {
             parent = randomString(random);
         }
-        String timestamp = null;
-        if (random.nextBoolean()) {
-            timestamp = randomString(random);
-        }
-        String ttl = null;
-        if (random.nextBoolean()) {
-            ttl = randomString(random);
-        }
-        return new IngestDocument(index, type, id, routing, parent, timestamp, ttl, source);
+        return new IngestDocument(index, type, id, routing, parent, source);
     }
 
     public static Map<String, Object> randomSource(Random random) {

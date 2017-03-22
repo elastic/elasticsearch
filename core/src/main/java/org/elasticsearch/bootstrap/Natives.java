@@ -91,12 +91,12 @@ final class Natives {
         return JNANatives.LOCAL_MLOCKALL;
     }
 
-    static void trySeccomp(Path tmpFile) {
+    static void tryInstallSystemCallFilter(Path tmpFile) {
         if (!JNA_AVAILABLE) {
-            logger.warn("cannot install syscall filters because JNA is not available");
+            logger.warn("cannot install system call filter because JNA is not available");
             return;
         }
-        JNANatives.trySeccomp(tmpFile);
+        JNANatives.tryInstallSystemCallFilter(tmpFile);
     }
 
     static void trySetMaxNumberOfThreads() {
@@ -115,10 +115,10 @@ final class Natives {
         JNANatives.trySetMaxSizeVirtualMemory();
     }
 
-    static boolean isSeccompInstalled() {
+    static boolean isSystemCallFilterInstalled() {
         if (!JNA_AVAILABLE) {
             return false;
         }
-        return JNANatives.LOCAL_SECCOMP;
+        return JNANatives.LOCAL_SYSTEM_CALL_FILTER;
     }
 }

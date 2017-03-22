@@ -1,9 +1,29 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 /* This project runs the core REST tests against a 2 node cluster where one of the nodes has a different minor.
- * Since we don't have a version to test against we currently use the hardcoded snapshot for to bascially run
- * against ourself. To test that useing a different version works got into distribution/zip and execute:
- *   gradle clean install -Dbuild.snapshot=false
+ * Since we don't have a version to test against we currently use the hardcoded snapshot for to basically run
+ * against ourselves. To test that using a different version go to distribution/zip and execute:
+ *   gradle clean publishToMavenLocal -Dbuild.snapshot=false
  *
  * This installs the release-build into a local .m2 repository, then change this version here to:
  *   bwcVersion = "5.0.0"
@@ -11,16 +31,17 @@ apply plugin: 'elasticsearch.rest-test'
  * now you can run the bwc tests with:
  *   gradle check -Drepos.mavenlocal=true
  *
- * (-Drepos.mavenlocal=true will force gradle to look for the zip distribuiton in the local .m2 repository)
+ * (-Drepos.mavenlocal=true will force gradle to look for the zip distribution in the local .m2 repository)
  */
 integTest {
   includePackaged = true
-  cluster {
-    numNodes = 2
-    numBwcNodes = 1
-    bwcVersion = "6.0.0-alpha1-SNAPSHOT"
-    setting 'logger.org.elasticsearch', 'DEBUG'
-  }
+}
+
+integTestCluster {
+  numNodes = 4
+  numBwcNodes = 2
+  bwcVersion = "5.4.0-SNAPSHOT"
+  setting 'logger.org.elasticsearch', 'DEBUG'
 }
 
 repositories {

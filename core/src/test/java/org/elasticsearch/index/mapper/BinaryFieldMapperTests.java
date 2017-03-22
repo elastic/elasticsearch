@@ -111,12 +111,5 @@ public class BinaryFieldMapperTests extends ESSingleNodeTestCase {
             () -> createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
-
-        // before 5.x
-        Version oldVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_2_0_0, Version.V_2_3_5);
-        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
-
-        DocumentMapper defaultMapper = createIndex("test_old", oldIndexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, defaultMapper.mappingSource().string());
     }
 }

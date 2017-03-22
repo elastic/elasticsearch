@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -32,46 +33,35 @@ import org.elasticsearch.search.aggregations.support.AggregationPath;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
  */
 public abstract class InternalAggregation implements Aggregation, ToXContent, NamedWriteable {
-    /**
-     * The aggregation type that holds all the string types that are associated with an aggregation:
-     * <ul>
-     *     <li>name - used as the parser type</li>
-     * </ul>
-     */
-    public static class Type {
-        private final String name;
 
-        public Type(String name) {
-            this.name = name;
-        }
-
-        /**
-         * @return The name of the type of aggregation.  This is the key for parsing the aggregation from XContent and is the name of the
-         * aggregation's builder when serialized.
-         */
-        public String name() {
-            return name;
-        }
-
-        @Override
-        public String toString() {
-            return name;
-        }
-    }
+    /** Delimiter used when prefixing aggregation names with their type using the typed_keys parameter **/
+    public static final String TYPED_KEYS_DELIMITER = "#";
 
     public static class ReduceContext {
 
         private final BigArrays bigArrays;
         private final ScriptService scriptService;
+        private final boolean isFinalReduce;
 
-        public ReduceContext(BigArrays bigArrays, ScriptService scriptService) {
+        public ReduceContext(BigArrays bigArrays, ScriptService scriptService, boolean isFinalReduce) {
             this.bigArrays = bigArrays;
             this.scriptService = scriptService;
+            this.isFinalReduce = isFinalReduce;
+        }
+
+        /**
+         * Returns <code>true</code> iff the current reduce phase is the final reduce phase. This indicates if operations like
+         * pipeline aggregations should be applied or if specific features like <tt>minDocCount</tt> should be taken into account.
+         * Operations that are potentially loosing information can only be applied during the final reduce phase.
+         */
+        public boolean isFinalReduce() {
+            return isFinalReduce;
         }
 
         public BigArrays bigArrays() {
@@ -132,8 +122,10 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
      */
     public final InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         InternalAggregation aggResult = doReduce(aggregations, reduceContext);
-        for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
-            aggResult = pipelineAggregator.reduce(aggResult, reduceContext);
+        if (reduceContext.isFinalReduce()) {
+            for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
+                aggResult = pipelineAggregator.reduce(aggResult, reduceContext);
+            }
         }
         return aggResult;
     }
@@ -175,9 +167,23 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
         return pipelineAggregators;
     }
 
+    /**
+     * Returns a string representing the type of the aggregation. This type is added to
+     * the aggregation name in the response, so that it can later be used by REST clients
+     * to determine the internal type of the aggregation.
+     */
+    protected String getType() {
+        return getWriteableName();
+    }
+
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        if (params.paramAsBoolean(RestSearchAction.TYPED_KEYS_PARAM, false)) {
+            // Concatenates the type and the name of the aggregation (ex: top_hits#foo)
+            builder.startObject(String.join(TYPED_KEYS_DELIMITER, getType(), getName()));
+        } else {
+            builder.startObject(getName());
+        }
         if (this.metaData != null) {
             builder.field(CommonFields.META);
             builder.map(this.metaData);
@@ -188,6 +194,47 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
     }
 
     public abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, metaData, pipelineAggregators, doHashCode());
+    }
+
+    /**
+     * Opportunity for subclasses to the {@link #hashCode()} for this
+     * class.
+     **/
+    protected int doHashCode() {
+        return System.identityHashCode(this);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (obj.getClass() != getClass()) {
+            return false;
+        }
+        InternalAggregation other = (InternalAggregation) obj;
+        return Objects.equals(name, other.name) &&
+                Objects.equals(pipelineAggregators, other.pipelineAggregators) &&
+                Objects.equals(metaData, other.metaData) &&
+                doEquals(obj);
+    }
+
+    // norelease: make this abstract when all InternalAggregations implement this method
+    /**
+     * Opportunity for subclasses to add criteria to the {@link #equals(Object)}
+     * method for this class.
+     *
+     * This method can safely cast <code>obj</code> to the subclass since the
+     * {@link #equals(Object)} method checks that <code>obj</code> is the same
+     * class as <code>this</code>
+     */
+    protected boolean doEquals(Object obj) {
+        return this == obj;
+    }
 
     /**
      * Common xcontent fields that are shared among addAggregation

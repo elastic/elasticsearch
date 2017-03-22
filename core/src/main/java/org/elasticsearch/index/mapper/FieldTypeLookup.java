@@ -43,7 +43,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     final CopyOnWriteHashMap<String, Set<String>> fullNameToTypes;
 
     /** Create a new empty instance. */
-    public FieldTypeLookup() {
+    FieldTypeLookup() {
         fullNameToFieldType = new CopyOnWriteHashMap<>();
         fullNameToTypes = new CopyOnWriteHashMap<>();
     }
@@ -93,7 +93,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             // is the update even legal?
             checkCompatibility(type, fieldMapper, updateAllTypes);
 
-            if (fieldType != fullNameFieldType) {
+            if (fieldType.equals(fullNameFieldType) == false) {
                 fullName = fullName.copyAndPut(fieldType.name(), fieldMapper.fieldType());
             }
 

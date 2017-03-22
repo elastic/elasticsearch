@@ -12,12 +12,18 @@ A filtering aggregation used to limit any sub aggregations' processing to a samp
 
 Example:
 
+A query on StackOverflow data for the popular term `javascript` OR the rarer term
+`kibana` will match many documents - most of them missing the word Kibana. To focus
+the `significant_terms` aggregation on top-scoring documents that are more likely to match 
+the most interesting parts of our query we use a sample.
+
 [source,js]
 --------------------------------------------------
+POST /stackoverflow/_search?size=0
 {
     "query": {
-        "match": {
-            "text": "iphone"
+        "query_string": {
+            "query": "tags:kibana OR tags:javascript"
         }
     },
     "aggs": {
@@ -28,7 +34,8 @@ Example:
             "aggs": {
                 "keywords": {
                     "significant_terms": {
-                        "field": "text"
+                        "field": "tags",
+                        "exclude": ["kibana", "javascript"]
                     }
                 }
             }
@@ -36,6 +43,8 @@ Example:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:stackoverflow]
 
 Response:
 
@@ -43,24 +52,101 @@ Response:
 --------------------------------------------------
 {
     ...
-        "aggregations": {
+    "aggregations": {
         "sample": {
             "doc_count": 1000,<1>
             "keywords": {
                 "doc_count": 1000,
                 "buckets": [
-                    ...
                     {
-                        "key": "bend",
-                        "doc_count": 58,
-                        "score": 37.982536582524276,
-                        "bg_count": 103
+                        "key": "elasticsearch",
+                        "doc_count": 150,
+                        "score": 1.078125,
+                        "bg_count": 200
                     },
-                    ....
+                    {
+                        "key": "logstash",
+                        "doc_count": 50,
+                        "score": 0.5625,
+                        "bg_count": 50
+                    }
+                ]
+            }
+        }
+    }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+// TESTRESPONSE[s/1000/200/]
 
 <1> 1000 documents were sampled in total because we asked for a maximum of 200 from an index with 5 shards. The cost of performing the nested significant_terms aggregation was therefore limited rather than unbounded.
+
+
+Without the `sampler` aggregation the request query considers the full "long tail" of low-quality matches and therefore identifies
+less significant terms such as `jquery` and `angular` rather than focusing on the more insightful Kibana-related terms.
+
+
+[source,js]
+--------------------------------------------------
+POST /stackoverflow/_search?size=0
+{
+    "query": {
+        "query_string": {
+            "query": "tags:kibana OR tags:javascript"
+        }
+    },
+    "aggs": {
+             "low_quality_keywords": {
+                "significant_terms": {
+                    "field": "tags",
+                    "size": 3,
+                    "exclude":["kibana", "javascript"]
+                }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:stackoverflow]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "aggregations": {
+        "low_quality_keywords": {
+            "doc_count": 1000,
+            "buckets": [
+                {
+                    "key": "angular",
+                    "doc_count": 200,
+                    "score": 0.02777,
+                   "bg_count": 200
+                },
+                {
+                    "key": "jquery",
+                    "doc_count": 200,
+                    "score": 0.02777,
+                    "bg_count": 200
+                },
+                {
+                    "key": "logstash",
+                    "doc_count": 50,
+                    "score": 0.0069,
+                    "bg_count": 50
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+// TESTRESPONSE[s/1000/600/]
+// TESTRESPONSE[s/0.02777/$body.aggregations.low_quality_keywords.buckets.0.score/]
+// TESTRESPONSE[s/0.0069/$body.aggregations.low_quality_keywords.buckets.2.score/]
+
 
 
 ==== shard_size

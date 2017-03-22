@@ -22,7 +22,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -161,7 +160,9 @@ public final class TaskResult implements Writeable, ToXContent {
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("completed", completed);
-        builder.field("task", task);
+        builder.startObject("task");
+        task.toXContent(builder, params);
+        builder.endObject();
         if (error != null) {
             XContentHelper.writeRawField("error", error, builder, params);
         }
@@ -171,7 +172,7 @@ public final class TaskResult implements Writeable, ToXContent {
         return builder;
     }
 
-    public static final ConstructingObjectParser<TaskResult, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<TaskResult, Void> PARSER = new ConstructingObjectParser<>(
             "stored_task_result", a -> {
                 int i = 0;
                 boolean completed = (boolean) a[i++];
@@ -231,7 +232,7 @@ public final class TaskResult implements Writeable, ToXContent {
     private static BytesReference toXContent(Exception error) throws IOException {
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
             builder.startObject();
-            ElasticsearchException.toXContent(builder, ToXContent.EMPTY_PARAMS, error);
+            ElasticsearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, error);
             builder.endObject();
             return builder.bytes();
         }

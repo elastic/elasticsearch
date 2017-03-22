@@ -61,6 +61,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -152,7 +153,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             public void run() {
                 startGun.countDown();
                 while(running.get()) {
-                    service.afterIndexDeleted(indexService.index(), indexService.getIndexSettings().getSettings());
+                    service.afterIndexRemoved(indexService.index(), indexService.getIndexSettings(), DELETED);
                     if (randomBoolean()) {
                         // here we trigger some refreshes to ensure the IR go out of scope such that we hit ACE if we access a search
                         // context in a non-sane way.
@@ -185,7 +186,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 try {
                     QuerySearchResultProvider querySearchResultProvider = service.executeQueryPhase(
                         new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
-                            new SearchSourceBuilder(), new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                            new SearchSourceBuilder(), new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f),
                         new SearchTask(123L, "", "", "", null));
                     IntArrayList intCursors = new IntArrayList(1);
                     intCursors.add(0);
@@ -220,7 +221,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 new SearchSourceBuilder(),
                 new String[0],
                 false,
-                new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                new AliasFilter(null, Strings.EMPTY_ARRAY),
+                1.0f),
             null);
         // the search context should inherit the default timeout
         assertThat(contextWithDefaultTimeout.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
@@ -234,7 +236,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 new SearchSourceBuilder().timeout(TimeValue.timeValueSeconds(seconds)),
                 new String[0],
                 false,
-                new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                new AliasFilter(null, Strings.EMPTY_ARRAY),
+                1.0f),
             null);
         // the search context should inherit the query timeout
         assertThat(context.timeout(), equalTo(TimeValue.timeValueSeconds(seconds)));

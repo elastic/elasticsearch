@@ -35,13 +35,15 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.LegacyDateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -336,11 +338,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                 BytesRef part1Binary = part1 == null ? null : getAnalyzer().normalize(field, part1);
                 BytesRef part2Binary = part2 == null ? null : getAnalyzer().normalize(field, part2);
                 Query rangeQuery;
-                if (currentFieldType instanceof LegacyDateFieldMapper.DateFieldType && settings.timeZone() != null) {
-                    LegacyDateFieldMapper.DateFieldType dateFieldType = (LegacyDateFieldMapper.DateFieldType) this.currentFieldType;
-                    rangeQuery = dateFieldType.rangeQuery(part1Binary, part2Binary,
-                            startInclusive, endInclusive, settings.timeZone(), null, context);
-                } else if (currentFieldType instanceof DateFieldMapper.DateFieldType && settings.timeZone() != null) {
+                if (currentFieldType instanceof DateFieldMapper.DateFieldType && settings.timeZone() != null) {
                     DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) this.currentFieldType;
                     rangeQuery = dateFieldType.rangeQuery(part1Binary, part2Binary,
                             startInclusive, endInclusive, settings.timeZone(), null, context);
@@ -569,22 +567,16 @@ public class MapperQueryParser extends AnalyzingQueryParser {
 
     @Override
     protected Query getWildcardQuery(String field, String termStr) throws ParseException {
-        if (termStr.equals("*")) {
-            // we want to optimize for match all query for the "*:*", and "*" cases
-            if ("*".equals(field) || Objects.equals(field, this.field)) {
-                String actualField = field;
-                if (actualField == null) {
-                    actualField = this.field;
-                }
-                if (actualField == null) {
-                    return newMatchAllDocsQuery();
-                }
-                if ("*".equals(actualField) || "_all".equals(actualField)) {
-                    return newMatchAllDocsQuery();
-                }
-                // effectively, we check if a field exists or not
-                return FIELD_QUERY_EXTENSIONS.get(ExistsFieldQueryExtension.NAME).query(context, actualField);
+        if (termStr.equals("*") && field != null) {
+            if ("*".equals(field)) {
+                return newMatchAllDocsQuery();
             }
+            String actualField = field;
+            if (actualField == null) {
+                actualField = this.field;
+            }
+            // effectively, we check if a field exists or not
+            return FIELD_QUERY_EXTENSIONS.get(ExistsFieldQueryExtension.NAME).query(context, actualField);
         }
         Collection<String> fields = extractMultiFields(field);
         if (fields != null) {
@@ -622,6 +614,10 @@ public class MapperQueryParser extends AnalyzingQueryParser {
     }
 
     private Query getWildcardQuerySingle(String field, String termStr) throws ParseException {
+        if ("*".equals(termStr)) {
+            // effectively, we check if a field exists or not
+            return FIELD_QUERY_EXTENSIONS.get(ExistsFieldQueryExtension.NAME).query(context, field);
+        }
         String indexedNameField = field;
         currentFieldType = null;
         Analyzer oldAnalyzer = getAnalyzer();
@@ -744,25 +740,49 @@ public class MapperQueryParser extends AnalyzingQueryParser {
 
     private Query applySlop(Query q, int slop) {
         if (q instanceof PhraseQuery) {
-            PhraseQuery pq = (PhraseQuery) q;
-            PhraseQuery.Builder builder = new PhraseQuery.Builder();
-            builder.setSlop(slop);
-            final Term[] terms = pq.getTerms();
-            final int[] positions = pq.getPositions();
-            for (int i = 0; i < terms.length; ++i) {
-                builder.add(terms[i], positions[i]);
-            }
-            pq = builder.build();
             //make sure that the boost hasn't been set beforehand, otherwise we'd lose it
             assert q instanceof BoostQuery == false;
-            return pq;
+            return addSlopToPhrase((PhraseQuery) q, slop);
         } else if (q instanceof MultiPhraseQuery) {
             MultiPhraseQuery.Builder builder = new MultiPhraseQuery.Builder((MultiPhraseQuery) q);
             builder.setSlop(slop);
             return builder.build();
+        } else if (q instanceof SpanQuery) {
+            return addSlopToSpan((SpanQuery) q, slop);
         } else {
             return q;
         }
+    }
+
+    private Query addSlopToSpan(SpanQuery query, int slop) {
+        if (query instanceof SpanNearQuery) {
+            return new SpanNearQuery(((SpanNearQuery) query).getClauses(), slop,
+                ((SpanNearQuery) query).isInOrder());
+        } else if (query instanceof SpanOrQuery) {
+            SpanQuery[] clauses = new SpanQuery[((SpanOrQuery) query).getClauses().length];
+            int pos = 0;
+            for (SpanQuery clause : ((SpanOrQuery) query).getClauses()) {
+                clauses[pos++] = (SpanQuery) addSlopToSpan(clause, slop);
+            }
+            return new SpanOrQuery(clauses);
+        } else {
+            return query;
+        }
+    }
+
+    /**
+     * Rebuild a phrase query with a slop value
+     */
+    private PhraseQuery addSlopToPhrase(PhraseQuery query, int slop) {
+        PhraseQuery.Builder builder = new PhraseQuery.Builder();
+        builder.setSlop(slop);
+        final Term[] terms = query.getTerms();
+        final int[] positions = query.getPositions();
+        for (int i = 0; i < terms.length; ++i) {
+            builder.add(terms[i], positions[i]);
+        }
+
+        return builder.build();
     }
 
     private Collection<String> extractMultiFields(String field) {

@@ -30,8 +30,15 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
@@ -50,7 +57,7 @@ import java.io.IOException;
 
 public class MatchQuery {
 
-    public static enum Type implements Writeable {
+    public enum Type implements Writeable {
         /**
          * The text is analyzed and terms are added to a boolean query.
          */
@@ -66,7 +73,7 @@ public class MatchQuery {
 
         private final int ordinal;
 
-        private Type(int ordinal) {
+        Type(int ordinal) {
             this.ordinal = ordinal;
         }
 
@@ -86,13 +93,13 @@ public class MatchQuery {
         }
     }
 
-    public static enum ZeroTermsQuery implements Writeable {
+    public enum ZeroTermsQuery implements Writeable {
         NONE(0),
         ALL(1);
 
         private final int ordinal;
 
-        private ZeroTermsQuery(int ordinal) {
+        ZeroTermsQuery(int ordinal) {
             this.ordinal = ordinal;
         }
 
@@ -112,13 +119,19 @@ public class MatchQuery {
         }
     }
 
-    /** the default phrase slop */
+    /**
+     * the default phrase slop
+     */
     public static final int DEFAULT_PHRASE_SLOP = 0;
 
-    /** the default leniency setting */
+    /**
+     * the default leniency setting
+     */
     public static final boolean DEFAULT_LENIENCY = false;
 
-    /** the default zero terms query */
+    /**
+     * the default zero terms query
+     */
     public static final ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = ZeroTermsQuery.NONE;
 
     protected final QueryShardContext context;
@@ -292,7 +305,7 @@ public class MatchQuery {
         /**
          * Creates a new QueryBuilder using the given analyzer.
          */
-        public MatchQueryBuilder(Analyzer analyzer, @Nullable MappedFieldType mapper) {
+        MatchQueryBuilder(Analyzer analyzer, @Nullable MappedFieldType mapper) {
             super(analyzer);
             this.mapper = mapper;
         }
@@ -302,14 +315,26 @@ public class MatchQuery {
             return blendTermQuery(term, mapper);
         }
 
+        @Override
+        protected Query newSynonymQuery(Term[] terms) {
+            return blendTermsQuery(terms, mapper);
+        }
+
         public Query createPhrasePrefixQuery(String field, String queryText, int phraseSlop, int maxExpansions) {
             final Query query = createFieldQuery(getAnalyzer(), Occur.MUST, field, queryText, true, phraseSlop);
+            return toMultiPhrasePrefix(query, phraseSlop, maxExpansions);
+        }
+
+        private Query toMultiPhrasePrefix(final Query query, int phraseSlop, int maxExpansions) {
             float boost = 1;
             Query innerQuery = query;
             while (innerQuery instanceof BoostQuery) {
                 BoostQuery bq = (BoostQuery) innerQuery;
                 boost *= bq.getBoost();
                 innerQuery = bq.getQuery();
+            }
+            if (query instanceof SpanQuery) {
+                return toSpanQueryPrefix((SpanQuery) query, boost);
             }
             final MultiPhrasePrefixQuery prefixQuery = new MultiPhrasePrefixQuery();
             prefixQuery.setMaxExpansions(maxExpansions);
@@ -319,7 +344,7 @@ public class MatchQuery {
                 Term[] terms = pq.getTerms();
                 int[] positions = pq.getPositions();
                 for (int i = 0; i < terms.length; i++) {
-                    prefixQuery.add(new Term[] {terms[i]}, positions[i]);
+                    prefixQuery.add(new Term[]{terms[i]}, positions[i]);
                 }
                 return boost == 1 ? prefixQuery : new BoostQuery(prefixQuery, boost);
             } else if (innerQuery instanceof MultiPhraseQuery) {
@@ -340,22 +365,59 @@ public class MatchQuery {
             return query;
         }
 
-        public Query createCommonTermsQuery(String field, String queryText, Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency, MappedFieldType fieldType) {
+        private Query toSpanQueryPrefix(SpanQuery query, float boost) {
+            if (query instanceof SpanTermQuery) {
+                SpanMultiTermQueryWrapper<PrefixQuery> ret =
+                    new SpanMultiTermQueryWrapper<>(new PrefixQuery(((SpanTermQuery) query).getTerm()));
+                return boost == 1 ? ret : new BoostQuery(ret, boost);
+            } else if (query instanceof SpanNearQuery) {
+                SpanNearQuery spanNearQuery = (SpanNearQuery) query;
+                SpanQuery[] clauses = spanNearQuery.getClauses();
+                if (clauses[clauses.length-1] instanceof SpanTermQuery) {
+                    clauses[clauses.length-1] = new SpanMultiTermQueryWrapper<>(
+                        new PrefixQuery(((SpanTermQuery) clauses[clauses.length-1]).getTerm())
+                    );
+                }
+                SpanNearQuery newQuery = new SpanNearQuery(clauses, spanNearQuery.getSlop(), spanNearQuery.isInOrder());
+                return boost == 1 ? newQuery : new BoostQuery(newQuery, boost);
+            } else if (query instanceof SpanOrQuery) {
+                SpanOrQuery orQuery = (SpanOrQuery) query;
+                SpanQuery[] clauses = new SpanQuery[orQuery.getClauses().length];
+                for (int i = 0; i < clauses.length; i++) {
+                    clauses[i] = (SpanQuery) toSpanQueryPrefix(orQuery.getClauses()[i], 1);
+                }
+                return boost == 1 ? new SpanOrQuery(clauses) : new BoostQuery(new SpanOrQuery(clauses), boost);
+            } else {
+                return query;
+            }
+        }
+
+        public Query createCommonTermsQuery(String field, String queryText, Occur highFreqOccur, Occur lowFreqOccur, float
+            maxTermFrequency, MappedFieldType fieldType) {
             Query booleanQuery = createBooleanQuery(field, queryText, lowFreqOccur);
             if (booleanQuery != null && booleanQuery instanceof BooleanQuery) {
                 BooleanQuery bq = (BooleanQuery) booleanQuery;
-                ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, ((BooleanQuery)booleanQuery).isCoordDisabled(), fieldType);
-                for (BooleanClause clause : bq.clauses()) {
-                    if (!(clause.getQuery() instanceof TermQuery)) {
-                        return booleanQuery;
-                    }
-                    query.add(((TermQuery) clause.getQuery()).getTerm());
-                }
-                return query;
+                return boolToExtendedCommonTermsQuery(bq, highFreqOccur, lowFreqOccur, maxTermFrequency, fieldType);
             }
             return booleanQuery;
-
         }
+
+        private Query boolToExtendedCommonTermsQuery(BooleanQuery bq, Occur highFreqOccur, Occur lowFreqOccur, float
+            maxTermFrequency, MappedFieldType fieldType) {
+            ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency,
+                bq.isCoordDisabled(), fieldType);
+            for (BooleanClause clause : bq.clauses()) {
+                if (!(clause.getQuery() instanceof TermQuery)) {
+                    return bq;
+                }
+                query.add(((TermQuery) clause.getQuery()).getTerm());
+            }
+            return query;
+        }
+    }
+
+    protected Query blendTermsQuery(Term[] terms, MappedFieldType fieldType) {
+        return new SynonymQuery(terms);
     }
 
     protected Query blendTermQuery(Term term, MappedFieldType fieldType) {

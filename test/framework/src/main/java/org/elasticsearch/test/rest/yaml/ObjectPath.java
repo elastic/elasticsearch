@@ -18,8 +18,14 @@
  */
 package org.elasticsearch.test.rest.yaml;
 
+import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,8 +39,15 @@ public class ObjectPath {
 
     private final Object object;
 
-    public static ObjectPath createFromXContent(XContent xContent, String input) throws IOException {
-        try (XContentParser parser = xContent.createParser(input)) {
+    public static ObjectPath createFromResponse(Response response) throws IOException {
+        byte[] bytes = EntityUtils.toByteArray(response.getEntity());
+        String contentType = response.getHeader("Content-Type");
+        XContentType xContentType = XContentType.fromMediaTypeOrFormat(contentType);
+        return ObjectPath.createFromXContent(xContentType.xContent(), new BytesArray(bytes));
+    }
+
+    public static ObjectPath createFromXContent(XContent xContent, BytesReference input) throws IOException {
+        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, input)) {
             if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
                 return new ObjectPath(parser.listOrderedMap());
             }
@@ -46,17 +59,28 @@ public class ObjectPath {
         this.object = object;
     }
 
+
+    /**
+     * A utility method that creates an {@link ObjectPath} via {@link #ObjectPath(Object)} returns
+     * the result of calling {@link #evaluate(String)} on it.
+     */
+    public static <T> T evaluate(Object object, String path) throws IOException {
+        return new ObjectPath(object).evaluate(path, Stash.EMPTY);
+    }
+
+
     /**
      * Returns the object corresponding to the provided path if present, null otherwise
      */
-    public Object evaluate(String path) throws IOException {
+    public <T> T evaluate(String path) throws IOException {
         return evaluate(path, Stash.EMPTY);
     }
 
     /**
      * Returns the object corresponding to the provided path if present, null otherwise
      */
-    public Object evaluate(String path, Stash stash) throws IOException {
+    @SuppressWarnings("unchecked")
+    public <T> T evaluate(String path, Stash stash) throws IOException {
         String[] parts = parsePath(path);
         Object object = this.object;
         for (String part : parts) {
@@ -65,7 +89,7 @@ public class ObjectPath {
                 return null;
             }
         }
-        return object;
+        return (T)object;
     }
 
     @SuppressWarnings("unchecked")

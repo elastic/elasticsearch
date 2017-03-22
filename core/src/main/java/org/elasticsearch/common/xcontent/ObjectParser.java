@@ -20,8 +20,6 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 
 import java.io.IOException;
@@ -47,8 +45,8 @@ import static org.elasticsearch.common.xcontent.XContentParser.Token.VALUE_STRIN
 
 /**
  * A declarative, stateless parser that turns XContent into setter calls. A single parser should be defined for each object being parsed,
- * nested elements can be added via {@link #declareObject(BiConsumer, BiFunction, ParseField)} which should be satisfied where possible by
- * passing another instance of {@link ObjectParser}, this one customized for that Object.
+ * nested elements can be added via {@link #declareObject(BiConsumer, ContextParser, ParseField)} which should be satisfied where possible
+ * by passing another instance of {@link ObjectParser}, this one customized for that Object.
  * <p>
  * This class works well for object that do have a constructor argument or that can be built using information available from earlier in the
  * XContent. For objects that have constructors with required arguments that are specified on the same level as other fields see
@@ -68,7 +66,7 @@ import static org.elasticsearch.common.xcontent.XContentParser.Token.VALUE_STRIN
  * It's highly recommended to use the high level declare methods like {@link #declareString(BiConsumer, ParseField)} instead of
  * {@link #declareField} which can be used to implement exceptional parsing operations not covered by the high level methods.
  */
-public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier> extends AbstractObjectParser<Value, Context> {
+public final class ObjectParser<Value, Context> extends AbstractObjectParser<Value, Context> {
     /**
      * Adapts an array (or varags) setter into a list setter.
      */
@@ -122,10 +120,11 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
     /**
      * Parses a Value from the given {@link XContentParser}
      * @param parser the parser to build a value from
-     * @param context must at least provide a {@link ParseFieldMatcher}
+     * @param context context needed for parsing
      * @return a new value instance drawn from the provided value supplier on {@link #ObjectParser(String, Supplier)}
      * @throws IOException if an IOException occurs.
      */
+    @Override
     public Value parse(XContentParser parser, Context context) throws IOException {
         if (valueSupplier == null) {
             throw new NullPointerException("valueSupplier is not set");
@@ -152,7 +151,7 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
             }
         }
 
-        FieldParser<Value> fieldParser = null;
+        FieldParser fieldParser = null;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -166,7 +165,7 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
                     assert ignoreUnknownFields : "this should only be possible if configured to ignore known fields";
                     parser.skipChildren(); // noop if parser points to a value, skips children if parser is start object or start array
                 } else {
-                    fieldParser.assertSupports(name, token, currentFieldName, context.getParseFieldMatcher());
+                    fieldParser.assertSupports(name, token, currentFieldName);
                     parseSub(parser, fieldParser, currentFieldName, value, context);
                 }
                 fieldParser = null;
@@ -356,13 +355,13 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
         return name;
     }
 
-    private void parseArray(XContentParser parser, FieldParser<Value> fieldParser, String currentFieldName, Value value, Context context)
+    private void parseArray(XContentParser parser, FieldParser fieldParser, String currentFieldName, Value value, Context context)
             throws IOException {
         assert parser.currentToken() == XContentParser.Token.START_ARRAY : "Token was: " + parser.currentToken();
         parseValue(parser, fieldParser, currentFieldName, value, context);
     }
 
-    private void parseValue(XContentParser parser, FieldParser<Value> fieldParser, String currentFieldName, Value value, Context context)
+    private void parseValue(XContentParser parser, FieldParser fieldParser, String currentFieldName, Value value, Context context)
             throws IOException {
         try {
             fieldParser.parser.parse(parser, value, context);
@@ -371,7 +370,7 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
         }
     }
 
-    private void parseSub(XContentParser parser, FieldParser<Value> fieldParser, String currentFieldName, Value value, Context context)
+    private void parseSub(XContentParser parser, FieldParser fieldParser, String currentFieldName, Value value, Context context)
             throws IOException {
         final XContentParser.Token token = parser.currentToken();
         switch (token) {
@@ -395,28 +394,28 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
     }
 
     private FieldParser getParser(String fieldName) {
-        FieldParser<Value> parser = fieldParserMap.get(fieldName);
+        FieldParser parser = fieldParserMap.get(fieldName);
         if (parser == null && false == ignoreUnknownFields) {
             throw new IllegalArgumentException("[" + name  + "] unknown field [" + fieldName + "], parser not found");
         }
         return parser;
     }
 
-    public static class FieldParser<T> {
-        private final Parser parser;
+    private class FieldParser {
+        private final Parser<Value, Context> parser;
         private final EnumSet<XContentParser.Token> supportedTokens;
         private final ParseField parseField;
         private final ValueType type;
 
-        public FieldParser(Parser parser, EnumSet<XContentParser.Token> supportedTokens, ParseField parseField, ValueType type) {
+        FieldParser(Parser<Value, Context> parser, EnumSet<XContentParser.Token> supportedTokens, ParseField parseField, ValueType type) {
             this.parser = parser;
             this.supportedTokens = supportedTokens;
             this.parseField = parseField;
             this.type = type;
         }
 
-        public void assertSupports(String parserName, XContentParser.Token token, String currentFieldName, ParseFieldMatcher matcher) {
-            if (matcher.match(currentFieldName, parseField) == false) {
+        void assertSupports(String parserName, XContentParser.Token token, String currentFieldName) {
+            if (parseField.match(currentFieldName) == false) {
                 throw new IllegalStateException("[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
             }
             if (supportedTokens.contains(token) == false) {
@@ -463,6 +462,7 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
         OBJECT_ARRAY(START_OBJECT, START_ARRAY),
         OBJECT_OR_BOOLEAN(START_OBJECT, VALUE_BOOLEAN),
         OBJECT_OR_STRING(START_OBJECT, VALUE_STRING),
+        OBJECT_ARRAY_OR_STRING(START_OBJECT, START_ARRAY, VALUE_STRING),
         VALUE(VALUE_BOOLEAN, VALUE_NULL, VALUE_EMBEDDED_OBJECT, VALUE_NUMBER, VALUE_STRING);
 
         private final EnumSet<XContentParser.Token> tokens;

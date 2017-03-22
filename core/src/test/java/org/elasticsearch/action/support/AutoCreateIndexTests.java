@@ -25,10 +25,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -57,10 +63,30 @@ public class AutoCreateIndexTests extends ESTestCase {
         }
     }
 
+    public void testHandleSpaces() { // see #21449
+        Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(),
+            randomFrom(".marvel-, .security, .watches, .triggered_watches, .watcher-history-",
+                ".marvel-,.security,.watches,.triggered_watches,.watcher-history-")).build();
+        AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        List<Tuple<String, Boolean>> expressions = autoCreateIndex.getAutoCreate().getExpressions();
+        Map<String, Boolean> map = new HashMap<>();
+        for (Tuple<String, Boolean> t : expressions) {
+            map.put(t.v1(), t.v2());
+        }
+        assertTrue(map.get(".marvel-"));
+        assertTrue(map.get(".security"));
+        assertTrue(map.get(".watches"));
+        assertTrue(map.get(".triggered_watches"));
+        assertTrue(map.get(".watcher-history-"));
+        assertEquals(5, map.size());
+    }
+
     public void testAutoCreationDisabled() {
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false).build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
-        assertThat(autoCreateIndex.shouldAutoCreate(randomAsciiOfLengthBetween(1, 10), buildClusterState()), equalTo(false));
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->
+            autoCreateIndex.shouldAutoCreate(randomAsciiOfLengthBetween(1, 10), buildClusterState()));
+        assertEquals("no such index and [action.auto_create_index] is [false]", e.getMessage());
     }
 
     public void testAutoCreationEnabled() {
@@ -87,7 +113,9 @@ public class AutoCreateIndexTests extends ESTestCase {
                 randomAsciiOfLengthBetween(1, 10)))
             .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), false).build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
-        assertThat(autoCreateIndex.shouldAutoCreate(randomAsciiOfLengthBetween(1, 10), buildClusterState()), equalTo(false));
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->
+            autoCreateIndex.shouldAutoCreate(randomAsciiOfLengthBetween(1, 10), buildClusterState()));
+        assertEquals("no such index and [index.mapper.dynamic] is [false]", e.getMessage());
     }
 
     public void testAutoCreationPatternEnabled() {
@@ -96,16 +124,17 @@ public class AutoCreateIndexTests extends ESTestCase {
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()).build();
         assertThat(autoCreateIndex.shouldAutoCreate("index" + randomAsciiOfLengthBetween(1, 5), clusterState), equalTo(true));
-        assertThat(autoCreateIndex.shouldAutoCreate("does_not_match" + randomAsciiOfLengthBetween(1, 5), clusterState), equalTo(false));
+        expectNotMatch(clusterState, autoCreateIndex, "does_not_match" + randomAsciiOfLengthBetween(1, 5));
     }
 
     public void testAutoCreationPatternDisabled() {
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), "-index*").build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()).build();
-        assertThat(autoCreateIndex.shouldAutoCreate("index" + randomAsciiOfLengthBetween(1, 5), clusterState), equalTo(false));
-        //default is false when patterns are specified
-        assertThat(autoCreateIndex.shouldAutoCreate("does_not_match" + randomAsciiOfLengthBetween(1, 5), clusterState), equalTo(false));
+        expectForbidden(clusterState, autoCreateIndex, "index" + randomAsciiOfLengthBetween(1, 5), "-index*");
+        /* When patterns are specified, even if the are all negative, the default is can't create. So a pure negative pattern is the same
+         * as false, really. */
+        expectNotMatch(clusterState, autoCreateIndex, "does_not_match" + randomAsciiOfLengthBetween(1, 5));
     }
 
     public void testAutoCreationMultiplePatternsWithWildcards() {
@@ -113,9 +142,9 @@ public class AutoCreateIndexTests extends ESTestCase {
                 randomFrom("+test*,-index*", "test*,-index*")).build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()).build();
-        assertThat(autoCreateIndex.shouldAutoCreate("index" + randomAsciiOfLengthBetween(1, 5), clusterState), equalTo(false));
+        expectForbidden(clusterState, autoCreateIndex, "index" + randomAsciiOfLengthBetween(1, 5), "-index*");
         assertThat(autoCreateIndex.shouldAutoCreate("test" + randomAsciiOfLengthBetween(1, 5), clusterState), equalTo(true));
-        assertThat(autoCreateIndex.shouldAutoCreate("does_not_match" + randomAsciiOfLengthBetween(1, 5), clusterState), equalTo(false));
+        expectNotMatch(clusterState, autoCreateIndex, "does_not_match" + randomAsciiOfLengthBetween(1, 5));
     }
 
     public void testAutoCreationMultiplePatternsNoWildcards() {
@@ -123,9 +152,9 @@ public class AutoCreateIndexTests extends ESTestCase {
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()).build();
         assertThat(autoCreateIndex.shouldAutoCreate("test1", clusterState), equalTo(true));
-        assertThat(autoCreateIndex.shouldAutoCreate("index" + randomAsciiOfLengthBetween(1, 5), clusterState), equalTo(false));
-        assertThat(autoCreateIndex.shouldAutoCreate("test" + randomAsciiOfLengthBetween(2, 5), clusterState), equalTo(false));
-        assertThat(autoCreateIndex.shouldAutoCreate("does_not_match" + randomAsciiOfLengthBetween(1, 5), clusterState), equalTo(false));
+        expectNotMatch(clusterState, autoCreateIndex, "index" + randomAsciiOfLengthBetween(1, 5));
+        expectNotMatch(clusterState, autoCreateIndex, "test" + randomAsciiOfLengthBetween(2, 5));
+        expectNotMatch(clusterState, autoCreateIndex, "does_not_match" + randomAsciiOfLengthBetween(1, 5));
     }
 
     public void testAutoCreationMultipleIndexNames() {
@@ -134,7 +163,7 @@ public class AutoCreateIndexTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()).build();
         assertThat(autoCreateIndex.shouldAutoCreate("test1", clusterState), equalTo(true));
         assertThat(autoCreateIndex.shouldAutoCreate("test2", clusterState), equalTo(true));
-        assertThat(autoCreateIndex.shouldAutoCreate("does_not_match" + randomAsciiOfLengthBetween(1, 5), clusterState), equalTo(false));
+        expectNotMatch(clusterState, autoCreateIndex, "does_not_match" + randomAsciiOfLengthBetween(1, 5));
     }
 
     public void testAutoCreationConflictingPatternsFirstWins() {
@@ -143,8 +172,8 @@ public class AutoCreateIndexTests extends ESTestCase {
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()).build();
         assertThat(autoCreateIndex.shouldAutoCreate("test1", clusterState), equalTo(true));
-        assertThat(autoCreateIndex.shouldAutoCreate("test2", clusterState), equalTo(false));
-        assertThat(autoCreateIndex.shouldAutoCreate("does_not_match" + randomAsciiOfLengthBetween(1, 5), clusterState), equalTo(false));
+        expectForbidden(clusterState, autoCreateIndex, "test2", "-test2");
+        expectNotMatch(clusterState, autoCreateIndex, "does_not_match" + randomAsciiOfLengthBetween(1, 5));
     }
 
     public void testUpdate() {
@@ -184,5 +213,19 @@ public class AutoCreateIndexTests extends ESTestCase {
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {
         return new AutoCreateIndex(settings, new ClusterSettings(settings,
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), new IndexNameExpressionResolver(settings));
+    }
+
+    private void expectNotMatch(ClusterState clusterState, AutoCreateIndex autoCreateIndex, String index) {
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->
+            autoCreateIndex.shouldAutoCreate(index, clusterState));
+        assertEquals("no such index and [action.auto_create_index] ([" + autoCreateIndex.getAutoCreate() + "]) doesn't match",
+                e.getMessage());
+    }
+
+    private void expectForbidden(ClusterState clusterState, AutoCreateIndex autoCreateIndex, String index, String forbiddingPattern) {
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->
+            autoCreateIndex.shouldAutoCreate(index, clusterState));
+        assertEquals("no such index and [action.auto_create_index] contains [" + forbiddingPattern
+                + "] which forbids automatic creation of the index", e.getMessage());
     }
 }

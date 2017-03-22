@@ -19,58 +19,79 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollAction;
+import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollActionMetadataTestCase;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
+import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.Hit;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 
 /**
  * Index-by-search test for ttl, timestamp, and routing.
  */
-public class ReindexMetadataTests extends AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<ReindexRequest, BulkIndexByScrollResponse> {
+public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadataTestCase<ReindexRequest, BulkByScrollResponse> {
     public void testRoutingCopiedByDefault() throws Exception {
         IndexRequest index = new IndexRequest();
-        action().copyMetadata(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc().setRouting("foo"));
+        action().copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
         assertEquals("foo", index.routing());
     }
 
     public void testRoutingCopiedIfRequested() throws Exception {
-        TransportReindexAction.AsyncIndexBySearchAction action = action();
-        action.mainRequest.getDestination().routing("keep");
+        TestAction action = action();
+        action.mainRequest().getDestination().routing("keep");
         IndexRequest index = new IndexRequest();
-        action.copyMetadata(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc().setRouting("foo"));
+        action.copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
         assertEquals("foo", index.routing());
     }
 
     public void testRoutingDiscardedIfRequested() throws Exception {
-        TransportReindexAction.AsyncIndexBySearchAction action = action();
-        action.mainRequest.getDestination().routing("discard");
+        TestAction action = action();
+        action.mainRequest().getDestination().routing("discard");
         IndexRequest index = new IndexRequest();
-        action.copyMetadata(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc().setRouting("foo"));
+        action.copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
         assertEquals(null, index.routing());
     }
 
     public void testRoutingSetIfRequested() throws Exception {
-        TransportReindexAction.AsyncIndexBySearchAction action = action();
-        action.mainRequest.getDestination().routing("=cat");
+        TestAction action = action();
+        action.mainRequest().getDestination().routing("=cat");
         IndexRequest index = new IndexRequest();
-        action.copyMetadata(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc().setRouting("foo"));
+        action.copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
         assertEquals("cat", index.routing());
     }
 
     public void testRoutingSetIfWithDegenerateValue() throws Exception {
-        TransportReindexAction.AsyncIndexBySearchAction action = action();
-        action.mainRequest.getDestination().routing("==]");
+        TestAction action = action();
+        action.mainRequest().getDestination().routing("==]");
         IndexRequest index = new IndexRequest();
-        action.copyMetadata(AbstractAsyncBulkIndexByScrollAction.wrap(index), doc().setRouting("foo"));
+        action.copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
         assertEquals("=]", index.routing());
     }
 
     @Override
-    protected TransportReindexAction.AsyncIndexBySearchAction action() {
-        return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request(), listener(), null, null);
+    protected TestAction action() {
+        return new TestAction();
     }
 
     @Override
     protected ReindexRequest request() {
         return new ReindexRequest(new SearchRequest(), new IndexRequest());
+    }
+
+    private class TestAction extends TransportReindexAction.AsyncIndexBySearchAction {
+        TestAction() {
+            super(ReindexMetadataTests.this.task, ReindexMetadataTests.this.logger, null, ReindexMetadataTests.this.threadPool, request(),
+                    null, null, listener());
+        }
+
+        public ReindexRequest mainRequest() {
+            return this.mainRequest;
+        }
+
+        @Override
+        public AbstractAsyncBulkByScrollAction.RequestWrapper<?> copyMetadata(AbstractAsyncBulkByScrollAction.RequestWrapper<?> request,
+                Hit doc) {
+            return super.copyMetadata(request, doc);
+        }
     }
 }

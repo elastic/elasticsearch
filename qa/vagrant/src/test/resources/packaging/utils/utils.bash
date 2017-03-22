@@ -435,7 +435,7 @@ wait_for_elasticsearch_status() {
     if [ $? -eq 0 ]; then
         echo "Connected"
     else
-        echo "Unable to connect to Elastisearch"
+        echo "Unable to connect to Elasticsearch"
         false
     fi
 
@@ -469,7 +469,7 @@ check_elasticsearch_version() {
 }
 
 install_elasticsearch_test_scripts() {
-    install_script is_guide.groovy
+    install_script is_guide.painless
     install_script is_guide.mustache
 }
 
@@ -481,25 +481,34 @@ run_elasticsearch_tests() {
     [ "$status" -eq 0 ]
     echo "$output" | grep -w "green"
 
-    curl -s -XPOST 'http://localhost:9200/library/book/1?refresh=true&pretty' -d '{
-      "title": "Elasticsearch - The Definitive Guide"
+    curl -s -H "Content-Type: application/json" -XPOST 'http://localhost:9200/library/book/1?refresh=true&pretty' -d '{
+      "title": "Book #1",
+      "pages": 123
+    }'
+
+    curl -s -H "Content-Type: application/json" -XPOST 'http://localhost:9200/library/book/2?refresh=true&pretty' -d '{
+      "title": "Book #2",
+      "pages": 456
     }'
 
     curl -s -XGET 'http://localhost:9200/_count?pretty' |
-      grep \"count\"\ :\ 1
+      grep \"count\"\ :\ 2
 
-    curl -s -XPOST 'http://localhost:9200/library/book/_count?pretty' -d '{
+    curl -s -H "Content-Type: application/json" -XPOST 'http://localhost:9200/library/book/_count?pretty' -d '{
       "query": {
         "script": {
           "script": {
             "file": "is_guide",
-            "lang": "groovy"
+            "lang": "painless",
+            "params": {
+              "min_num_pages": 100
+            }
           }
         }
       }
-    }' | grep \"count\"\ :\ 1
+    }' | grep \"count\"\ :\ 2
 
-    curl -s -XGET 'http://localhost:9200/library/book/_search/template?pretty' -d '{
+    curl -s -H "Content-Type: application/json" -XGET 'http://localhost:9200/library/book/_search/template?pretty' -d '{
       "file": "is_guide"
     }' | grep \"total\"\ :\ 1
 

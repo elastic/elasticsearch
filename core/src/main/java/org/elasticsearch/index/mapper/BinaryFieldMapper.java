@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
@@ -82,7 +83,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
     static final class BinaryFieldType extends MappedFieldType {
 
-        public BinaryFieldType() {}
+        BinaryFieldType() {}
 
         protected BinaryFieldType(BinaryFieldType ref) {
             super(ref);
@@ -137,7 +138,7 @@ public class BinaryFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         if (!fieldType().stored() && !fieldType().hasDocValues()) {
             return;
         }

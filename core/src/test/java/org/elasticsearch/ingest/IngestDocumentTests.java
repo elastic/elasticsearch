@@ -22,21 +22,17 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -48,13 +44,14 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class IngestDocumentTests extends ESTestCase {
 
+    private static final Date BOGUS_TIMESTAMP = new Date(0L);
     private IngestDocument ingestDocument;
 
     @Before
     public void setIngestDocument() {
         Map<String, Object> document = new HashMap<>();
         Map<String, Object> ingestMap = new HashMap<>();
-        ingestMap.put("timestamp", "bogus_timestamp");
+        ingestMap.put("timestamp", BOGUS_TIMESTAMP);
         document.put("_ingest", ingestMap);
         document.put("foo", "bar");
         document.put("int", 123);
@@ -75,7 +72,7 @@ public class IngestDocumentTests extends ESTestCase {
         list.add(null);
 
         document.put("list", list);
-        ingestDocument = new IngestDocument("index", "type", "id", null, null, null, null, document);
+        ingestDocument = new IngestDocument("index", "type", "id", null, null, document);
     }
 
     public void testSimpleGetFieldValue() {
@@ -86,9 +83,9 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("index"));
         assertThat(ingestDocument.getFieldValue("_type", String.class), equalTo("type"));
         assertThat(ingestDocument.getFieldValue("_id", String.class), equalTo("id"));
-        assertThat(ingestDocument.getFieldValue("_ingest.timestamp", String.class),
-                both(notNullValue()).and(not(equalTo("bogus_timestamp"))));
-        assertThat(ingestDocument.getFieldValue("_source._ingest.timestamp", String.class), equalTo("bogus_timestamp"));
+        assertThat(ingestDocument.getFieldValue("_ingest.timestamp", Date.class),
+                both(notNullValue()).and(not(equalTo(BOGUS_TIMESTAMP))));
+        assertThat(ingestDocument.getFieldValue("_source._ingest.timestamp", Date.class), equalTo(BOGUS_TIMESTAMP));
     }
 
     public void testGetSourceObject() {
@@ -972,11 +969,8 @@ public class IngestDocumentTests extends ESTestCase {
         long before = System.currentTimeMillis();
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         long after = System.currentTimeMillis();
-        String timestampString = (String) ingestDocument.getIngestMetadata().get("timestamp");
-        assertThat(timestampString, notNullValue());
-        assertThat(timestampString, endsWith("+0000"));
-        DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZZ", Locale.ROOT);
-        Date timestamp = df.parse(timestampString);
+        Date timestamp = (Date) ingestDocument.getIngestMetadata().get(IngestDocument.TIMESTAMP);
+        assertThat(timestamp, notNullValue());
         assertThat(timestamp.getTime(), greaterThanOrEqualTo(before));
         assertThat(timestamp.getTime(), lessThanOrEqualTo(after));
     }

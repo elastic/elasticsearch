@@ -66,7 +66,7 @@ public final class PField extends AStoreable {
         Sort sort = prefix.actual.sort;
 
         if (sort == Sort.ARRAY) {
-            sub = new PSubArrayLength(location,prefix.actual.name, value);
+            sub = new PSubArrayLength(location, prefix.actual.name, value);
         } else if (sort == Sort.DEF) {
             sub = new PSubDefField(location, value);
         } else {
@@ -156,5 +156,13 @@ public final class PField extends AStoreable {
     @Override
     void store(MethodWriter writer, Globals globals) {
         sub.store(writer, globals);
+    }
+
+    @Override
+    public String toString() {
+        if (nullSafe) {
+            return singleLineToString("nullSafe", prefix, value);
+        }
+        return singleLineToString(prefix, value);
     }
 }

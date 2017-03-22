@@ -262,7 +262,7 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public double parseDouble(String value, boolean roundUp, LongSupplier now) {
-            throw new UnsupportedOperationException();
+            return parseLong(value, roundUp, now);
         }
 
         @Override

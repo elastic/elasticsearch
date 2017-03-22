@@ -26,6 +26,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportSettings;
@@ -84,7 +85,7 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
         String randomMethod = randomFrom("GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH");
         String data = randomMethod + " / HTTP/1.1";
 
-        try (Socket socket = new Socket(host, port)) {
+        try (Socket socket = new MockSocket(host, port)) {
             socket.getOutputStream().write(data.getBytes(StandardCharsets.UTF_8));
             socket.getOutputStream().flush();
 
@@ -95,7 +96,7 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
     }
 
     public void testThatNothingIsReturnedForOtherInvalidPackets() throws Exception {
-        try (Socket socket = new Socket(host, port)) {
+        try (Socket socket = new MockSocket(host, port)) {
             socket.getOutputStream().write("FOOBAR".getBytes(StandardCharsets.UTF_8));
             socket.getOutputStream().flush();
 

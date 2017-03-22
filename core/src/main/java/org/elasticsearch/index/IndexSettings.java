@@ -22,9 +22,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -40,7 +39,6 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 /**
  * This class encapsulates all index level settings and handles settings updates.
@@ -99,6 +97,13 @@ public final class IndexSettings {
      */
     public static final Setting<Integer> MAX_RESCORE_WINDOW_SETTING =
             Setting.intSetting("index.max_rescore_window", MAX_RESULT_WINDOW_SETTING, 1, Property.Dynamic, Property.IndexScope);
+    /**
+     * Index setting describing the maximum number of filters clauses that can be used
+     * in an adjacency_matrix aggregation. The max number of buckets produced by  
+     * N filters is (N*N)/2 so a limit of 100 filters is imposed by default.
+     */
+    public static final Setting<Integer> MAX_ADJACENCY_MATRIX_FILTERS_SETTING =
+        Setting.intSetting("index.max_adjacency_matrix_filters", 100, 2, Property.Dynamic, Property.IndexScope);    
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("index.refresh_interval", DEFAULT_REFRESH_INTERVAL, new TimeValue(-1, TimeUnit.MILLISECONDS),
@@ -138,7 +143,6 @@ public final class IndexSettings {
     private final Settings nodeSettings;
     private final int numberOfShards;
     private final boolean isShadowReplicaIndex;
-    private final ParseFieldMatcher parseFieldMatcher;
     // volatile fields are updated via #updateIndexMetaData(IndexMetaData) under lock
     private volatile Settings settings;
     private volatile IndexMetaData indexMetaData;
@@ -147,7 +151,6 @@ public final class IndexSettings {
     private final boolean queryStringAnalyzeWildcard;
     private final boolean queryStringAllowLeadingWildcard;
     private final boolean defaultAllowUnmappedFields;
-    private final Predicate<String> indexNameMatcher;
     private volatile Translog.Durability durability;
     private final TimeValue syncInterval;
     private volatile TimeValue refreshInterval;
@@ -159,6 +162,7 @@ public final class IndexSettings {
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
+    private volatile int maxAdjacencyMatrixFilters;
     private volatile int maxRescoreWindow;
     private volatile boolean TTLPurgeDisabled;
     /**
@@ -214,7 +218,7 @@ public final class IndexSettings {
      * @param nodeSettings the nodes settings this index is allocated on.
      */
     public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings) {
-        this(indexMetaData, nodeSettings, (index) -> Regex.simpleMatch(index, indexMetaData.getIndex().getName()), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+        this(indexMetaData, nodeSettings, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
     }
 
     /**
@@ -223,9 +227,8 @@ public final class IndexSettings {
      *
      * @param indexMetaData the index metadata this settings object is associated with
      * @param nodeSettings the nodes settings this index is allocated on.
-     * @param indexNameMatcher a matcher that can resolve an expression to the index name or index alias
      */
-    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, final Predicate<String> indexNameMatcher, IndexScopedSettings indexScopedSettings) {
+    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, IndexScopedSettings indexScopedSettings) {
         scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetaData);
         this.nodeSettings = nodeSettings;
         this.settings = Settings.builder().put(nodeSettings).put(indexMetaData.getSettings()).build();
@@ -235,15 +238,13 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
-        isShadowReplicaIndex = IndexMetaData.isIndexUsingShadowReplicas(settings);
+        isShadowReplicaIndex = indexMetaData.isIndexUsingShadowReplicas(settings);
 
         this.defaultField = DEFAULT_FIELD_SETTING.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
         this.queryStringAllowLeadingWildcard = QUERY_STRING_ALLOW_LEADING_WILDCARD.get(nodeSettings);
-        this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.defaultAllowUnmappedFields = scopedSettings.get(ALLOW_UNMAPPED);
-        this.indexNameMatcher = indexNameMatcher;
         this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
@@ -253,12 +254,12 @@ public final class IndexSettings {
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
+        maxAdjacencyMatrixFilters = scopedSettings.get(MAX_ADJACENCY_MATRIX_FILTERS_SETTING);
         maxRescoreWindow = scopedSettings.get(MAX_RESCORE_WINDOW_SETTING);
         TTLPurgeDisabled = scopedSettings.get(INDEX_TTL_DISABLE_PURGE_SETTING);
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
-        assert indexNameMatcher.test(indexMetaData.getIndex().getName());
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, mergePolicyConfig::setExpungeDeletesAllowed);
@@ -275,6 +276,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TTL_DISABLE_PURGE_SETTING, this::setTTLPurgeDisabled);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
+        scopedSettings.addSettingsUpdateConsumer(MAX_ADJACENCY_MATRIX_FILTERS_SETTING, this::setMaxAdjacencyMatrixFilters);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESCORE_WINDOW_SETTING, this::setMaxRescoreWindow);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
@@ -282,7 +284,6 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
-
     }
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {
@@ -337,16 +338,7 @@ public final class IndexSettings {
      * filesystem.
      */
     public boolean isOnSharedFilesystem() {
-        return IndexMetaData.isOnSharedFilesystem(getSettings());
-    }
-
-    /**
-     * Returns <code>true</code> iff the given settings indicate that the index associated
-     * with these settings uses shadow replicas. Otherwise <code>false</code>. The default
-     * setting for this is <code>false</code>.
-     */
-    public boolean isIndexUsingShadowReplicas() {
-        return IndexMetaData.isOnSharedFilesystem(getSettings());
+        return indexMetaData.isOnSharedFilesystem(getSettings());
     }
 
     /**
@@ -393,18 +385,6 @@ public final class IndexSettings {
      */
     public Settings getNodeSettings() {
         return nodeSettings;
-    }
-
-    /**
-     * Returns a {@link ParseFieldMatcher} for this index.
-     */
-    public ParseFieldMatcher getParseFieldMatcher() { return parseFieldMatcher; }
-
-    /**
-     * Returns <code>true</code> if the given expression matches the index name or one of it's aliases
-     */
-    public boolean matchesIndexName(String expression) {
-        return indexNameMatcher.test(expression);
     }
 
     /**
@@ -496,6 +476,17 @@ public final class IndexSettings {
     private void setMaxResultWindow(int maxResultWindow) {
         this.maxResultWindow = maxResultWindow;
     }
+    
+    /**
+     * Returns the max number of filters in adjacency_matrix aggregation search requests
+     */
+    public int getMaxAdjacencyMatrixFilters() {
+        return this.maxAdjacencyMatrixFilters;
+    }
+
+    private void setMaxAdjacencyMatrixFilters(int maxAdjacencyFilters) {
+        this.maxAdjacencyMatrixFilters = maxAdjacencyFilters;
+    }    
 
     /**
      * Returns the maximum rescore window for search requests.

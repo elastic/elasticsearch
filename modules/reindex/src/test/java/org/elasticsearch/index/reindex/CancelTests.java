@@ -22,16 +22,22 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequestBuilder;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollTask;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
 import org.elasticsearch.index.shard.IndexingOperationListener;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
+import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -50,7 +56,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Test that you can actually cancel a reindex/update-by-query/delete-by-query request and all the plumbing works. Doesn't test all of the
- * different cancellation places - that is the responsibility of {@link AsyncBulkByScrollActionTests} which have more precise control to
+ * different cancellation places - that is the responsibility of AsyncBulkByScrollActionTests which have more precise control to
  * simulate failures but do not exercise important portion of the stack like transport and task management.
  */
 public class CancelTests extends ReindexTestCase {
@@ -77,7 +83,8 @@ public class CancelTests extends ReindexTestCase {
     /**
      * Executes the cancellation test
      */
-    private void testCancel(String action, AbstractBulkByScrollRequestBuilder<?, ?> builder, CancelAssertion assertion) throws Exception {
+    private void testCancel(String action, AbstractBulkByScrollRequestBuilder<?, ?> builder, CancelAssertion assertion,
+                            Matcher<String> taskDescriptionMatcher) throws Exception {
         createIndex(INDEX);
 
         // Total number of documents created for this test (~10 per primary shard per shard)
@@ -101,7 +108,7 @@ public class CancelTests extends ReindexTestCase {
         ALLOWED_OPERATIONS.release(numModifiedDocs - builder.request().getSlices());
 
         // Now execute the reindex action...
-        ListenableActionFuture<? extends BulkIndexByScrollResponse> future = builder.execute();
+        ListenableActionFuture<? extends BulkByScrollResponse> future = builder.execute();
 
         /* ... and waits for the indexing operation listeners to block. It is important to realize that some of the workers might have
          * exhausted their slice while others might have quite a bit left to work on. We can't control that. */
@@ -111,6 +118,9 @@ public class CancelTests extends ReindexTestCase {
         TaskInfo mainTask = findTaskToCancel(action, builder.request().getSlices());
         BulkByScrollTask.Status status = (BulkByScrollTask.Status) mainTask.getStatus();
         assertNull(status.getReasonCancelled());
+
+        // Description shouldn't be empty
+        assertThat(mainTask.getDescription(), taskDescriptionMatcher);
 
         // Cancel the request while the reindex action is blocked by the indexing operation listeners.
         // This will prevent further requests from being sent.
@@ -150,7 +160,7 @@ public class CancelTests extends ReindexTestCase {
         });
 
         // And check the status of the response
-        BulkIndexByScrollResponse response = future.get();
+        BulkByScrollResponse response = future.get();
         assertThat(response.getReasonCancelled(), equalTo("by user request"));
         assertThat(response.getBulkFailures(), emptyIterable());
         assertThat(response.getSearchFailures(), emptyIterable());
@@ -185,7 +195,7 @@ public class CancelTests extends ReindexTestCase {
 
             refresh("dest");
             assertHitCount(client().prepareSearch("dest").setTypes(TYPE).setSize(0).get(), modified);
-        });
+        }, equalTo("reindex from [" + INDEX + "] to [dest][" + TYPE + "]"));
     }
 
     public void testUpdateByQueryCancel() throws Exception {
@@ -195,12 +205,12 @@ public class CancelTests extends ReindexTestCase {
                 "      \"test\" : {}\n" +
                 "  } ]\n" +
                 "}");
-        assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline).get());
+        assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, XContentType.JSON).get());
 
         testCancel(UpdateByQueryAction.NAME, updateByQuery().setPipeline("set-processed").source(INDEX), (response, total, modified) -> {
             assertThat(response, matcher().updated(modified).reasonCancelled(equalTo("by user request")));
             assertHitCount(client().prepareSearch(INDEX).setSize(0).setQuery(termQuery("processed", true)).get(), modified);
-        });
+        }, equalTo("update-by-query [" + INDEX + "]"));
 
         assertAcked(client().admin().cluster().deletePipeline(new DeletePipelineRequest("set-processed")).get());
     }
@@ -209,7 +219,7 @@ public class CancelTests extends ReindexTestCase {
         testCancel(DeleteByQueryAction.NAME, deleteByQuery().source(INDEX), (response, total, modified) -> {
             assertThat(response, matcher().deleted(modified).reasonCancelled(equalTo("by user request")));
             assertHitCount(client().prepareSearch(INDEX).setSize(0).get(), total - modified);
-        });
+        }, equalTo("delete-by-query [" + INDEX + "]"));
     }
 
     public void testReindexCancelWithWorkers() throws Exception {
@@ -218,7 +228,7 @@ public class CancelTests extends ReindexTestCase {
 
             refresh("dest");
             assertHitCount(client().prepareSearch("dest").setTypes(TYPE).setSize(0).get(), modified);
-        });
+        }, equalTo("reindex from [" + INDEX + "] to [dest][" + TYPE + "]"));
     }
 
     public void testUpdateByQueryCancelWithWorkers() throws Exception {
@@ -228,13 +238,13 @@ public class CancelTests extends ReindexTestCase {
                 "      \"test\" : {}\n" +
                 "  } ]\n" +
                 "}");
-        assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline).get());
+        assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, XContentType.JSON).get());
 
         testCancel(UpdateByQueryAction.NAME, updateByQuery().setPipeline("set-processed").source(INDEX).setSlices(5),
                 (response, total, modified) -> {
                     assertThat(response, matcher().updated(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
                     assertHitCount(client().prepareSearch(INDEX).setSize(0).setQuery(termQuery("processed", true)).get(), modified);
-                });
+                }, equalTo("update-by-query [" + INDEX + "]"));
 
         assertAcked(client().admin().cluster().deletePipeline(new DeletePipelineRequest("set-processed")).get());
     }
@@ -243,14 +253,14 @@ public class CancelTests extends ReindexTestCase {
         testCancel(DeleteByQueryAction.NAME, deleteByQuery().source(INDEX).setSlices(5), (response, total, modified) -> {
             assertThat(response, matcher().deleted(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
             assertHitCount(client().prepareSearch(INDEX).setSize(0).get(), total - modified);
-        });
+        }, equalTo("delete-by-query [" + INDEX + "]"));
     }
 
     /**
      * Used to check the result of the cancel test.
      */
     private interface CancelAssertion {
-        void assertThat(BulkIndexByScrollResponse response, int total, int modified);
+        void assertThat(BulkByScrollResponse response, int total, int modified);
     }
 
     public static class ReindexCancellationPlugin extends Plugin {
@@ -264,12 +274,12 @@ public class CancelTests extends ReindexTestCase {
     public static class BlockingOperationListener implements IndexingOperationListener {
 
         @Override
-        public Engine.Index preIndex(Engine.Index index) {
+        public Engine.Index preIndex(ShardId shardId, Engine.Index index) {
             return preCheck(index, index.type());
         }
 
         @Override
-        public Engine.Delete preDelete(Engine.Delete delete) {
+        public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
             return preCheck(delete, delete.type());
         }
 

@@ -21,10 +21,8 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.ScriptType;
@@ -37,7 +35,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to execute a search based on a search template.
  */
-public class SearchTemplateRequest extends ActionRequest implements IndicesRequest {
+public class SearchTemplateRequest extends ActionRequest implements CompositeIndicesRequest {
 
     private SearchRequest request;
     private boolean simulate = false;
@@ -164,15 +162,5 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
         if (hasParams) {
             out.writeMap(scriptParams);
         }
-    }
-
-    @Override
-    public String[] indices() {
-        return request != null ? request.indices() : Strings.EMPTY_ARRAY;
-    }
-
-    @Override
-    public IndicesOptions indicesOptions() {
-        return request != null ? request.indicesOptions() : SearchRequest.DEFAULT_INDICES_OPTIONS;
     }
 }

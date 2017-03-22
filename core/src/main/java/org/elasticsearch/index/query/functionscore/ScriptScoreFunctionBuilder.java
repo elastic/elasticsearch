@@ -111,8 +111,8 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, Script.SCRIPT_PARSE_FIELD)) {
-                    script = Script.parse(parser, parseContext.getParseFieldMatcher(), parseContext.getDefaultScriptLanguage());
+                if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
+                    script = Script.parse(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), NAME + " query does not support [" + currentFieldName + "]");
                 }

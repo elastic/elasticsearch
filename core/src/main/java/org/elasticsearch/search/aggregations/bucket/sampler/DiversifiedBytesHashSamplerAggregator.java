@@ -29,11 +29,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.BestDocsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -48,11 +47,11 @@ public class DiversifiedBytesHashSamplerAggregator extends SamplerAggregator {
     private ValuesSource valuesSource;
     private int maxDocsPerValue;
 
-    public DiversifiedBytesHashSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
-            AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
+    DiversifiedBytesHashSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
+            SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
             ValuesSource valuesSource,
             int maxDocsPerValue) throws IOException {
-        super(name, shardSize, factories, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, shardSize, factories, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.maxDocsPerValue = maxDocsPerValue;
     }
@@ -70,7 +69,7 @@ public class DiversifiedBytesHashSamplerAggregator extends SamplerAggregator {
      */
     class DiverseDocsDeferringCollector extends BestDocsDeferringCollector {
 
-        public DiverseDocsDeferringCollector() {
+        DiverseDocsDeferringCollector() {
             super(shardSize, context.bigArrays());
         }
 
@@ -86,7 +85,7 @@ public class DiversifiedBytesHashSamplerAggregator extends SamplerAggregator {
 
             private SortedBinaryDocValues values;
 
-            public ValuesDiversifiedTopDocsCollector(int numHits, int maxHitsPerValue) {
+            ValuesDiversifiedTopDocsCollector(int numHits, int maxHitsPerValue) {
                 super(numHits, maxHitsPerValue);
 
             }

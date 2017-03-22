@@ -23,15 +23,18 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.ParsingException;
@@ -193,12 +196,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         Query createCandidateQuery(IndexReader indexReader) throws IOException {
-            List<Term> extractedTerms = new ArrayList<>();
-            // include extractionResultField:failed, because docs with this term have no extractedTermsField
-            // and otherwise we would fail to return these docs. Docs that failed query term extraction
-            // always need to be verified by MemoryIndex:
-            extractedTerms.add(new Term(extractionResultField.name(), EXTRACTION_FAILED));
-
+            List<BytesRef> extractedTerms = new ArrayList<>();
             LeafReader reader = indexReader.leaves().get(0).reader();
             Fields fields = reader.fields();
             for (String field : fields) {
@@ -214,10 +212,19 @@ public class PercolatorFieldMapper extends FieldMapper {
                     builder.append(fieldBr);
                     builder.append(FIELD_VALUE_SEPARATOR);
                     builder.append(term);
-                    extractedTerms.add(new Term(queryTermsField.name(), builder.toBytesRef()));
+                    extractedTerms.add(builder.toBytesRef());
                 }
             }
-            return new TermsQuery(extractedTerms);
+            Query extractionSuccess = new TermInSetQuery(queryTermsField.name(), extractedTerms);
+            // include extractionResultField:failed, because docs with this term have no extractedTermsField
+            // and otherwise we would fail to return these docs. Docs that failed query term extraction
+            // always need to be verified by MemoryIndex:
+            Query extractionFailure = new TermQuery(new Term(extractionResultField.name(), EXTRACTION_FAILED));
+
+            return new BooleanQuery.Builder()
+                    .add(extractionSuccess, Occur.SHOULD)
+                    .add(extractionFailure, Occur.SHOULD)
+                    .build();
         }
 
     }
@@ -344,8 +351,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     private static QueryBuilder parseQueryBuilder(QueryParseContext context, XContentLocation location) {
         try {
-            return context.parseInnerQueryBuilder()
-                    .orElseThrow(() -> new ParsingException(location, "Failed to parse inner query, was empty"));
+            return context.parseInnerQueryBuilder();
         } catch (IOException e) {
             throw new ParsingException(location, "Failed to parse", e);
         }
@@ -357,7 +363,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         throw new UnsupportedOperationException("should not be invoked");
     }
 
@@ -377,10 +383,16 @@ public class PercolatorFieldMapper extends FieldMapper {
             RangeQueryBuilder rangeQueryBuilder = (RangeQueryBuilder) queryBuilder;
             if (rangeQueryBuilder.from() instanceof String) {
                 String from = (String) rangeQueryBuilder.from();
-                String to = (String) rangeQueryBuilder.to();
-                if (from.contains("now") || to.contains("now")) {
+                if (from.contains("now")) {
                     throw new IllegalArgumentException("percolator queries containing time range queries based on the " +
                             "current time is unsupported");
+                }
+            }
+            if (rangeQueryBuilder.to() instanceof String) {
+                String to = (String) rangeQueryBuilder.to();
+                if (to.contains("now")) {
+                    throw new IllegalArgumentException("percolator queries containing time range queries based on the " +
+                        "current time is unsupported");
                 }
             }
         } else if (queryBuilder instanceof HasChildQueryBuilder) {

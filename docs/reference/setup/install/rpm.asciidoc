@@ -99,7 +99,7 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-The RPM for Elastisearch v{version} can be downloaded from the website and installed as follows:
+The RPM for Elasticsearch v{version} can be downloaded from the website and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
@@ -111,6 +111,8 @@ sudo rpm --install elasticsearch-{version}.rpm
     https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.rpm.sha1[published SHA].
 
 endif::[]
+
+include::skip-set-kernel-parameters.asciidoc[]
 
 include::init-systemd.asciidoc[]
 

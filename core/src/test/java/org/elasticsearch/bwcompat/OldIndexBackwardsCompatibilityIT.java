@@ -34,9 +34,12 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -49,19 +52,19 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.index.mapper.StringFieldMapperPositionIncrementGapTests;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.OldIndexUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -82,6 +85,7 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.test.OldIndexUtils.assertUpgradeWorks;
 import static org.elasticsearch.test.OldIndexUtils.getIndexDir;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -128,24 +132,23 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     }
 
     void setupCluster() throws Exception {
-        InternalTestCluster.Async<List<String>> replicas = internalCluster().startNodesAsync(1); // for replicas
+        List<String> replicas = internalCluster().startNodes(1); // for replicas
 
         Path baseTempDir = createTempDir();
         // start single data path node
         Settings.Builder nodeSettings = Settings.builder()
                 .put(Environment.PATH_DATA_SETTING.getKey(), baseTempDir.resolve("single-path").toAbsolutePath())
                 .put(Node.NODE_MASTER_SETTING.getKey(), false); // workaround for dangling index loading issue when node is master
-        InternalTestCluster.Async<String> singleDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
+        singleDataPathNodeName = internalCluster().startNode(nodeSettings);
 
         // start multi data path node
         nodeSettings = Settings.builder()
                 .put(Environment.PATH_DATA_SETTING.getKey(), baseTempDir.resolve("multi-path1").toAbsolutePath() + "," + baseTempDir
                         .resolve("multi-path2").toAbsolutePath())
                 .put(Node.NODE_MASTER_SETTING.getKey(), false); // workaround for dangling index loading issue when node is master
-        InternalTestCluster.Async<String> multiDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
+        multiDataPathNodeName = internalCluster().startNode(nodeSettings);
 
         // find single data path dir
-        singleDataPathNodeName = singleDataPathNode.get();
         Path[] nodePaths = internalCluster().getInstance(NodeEnvironment.class, singleDataPathNodeName).nodeDataPaths();
         assertEquals(1, nodePaths.length);
         singleDataPath = nodePaths[0].resolve(NodeEnvironment.INDICES_FOLDER);
@@ -154,7 +157,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         logger.info("--> Single data path: {}", singleDataPath);
 
         // find multi data path dirs
-        multiDataPathNodeName = multiDataPathNode.get();
         nodePaths = internalCluster().getInstance(NodeEnvironment.class, multiDataPathNodeName).nodeDataPaths();
         assertEquals(2, nodePaths.length);
         multiDataPath = new Path[]{nodePaths[0].resolve(NodeEnvironment.INDICES_FOLDER),
@@ -164,8 +166,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         Files.createDirectories(multiDataPath[0]);
         Files.createDirectories(multiDataPath[1]);
         logger.info("--> Multi data paths: {}, {}", multiDataPath[0], multiDataPath[1]);
-
-        replicas.get(); // wait for replicas
     }
 
     void upgradeIndexFolder() throws Exception {
@@ -185,10 +185,10 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     public void testAllVersionsTested() throws Exception {
         SortedSet<String> expectedVersions = new TreeSet<>();
-        for (Version v : VersionUtils.allVersions()) {
+        for (Version v : VersionUtils.allReleasedVersions()) {
             if (VersionUtils.isSnapshot(v)) continue;  // snapshots are unreleased, so there is no backcompat yet
             if (v.isRelease() == false) continue; // no guarantees for prereleases
-            if (v.onOrBefore(Version.V_2_0_0_beta1)) continue; // we can only test back one major lucene version
+            if (v.before(Version.CURRENT.minimumIndexCompatibilityVersion())) continue; // we can only support one major version backward
             if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
             expectedVersions.add("index-" + v.toString() + ".zip");
         }
@@ -244,9 +244,9 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         assertRealtimeGetWorks(indexName);
         assertNewReplicasWork(indexName);
         assertUpgradeWorks(client(), indexName, version);
-        assertDeleteByQueryWorked(indexName, version);
         assertPositionIncrementGapDefaults(indexName, version);
         assertAliasWithBadName(indexName, version);
+        assertStoredBinaryFields(indexName, version);
         unloadIndex(indexName);
     }
 
@@ -346,7 +346,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
         // Make sure there are payloads and they are taken into account for the score
         // the 'string' field has a boost of 4 in the mappings so it should get a payload boost
-        String stringValue = (String) bestHit.sourceAsMap().get("string");
+        String stringValue = (String) bestHit.getSourceAsMap().get("string");
         assertNotNull(stringValue);
         Explanation explanation = client().prepareExplain(indexName, bestHit.getType(), bestHit.getId())
                 .setQuery(QueryBuilders.matchQuery("_all", stringValue)).get().getExplanation();
@@ -389,7 +389,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         SearchHit hit = searchReq.get().getHits().getAt(0);
         String docId = hit.getId();
         // foo is new, it is not a field in the generated index
-        client().prepareUpdate(indexName, "doc", docId).setDoc("foo", "bar").get();
+        client().prepareUpdate(indexName, "doc", docId).setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "bar").get();
         GetResponse getRsp = client().prepareGet(indexName, "doc", docId).get();
         Map<String, Object> source = getRsp.getSourceAsMap();
         assertThat(source, Matchers.hasKey("foo"));
@@ -413,23 +413,32 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         // TODO: do something with the replicas! query? index?
     }
 
-    // #10067: create-bwc-index.py deleted any doc with long_sort:[10-20]
-    void assertDeleteByQueryWorked(String indexName, Version version) throws Exception {
-        if (version.onOrAfter(Version.V_2_0_0_beta1)) {
-            // TODO: remove this once #10262 is fixed
-            return;
-        }
-        // these documents are supposed to be deleted by a delete by query operation in the translog
-        SearchRequestBuilder searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.queryStringQuery("long_sort:[10 TO 20]"));
-        assertEquals(0, searchReq.get().getHits().getTotalHits());
-    }
-
     void assertPositionIncrementGapDefaults(String indexName, Version version) throws Exception {
-        if (version.before(Version.V_2_0_0_beta1)) {
-            StringFieldMapperPositionIncrementGapTests.assertGapIsZero(client(), indexName, "doc");
-        } else {
-            StringFieldMapperPositionIncrementGapTests.assertGapIsOneHundred(client(), indexName, "doc");
-        }
+        client().prepareIndex(indexName, "doc", "position_gap_test").setSource("string", Arrays.asList("one", "two three"))
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+
+        // Baseline - phrase query finds matches in the same field value
+        assertHitCount(client().prepareSearch(indexName).setQuery(matchPhraseQuery("string", "two three")).get(), 1);
+
+        // No match across gaps when slop < position gap
+        assertHitCount(
+                client().prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(99)).get(),
+                0);
+
+        // Match across gaps when slop >= position gap
+        assertHitCount(client().prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(100)).get(), 1);
+        assertHitCount(client().prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(101)).get(),
+                1);
+
+        // No match across gap using default slop with default positionIncrementGap
+        assertHitCount(client().prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two")).get(), 0);
+
+        // Nor with small-ish values
+        assertHitCount(client().prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(5)).get(), 0);
+        assertHitCount(client().prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(50)).get(), 0);
+
+        // But huge-ish values still match
+        assertHitCount(client().prepareSearch(indexName).setQuery(matchPhraseQuery("string", "one two").slop(500)).get(), 1);
     }
 
     private static final Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");
@@ -448,13 +457,32 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         }
         // We can read from the alias just like we can read from the index.
         String aliasName = "#" + indexName;
-        long totalDocs = client().prepareSearch(indexName).setSize(0).get().getHits().totalHits();
+        long totalDocs = client().prepareSearch(indexName).setSize(0).get().getHits().getTotalHits();
         assertHitCount(client().prepareSearch(aliasName).setSize(0).get(), totalDocs);
         assertThat(totalDocs, greaterThanOrEqualTo(2000L));
 
         // We can remove the alias.
         assertAcked(client().admin().indices().prepareAliases().removeAlias(indexName, aliasName).get());
         assertFalse(client().admin().indices().prepareAliasesExist(aliasName).get().exists());
+    }
+
+    /**
+     * Make sure we can load stored binary fields.
+     */
+    void assertStoredBinaryFields(String indexName, Version version) throws Exception {
+        SearchRequestBuilder builder = client().prepareSearch(indexName);
+        builder.setQuery(QueryBuilders.matchAllQuery());
+        builder.setSize(100);
+        builder.addStoredField("binary");
+        SearchHits hits = builder.get().getHits();
+        assertEquals(100, hits.getHits().length);
+        for(SearchHit hit : hits) {
+            SearchHitField field = hit.field("binary");
+            assertNotNull(field);
+            Object value = field.getValue();
+            assertTrue(value instanceof BytesArray);
+            assertEquals(16, ((BytesArray) value).length());
+        }
     }
 
     private Path getNodeDir(String indexFile) throws IOException {
@@ -517,7 +545,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
             String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT).replace("unsupported-", "index-");
             Path nodeDir = getNodeDir(indexFile);
             logger.info("Parsing cluster state files from index [{}]", indexName);
-            final MetaData metaData = globalFormat.loadLatestState(logger, nodeDir);
+            final MetaData metaData = globalFormat.loadLatestState(logger, xContentRegistry(), nodeDir);
             assertNotNull(metaData);
 
             final Version version = Version.fromString(indexName.substring("index-".length()));
@@ -528,7 +556,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
                 dataDir = nodeDir.getParent();
             }
             final Path indexDir = getIndexDir(logger, indexName, indexFile, dataDir);
-            assertNotNull(indexFormat.loadLatestState(logger, indexDir));
+            assertNotNull(indexFormat.loadLatestState(logger, xContentRegistry(), indexDir));
         }
     }
 

@@ -22,8 +22,8 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,7 +31,7 @@ import java.util.Map;
 
 public class TDigestPercentileRanksAggregator extends AbstractTDigestPercentilesAggregator {
 
-    public TDigestPercentileRanksAggregator(String name, Numeric valuesSource, AggregationContext context, Aggregator parent, double[] percents,
+    public TDigestPercentileRanksAggregator(String name, Numeric valuesSource, SearchContext context, Aggregator parent, double[] percents,
             double compression, boolean keyed, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData)
             throws IOException {

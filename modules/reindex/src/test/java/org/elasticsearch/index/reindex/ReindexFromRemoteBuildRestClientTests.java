@@ -33,7 +33,8 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class ReindexFromRemoteBuildRestClientTests extends ESTestCase {
     public void testBuildRestClient() throws Exception {
-        RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, new BytesArray("ignored"), null, null, emptyMap());
+        RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, new BytesArray("ignored"), null, null, emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
         long taskId = randomLong();
         List<Thread> threads = synchronizedList(new ArrayList<>());
         RestClient client = TransportReindexAction.buildRestClient(remoteInfo, taskId, threads);

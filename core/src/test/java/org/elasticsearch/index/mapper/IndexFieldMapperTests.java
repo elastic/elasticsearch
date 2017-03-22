@@ -70,13 +70,4 @@ public class IndexFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("_index is not configurable", e.getMessage());
     }
 
-    public void testBwCompatIndexNotConfigurable() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_index").endObject()
-                .endObject().endObject().string();
-        DocumentMapperParser parser = createIndex("test",
-                Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_0).build())
-                .mapperService().documentMapperParser();
-        parser.parse("type", new CompressedXContent(mapping)); // no exception
-    }
 }

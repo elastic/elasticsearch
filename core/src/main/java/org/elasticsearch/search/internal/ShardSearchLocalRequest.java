@@ -19,9 +19,9 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,6 +35,7 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * Shard level search request that gets created and consumed on the local node.
@@ -64,6 +65,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     private Scroll scroll;
     private String[] types = Strings.EMPTY_ARRAY;
     private AliasFilter aliasFilter;
+    private float indexBoost;
     private SearchSourceBuilder source;
     private Boolean requestCache;
     private long nowInMillis;
@@ -73,10 +75,10 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     ShardSearchLocalRequest() {
     }
 
-    ShardSearchLocalRequest(SearchRequest searchRequest, ShardRouting shardRouting, int numberOfShards,
-                            AliasFilter aliasFilter, long nowInMillis) {
-        this(shardRouting.shardId(), numberOfShards, searchRequest.searchType(),
-                searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter);
+    ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards,
+                            AliasFilter aliasFilter, float indexBoost, long nowInMillis) {
+        this(shardId, numberOfShards, searchRequest.searchType(),
+                searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter, indexBoost);
         this.scroll = searchRequest.scroll();
         this.nowInMillis = nowInMillis;
     }
@@ -86,10 +88,11 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.nowInMillis = nowInMillis;
         this.aliasFilter = aliasFilter;
         this.shardId = shardId;
+        indexBoost = 1.0f;
     }
 
     public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source, String[] types,
-            Boolean requestCache, AliasFilter aliasFilter) {
+            Boolean requestCache, AliasFilter aliasFilter, float indexBoost) {
         this.shardId = shardId;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
@@ -97,6 +100,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.types = types;
         this.requestCache = requestCache;
         this.aliasFilter = aliasFilter;
+        this.indexBoost = indexBoost;
     }
 
 
@@ -136,6 +140,11 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     @Override
+    public float indexBoost() {
+        return indexBoost;
+    }
+
+    @Override
     public long nowInMillis() {
         return nowInMillis;
     }
@@ -168,6 +177,20 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         types = in.readStringArray();
         aliasFilter = new AliasFilter(in);
+        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            indexBoost = in.readFloat();
+        } else {
+            // Nodes < 5.2.0 doesn't send index boost. Read it from source.
+            if (source != null) {
+                Optional<SearchSourceBuilder.IndexBoost> boost = source.indexBoosts()
+                    .stream()
+                    .filter(ib -> ib.getIndex().equals(shardId.getIndexName()))
+                    .findFirst();
+                indexBoost = boost.isPresent() ? boost.get().getBoost() : 1.0f;
+            } else {
+                indexBoost = 1.0f;
+            }
+        }
         nowInMillis = in.readVLong();
         requestCache = in.readOptionalBoolean();
     }
@@ -182,6 +205,9 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         out.writeOptionalWriteable(source);
         out.writeStringArray(types);
         aliasFilter.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            out.writeFloat(indexBoost);
+        }
         if (!asKey) {
             out.writeVLong(nowInMillis);
         }

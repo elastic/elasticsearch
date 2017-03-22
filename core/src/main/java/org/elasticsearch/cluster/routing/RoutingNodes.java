@@ -537,8 +537,22 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // fail actual shard
         if (failedShard.initializing()) {
             if (failedShard.relocatingNodeId() == null) {
-                // initializing shard that is not relocation target, just move to unassigned
-                moveToUnassigned(failedShard, unassignedInfo);
+                if (failedShard.primary()) {
+                    // promote active replica to primary if active replica exists (only the case for shadow replicas)
+                    ShardRouting activeReplica = activeReplica(failedShard.shardId());
+                    assert activeReplica == null || indexMetaData.isIndexUsingShadowReplicas() :
+                        "initializing primary [" + failedShard + "] with active replicas [" + activeReplica + "] only expected when " +
+                            "using shadow replicas";
+                    if (activeReplica == null) {
+                        moveToUnassigned(failedShard, unassignedInfo);
+                    } else {
+                        movePrimaryToUnassignedAndDemoteToReplica(failedShard, unassignedInfo);
+                        promoteReplicaToPrimary(activeReplica, indexMetaData, routingChangesObserver);
+                    }
+                } else {
+                    // initializing shard that is not relocation target, just move to unassigned
+                    moveToUnassigned(failedShard, unassignedInfo);
+                }
             } else {
                 // The shard is a target of a relocating shard. In that case we only need to remove the target shard and cancel the source
                 // relocation. No shard is left unassigned
@@ -561,16 +575,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 if (activeReplica == null) {
                     moveToUnassigned(failedShard, unassignedInfo);
                 } else {
-                    // if the activeReplica was relocating before this call to failShard, its relocation was cancelled above when we
-                    // failed initializing replica shards (and moved replica relocation source back to started)
-                    assert activeReplica.started() : "replica relocation should have been cancelled: " + activeReplica;
                     movePrimaryToUnassignedAndDemoteToReplica(failedShard, unassignedInfo);
-                    ShardRouting primarySwappedCandidate = promoteActiveReplicaShardToPrimary(activeReplica);
-                    routingChangesObserver.replicaPromoted(activeReplica);
-                    if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings())) {
-                        ShardRouting initializedShard = reinitShadowPrimary(primarySwappedCandidate);
-                        routingChangesObserver.startedPrimaryReinitialized(primarySwappedCandidate, initializedShard);
-                    }
+                    promoteReplicaToPrimary(activeReplica, indexMetaData, routingChangesObserver);
                 }
             } else {
                 assert failedShard.primary() == false;
@@ -584,6 +590,19 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
         assert node(failedShard.currentNodeId()).getByShardId(failedShard.shardId()) == null : "failedShard " + failedShard +
             " was matched but wasn't removed";
+    }
+
+    private void promoteReplicaToPrimary(ShardRouting activeReplica, IndexMetaData indexMetaData,
+                                         RoutingChangesObserver routingChangesObserver) {
+        // if the activeReplica was relocating before this call to failShard, its relocation was cancelled earlier when we
+        // failed initializing replica shards (and moved replica relocation source back to started)
+        assert activeReplica.started() : "replica relocation should have been cancelled: " + activeReplica;
+        ShardRouting primarySwappedCandidate = promoteActiveReplicaShardToPrimary(activeReplica);
+        routingChangesObserver.replicaPromoted(activeReplica);
+        if (indexMetaData.isIndexUsingShadowReplicas()) {
+            ShardRouting initializedShard = reinitShadowPrimary(primarySwappedCandidate);
+            routingChangesObserver.startedPrimaryReinitialized(primarySwappedCandidate, initializedShard);
+        }
     }
 
     /**

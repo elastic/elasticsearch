@@ -8,6 +8,25 @@ This feature was removed in the 5.x series, but a backwards-compatibility layer 
 system property `elasticsearch.json.allow_unquoted_field_names`. This backwards-compatibility layer
 has been removed in Elasticsearch 6.0.0.
 
+==== Duplicate Keys in JSON, CBOR, Yaml and Smile
+
+In previous versions of Elasticsearch, documents were allowed to contain duplicate keys. Elasticsearch 6.0.0
+ enforces that all keys are unique. This applies to all content types: JSON, CBOR, Yaml and Smile.
+
+==== Content-Type Auto-detection
+
+In previous versions of Elasticsearch, having a proper Content-Type for the data in a request was not enforced.
+Elasticsearch 6.0.0 enforces that all requests with a body must have a supported Content-Type and this type will
+be used when parsing the data.
+
+When using the `source` query string parameter, the `source_content_type` parameter must also be specified with
+the media type of the source.
+
+==== Boolean API parameters
+
+All REST APIs parameters (both request parameters and JSON body) support providing boolean "false" as the
+value `false` and boolean "true" as the value `true`. All other values will raise an error.
+
 ==== Analyze API changes
 
 The deprecated request parameters and plain text in request body has been removed. Define parameters in request body.
@@ -17,3 +36,14 @@ The deprecated request parameters and plain text in request body has been remove
 The `ignore_unavailable` and `allow_no_indices` options are no longer accepted
 as they could cause undesired results when their values differed from their
 defaults.
+
+==== `timestamp` and `ttl` in index requests
+
+`timestamp` and `ttl` are not accepted anymore as parameters of index/update
+requests.
+
+==== Refresh requests with one or more shard failures return HTTP 500 response instead of 200
+
+Refresh requests that are broadcast to multiple shards that can have one or more
+shards fail during the request now return a 500 response instead of a 200
+response in the event there is at least one failure.

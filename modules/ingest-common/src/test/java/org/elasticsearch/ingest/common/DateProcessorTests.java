@@ -106,13 +106,13 @@ public class DateProcessorTests extends ESTestCase {
 
     public void testJodaPatternDefaultYear() {
         DateProcessor dateProcessor = new DateProcessor(randomAsciiOfLength(10), DateTimeZone.forID("Europe/Amsterdam"), Locale.ENGLISH,
-                "date_as_string", Collections.singletonList("dd/MM"), "date_as_date");
+            "date_as_string", Collections.singletonList("dd/MM"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "12/06");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         dateProcessor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo(DateTime.now().getYear() +
-                "-06-12T00:00:00.000+02:00"));
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class),
+            equalTo(DateTime.now().getYear() + "-06-12T00:00:00.000+02:00"));
     }
 
     public void testTAI64N() {

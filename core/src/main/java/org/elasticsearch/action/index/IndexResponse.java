@@ -22,10 +22,13 @@ package org.elasticsearch.action.index;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * A response of an index operation,
@@ -34,6 +37,8 @@ import java.io.IOException;
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
 public class IndexResponse extends DocWriteResponse {
+
+    private static final String CREATED = "created";
 
     public IndexResponse() {
     }
@@ -57,14 +62,64 @@ public class IndexResponse extends DocWriteResponse {
         builder.append(",version=").append(getVersion());
         builder.append(",result=").append(getResult().getLowercase());
         builder.append(",seqNo=").append(getSeqNo());
-        builder.append(",shards=").append(Strings.toString(getShardInfo(), true));
+        builder.append(",shards=").append(Strings.toString(getShardInfo()));
         return builder.append("]").toString();
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        super.toXContent(builder, params);
-        builder.field("created", result == Result.CREATED);
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        super.innerToXContent(builder, params);
+        builder.field(CREATED, result == Result.CREATED);
         return builder;
+    }
+
+    public static IndexResponse fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+
+        Builder context = new Builder();
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            parseXContentFields(parser, context);
+        }
+        return context.build();
+    }
+
+    /**
+     * Parse the current token and update the parsing context appropriately.
+     */
+    public static void parseXContentFields(XContentParser parser, Builder context) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        String currentFieldName = parser.currentName();
+
+        if (CREATED.equals(currentFieldName)) {
+            if (token.isValue()) {
+                context.setCreated(parser.booleanValue());
+            }
+        } else {
+            DocWriteResponse.parseInnerToXContent(parser, context);
+        }
+    }
+
+    /**
+     * Builder class for {@link IndexResponse}. This builder is usually used during xcontent parsing to
+     * temporarily store the parsed values, then the {@link Builder#build()} method is called to
+     * instantiate the {@link IndexResponse}.
+     */
+    public static class Builder extends DocWriteResponse.Builder {
+
+        private boolean created = false;
+
+        public void setCreated(boolean created) {
+            this.created = created;
+        }
+
+        @Override
+        public IndexResponse build() {
+            IndexResponse indexResponse = new IndexResponse(shardId, type, id, seqNo, version, created);
+            indexResponse.setForcedRefresh(forcedRefresh);
+            if (shardInfo != null) {
+                indexResponse.setShardInfo(shardInfo);
+            }
+            return indexResponse;
+        }
     }
 }

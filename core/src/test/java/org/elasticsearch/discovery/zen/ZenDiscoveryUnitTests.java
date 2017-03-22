@@ -19,38 +19,61 @@
 
 package org.elasticsearch.discovery.zen;
 
-import java.io.Closeable;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.PublishClusterStateActionTests.AssertingAckListener;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.routing.RoutingTableTests.updateActiveAllocations;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.zen.ZenDiscovery.shouldIgnoreOrRejectNewClusterState;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -150,38 +173,36 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         Settings settings = Settings.builder()
                                 .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.toString(minMasterNodes)).build();
 
-        ArrayList<Closeable> toClose = new ArrayList<>();
+        ArrayDeque<Closeable> toClose = new ArrayDeque<>();
         try {
             Set<DiscoveryNode> expectedFDNodes = null;
 
             final MockTransportService masterTransport = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null);
             masterTransport.start();
-            DiscoveryNode masterNode = new DiscoveryNode("master",  masterTransport.boundAddress().publishAddress(), Version.CURRENT);
-            toClose.add(masterTransport);
-            masterTransport.setLocalNode(masterNode);
+            DiscoveryNode masterNode = masterTransport.getLocalNode();
+            toClose.addFirst(masterTransport);
             ClusterState state = ClusterStateCreationUtils.state(masterNode, masterNode, masterNode);
             // build the zen discovery and cluster service
             ClusterService masterClusterService = createClusterService(threadPool, masterNode);
-            toClose.add(masterClusterService);
+            toClose.addFirst(masterClusterService);
             // TODO: clustername shouldn't be stored twice in cluster service, but for now, work around it
             state = ClusterState.builder(masterClusterService.getClusterName()).nodes(state.nodes()).build();
             setState(masterClusterService, state);
             ZenDiscovery masterZen = buildZenDiscovery(settings, masterTransport, masterClusterService, threadPool);
-            toClose.add(masterZen);
+            toClose.addFirst(masterZen);
             masterTransport.acceptIncomingRequests();
 
             final MockTransportService otherTransport = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null);
             otherTransport.start();
-            toClose.add(otherTransport);
-            DiscoveryNode otherNode = new DiscoveryNode("other", otherTransport.boundAddress().publishAddress(), Version.CURRENT);
-            otherTransport.setLocalNode(otherNode);
+            toClose.addFirst(otherTransport);
+            DiscoveryNode otherNode = otherTransport.getLocalNode();
             final ClusterState otherState = ClusterState.builder(masterClusterService.getClusterName())
                 .nodes(DiscoveryNodes.builder().add(otherNode).localNodeId(otherNode.getId())).build();
             ClusterService otherClusterService = createClusterService(threadPool, masterNode);
-            toClose.add(otherClusterService);
+            toClose.addFirst(otherClusterService);
             setState(otherClusterService, otherState);
             ZenDiscovery otherZen = buildZenDiscovery(settings, otherTransport, otherClusterService, threadPool);
-            toClose.add(otherZen);
+            toClose.addFirst(otherZen);
             otherTransport.acceptIncomingRequests();
 
             masterTransport.connectToNode(otherNode);
@@ -221,21 +242,20 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.toString(minMasterNodes)).build();
 
-        ArrayList<Closeable> toClose = new ArrayList<>();
+        ArrayDeque<Closeable> toClose = new ArrayDeque<>();
         try {
             final MockTransportService masterTransport = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null);
             masterTransport.start();
-            DiscoveryNode masterNode = new DiscoveryNode("master",  masterTransport.boundAddress().publishAddress(), Version.CURRENT);
-            toClose.add(masterTransport);
-            masterTransport.setLocalNode(masterNode);
+            DiscoveryNode masterNode = masterTransport.getLocalNode();
+            toClose.addFirst(masterTransport);
             ClusterState state = ClusterStateCreationUtils.state(masterNode, null, masterNode);
             // build the zen discovery and cluster service
             ClusterService masterClusterService = createClusterService(threadPool, masterNode);
-            toClose.add(masterClusterService);
+            toClose.addFirst(masterClusterService);
             state = ClusterState.builder(masterClusterService.getClusterName()).nodes(state.nodes()).build();
             setState(masterClusterService, state);
             ZenDiscovery masterZen = buildZenDiscovery(settings, masterTransport, masterClusterService, threadPool);
-            toClose.add(masterZen);
+            toClose.addFirst(masterZen);
             masterTransport.acceptIncomingRequests();
 
             // inject a pending cluster state
@@ -268,7 +288,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
     }
 
     private ZenDiscovery buildZenDiscovery(Settings settings, TransportService service, ClusterService clusterService, ThreadPool threadPool) {
-        ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service, clusterService, Collections::emptyList);
+        ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+            clusterService, Collections::emptyList);
         zenDiscovery.start();
         return zenDiscovery;
     }
@@ -282,5 +303,83 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             }
         });
         return discoveryNodes;
+    }
+
+    public void testValidateOnUnsupportedIndexVersionCreated() throws Exception {
+        final int iters = randomIntBetween(3, 10);
+        for (int i = 0; i < iters; i++) {
+            ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
+            final DiscoveryNode otherNode = new DiscoveryNode("other_node", buildNewFakeTransportAddress(), emptyMap(),
+                EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
+            MembershipAction.ValidateJoinRequestRequestHandler request = new MembershipAction.ValidateJoinRequestRequestHandler();
+            final boolean incompatible = randomBoolean();
+            IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(Settings.builder()
+                .put(SETTING_VERSION_CREATED, incompatible ? VersionUtils.getPreviousVersion(Version.CURRENT.minimumIndexCompatibilityVersion())
+                    : VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT))
+                .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(SETTING_CREATION_DATE, System.currentTimeMillis()))
+                .state(IndexMetaData.State.OPEN)
+                .build();
+            IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetaData.getIndex());
+            RoutingTable.Builder routing = new RoutingTable.Builder();
+            routing.addAsNew(indexMetaData);
+            final ShardId shardId = new ShardId("test", "_na_", 0);
+            IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+
+            final DiscoveryNode primaryNode = otherNode;
+            indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, primaryNode.getId(), null, true,
+                ShardRoutingState.INITIALIZING, new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "getting there")));
+            indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
+            IndexRoutingTable indexRoutingTable = indexRoutingTableBuilder.build();
+            IndexMetaData updatedIndexMetaData = updateActiveAllocations(indexRoutingTable, indexMetaData);
+            stateBuilder.metaData(MetaData.builder().put(updatedIndexMetaData, false).generateClusterUuidIfNeeded())
+                .routingTable(RoutingTable.builder().add(indexRoutingTable).build());
+            if (incompatible) {
+                IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
+                    request.messageReceived(new MembershipAction.ValidateJoinRequest(stateBuilder.build()), null));
+                assertEquals("index [test] version not supported: "
+                    + VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion())
+                    + " minimum compatible index version is: " + Version.CURRENT.minimumCompatibilityVersion(), ex.getMessage());
+            } else {
+                AtomicBoolean sendResponse = new AtomicBoolean(false);
+                request.messageReceived(new MembershipAction.ValidateJoinRequest(stateBuilder.build()), new TransportChannel() {
+                    @Override
+                    public String action() {
+                        return null;
+                    }
+
+                    @Override
+                    public String getProfileName() {
+                        return null;
+                    }
+
+                    @Override
+                    public long getRequestId() {
+                        return 0;
+                    }
+
+                    @Override
+                    public String getChannelType() {
+                        return null;
+                    }
+
+                    @Override
+                    public void sendResponse(TransportResponse response) throws IOException {
+                        sendResponse.set(true);
+                    }
+
+                    @Override
+                    public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
+
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) throws IOException {
+
+                    }
+                });
+                assertTrue(sendResponse.get());
+            }
+        }
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -26,13 +27,12 @@ import org.elasticsearch.script.ScriptService;
 
 import java.util.Map;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.containsString;
 
 /**
  * Tests index-by-search with a script modifying the documents.
  */
-public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScriptTestCase<ReindexRequest, BulkIndexByScrollResponse> {
+public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTestCase<ReindexRequest, BulkByScrollResponse> {
 
     public void testSetIndex() throws Exception {
         Object dest = randomFrom(new Object[] {234, 234L, "pancake"});
@@ -104,40 +104,14 @@ public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScri
         assertEquals(routing, index.routing());
     }
 
-    public void testSetTimestamp() throws Exception {
-        String timestamp = randomFrom("now", "1234", null);
-        IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_timestamp", timestamp));
-        assertEquals(timestamp, index.timestamp());
-    }
-
-    public void testSetTtl() throws Exception {
-        Number ttl = randomFrom(new Number[] { null, 1233214, 134143797143L });
-        IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_ttl", ttl));
-        if (ttl == null) {
-            assertEquals(null, index.ttl());
-        } else {
-            assertEquals(timeValueMillis(ttl.longValue()), index.ttl());
-        }
-    }
-
-    public void testSettingTtlToJunkIsAnError() throws Exception {
-        Object junkTtl = randomFrom(new Object[] { "junk", Math.PI });
-        try {
-            applyScript((Map<String, Object> ctx) -> ctx.put("_ttl", junkTtl));
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("_ttl may only be set to an int or a long but was ["));
-            assertThat(e.getMessage(), containsString(junkTtl.toString()));
-        }
-    }
-
     @Override
     protected ReindexRequest request() {
         return new ReindexRequest(new SearchRequest(), new IndexRequest());
     }
 
     @Override
-    protected AbstractAsyncBulkIndexByScrollAction<ReindexRequest> action(ScriptService scriptService, ReindexRequest request) {
-        return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request, listener(), scriptService,
-                null);
+    protected TransportReindexAction.AsyncIndexBySearchAction action(ScriptService scriptService, ReindexRequest request) {
+        return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request, scriptService, null,
+                listener());
     }
 }

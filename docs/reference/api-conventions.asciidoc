@@ -11,6 +11,7 @@ API, unless otherwise specified.
 * <<multi-index>>
 * <<date-math-index-names>>
 * <<common-options>>
+* <<url-access-control>>
 
 --
 
@@ -117,6 +118,7 @@ The special characters used for date rounding must be URI encoded as follows:
 `|`:: `%7C`
 `+`:: `%2B`
 `:`:: `%3A`
+`,`:: `%2C`
 ======================================================
 
 The following example shows different forms of date math index names and the final index names
@@ -474,9 +476,8 @@ convention of using underscore casing.
 === Boolean Values
 
 All REST APIs parameters (both request parameters and JSON body) support
-providing boolean "false" as the values: `false`, `0`, `no` and `off`.
-All other values are considered "true". Note, this is not related to
-fields within a document indexed treated as boolean fields.
+providing boolean "false" as the value `false` and boolean "true" as the
+value `true`. All other values will raise an error.
 
 [float]
 === Number Values
@@ -505,8 +506,8 @@ the unit, like `2d` for 2 days.  The supported units are:
 === Byte size units
 
 Whenever the byte size of data needs to be specified, eg when setting a buffer size
-parameter, the value must specify the unit, like `10kb` for 10 kilobytes.  The
-supported units are:
+parameter, the value must specify the unit, like `10kb` for 10 kilobytes. Note that
+these units use powers of 1024, so `1kb` means 1024 bytes. The supported units are:
 
 [horizontal]
 `b`::   Bytes
@@ -586,19 +587,105 @@ generates an edit distance based on the length of the term. For lengths:
 --
 
 [float]
-=== Result Casing
+[[common-options-error-options]]
+=== Enabling stack traces
 
-All REST APIs accept the `case` parameter. When set to `camelCase`, all
-field names in the result will be returned in camel casing, otherwise,
-underscore casing will be used. Note, this does not apply to the source
-document indexed.
+By default when a request returns an error Elasticsearch doesn't include the
+stack trace of the error. You can enable that behavior by setting the
+`error_trace` url parameter to `true`. For example, by default when you send an
+invalid `size` parameter to the `_search` API:
+
+[source,js]
+----------------------------------------------------------------------
+POST /twitter/_search?size=surprise_me
+----------------------------------------------------------------------
+// CONSOLE
+// TEST[s/surprise_me/surprise_me&error_trace=false/ catch:request]
+// Since the test system sends error_trace=true by default we have to override
+
+The response looks like:
+
+[source,js]
+----------------------------------------------------------------------
+{
+  "error" : {
+    "root_cause" : [
+      {
+        "type" : "illegal_argument_exception",
+        "reason" : "Failed to parse int parameter [size] with value [surprise_me]"
+      }
+    ],
+    "type" : "illegal_argument_exception",
+    "reason" : "Failed to parse int parameter [size] with value [surprise_me]",
+    "caused_by" : {
+      "type" : "number_format_exception",
+      "reason" : "For input string: \"surprise_me\""
+    }
+  },
+  "status" : 400
+}
+----------------------------------------------------------------------
+// TESTRESPONSE
+
+But if you set `error_trace=true`:
+
+[source,js]
+----------------------------------------------------------------------
+POST /twitter/_search?size=surprise_me&error_trace=true
+----------------------------------------------------------------------
+// CONSOLE
+// TEST[catch:request]
+
+The response looks like:
+
+[source,js]
+----------------------------------------------------------------------
+{
+  "error": {
+    "root_cause": [
+      {
+        "type": "illegal_argument_exception",
+        "reason": "Failed to parse int parameter [size] with value [surprise_me]",
+        "stack_trace": "Failed to parse int parameter [size] with value [surprise_me]]; nested: IllegalArgumentException..."
+      }
+    ],
+    "type": "illegal_argument_exception",
+    "reason": "Failed to parse int parameter [size] with value [surprise_me]",
+    "stack_trace": "java.lang.IllegalArgumentException: Failed to parse int parameter [size] with value [surprise_me]\n    at org.elasticsearch.rest.RestRequest.paramAsInt(RestRequest.java:175)...",
+    "caused_by": {
+      "type": "number_format_exception",
+      "reason": "For input string: \"surprise_me\"",
+      "stack_trace": "java.lang.NumberFormatException: For input string: \"surprise_me\"\n    at java.lang.NumberFormatException.forInputString(NumberFormatException.java:65)..."
+    }
+  },
+  "status": 400
+}
+----------------------------------------------------------------------
+// TESTRESPONSE[s/"stack_trace": "Failed to parse int parameter.+\.\.\."/"stack_trace": $body.error.root_cause.0.stack_trace/]
+// TESTRESPONSE[s/"stack_trace": "java.lang.IllegalArgum.+\.\.\."/"stack_trace": $body.error.stack_trace/]
+// TESTRESPONSE[s/"stack_trace": "java.lang.Number.+\.\.\."/"stack_trace": $body.error.caused_by.stack_trace/]
 
 [float]
 === Request body in query string
 
 For libraries that don't accept a request body for non-POST requests,
 you can pass the request body as the `source` query string parameter
-instead.
+instead. When using this method, the `source_content_type` parameter
+should also be passed with a media type value that indicates the format
+of the source, such as `application/json`.
+
+[float]
+=== Content-Type Requirements
+
+The type of the content sent in a request body must be specified using
+the `Content-Type` header. The value of this header must map to one of
+the supported formats that the API supports. Most APIs support JSON,
+YAML, CBOR, and SMILE. The bulk and multi-search APIs support NDJSON,
+JSON and SMILE; other types will result in an error response.
+
+Additionally, when using the `source` query string parameter the
+content type must be specified using the `source_content_type` query
+string parameter.
 
 [[url-access-control]]
 == URL-based access control
@@ -610,7 +697,7 @@ the choice of specifying an index in the URL and on each individual request
 within the request body. This can make URL-based access control challenging.
 
 To prevent the user from overriding the index which has been specified in the
-URL, add this setting to the `config.yml` file:
+URL, add this setting to the `elasticsearch.yml` file:
 
     rest.action.multi.allow_explicit_index: false
 

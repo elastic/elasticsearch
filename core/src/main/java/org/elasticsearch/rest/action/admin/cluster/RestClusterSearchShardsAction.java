@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -37,16 +36,12 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestClusterSearchShardsAction extends BaseRestHandler {
-
-    @Inject
     public RestClusterSearchShardsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_search_shards", this);
         controller.registerHandler(POST, "/_search_shards", this);
         controller.registerHandler(GET, "/{index}/_search_shards", this);
         controller.registerHandler(POST, "/{index}/_search_shards", this);
-        controller.registerHandler(GET, "/{index}/{type}/_search_shards", this);
-        controller.registerHandler(POST, "/{index}/{type}/_search_shards", this);
     }
 
     @Override
@@ -54,12 +49,9 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterSearchShardsRequest clusterSearchShardsRequest = Requests.clusterSearchShardsRequest(indices);
         clusterSearchShardsRequest.local(request.paramAsBoolean("local", clusterSearchShardsRequest.local()));
-
-        clusterSearchShardsRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         clusterSearchShardsRequest.routing(request.param("routing"));
         clusterSearchShardsRequest.preference(request.param("preference"));
         clusterSearchShardsRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterSearchShardsRequest.indicesOptions()));
-
         return channel -> client.admin().cluster().searchShards(clusterSearchShardsRequest, new RestToXContentListener<>(channel));
     }
 }

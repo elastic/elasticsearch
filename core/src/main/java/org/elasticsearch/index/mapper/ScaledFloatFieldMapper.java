@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -49,7 +49,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
-import org.elasticsearch.index.mapper.LegacyNumberFieldMapper.Defaults;
+import org.elasticsearch.index.mapper.NumberFieldMapper.Defaults;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -144,16 +144,16 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     if (propNode == null) {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
-                    builder.nullValue(NumberFieldMapper.NumberType.DOUBLE.parse(propNode));
+                    builder.nullValue(NumberFieldMapper.NumberType.DOUBLE.parse(propNode, false));
                     iterator.remove();
                 } else if (propName.equals("ignore_malformed")) {
-                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue("ignore_malformed", propNode, parserContext));
+                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue(name, "ignore_malformed", propNode, parserContext));
                     iterator.remove();
                 } else if (propName.equals("coerce")) {
-                    builder.coerce(TypeParsers.nodeBooleanValue("coerce", propNode, parserContext));
+                    builder.coerce(TypeParsers.nodeBooleanValue(name, "coerce", propNode, parserContext));
                     iterator.remove();
                 } else if (propName.equals("scaling_factor")) {
-                    builder.scalingFactor(NumberFieldMapper.NumberType.DOUBLE.parse(propNode).doubleValue());
+                    builder.scalingFactor(NumberFieldMapper.NumberType.DOUBLE.parse(propNode, false).doubleValue());
                     iterator.remove();
                 }
             }
@@ -207,7 +207,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             failIfNotIndexed();
-            double queryValue = NumberFieldMapper.NumberType.DOUBLE.parse(value).doubleValue();
+            double queryValue = NumberFieldMapper.NumberType.DOUBLE.parse(value, false).doubleValue();
             long scaledValue = Math.round(queryValue * scalingFactor);
             Query query = NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue);
             if (boost() != 1f) {
@@ -221,7 +221,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             failIfNotIndexed();
             List<Long> scaledValues = new ArrayList<>(values.size());
             for (Object value : values) {
-                double queryValue = NumberFieldMapper.NumberType.DOUBLE.parse(value).doubleValue();
+                double queryValue = NumberFieldMapper.NumberType.DOUBLE.parse(value, false).doubleValue();
                 long scaledValue = Math.round(queryValue * scalingFactor);
                 scaledValues.add(scaledValue);
             }
@@ -237,7 +237,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             failIfNotIndexed();
             Long lo = null;
             if (lowerTerm != null) {
-                double dValue = NumberFieldMapper.NumberType.DOUBLE.parse(lowerTerm).doubleValue();
+                double dValue = NumberFieldMapper.NumberType.DOUBLE.parse(lowerTerm, false).doubleValue();
                 if (includeLower == false) {
                     dValue = Math.nextUp(dValue);
                 }
@@ -245,13 +245,13 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             }
             Long hi = null;
             if (upperTerm != null) {
-                double dValue = NumberFieldMapper.NumberType.DOUBLE.parse(upperTerm).doubleValue();
+                double dValue = NumberFieldMapper.NumberType.DOUBLE.parse(upperTerm, false).doubleValue();
                 if (includeUpper == false) {
                     dValue = Math.nextDown(dValue);
                 }
                 hi = Math.round(Math.floor(dValue * scalingFactor));
             }
-            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true);
+            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues());
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -265,11 +265,16 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (stats == null) {
                 return null;
             }
-            return new FieldStats.Double(stats.getMaxDoc(), stats.getDocCount(),
+            if (stats.hasMinMax()) {
+                return new FieldStats.Double(stats.getMaxDoc(), stats.getDocCount(),
                     stats.getSumDocFreq(), stats.getSumTotalTermFreq(),
                     stats.isSearchable(), stats.isAggregatable(),
-                    stats.getMinValue() == null ? null : stats.getMinValue() / scalingFactor,
-                    stats.getMaxValue() == null ? null : stats.getMaxValue() / scalingFactor);
+                    stats.getMinValue() / scalingFactor,
+                    stats.getMaxValue() / scalingFactor);
+            }
+            return new FieldStats.Double(stats.getMaxDoc(), stats.getDocCount(),
+                stats.getSumDocFreq(), stats.getSumTotalTermFreq(),
+                stats.isSearchable(), stats.isAggregatable());
         }
 
         @Override
@@ -364,7 +369,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         final boolean includeInAll = context.includeInAll(this.includeInAll, this);
 
         XContentParser parser = context.parser();
@@ -404,7 +409,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         if (numericValue == null) {
-            numericValue = NumberFieldMapper.NumberType.DOUBLE.parse(value);
+            numericValue = NumberFieldMapper.NumberType.DOUBLE.parse(value, false);
         }
 
         if (includeInAll) {
@@ -504,7 +509,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public NumericType getNumericType() {
-            return scaledFieldData.getNumericType();
+            /**
+             * {@link ScaledFloatLeafFieldData#getDoubleValues()} transforms the raw long values in `scaled` floats.
+             */
+            return NumericType.DOUBLE;
         }
 
     }

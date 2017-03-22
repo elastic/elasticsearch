@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -208,4 +209,16 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
         out.writeNamedWriteableList(aggregations);
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        return aggregations.equals(((InternalAggregations) obj).aggregations);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getClass(), aggregations);
+    }
 }

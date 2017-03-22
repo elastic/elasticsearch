@@ -19,6 +19,13 @@
 
 package org.elasticsearch;
 
+import org.apache.lucene.analysis.en.PorterStemFilterFactory;
+import org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilterFactory;
+import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
+import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
+import org.apache.lucene.analysis.util.CharFilterFactory;
+import org.apache.lucene.analysis.util.TokenFilterFactory;
+import org.apache.lucene.analysis.util.TokenizerFactory;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.index.analysis.ASCIIFoldingTokenFilterFactory;
 import org.elasticsearch.index.analysis.ApostropheFilterFactory;
@@ -36,6 +43,7 @@ import org.elasticsearch.index.analysis.DelimitedPayloadTokenFilterFactory;
 import org.elasticsearch.index.analysis.EdgeNGramTokenFilterFactory;
 import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
 import org.elasticsearch.index.analysis.ElisionTokenFilterFactory;
+import org.elasticsearch.index.analysis.FlattenGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.GermanNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.GermanStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.HindiNormalizationFilterFactory;
@@ -76,6 +84,7 @@ import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StemmerOverrideTokenFilterFactory;
 import org.elasticsearch.index.analysis.StemmerTokenFilterFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
+import org.elasticsearch.index.analysis.SynonymGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.SynonymTokenFilterFactory;
 import org.elasticsearch.index.analysis.ThaiTokenizerFactory;
 import org.elasticsearch.index.analysis.TrimTokenFilterFactory;
@@ -86,13 +95,19 @@ import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
 import org.elasticsearch.index.analysis.WordDelimiterTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
+import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
+import org.elasticsearch.indices.analysis.PreBuiltTokenFilters;
+import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Alerts us if new analyzers are added to lucene, so we don't miss them.
@@ -101,6 +116,19 @@ import java.util.TreeSet;
  * The deprecated ones can be mapped to Deprecated.class.
  */
 public class AnalysisFactoryTestCase extends ESTestCase {
+
+    private static final Pattern UNDERSCORE_THEN_ANYTHING = Pattern.compile("_(.)");
+
+    private static String toCamelCase(String s) {
+        Matcher m = UNDERSCORE_THEN_ANYTHING.matcher(s);
+        StringBuffer sb = new StringBuffer();
+        while (m.find()) {
+            m.appendReplacement(sb, m.group(1).toUpperCase());
+        }
+        m.appendTail(sb);
+        sb.setCharAt(0, Character.toUpperCase(sb.charAt(0)));
+        return sb.toString();
+    }
 
     static final Map<String,Class<?>> KNOWN_TOKENIZERS = new MapBuilder<String,Class<?>>()
         // exposed in ES
@@ -119,7 +147,31 @@ public class AnalysisFactoryTestCase extends ESTestCase {
 
         // this one "seems to mess up offsets". probably shouldn't be a tokenizer...
         .put("wikipedia",     Void.class)
+
+        // TODO: expose these
+        .put("simplepattern",    Void.class)
+        .put("simplepatternsplit",    Void.class)
         .immutableMap();
+
+    static final Map<PreBuiltTokenizers, Class<?>> PREBUILT_TOKENIZERS;
+    static {
+        PREBUILT_TOKENIZERS = new HashMap<>();
+        for (PreBuiltTokenizers tokenizer : PreBuiltTokenizers.values()) {
+            Class<?> luceneFactoryClazz;
+            switch (tokenizer) {
+            case UAX_URL_EMAIL:
+                luceneFactoryClazz = org.apache.lucene.analysis.standard.UAX29URLEmailTokenizerFactory.class;
+                break;
+            case PATH_HIERARCHY:
+                luceneFactoryClazz = Void.class;
+                break;
+            default:
+                luceneFactoryClazz = org.apache.lucene.analysis.util.TokenizerFactory.lookupClass(
+                        toCamelCase(tokenizer.getTokenizerFactory(Version.CURRENT).name()));
+            }
+            PREBUILT_TOKENIZERS.put(tokenizer, luceneFactoryClazz);
+        }
+    }
 
     static final Map<String,Class<?>> KNOWN_TOKENFILTERS = new MapBuilder<String,Class<?>>()
         // exposed in ES
@@ -195,12 +247,15 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("stop",                      StopTokenFilterFactory.class)
         .put("swedishlightstem",          StemmerTokenFilterFactory.class)
         .put("synonym",                   SynonymTokenFilterFactory.class)
+        .put("synonymgraph",              SynonymGraphTokenFilterFactory.class)
         .put("trim",                      TrimTokenFilterFactory.class)
         .put("truncate",                  TruncateTokenFilterFactory.class)
         .put("turkishlowercase",          LowerCaseTokenFilterFactory.class)
         .put("type",                      KeepTypesFilterFactory.class)
         .put("uppercase",                 UpperCaseTokenFilterFactory.class)
         .put("worddelimiter",             WordDelimiterTokenFilterFactory.class)
+        .put("worddelimitergraph",        WordDelimiterGraphFilterFactory.class)
+        .put("flattengraph",              FlattenGraphTokenFilterFactory.class)
 
         // TODO: these tokenfilters are not yet exposed: useful?
 
@@ -233,6 +288,41 @@ public class AnalysisFactoryTestCase extends ESTestCase {
 
         .immutableMap();
 
+    static final Map<PreBuiltTokenFilters, Class<?>> PREBUILT_TOKENFILTERS;
+    static {
+        PREBUILT_TOKENFILTERS = new HashMap<>();
+        for (PreBuiltTokenFilters tokenizer : PreBuiltTokenFilters.values()) {
+            Class<?> luceneFactoryClazz;
+            switch (tokenizer) {
+            case REVERSE:
+                luceneFactoryClazz = ReverseStringFilterFactory.class;
+                break;
+            case UNIQUE:
+                luceneFactoryClazz = Void.class;
+                break;
+            case SNOWBALL:
+            case DUTCH_STEM:
+            case FRENCH_STEM:
+            case RUSSIAN_STEM:
+                luceneFactoryClazz = SnowballPorterFilterFactory.class;
+                break;
+            case STEMMER:
+                luceneFactoryClazz = PorterStemFilterFactory.class;
+                break;
+            case DELIMITED_PAYLOAD_FILTER:
+                luceneFactoryClazz = org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory.class;
+                 break;
+            case LIMIT:
+                luceneFactoryClazz = org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilterFactory.class;
+                break;
+            default:
+                luceneFactoryClazz = org.apache.lucene.analysis.util.TokenFilterFactory.lookupClass(
+                        toCamelCase(tokenizer.getTokenFilterFactory(Version.CURRENT).name()));
+            }
+            PREBUILT_TOKENFILTERS.put(tokenizer, luceneFactoryClazz);
+        }
+    }
+
     static final Map<String,Class<?>> KNOWN_CHARFILTERS = new MapBuilder<String,Class<?>>()
         // exposed in ES
         .put("htmlstrip",      HtmlStripCharFilterFactory.class)
@@ -243,6 +333,20 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         // handling of zwnj for persian
         .put("persian",        Void.class)
         .immutableMap();
+
+    static final Map<PreBuiltCharFilters, Class<?>> PREBUILT_CHARFILTERS;
+    static {
+        PREBUILT_CHARFILTERS = new HashMap<>();
+        for (PreBuiltCharFilters tokenizer : PreBuiltCharFilters.values()) {
+            Class<?> luceneFactoryClazz;
+            switch (tokenizer) {
+            default:
+                luceneFactoryClazz = org.apache.lucene.analysis.util.CharFilterFactory.lookupClass(
+                        toCamelCase(tokenizer.getCharFilterFactory(Version.CURRENT).name()));
+            }
+            PREBUILT_CHARFILTERS.put(tokenizer, luceneFactoryClazz);
+        }
+    }
 
     protected Map<String, Class<?>> getTokenizers() {
         return KNOWN_TOKENIZERS;
@@ -322,6 +426,64 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         Set<Class<?>> classesThatShouldNotHaveMultiTermSupport = new HashSet<>(actual);
         classesThatShouldNotHaveMultiTermSupport.removeAll(expected);
         assertTrue("Classes should not have multi-term support: " + classesThatShouldNotHaveMultiTermSupport,
+                classesThatShouldNotHaveMultiTermSupport.isEmpty());
+    }
+
+    public void testPreBuiltMultiTermAware() {
+        Collection<Object> expected = new HashSet<>();
+        Collection<Object> actual = new HashSet<>();
+
+        for (Map.Entry<PreBuiltTokenizers, Class<?>> entry : PREBUILT_TOKENIZERS.entrySet()) {
+            PreBuiltTokenizers tokenizer = entry.getKey();
+            Class<?> luceneFactory = entry.getValue();
+            if (luceneFactory == Void.class) {
+                continue;
+            }
+            assertTrue(TokenizerFactory.class.isAssignableFrom(luceneFactory));
+            if (tokenizer.getTokenizerFactory(Version.CURRENT) instanceof MultiTermAwareComponent) {
+                actual.add(tokenizer);
+            }
+            if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(luceneFactory)) {
+                expected.add(tokenizer);
+            }
+        }
+        for (Map.Entry<PreBuiltTokenFilters, Class<?>> entry : PREBUILT_TOKENFILTERS.entrySet()) {
+            PreBuiltTokenFilters tokenFilter = entry.getKey();
+            Class<?> luceneFactory = entry.getValue();
+            if (luceneFactory == Void.class) {
+                continue;
+            }
+            assertTrue(TokenFilterFactory.class.isAssignableFrom(luceneFactory));
+            if (tokenFilter.getTokenFilterFactory(Version.CURRENT) instanceof MultiTermAwareComponent) {
+                actual.add(tokenFilter);
+            }
+            if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(luceneFactory)) {
+                expected.add(tokenFilter);
+            }
+        }
+        for (Map.Entry<PreBuiltCharFilters, Class<?>> entry : PREBUILT_CHARFILTERS.entrySet()) {
+            PreBuiltCharFilters charFilter = entry.getKey();
+            Class<?> luceneFactory = entry.getValue();
+            if (luceneFactory == Void.class) {
+                continue;
+            }
+            assertTrue(CharFilterFactory.class.isAssignableFrom(luceneFactory));
+            if (charFilter.getCharFilterFactory(Version.CURRENT) instanceof MultiTermAwareComponent) {
+                actual.add(charFilter);
+            }
+            if (org.apache.lucene.analysis.util.MultiTermAwareComponent.class.isAssignableFrom(luceneFactory)) {
+                expected.add(charFilter);
+            }
+        }
+
+        Set<Object> classesMissingMultiTermSupport = new HashSet<>(expected);
+        classesMissingMultiTermSupport.removeAll(actual);
+        assertTrue("Pre-built components are missing multi-term support: " + classesMissingMultiTermSupport,
+                classesMissingMultiTermSupport.isEmpty());
+
+        Set<Object> classesThatShouldNotHaveMultiTermSupport = new HashSet<>(actual);
+        classesThatShouldNotHaveMultiTermSupport.removeAll(expected);
+        assertTrue("Pre-built components should not have multi-term support: " + classesThatShouldNotHaveMultiTermSupport,
                 classesThatShouldNotHaveMultiTermSupport.isEmpty());
     }
 

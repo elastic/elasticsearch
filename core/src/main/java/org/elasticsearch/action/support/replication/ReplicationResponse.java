@@ -23,17 +23,24 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 
 /**
  * Base class for write action responses.
@@ -64,7 +71,12 @@ public class ReplicationResponse extends ActionResponse {
         this.shardInfo = shardInfo;
     }
 
-    public static class ShardInfo implements Streamable, ToXContent {
+    public static class ShardInfo implements Streamable, ToXContentObject {
+
+        private static final String TOTAL = "total";
+        private static final String SUCCESSFUL = "successful";
+        private static final String FAILED = "failed";
+        private static final String FAILURES = "failures";
 
         private int total;
         private int successful;
@@ -145,12 +157,12 @@ public class ReplicationResponse extends ActionResponse {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(Fields._SHARDS);
-            builder.field(Fields.TOTAL, total);
-            builder.field(Fields.SUCCESSFUL, successful);
-            builder.field(Fields.FAILED, getFailed());
+            builder.startObject();
+            builder.field(TOTAL, total);
+            builder.field(SUCCESSFUL, successful);
+            builder.field(FAILED, getFailed());
             if (failures.length > 0) {
-                builder.startArray(Fields.FAILURES);
+                builder.startArray(FAILURES);
                 for (Failure failure : failures) {
                     failure.toXContent(builder, params);
                 }
@@ -158,6 +170,42 @@ public class ReplicationResponse extends ActionResponse {
             }
             builder.endObject();
             return builder;
+        }
+
+        public static ShardInfo fromXContent(XContentParser parser) throws IOException {
+            XContentParser.Token token = parser.currentToken();
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+
+            int total = 0, successful = 0;
+            List<Failure> failuresList = null;
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token.isValue()) {
+                    if (TOTAL.equals(currentFieldName)) {
+                        total = parser.intValue();
+                    } else if (SUCCESSFUL.equals(currentFieldName)) {
+                        successful = parser.intValue();
+                    } else if (FAILED.equals(currentFieldName) == false) {
+                        throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    }
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if (FAILURES.equals(currentFieldName)) {
+                        failuresList = new ArrayList<>();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            failuresList.add(Failure.fromXContent(parser));
+                        }
+                    } else {
+                        throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    }
+                }
+            }
+            Failure[] failures = EMPTY;
+            if (failuresList != null) {
+                failures = failuresList.toArray(new Failure[failuresList.size()]);
+            }
+            return new ShardInfo(total, successful, failures);
         }
 
         @Override
@@ -175,7 +223,14 @@ public class ReplicationResponse extends ActionResponse {
             return shardInfo;
         }
 
-        public static class Failure implements ShardOperationFailedException, ToXContent {
+        public static class Failure implements ShardOperationFailedException, ToXContentObject {
+
+            private static final String _INDEX = "_index";
+            private static final String _SHARD = "_shard";
+            private static final String _NODE = "_node";
+            private static final String REASON = "reason";
+            private static final String STATUS = "status";
+            private static final String PRIMARY = "primary";
 
             private ShardId shardId;
             private String nodeId;
@@ -272,39 +327,57 @@ public class ReplicationResponse extends ActionResponse {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
-                builder.field(Fields._INDEX, shardId.getIndexName());
-                builder.field(Fields._SHARD, shardId.id());
-                builder.field(Fields._NODE, nodeId);
-                builder.field(Fields.REASON);
+                builder.field(_INDEX, shardId.getIndexName());
+                builder.field(_SHARD, shardId.id());
+                builder.field(_NODE, nodeId);
+                builder.field(REASON);
                 builder.startObject();
-                ElasticsearchException.toXContent(builder, params, cause);
+                ElasticsearchException.generateThrowableXContent(builder, params, cause);
                 builder.endObject();
-                builder.field(Fields.STATUS, status);
-                builder.field(Fields.PRIMARY, primary);
+                builder.field(STATUS, status);
+                builder.field(PRIMARY, primary);
                 builder.endObject();
                 return builder;
             }
 
-            private static class Fields {
+            public static Failure fromXContent(XContentParser parser) throws IOException {
+                XContentParser.Token token = parser.currentToken();
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
 
-                private static final String _INDEX = "_index";
-                private static final String _SHARD = "_shard";
-                private static final String _NODE = "_node";
-                private static final String REASON = "reason";
-                private static final String STATUS = "status";
-                private static final String PRIMARY = "primary";
+                String shardIndex = null, nodeId = null;
+                int shardId = -1;
+                boolean primary = false;
+                RestStatus status = null;
+                ElasticsearchException reason = null;
 
+                String currentFieldName = null;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else if (token.isValue()) {
+                        if (_INDEX.equals(currentFieldName)) {
+                            shardIndex = parser.text();
+                        } else if (_SHARD.equals(currentFieldName)) {
+                            shardId = parser.intValue();
+                        } else if (_NODE.equals(currentFieldName)) {
+                            nodeId = parser.text();
+                        } else if (STATUS.equals(currentFieldName)) {
+                            status = RestStatus.valueOf(parser.text());
+                        } else if (PRIMARY.equals(currentFieldName)) {
+                            primary = parser.booleanValue();
+                        } else {
+                            throwUnknownField(currentFieldName, parser.getTokenLocation());
+                        }
+                    } else if (token == XContentParser.Token.START_OBJECT) {
+                        if (REASON.equals(currentFieldName)) {
+                            reason = ElasticsearchException.fromXContent(parser);
+                        } else {
+                            throwUnknownField(currentFieldName, parser.getTokenLocation());
+                        }
+                    }
+                }
+                return new Failure(new ShardId(shardIndex, IndexMetaData.INDEX_UUID_NA_VALUE, shardId), nodeId, reason, status, primary);
             }
-        }
-
-        private static class Fields {
-
-            private static final String _SHARDS = "_shards";
-            private static final String TOTAL = "total";
-            private static final String SUCCESSFUL = "successful";
-            private static final String FAILED = "failed";
-            private static final String FAILURES = "failures";
-
         }
     }
 }

@@ -36,8 +36,10 @@ import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -81,7 +83,7 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject()
             .endArray()
             .endObject().bytes();
-        client().admin().cluster().preparePutPipeline("_id", pipelineSource)
+        client().admin().cluster().preparePutPipeline("_id", pipelineSource, XContentType.JSON)
                 .get();
         GetPipelineResponse getResponse = client().admin().cluster().prepareGetPipeline("_id")
                 .get();
@@ -104,10 +106,10 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject().bytes();
         SimulatePipelineResponse response;
         if (randomBoolean()) {
-            response = client().admin().cluster().prepareSimulatePipeline(bytes)
+            response = client().admin().cluster().prepareSimulatePipeline(bytes, XContentType.JSON)
                 .setId("_id").get();
         } else {
-            SimulatePipelineRequest request = new SimulatePipelineRequest(bytes);
+            SimulatePipelineRequest request = new SimulatePipelineRequest(bytes, XContentType.JSON);
             request.setId("_id");
             response = client().admin().cluster().simulatePipeline(request).get();
         }
@@ -120,7 +122,7 @@ public class IngestClientIT extends ESIntegTestCase {
         source.put("foo", "bar");
         source.put("fail", false);
         source.put("processed", true);
-        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, null, null, source);
+        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, source);
         assertThat(simulateDocumentBaseResult.getIngestDocument().getSourceAndMetadata(), equalTo(ingestDocument.getSourceAndMetadata()));
         assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
     }
@@ -137,14 +139,14 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject()
             .endArray()
             .endObject().bytes();
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source);
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         int numRequests = scaledRandomIntBetween(32, 128);
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numRequests; i++) {
             IndexRequest indexRequest = new IndexRequest("index", "type", Integer.toString(i)).setPipeline("_id");
-            indexRequest.source("field", "value", "fail", i % 2 == 0);
+            indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field", "value", "fail", i % 2 == 0);
             bulkRequest.add(indexRequest);
         }
 
@@ -177,7 +179,7 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject()
             .endArray()
             .endObject().bytes();
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source);
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         GetPipelineRequest getPipelineRequest = new GetPipelineRequest("_id");
@@ -219,7 +221,7 @@ public class IngestClientIT extends ESIntegTestCase {
                 .endObject()
                 .endArray()
                 .endObject().bytes();
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source);
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
         try {
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         } catch (ExecutionException e) {

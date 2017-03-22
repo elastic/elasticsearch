@@ -21,7 +21,6 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -164,8 +163,7 @@ public class IndexSettingsTests extends ESTestCase {
         if (settings.length > 0) {
             settingSet.addAll(Arrays.asList(settings));
         }
-        return new IndexSettings(metaData, nodeSettings, (idx) -> Regex.simpleMatch(idx, metaData.getIndex().getName()),
-            new IndexScopedSettings(Settings.EMPTY, settingSet));
+        return new IndexSettings(metaData, nodeSettings, new IndexScopedSettings(Settings.EMPTY, settingSet));
     }
 
 
@@ -207,8 +205,7 @@ public class IndexSettingsTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(indexSettings)
                 .build();
-        IndexMetaData metaData = IndexMetaData.builder(name).settings(build).build();
-        return metaData;
+        return IndexMetaData.builder(name).settings(build).build();
     }
 
 
@@ -291,6 +288,29 @@ public class IndexSettingsTests extends ESTestCase {
         settings = new IndexSettings(metaData, Settings.EMPTY);
         assertEquals(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxResultWindow());
     }
+    
+    public void testMaxAdjacencyMatrixFiltersSetting() {
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey(), 15)
+            .build());
+        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(15, settings.getMaxAdjacencyMatrixFilters());
+        settings.updateIndexMetaData(newIndexMeta("index",
+            Settings.builder().put(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey(),
+            42).build()));
+        assertEquals(42, settings.getMaxAdjacencyMatrixFilters());
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.get(Settings.EMPTY).intValue(), 
+                settings.getMaxAdjacencyMatrixFilters());
+
+        metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.get(Settings.EMPTY).intValue(), 
+                settings.getMaxAdjacencyMatrixFilters());
+    }    
 
     public void testGCDeletesSetting() {
         TimeValue gcDeleteSetting = new TimeValue(Math.abs(randomInt()), TimeUnit.MILLISECONDS);

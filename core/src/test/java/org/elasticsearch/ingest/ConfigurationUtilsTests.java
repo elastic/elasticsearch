@@ -19,6 +19,10 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -26,11 +30,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
-
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
@@ -105,13 +108,36 @@ public class ConfigurationUtilsTests extends ESTestCase {
         assertThat(result.get(0), sameInstance(processor));
         assertThat(result.get(1), sameInstance(processor));
 
-        config.add(Collections.singletonMap("unknown_processor", emptyConfig));
-        try {
-            ConfigurationUtils.readProcessorConfigs(config, registry);
-            fail("exception expected");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("No processor type exists with name [unknown_processor]"));
-        }
+        Map<String, Object> unknownTaggedConfig = new HashMap<>();
+        unknownTaggedConfig.put("tag", "my_unknown");
+        config.add(Collections.singletonMap("unknown_processor", unknownTaggedConfig));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
+            () -> ConfigurationUtils.readProcessorConfigs(config, registry));
+        assertThat(e.getMessage(), equalTo("No processor type exists with name [unknown_processor]"));
+        assertThat(e.getHeader("processor_tag"), equalTo(Collections.singletonList("my_unknown")));
+        assertThat(e.getHeader("processor_type"), equalTo(Collections.singletonList("unknown_processor")));
+        assertThat(e.getHeader("property_name"), is(nullValue()));
+
+        List<Map<String, Map<String, Object>>> config2 = new ArrayList<>();
+        unknownTaggedConfig = new HashMap<>();
+        unknownTaggedConfig.put("tag", "my_unknown");
+        config2.add(Collections.singletonMap("unknown_processor", unknownTaggedConfig));
+        Map<String, Object> secondUnknonwTaggedConfig = new HashMap<>();
+        secondUnknonwTaggedConfig.put("tag", "my_second_unknown");
+        config2.add(Collections.singletonMap("second_unknown_processor", secondUnknonwTaggedConfig));
+        e = expectThrows(ElasticsearchParseException.class, () -> ConfigurationUtils.readProcessorConfigs(config2, registry));
+        assertThat(e.getMessage(), equalTo("No processor type exists with name [unknown_processor]"));
+        assertThat(e.getHeader("processor_tag"), equalTo(Collections.singletonList("my_unknown")));
+        assertThat(e.getHeader("processor_type"), equalTo(Collections.singletonList("unknown_processor")));
+        assertThat(e.getHeader("property_name"), is(nullValue()));
+
+        assertThat(e.getSuppressed().length, equalTo(1));
+        assertThat(e.getSuppressed()[0], instanceOf(ElasticsearchParseException.class));
+        ElasticsearchParseException e2 = (ElasticsearchParseException) e.getSuppressed()[0];
+        assertThat(e2.getMessage(), equalTo("No processor type exists with name [second_unknown_processor]"));
+        assertThat(e2.getHeader("processor_tag"), equalTo(Collections.singletonList("my_second_unknown")));
+        assertThat(e2.getHeader("processor_type"), equalTo(Collections.singletonList("second_unknown_processor")));
+        assertThat(e2.getHeader("property_name"), is(nullValue()));
     }
 
 }

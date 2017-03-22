@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,11 +30,7 @@ import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 
-import static java.util.Collections.singletonList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
@@ -76,6 +71,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (getSearchRequest().indices() == null || getSearchRequest().indices().length == 0) {
             e = addValidationError("use _all if you really want to copy from all existing indexes", e);
         }
+        if (getSearchRequest().source().fetchSource() != null && getSearchRequest().source().fetchSource().fetchSource() == false) {
+            e = addValidationError("_source:false is not supported in this context", e);
+        }
         /*
          * Note that we don't call index's validator - it won't work because
          * we'll be filling in portions of it as we receive the docs. But we can
@@ -92,12 +90,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             if (destination.version() != Versions.MATCH_ANY && destination.version() != Versions.MATCH_DELETED) {
                 e = addValidationError("unsupported version for internal versioning [" + destination.version() + ']', e);
             }
-        }
-        if (destination.ttl() != null) {
-            e = addValidationError("setting ttl on destination isn't supported. use scripts instead.", e);
-        }
-        if (destination.timestamp() != null) {
-            e = addValidationError("setting timestamp on destination isn't supported. use scripts instead.", e);
         }
         if (getRemoteInfo() != null) {
             if (getSearchRequest().source().query() != null) {
@@ -136,7 +128,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     @Override
-    ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice) {
+    protected ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice) {
         ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask);
         sliced.setRemoteInfo(remoteInfo);
         return sliced;
@@ -170,24 +162,5 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             b.append('[').append(destination.type()).append(']');
         }
         return b.toString();
-    }
-
-    // CompositeIndicesRequest implementation so plugins can reason about the request. This is really just a best effort thing.
-    /**
-     * Accessor to get the underlying {@link IndicesRequest}s that this request wraps. Note that this method is <strong>not
-     * accurate</strong> since it returns a prototype {@link IndexRequest} and not the actual requests that will be issued as part of the
-     * execution of this request. Additionally, scripts can modify the underlying {@link IndexRequest} and change values such as the index,
-     * type, {@link org.elasticsearch.action.support.IndicesOptions}. In short - only use this for very course reasoning about the request.
-     *
-     * @return a list comprising of the {@link SearchRequest} and the prototype {@link IndexRequest}
-     */
-    @Override
-    public List<? extends IndicesRequest> subRequests() {
-        assert getSearchRequest() != null;
-        assert getDestination() != null;
-        if (remoteInfo != null) {
-            return singletonList(getDestination());
-        }
-        return unmodifiableList(Arrays.asList(getSearchRequest(), getDestination()));
     }
 }

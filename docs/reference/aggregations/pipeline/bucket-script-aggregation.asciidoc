@@ -18,7 +18,7 @@ A `bucket_script` aggregation looks like this in isolation:
             "my_var1": "the_sum", <1>
             "my_var2": "the_value_count"
         },
-        "script": "my_var1 / my_var2"
+        "script": "params.my_var1 / params.my_var2"
     }
 }
 --------------------------------------------------
@@ -33,9 +33,9 @@ the metrics to use for that variable.
 for more details) |Required |
 |`buckets_path` |A map of script variables and their associated path to the buckets we wish to use for the variable
 (see <<buckets-path-syntax>> for more details) |Required |
- |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
- details)|Optional, defaults to `skip` |
- |`format` |format to apply to the output value of this aggregation |Optional, defaults to `null` |
+|`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
+ details)|Optional |`skip`
+|`format` |format to apply to the output value of this aggregation |Optional |`null`
 |===
 
 The following snippet calculates the ratio percentage of t-shirt sales compared to total sales each month:

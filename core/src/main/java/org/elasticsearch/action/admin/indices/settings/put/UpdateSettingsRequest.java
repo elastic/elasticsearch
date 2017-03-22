@@ -70,7 +70,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (settings.getAsMap().isEmpty()) {
+        if (settings.isEmpty()) {
             validationException = addValidationError("no settings to update", validationException);
         }
         return validationException;
@@ -121,10 +121,10 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     }
 
     /**
-     * Sets the settings to be updated (either json/yaml/properties format)
+     * Sets the settings to be updated (either json or yaml format)
      */
-    public UpdateSettingsRequest settings(String source) {
-        this.settings = Settings.builder().loadFromSource(source).build();
+    public UpdateSettingsRequest settings(String source, XContentType xContentType) {
+        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 
@@ -146,14 +146,14 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     }
 
     /**
-     * Sets the settings to be updated (either json/yaml/properties format)
+     * Sets the settings to be updated (either json or yaml format)
      */
     @SuppressWarnings("unchecked")
     public UpdateSettingsRequest settings(Map source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            settings(builder.string());
+            settings(builder.string(), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }

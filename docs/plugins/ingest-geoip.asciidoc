@@ -54,6 +54,7 @@ The node must be stopped before removing the plugin.
 | `target_field`         | no        | geoip                                                                              | The field that will hold the geographical information looked up from the Maxmind database.
 | `database_file`        | no        | GeoLite2-City.mmdb                                                                 | The database filename in the geoip config directory. The ingest-geoip plugin ships with the GeoLite2-City.mmdb.gz and GeoLite2-Country.mmdb.gz files.
 | `properties`           | no        | [`continent_name`, `country_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the geoip lookup.
+| `ignore_missing`       | no        | `false`                                                                            | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 |======
 
 *Depends on what is available in `database_field`:
@@ -203,3 +204,14 @@ Which returns:
 }
 --------------------------------------------------
 // TESTRESPONSE
+
+[[ingest-geoip-settings]]
+===== Node Settings
+
+The geoip processor supports the following setting:
+
+`ingest.geoip.cache_size`::
+
+    The maximum number of results that should be cached. Defaults to `1000`.
+
+Note that these settings are node settings and apply to all geoip processors, i.e. there is one cache for all defined geoip processors.

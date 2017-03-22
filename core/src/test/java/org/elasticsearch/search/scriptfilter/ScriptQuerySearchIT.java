@@ -21,6 +21,8 @@ package org.elasticsearch.search.scriptfilter;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
@@ -30,6 +32,8 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.io.IOException;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -37,11 +41,13 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class ScriptQuerySearchIT extends ESIntegTestCase {
 
     @Override
@@ -74,6 +80,16 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
                 return num1.getValue() > param1;
             });
 
+            scripts.put("doc['binaryData'].get(0).length", vars -> {
+                Map<?, ?> doc = (Map) vars.get("doc");
+                return ((ScriptDocValues.BytesRefs) doc.get("binaryData")).get(0).length;
+            });
+
+            scripts.put("doc['binaryData'].get(0).length > 15", vars -> {
+                Map<?, ?> doc = (Map) vars.get("doc");
+                return ((ScriptDocValues.BytesRefs) doc.get("binaryData")).get(0).length > 15;
+            });
+
             return scripts;
         }
     }
@@ -85,6 +101,57 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
                 .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
                 .build();
+    }
+
+    public void testCustomScriptBinaryField() throws Exception {
+        final byte[] randomBytesDoc1 = getRandomBytes(15);
+        final byte[] randomBytesDoc2 = getRandomBytes(16);
+
+        assertAcked(
+                client().admin().indices().prepareCreate("my-index")
+                        .addMapping("my-type", createMappingSource("binary"))
+                        .setSettings(indexSettings())
+        );
+        client().prepareIndex("my-index", "my-type", "1")
+                .setSource(jsonBuilder().startObject().field("binaryData",
+                        Base64.getEncoder().encodeToString(randomBytesDoc1)).endObject())
+                .get();
+        flush();
+        client().prepareIndex("my-index", "my-type", "2")
+                .setSource(jsonBuilder().startObject().field("binaryData",
+                        Base64.getEncoder().encodeToString(randomBytesDoc2)).endObject())
+                .get();
+        flush();
+        refresh();
+
+        SearchResponse response = client().prepareSearch()
+                .setQuery(scriptQuery(
+                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['binaryData'].get(0).length > 15", emptyMap())))
+                .addScriptField("sbinaryData",
+                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['binaryData'].get(0).length", emptyMap()))
+                .get();
+
+        assertThat(response.getHits().getTotalHits(), equalTo(1L));
+        assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
+        assertThat(response.getHits().getAt(0).getFields().get("sbinaryData").getValues().get(0), equalTo(16));
+
+    }
+
+    private byte[] getRandomBytes(int len) {
+        final byte[] randomBytes = new byte[len];
+        random().nextBytes(randomBytes);
+        return randomBytes;
+    }
+
+    private XContentBuilder createMappingSource(String fieldType) throws IOException {
+        return XContentFactory.jsonBuilder().startObject().startObject("my-type")
+                .startObject("properties")
+                .startObject("binaryData")
+                .field("type", fieldType)
+                .field("doc_values", "true")
+                .endObject()
+                .endObject()
+                .endObject().endObject();
     }
 
     public void testCustomScriptBoost() throws Exception {
@@ -105,17 +172,17 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
         logger.info("running doc['num1'].value > 1");
         SearchResponse response = client().prepareSearch()
                 .setQuery(scriptQuery(
-                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1", Collections.emptyMap())))
+                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1", Collections.emptyMap())))
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1",
-                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
+                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
                 .get();
 
-        assertThat(response.getHits().totalHits(), equalTo(2L));
-        assertThat(response.getHits().getAt(0).id(), equalTo("2"));
-        assertThat(response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(2.0));
-        assertThat(response.getHits().getAt(1).id(), equalTo("3"));
-        assertThat(response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat(response.getHits().getTotalHits(), equalTo(2L));
+        assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
+        assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(2.0));
+        assertThat(response.getHits().getAt(1).getId(), equalTo("3"));
+        assertThat(response.getHits().getAt(1).getFields().get("sNum1").getValues().get(0), equalTo(3.0));
 
         Map<String, Object> params = new HashMap<>();
         params.put("param1", 2);
@@ -126,12 +193,12 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
                 .setQuery(scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > param1", params)))
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1",
-                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
+                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
                 .get();
 
-        assertThat(response.getHits().totalHits(), equalTo(1L));
-        assertThat(response.getHits().getAt(0).id(), equalTo("3"));
-        assertThat(response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat(response.getHits().getTotalHits(), equalTo(1L));
+        assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
+        assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(3.0));
 
         params = new HashMap<>();
         params.put("param1", -1);
@@ -141,16 +208,16 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
                 .setQuery(scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > param1", params)))
                 .addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1",
-                    new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
+                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
                 .get();
 
-        assertThat(response.getHits().totalHits(), equalTo(3L));
-        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(1.0));
-        assertThat(response.getHits().getAt(1).id(), equalTo("2"));
-        assertThat(response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
-        assertThat(response.getHits().getAt(2).id(), equalTo("3"));
-        assertThat(response.getHits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat(response.getHits().getTotalHits(), equalTo(3L));
+        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(1.0));
+        assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+        assertThat(response.getHits().getAt(1).getFields().get("sNum1").getValues().get(0), equalTo(2.0));
+        assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+        assertThat(response.getHits().getAt(2).getFields().get("sNum1").getValues().get(0), equalTo(3.0));
     }
 
     private static AtomicInteger scriptCounter = new AtomicInteger(0);

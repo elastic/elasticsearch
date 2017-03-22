@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -42,13 +43,10 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.LegacyDateFieldMapper;
-import org.elasticsearch.index.mapper.LegacyNumberFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -148,10 +146,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
-        builder.field(fieldName);
-        try (XContentParser parser = XContentFactory.xContent(functionBytes).createParser(functionBytes)) {
-            builder.copyCurrentStructure(parser);
-        }
+        builder.rawField(fieldName, functionBytes);
         builder.field(DecayFunctionParser.MULTI_VALUE_MODE.getPreferredName(), multiValueMode.name());
         builder.endObject();
     }
@@ -184,7 +179,8 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) throws IOException {
         AbstractDistanceScoreFunction scoreFunction;
-        try (XContentParser parser = XContentFactory.xContent(functionBytes).createParser(functionBytes)) {
+        // EMPTY is safe because parseVariable doesn't use namedObject
+        try (XContentParser parser = XContentFactory.xContent(functionBytes).createParser(NamedXContentRegistry.EMPTY, functionBytes)) {
             scoreFunction = parseVariable(fieldName, parser, context, multiValueMode);
         }
         return scoreFunction;
@@ -205,13 +201,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
 
         // dates and time and geo need special handling
         parser.nextToken();
-        if (fieldType instanceof LegacyDateFieldMapper.DateFieldType
-                || fieldType instanceof DateFieldMapper.DateFieldType) {
+        if (fieldType instanceof DateFieldMapper.DateFieldType) {
             return parseDateVariable(parser, context, fieldType, mode);
-        } else if (fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType) {
+        } else if (fieldType instanceof GeoPointFieldType) {
             return parseGeoVariable(parser, context, fieldType, mode);
-        } else if (fieldType instanceof LegacyNumberFieldMapper.NumberFieldType
-                || fieldType instanceof NumberFieldMapper.NumberFieldType) {
+        } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
             return parseNumberVariable(parser, context, fieldType, mode);
         } else {
             throw new ParsingException(parser.getTokenLocation(), "field [{}] is of type [{}], but only numeric types are supported.",
@@ -315,12 +309,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         if (originString == null) {
             origin = context.nowInMillis();
         } else {
-            if (dateFieldType instanceof LegacyDateFieldMapper.DateFieldType) {
-                origin = ((LegacyDateFieldMapper.DateFieldType) dateFieldType).parseToMilliseconds(originString, false, null, null,
-                        context);
-            } else {
-                origin = ((DateFieldMapper.DateFieldType) dateFieldType).parseToMilliseconds(originString, false, null, null, context);
-            }
+            origin = ((DateFieldMapper.DateFieldType) dateFieldType).parseToMilliseconds(originString, false, null, null, context);
         }
 
         if (scaleString == null) {
@@ -340,9 +329,9 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         private final GeoPoint origin;
         private final IndexGeoPointFieldData fieldData;
 
-        private static final GeoDistance distFunction = GeoDistance.DEFAULT;
+        private static final GeoDistance distFunction = GeoDistance.ARC;
 
-        public GeoFieldDataScoreFunction(GeoPoint origin, double scale, double decay, double offset, DecayFunction func,
+        GeoFieldDataScoreFunction(GeoPoint origin, double scale, double decay, double offset, DecayFunction func,
                                          IndexGeoPointFieldData fieldData, MultiValueMode mode) {
             super(scale, decay, offset, func, mode);
             this.origin = origin;
@@ -424,7 +413,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         private final IndexNumericFieldData fieldData;
         private final double origin;
 
-        public NumericFieldDataScoreFunction(double origin, double scale, double decay, double offset, DecayFunction func,
+        NumericFieldDataScoreFunction(double origin, double scale, double decay, double offset, DecayFunction func,
                                              IndexNumericFieldData fieldData, MultiValueMode mode) {
             super(scale, decay, offset, func, mode);
             this.fieldData = fieldData;

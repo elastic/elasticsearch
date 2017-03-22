@@ -49,6 +49,8 @@ public class DiskThresholdSettings {
         Setting.positiveTimeSetting("cluster.routing.allocation.disk.reroute_interval", TimeValue.timeValueSeconds(60),
             Setting.Property.Dynamic, Setting.Property.NodeScope);
 
+    private volatile String lowWatermarkRaw;
+    private volatile String highWatermarkRaw;
     private volatile Double freeDiskThresholdLow;
     private volatile Double freeDiskThresholdHigh;
     private volatile ByteSizeValue freeBytesThresholdLow;
@@ -86,6 +88,7 @@ public class DiskThresholdSettings {
 
     private void setLowWatermark(String lowWatermark) {
         // Watermark is expressed in terms of used data, but we need "free" data watermark
+        this.lowWatermarkRaw = lowWatermark;
         this.freeDiskThresholdLow = 100.0 - thresholdPercentageFromWatermark(lowWatermark);
         this.freeBytesThresholdLow = thresholdBytesFromWatermark(lowWatermark,
             CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey());
@@ -93,9 +96,24 @@ public class DiskThresholdSettings {
 
     private void setHighWatermark(String highWatermark) {
         // Watermark is expressed in terms of used data, but we need "free" data watermark
+        this.highWatermarkRaw = highWatermark;
         this.freeDiskThresholdHigh = 100.0 - thresholdPercentageFromWatermark(highWatermark);
         this.freeBytesThresholdHigh = thresholdBytesFromWatermark(highWatermark,
             CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey());
+    }
+
+    /**
+     * Gets the raw (uninterpreted) low watermark value as found in the settings.
+     */
+    public String getLowWatermarkRaw() {
+        return lowWatermarkRaw;
+    }
+
+    /**
+     * Gets the raw (uninterpreted) high watermark value as found in the settings.
+     */
+    public String getHighWatermarkRaw() {
+        return highWatermarkRaw;
     }
 
     public Double getFreeDiskThresholdLow() {

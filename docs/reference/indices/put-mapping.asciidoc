@@ -1,7 +1,7 @@
 [[indices-put-mapping]]
 == Put Mapping
 
-The PUT mapping API allows you to provide type mappings while creating a new index, add a new type to an existing index, or add new
+The PUT mapping API allows you to add a new type to an existing index, or add new
 fields to an existing type:
 
 [source,js]
@@ -61,6 +61,11 @@ PUT /{index}/_mapping/{type}
 * `{type}` is the name of the type to update.
 * `{body}` contains the mapping changes that should be applied.
 
+
+NOTE: When updating the `_default_` mapping with the
+<<indices-put-mapping,PUT mapping>> API, the new mapping is not merged with
+the existing mapping.  Instead, the new `_default_` mapping replaces the
+existing one.
 
 [[updating-field-mappings]]
 [float]

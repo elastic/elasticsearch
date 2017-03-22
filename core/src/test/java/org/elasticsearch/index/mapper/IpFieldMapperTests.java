@@ -23,32 +23,22 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.IpFieldMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
-
-import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
-import static org.hamcrest.Matchers.containsString;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collection;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class IpFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -56,7 +46,7 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
     DocumentMapperParser parser;
 
     @Before
-    public void before() {
+    public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
     }
@@ -197,44 +187,6 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(0, fields.length);
     }
 
-    public void testIncludeInAll() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "ip").endObject().endObject()
-                .endObject().endObject().string();
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "::1")
-                .endObject()
-                .bytes());
-
-        IndexableField[] fields = doc.rootDoc().getFields("_all");
-        assertEquals(1, fields.length);
-        assertEquals("::1", fields[0].stringValue());
-
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "ip")
-                .field("include_in_all", false).endObject().endObject()
-                .endObject().endObject().string();
-
-        mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "::1")
-                .endObject()
-                .bytes());
-
-        fields = doc.rootDoc().getFields("_all");
-        assertEquals(0, fields.length);
-    }
-
     public void testNullValue() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
@@ -313,14 +265,5 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
-
-        // before 5.x
-        Version oldVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_2_0_0, Version.V_2_3_5);
-        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
-        indexService = createIndex("test_old", oldIndexSettings);
-        parser = indexService.mapperService().documentMapperParser();
-
-        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, defaultMapper.mappingSource().string());
     }
 }

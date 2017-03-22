@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,26 +38,33 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.OK;
 
+/**
+ * The REST handler for get alias and head alias APIs.
+ */
 public class RestGetAliasesAction extends BaseRestHandler {
 
-    @Inject
-    public RestGetAliasesAction(Settings settings, RestController controller) {
+    public RestGetAliasesAction(final Settings settings, final RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_alias/{name}", this);
+        controller.registerHandler(HEAD, "/_alias/{name}", this);
         controller.registerHandler(GET, "/{index}/_alias/{name}", this);
+        controller.registerHandler(HEAD, "/{index}/_alias/{name}", this);
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] aliases = request.paramAsStringArrayOrEmptyIfAll("name");
-        final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
+        final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         getAliasesRequest.indices(indices);
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
         getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
@@ -66,51 +72,52 @@ public class RestGetAliasesAction extends BaseRestHandler {
         return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<GetAliasesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetAliasesResponse response, XContentBuilder builder) throws Exception {
-                // empty body, if indices were specified but no aliases were
-                if (indices.length > 0 && response.getAliases().isEmpty()) {
-                    return new BytesRestResponse(OK, builder.startObject().endObject());
-                } else if (response.getAliases().isEmpty()) {
-                    String message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(getAliasesRequest.aliases()));
-                    builder.startObject()
-                            .field("error", message)
-                            .field("status", RestStatus.NOT_FOUND.getStatus())
-                            .endObject();
-                    return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
-                }
-
-                builder.startObject();
-                for (ObjectObjectCursor<String, List<AliasMetaData>> entry : response.getAliases()) {
-                    builder.startObject(entry.key);
-                    builder.startObject(Fields.ALIASES);
-                    for (AliasMetaData alias : entry.value) {
-                        AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
+                if (response.getAliases().isEmpty()) {
+                    // empty body if indices were specified but no matching aliases exist
+                    if (indices.length > 0) {
+                        return new BytesRestResponse(OK, builder.startObject().endObject());
+                    } else {
+                        final String message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(getAliasesRequest.aliases()));
+                        builder.startObject();
+                        {
+                            builder.field("error", message);
+                            builder.field("status", RestStatus.NOT_FOUND.getStatus());
+                        }
+                        builder.endObject();
+                        return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
+                    }
+                } else {
+                    builder.startObject();
+                    {
+                        for (final ObjectObjectCursor<String, List<AliasMetaData>> entry : response.getAliases()) {
+                            builder.startObject(entry.key);
+                            {
+                                builder.startObject("aliases");
+                                {
+                                    for (final AliasMetaData alias : entry.value) {
+                                        AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
+                                    }
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
                     }
                     builder.endObject();
-                    builder.endObject();
+                    return new BytesRestResponse(OK, builder);
                 }
-                builder.endObject();
-                return new BytesRestResponse(OK, builder);
             }
         });
     }
 
-    private static String toNamesString(String... names) {
+    private static String toNamesString(final String... names) {
         if (names == null || names.length == 0) {
             return "";
         } else if (names.length == 1) {
             return names[0];
         } else {
-            StringBuilder builder = new StringBuilder(names[0]);
-            for (int i = 1; i < names.length; i++) {
-                builder.append(',').append(names[i]);
-            }
-            return builder.toString();
+            return Arrays.stream(names).collect(Collectors.joining(","));
         }
     }
 
-    static class Fields {
-
-        static final String ALIASES = "aliases";
-
-    }
 }

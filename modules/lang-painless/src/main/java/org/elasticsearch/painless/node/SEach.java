@@ -114,4 +114,9 @@ public class SEach extends AStatement {
     void write(MethodWriter writer, Globals globals) {
         sub.write(writer, globals);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(type, name, expression, block);
+    }
 }

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -65,7 +64,8 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
             return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); });
         };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.getIndexAnalyzers(), indexService.similarityService(), mapperRegistry, queryShardContext);
+                indexService.getIndexAnalyzers(), indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry,
+                queryShardContext);
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject(ExternalMetadataMapper.CONTENT_TYPE)
@@ -86,13 +86,9 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
 
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
-        if (version.before(Version.V_2_2_0)) {
-            assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
-        } else if (version.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
-            GeoPoint point = new GeoPoint().resetFromIndexableField(doc.rootDoc().getField("field.point"));
-            assertThat(point.lat(), closeTo(42.0, 1e-5));
-            assertThat(point.lon(), closeTo(51.0, 1e-5));
-        }
+        GeoPoint point = new GeoPoint().resetFromIndexableField(doc.rootDoc().getField("field.point"));
+        assertThat(point.lat(), closeTo(42.0, 1e-5));
+        assertThat(point.lon(), closeTo(51.0, 1e-5));
 
         assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
 
@@ -117,7 +113,8 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
             return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); });
         };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.getIndexAnalyzers(), indexService.similarityService(), mapperRegistry, queryShardContext);
+                indexService.getIndexAnalyzers(), indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry,
+                queryShardContext);
 
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
@@ -149,15 +146,9 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
 
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
-        if (version.before(Version.V_2_2_0)) {
-            assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
-        } else if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
-            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoPointField.encodeLatLon(42.0, 51.0)));
-        } else {
-            GeoPoint point = new GeoPoint().resetFromIndexableField(doc.rootDoc().getField("field.point"));
-            assertThat(point.lat(), closeTo(42.0, 1E-5));
-            assertThat(point.lon(), closeTo(51.0, 1E-5));
-        }
+        GeoPoint point = new GeoPoint().resetFromIndexableField(doc.rootDoc().getField("field.point"));
+        assertThat(point.lat(), closeTo(42.0, 1E-5));
+        assertThat(point.lon(), closeTo(51.0, 1E-5));
 
         IndexableField shape = doc.rootDoc().getField("field.shape");
         assertThat(shape, notNullValue());
@@ -169,11 +160,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField raw = doc.rootDoc().getField("field.field.raw");
 
         assertThat(raw, notNullValue());
-        if (version.before(Version.V_5_0_0_alpha1)) {
-            assertThat(raw.stringValue(), is("foo"));
-        } else {
-            assertThat(raw.binaryValue(), is(new BytesRef("foo")));
-        }
+        assertThat(raw.binaryValue(), is(new BytesRef("foo")));
     }
 
     public void testExternalValuesWithMultifieldTwoLevels() throws Exception {
@@ -190,7 +177,8 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
             return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); });
         };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.getIndexAnalyzers(), indexService.similarityService(), mapperRegistry, queryShardContext);
+                indexService.getIndexAnalyzers(), indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry,
+                queryShardContext);
 
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
@@ -226,11 +214,6 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
 
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
-        if (version.before(Version.V_2_2_0)) {
-            assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
-        } else if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
-            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoPointField.encodeLatLon(42.0, 51.0)));
-        }
 
         assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
 

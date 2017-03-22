@@ -130,4 +130,9 @@ public final class EFunctionRef extends AExpression implements ILambda {
     public Type[] getCaptures() {
         return new Type[0]; // no captures
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(type, call);
+    }
 }

@@ -1,0 +1,5 @@
+:doc-tests: {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation
+
+include::delete.asciidoc[]
+
+:doc-tests!:

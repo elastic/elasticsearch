@@ -110,7 +110,7 @@ For more details on specifying scripts see <<modules-scripting, script documenta
 
 ==== Allowed return types
 
-Whilst and valid script object can be used within a single script. the scripts must return or store in the `_agg` object only the following types:
+Whilst any valid script object can be used within a single script, the scripts must return or store in the `_agg` object only the following types:
 
 * primitive types
 * String
@@ -147,7 +147,7 @@ final combined profit which will be returned in the response of the aggregation.
 
 ==== Worked Example
 
-Imagine a situation where you index the following documents into and index with 2 shards:
+Imagine a situation where you index the following documents into an index with 2 shards:
 
 [source,js]
 --------------------------------------------------
@@ -156,9 +156,9 @@ PUT /transactions/stock/_bulk?refresh
 {"type": "sale","amount": 80}
 {"index":{"_id":2}}
 {"type": "cost","amount": 10}
-{"index":{"_id":2}}
+{"index":{"_id":3}}
 {"type": "cost","amount": 30}
-{"index":{"_id":2}}
+{"index":{"_id":4}}
 {"type": "sale","amount": 130}
 --------------------------------------------------
 // CONSOLE

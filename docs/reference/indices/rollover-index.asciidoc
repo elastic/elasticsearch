@@ -7,7 +7,7 @@ index is considered to be too large or too old.
 The API accepts a single alias name and a list of `conditions`.  The alias
 must point to a single index only.  If the index satisfies the specified
 conditions then a new index is created and the alias is switched to point to
-the new alias.
+the new index.
 
 
 [source,js]
@@ -107,6 +107,8 @@ PUT logs_write/log/1
 {
   "message": "a dummy log"
 }
+
+POST logs_write/_refresh
 
 # Wait for a day to pass
 

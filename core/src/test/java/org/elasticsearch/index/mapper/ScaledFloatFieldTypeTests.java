@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -118,7 +119,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             Double u = randomBoolean() ? null : (randomDouble() * 2 - 1) * 10000;
             boolean includeLower = randomBoolean();
             boolean includeUpper = randomBoolean();
-            Query doubleQ = NumberFieldMapper.NumberType.DOUBLE.rangeQuery("double", l, u, includeLower, includeUpper);
+            Query doubleQ = NumberFieldMapper.NumberType.DOUBLE.rangeQuery("double", l, u, includeLower, includeUpper, false);
             Query scaledFloatQ = ft.rangeQuery(l, u, includeLower, includeUpper, null);
             assertEquals(searcher.count(doubleQ), searcher.count(scaledFloatQ));
         }
@@ -143,6 +144,15 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             assertNull(ft.stats(reader));
         }
         Document doc = new Document();
+        doc.add(new StoredField("scaled_float", -1));
+        w.addDocument(doc);
+        try (DirectoryReader reader = DirectoryReader.open(w)) {
+            // field exists, but has no point values
+            FieldStats<?> stats = ft.stats(reader);
+            assertFalse(stats.hasMinMax());
+            assertNull(stats.getMinValue());
+            assertNull(stats.getMaxValue());
+        }
         LongPoint point = new LongPoint("scaled_float", -1);
         doc.add(point);
         w.addDocument(doc);
@@ -152,7 +162,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             FieldStats<?> stats = ft.stats(reader);
             assertEquals(-1/ft.getScalingFactor(), stats.getMinValue());
             assertEquals(10/ft.getScalingFactor(), stats.getMaxValue());
-            assertEquals(2, stats.getMaxDoc());
+            assertEquals(3, stats.getMaxDoc());
         }
         w.deleteAll();
         try (DirectoryReader reader = DirectoryReader.open(w)) {
@@ -182,6 +192,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             // single-valued
             ft.setName("scaled_float1");
             IndexNumericFieldData fielddata = (IndexNumericFieldData) ft.fielddataBuilder().build(indexSettings, ft, null, null, null);
+            assertEquals(fielddata.getNumericType(), IndexNumericFieldData.NumericType.DOUBLE);
             AtomicNumericFieldData leafFieldData = fielddata.load(reader.leaves().get(0));
             SortedNumericDoubleValues values = leafFieldData.getDoubleValues();
             values.setDocument(0);

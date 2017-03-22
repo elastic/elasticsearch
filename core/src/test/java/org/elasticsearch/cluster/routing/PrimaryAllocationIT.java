@@ -71,7 +71,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     private void createStaleReplicaScenario() throws Exception {
         logger.info("--> starting 3 nodes, 1 master, 2 data");
         String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
-        internalCluster().startDataOnlyNodesAsync(2).get();
+        internalCluster().startDataOnlyNodes(2);
 
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
             .put("index.number_of_shards", 1).put("index.number_of_replicas", 1)).get());
@@ -267,7 +267,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
     public void testNotWaitForQuorumCopies() throws Exception {
         logger.info("--> starting 3 nodes");
-        internalCluster().startNodesAsync(3).get();
+        internalCluster().startNodes(3);
         logger.info("--> creating index with 1 primary and 2 replicas");
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
             .put("index.number_of_shards", randomIntBetween(1, 3)).put("index.number_of_replicas", 2)).get());
@@ -289,7 +289,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
      */
     public void testForceAllocatePrimaryOnNoDecision() throws Exception {
         logger.info("--> starting 1 node");
-        final String node = internalCluster().startNodeAsync().get();
+        final String node = internalCluster().startNode();
         logger.info("--> creating index with 1 primary and 0 replicas");
         final String indexName = "test-idx";
         assertAcked(client().admin().indices()

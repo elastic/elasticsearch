@@ -8,6 +8,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs": {
         "range": {
@@ -23,6 +24,9 @@ Example:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales s/now-10M\/M/10-2015/]
+
 <1> < now minus 10 months, rounded down to the start of the month.
 <2> >= now minus 10 months, rounded down to the start of the month.
 
@@ -35,25 +39,27 @@ Response:
 --------------------------------------------------
 {
     ...
-
     "aggregations": {
         "range": {
             "buckets": [
                 {
-                    "to": 1.3437792E+12,
-                    "to_as_string": "08-2012",
-                    "doc_count": 7
+                    "to": 1.4436576E12,
+                    "to_as_string": "10-2015",
+                    "doc_count": 7,
+                    "key": "*-10-2015"
                 },
                 {
-                    "from": 1.3437792E+12,
-                    "from_as_string": "08-2012",
-                    "doc_count": 2
+                    "from": 1.4436576E12,
+                    "from_as_string": "10-2015",
+                    "doc_count": 0,
+                    "key": "10-2015-*"
                 }
             ]
         }
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 [[date-format-pattern]]
 ==== Date Format/Pattern
@@ -125,21 +131,25 @@ to round to the beginning of the day in the CET time zone, you can do the follow
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
    "aggs": {
-           "range": {
-               "date_range": {
-                   "field": "date",
-                   "time_zone": "CET",
-                   "ranges": [
-                      { "to": "2016-02-15/d" }, <1>
-                      { "from": "2016-02-15/d", "to" : "now/d" <2>},
-                      { "from": "now/d" },
-                  ]
-              }
+       "range": {
+           "date_range": {
+               "field": "date",
+               "time_zone": "CET",
+               "ranges": [
+                  { "to": "2016/02/01" }, <1>
+                  { "from": "2016/02/01", "to" : "now/d" <2>},
+                  { "from": "now/d" }
+              ]
           }
       }
-  }
+   }
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+
 <1> This date will be converted to `2016-02-15T00:00:00.000+01:00`.
 <2> `now/d` will be rounded to the beginning of the day in the CET time zone.

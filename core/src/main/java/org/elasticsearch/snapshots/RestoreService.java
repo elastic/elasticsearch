@@ -30,13 +30,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -114,7 +115,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  * which removes {@link RestoreInProgress} when all shards are completed. In case of
  * restore failure a normal recovery fail-over process kicks in.
  */
-public class RestoreService extends AbstractComponent implements ClusterStateListener {
+public class RestoreService extends AbstractComponent implements ClusterStateApplier {
 
     private static final Set<String> UNMODIFIABLE_SETTINGS = unmodifiableSet(newHashSet(
             SETTING_NUMBER_OF_SHARDS,
@@ -159,7 +160,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         this.allocationService = allocationService;
         this.createIndexService = createIndexService;
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
-        clusterService.add(this);
+        clusterService.addStateApplier(this);
         this.clusterSettings = clusterSettings;
         this.cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor(logger);
     }
@@ -175,6 +176,11 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             // Read snapshot info and metadata from the repository
             Repository repository = repositoriesService.repository(request.repositoryName);
             final RepositoryData repositoryData = repository.getRepositoryData();
+            final Optional<SnapshotId> incompatibleSnapshotId =
+                repositoryData.getIncompatibleSnapshotIds().stream().filter(s -> request.snapshotName.equals(s.getName())).findFirst();
+            if (incompatibleSnapshotId.isPresent()) {
+                throw new SnapshotRestoreException(request.repositoryName, request.snapshotName, "cannot restore incompatible snapshot");
+            }
             final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds().stream()
                 .filter(s -> request.snapshotName.equals(s.getName())).findFirst();
             if (matchingSnapshotId.isPresent() == false) {
@@ -184,16 +190,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
             final Snapshot snapshot = new Snapshot(request.repositoryName, snapshotId);
             List<String> filteredIndices = SnapshotUtils.filterIndices(snapshotInfo.indices(), request.indices(), request.indicesOptions());
-            MetaData metaDataIn = repository.getSnapshotMetaData(snapshotInfo, repositoryData.resolveIndices(filteredIndices));
-
-            final MetaData metaData;
-            if (snapshotInfo.version().before(Version.V_2_0_0_beta1)) {
-                // ES 2.0 now requires units for all time and byte-sized settings, so we add the default unit if it's missing in this snapshot:
-                metaData = MetaData.addDefaultUnitsIfNeeded(logger, metaDataIn);
-            } else {
-                // Units are already enforced:
-                metaData = metaDataIn;
-            }
+            MetaData metaData = repository.getSnapshotMetaData(snapshotInfo, repositoryData.resolveIndices(filteredIndices));
 
             // Make sure that we can restore from this snapshot
             validateSnapshotRestorable(request.repositoryName, snapshotInfo);
@@ -214,6 +211,13 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     if (restoreInProgress != null && !restoreInProgress.entries().isEmpty()) {
                         throw new ConcurrentSnapshotExecutionException(snapshot, "Restore process is already running in this cluster");
                     }
+                    // Check if the snapshot to restore is currently being deleted
+                    SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
+                    if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
+                        throw new ConcurrentSnapshotExecutionException(snapshot,
+                            "cannot restore a snapshot while a snapshot deletion is in-progress [" +
+                                deletionsInProgress.getEntries().get(0).getSnapshot() + "]");
+                    }
 
                     // Updating cluster state
                     ClusterState.Builder builder = ClusterState.builder(currentState);
@@ -225,6 +229,8 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     if (!renamedIndices.isEmpty()) {
                         // We have some indices to restore
                         ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder();
+                        final Version minIndexCompatibilityVersion = currentState.getNodes().getMaxNodeVersion()
+                            .minimumIndexCompatibilityVersion();
                         for (Map.Entry<String, String> indexEntry : renamedIndices.entrySet()) {
                             String index = indexEntry.getValue();
                             boolean partial = checkPartial(index);
@@ -233,7 +239,8 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                             IndexMetaData snapshotIndexMetaData = metaData.index(index);
                             snapshotIndexMetaData = updateIndexSettings(snapshotIndexMetaData, request.indexSettings, request.ignoreIndexSettings);
                             try {
-                                snapshotIndexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(snapshotIndexMetaData);
+                                snapshotIndexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(snapshotIndexMetaData,
+                                    minIndexCompatibilityVersion);
                             } catch (Exception ex) {
                                 throw new SnapshotRestoreException(snapshot, "cannot restore index [" + index + "] because it cannot be upgraded", ex);
                             }
@@ -629,13 +636,13 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
         private final Logger logger;
 
-        public CleanRestoreStateTaskExecutor(Logger logger) {
+        CleanRestoreStateTaskExecutor(Logger logger) {
             this.logger = logger;
         }
 
         @Override
-        public BatchResult<Task> execute(final ClusterState currentState, final List<Task> tasks) throws Exception {
-            final BatchResult.Builder<Task> resultBuilder = BatchResult.<Task>builder().successes(tasks);
+        public ClusterTasksResult<Task> execute(final ClusterState currentState, final List<Task> tasks) throws Exception {
+            final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.<Task>builder().successes(tasks);
             Set<Snapshot> completedSnapshots = tasks.stream().map(e -> e.snapshot).collect(Collectors.toSet());
             final List<RestoreInProgress.Entry> entries = new ArrayList<>();
             final RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
@@ -798,7 +805,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
     }
 
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
+    public void applyClusterState(ClusterChangedEvent event) {
         try {
             if (event.localNodeMaster()) {
                 cleanupRestoreState(event);

@@ -20,11 +20,9 @@
 package org.elasticsearch.plugins;
 
 import joptsimple.OptionSet;
-import org.elasticsearch.cli.SettingCommand;
+import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -33,20 +31,18 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A command for the plugin cli to list plugins installed in elasticsearch.
  */
-class ListPluginsCommand extends SettingCommand {
+class ListPluginsCommand extends EnvironmentAwareCommand {
 
     ListPluginsCommand() {
         super("Lists installed elasticsearch plugins");
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
-        final Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         if (Files.exists(env.pluginsFile()) == false) {
             throw new IOException("Plugins directory missing: " + env.pluginsFile());
         }
@@ -60,9 +56,17 @@ class ListPluginsCommand extends SettingCommand {
         }
         Collections.sort(plugins);
         for (final Path plugin : plugins) {
-            terminal.println(plugin.getFileName().toString());
-            PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin.toAbsolutePath()));
-            terminal.println(Terminal.Verbosity.VERBOSE, info.toString());
+            terminal.println(Terminal.Verbosity.SILENT, plugin.getFileName().toString());
+            try {
+                PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin.toAbsolutePath()));
+                terminal.println(Terminal.Verbosity.VERBOSE, info.toString());
+            } catch (IllegalArgumentException e) {
+                if (e.getMessage().contains("incompatible with Elasticsearch")) {
+                    terminal.println("WARNING: " + e.getMessage());
+                } else {
+                    throw e;
+                }
+            }
         }
     }
 }

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 
 import java.util.ArrayList;
@@ -57,7 +57,7 @@ public class ReindexFailureTests extends ReindexTestCase {
          */
         copy.source().setSize(1);
 
-        BulkIndexByScrollResponse response = copy.get();
+        BulkByScrollResponse response = copy.get();
         assertThat(response, matcher()
                 .batches(1)
                 .failures(both(greaterThan(0)).and(lessThanOrEqualTo(maximumNumberOfShards()))));
@@ -77,7 +77,7 @@ public class ReindexFailureTests extends ReindexTestCase {
         // CREATE will cause the conflict to prevent the write.
         copy.destination().setOpType(CREATE);
 
-        BulkIndexByScrollResponse response = copy.get();
+        BulkByScrollResponse response = copy.get();
         assertThat(response, matcher().batches(1).versionConflicts(1).failures(1).created(99));
         for (Failure failure: response.getBulkFailures()) {
             assertThat(failure.getMessage(), containsString("VersionConflictEngineException[[test]["));
@@ -99,7 +99,7 @@ public class ReindexFailureTests extends ReindexTestCase {
             indexDocs(100);
             ReindexRequestBuilder copy = reindex().source("source").destination("dest");
             copy.source().setSize(10);
-            Future<BulkIndexByScrollResponse> response = copy.execute();
+            Future<BulkByScrollResponse> response = copy.execute();
             client().admin().indices().prepareDelete("source").get();
 
             try {
@@ -117,28 +117,6 @@ public class ReindexFailureTests extends ReindexTestCase {
             }
         }
         assumeFalse("Wasn't able to trigger a reindex failure in " + attempt + " attempts.", true);
-    }
-
-    public void testSettingTtlIsValidationFailure() throws Exception {
-        indexDocs(1);
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest");
-        copy.destination().setTTL(123);
-        try {
-            copy.get();
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("setting ttl on destination isn't supported. use scripts instead."));
-        }
-    }
-
-    public void testSettingTimestampIsValidationFailure() throws Exception {
-        indexDocs(1);
-        ReindexRequestBuilder copy = reindex().source("source").destination("dest");
-        copy.destination().setTimestamp("now");
-        try {
-            copy.get();
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("setting timestamp on destination isn't supported. use scripts instead."));
-        }
     }
 
     private void indexDocs(int count) throws Exception {

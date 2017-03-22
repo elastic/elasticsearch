@@ -67,6 +67,7 @@ A document is a basic unit of information that can be indexed. For example, you 
 
 Within an index/type, you can store as many documents as you want. Note that although a document physically resides in an index, a document actually must be indexed/assigned to a type inside an index.
 
+[[getting-started-shards-and-replicas]]
 [float]
 === Shards & Replicas
 
@@ -91,7 +92,7 @@ Replication is important for two primary reasons:
 
 
 To summarize, each index can be split into multiple shards. An index can also be replicated zero (meaning no replicas) or more times. Once replicated, each index will have primary shards (the original shards that were replicated from) and replica shards (the copies of the primary shards).
-The number of shards and replicas can be defined per index at the time the index is created. After the index is created, you may change the number of replicas dynamically anytime but you cannot change the number shards after-the-fact.
+The number of shards and replicas can be defined per index at the time the index is created. After the index is created, you may change the number of replicas dynamically anytime but you cannot change the number of shards after-the-fact.
 
 By default, each index in Elasticsearch is allocated 5 primary shards and 1 replica which means that if you have at least two nodes in your cluster, your index will have 5 primary shards and another 5 replica shards (1 complete replica) for a total of 10 shards per index.
 
@@ -153,7 +154,6 @@ If everything goes well, you should see a bunch of messages that look like below
 [2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [aggs-matrix-stats]
 [2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [ingest-common]
 [2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [lang-expression]
-[2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [lang-groovy]
 [2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [lang-mustache]
 [2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [lang-painless]
 [2016-09-16T14:17:51,967][INFO ][o.e.p.PluginsService     ] [6-bjhwl] loaded module [percolator]
@@ -171,7 +171,7 @@ If everything goes well, you should see a bunch of messages that look like below
 [2016-09-16T14:17:56,748][INFO ][o.e.n.Node               ] [6-bjhwl] started
 --------------------------------------------------
 
-Without going too much into detail, we can see that our node named "I8hydUG" (which will be a different set of characters in your case) has started and elected itself as a master in a single cluster. Don't worry yet at the moment what master means. The main thing that is important here is that we have started one node within one cluster.
+Without going too much into detail, we can see that our node named "6-bjhwl" (which will be a different set of characters in your case) has started and elected itself as a master in a single cluster. Don't worry yet at the moment what master means. The main thing that is important here is that we have started one node within one cluster.
 
 As mentioned previously, we can override either the cluster or node name. This can be done from the command line when starting Elasticsearch as follows:
 
@@ -199,9 +199,9 @@ Now that we have our node (and cluster) up and running, the next step is to unde
 Let's start with a basic health check, which we can use to see how our cluster is doing. We'll be using curl to do this but you can use any tool that allows you to make HTTP/REST calls. Let's assume that we are still on the same node where we started Elasticsearch on and open another command shell window.
 
 To check the cluster health, we will be using the <<cat,`_cat` API>>. You can
-run the command below in https://www.elastic.co/guide/en/kibana/{branch}/console-kibana.html[Kibana's Console]
+run the command below in {kibana}/console-kibana.html[Kibana's Console]
 by clicking "VIEW IN CONSOLE" or with `curl` by clicking the "COPY AS CURL"
-link below and pasting the into a terminal.
+link below and pasting it into a terminal.
 
 [source,js]
 --------------------------------------------------
@@ -216,7 +216,8 @@ And the response:
 epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
 1475247709 17:01:49  elasticsearch green           1         1      0   0    0    0        0             0                  -                100.0%
 --------------------------------------------------
-// TESTRESPONSE[s/1475247709 17:01:49  elasticsearch/\\d+ \\d+:\\d+:\\d+ docs_integTest/ _cat]
+// TESTRESPONSE[s/0             0/0             [01]/]
+// TESTRESPONSE[s/1475247709 17:01:49  elasticsearch/\\d+ \\d+:\\d+:\\d+ docs_integTestCluster/ _cat]
 
 We can see that our cluster named "elasticsearch" is up with a green status.
 
@@ -242,7 +243,7 @@ ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master
 // TESTRESPONSE[s/10           5   5    4.46/\\d+ \\d+ \\d+ (\\d+\\.\\d+)? (\\d+\\.\\d+)? (\\d+\.\\d+)?/]
 // TESTRESPONSE[s/[*]/[*]/ s/PB2SGZY/.+/ _cat]
 
-Here, we can see our one node named "I8hydUG", which is the single node that is currently in our cluster.
+Here, we can see our one node named "PB2SGZY", which is the single node that is currently in our cluster.
 
 === List All Indices
 
@@ -400,7 +401,7 @@ If we study the above commands carefully, we can actually see a pattern of how w
 --------------------------------------------------
 // NOTCONSOLE
 
-This REST access pattern is pervasive throughout all the API commands that if you can simply remember it, you will have a good head start at mastering Elasticsearch.
+This REST access pattern is so pervasive throughout all the API commands that if you can simply remember it, you will have a good head start at mastering Elasticsearch.
 
 == Modifying Your Data
 
@@ -551,7 +552,7 @@ POST /customer/external/_bulk?pretty
 
 Note above that for the delete action, there is no corresponding source document after it since deletes only require the ID of the document to be deleted.
 
-The bulk API executes all the actions sequentially and in order. If a single action fails for whatever reason, it will continue to process the remainder of the actions after it. When the bulk API returns, it will provide a status for each action (in the same order it was sent in) so that you can check if a specific action failed or not.
+The Bulk API does not fail due to failures in one of the actions. If a single action fails for whatever reason, it will continue to process the remainder of the actions after it. When the bulk API returns, it will provide a status for each action (in the same order it was sent in) so that you can check if a specific action failed or not.
 
 == Exploring Your Data
 
@@ -587,7 +588,7 @@ You can download the sample dataset (accounts.json) from https://github.com/elas
 
 [source,sh]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/bank/account/_bulk?pretty&refresh' --data-binary "@accounts.json"
+curl -H "Content-Type: application/json" -XPOST 'localhost:9200/bank/account/_bulk?pretty&refresh' --data-binary "@accounts.json"
 curl 'localhost:9200/_cat/indices?v'
 --------------------------------------------------
 // NOTCONSOLE
@@ -624,12 +625,12 @@ The REST API for search is accessible from the `_search` endpoint. This example 
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search?q=*&sort=account_number:asc
+GET /bank/_search?q=*&sort=account_number:asc&pretty
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
 
-Let's first dissect the search call. We are searching (`_search` endpoint) in the bank index, and the `q=*` parameter instructs Elasticsearch to match all documents in the index. The `pretty` parameter, again, just tells Elasticsearch to return pretty-printed JSON results.
+Let's first dissect the search call. We are searching (`_search` endpoint) in the bank index, and the `q=*` parameter instructs Elasticsearch to match all documents in the index. The `sort=account_number:asc` parameter indicates to sort the results using the `account_number` field of each document in an ascending order. The `pretty` parameter, again, just tells Elasticsearch to return pretty-printed JSON results.
 
 And the response (partially shown):
 
@@ -676,8 +677,8 @@ As for the response, we see the following parts:
 * `hits` – search results
 * `hits.total` – total number of documents matching our search criteria
 * `hits.hits` – actual array of search results (defaults to first 10 documents)
-* `sort` - sort key for results (missing if sorting by score)
-* `_score` and `max_score` - ignore these fields for now
+* `hits.sort` - sort key for results (missing if sorting by score)
+* `hits._score` and `max_score` - ignore these fields for now
 
 Here is the same exact search above using the alternative request body method:
 
@@ -941,7 +942,7 @@ In the above example, the `bool must_not` clause specifies a list of queries non
 
 We can combine `must`, `should`, and `must_not` clauses simultaneously inside a `bool` query. Furthermore, we can compose `bool` queries inside any of these `bool` clauses to mimic any complex multi-level boolean logic.
 
-This example returns all accounts of anybody who is 40 years old but don't live in ID(aho):
+This example returns all accounts of anybody who is 40 years old but doesn't live in ID(aho):
 
 [source,js]
 --------------------------------------------------
@@ -1195,7 +1196,7 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
-There are a many other aggregations capabilities that we won't go into detail here. The <<search-aggregations,aggregations reference guide>> is a great starting point if you want to do further experimentation.
+There are many other aggregations capabilities that we won't go into detail here. The <<search-aggregations,aggregations reference guide>> is a great starting point if you want to do further experimentation.
 
 == Conclusion
 

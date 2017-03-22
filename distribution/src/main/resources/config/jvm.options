@@ -47,8 +47,11 @@
 
 ## basic
 
-# force the server VM
+# force the server VM (remove on 32-bit client JVMs)
 -server
+
+# explicitly set the stack size (reduce to 320k on 32-bit client JVMs)
+-Xss1m
 
 # set to headless, just in case
 -Djava.awt.headless=true
@@ -62,9 +65,10 @@
 # use old-style file permissions on JDK9
 -Djdk.io.permissionsUseCanonicalPath=true
 
-# flags to keep Netty from being unsafe
+# flags to configure Netty
 -Dio.netty.noUnsafe=true
 -Dio.netty.noKeySetOptimization=true
+-Dio.netty.recycler.maxCapacityPerThread=0
 
 # log4j 2
 -Dlog4j.shutdownHookEnabled=false
@@ -93,3 +97,10 @@
 # log GC status to a file with time stamps
 # ensure the directory exists
 #-Xloggc:${loggc}
+
+# By default, the GC log file will not rotate.
+# By uncommenting the lines below, the GC log file
+# will be rotated every 128MB at most 32 times.
+#-XX:+UseGCLogFileRotation
+#-XX:NumberOfGCLogFiles=32
+#-XX:GCLogFileSize=128M

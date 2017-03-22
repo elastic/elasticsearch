@@ -181,10 +181,9 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME).addStoredField(NUMBER_FIELD_NAME).addSort(SortBuilders.fieldSort(NUMBER_FIELD_NAME)
                 .order(SortOrder.ASC)).setSize(5000).get();
         assertSearchResponse(response);
-        long totalHits = response.getHits().totalHits();
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        long totalHits = response.getHits().getTotalHits();
+        XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
         logger.info("Full high_card_idx Response Content:\n{ {} }", builder.string());
         for (int i = 0; i < totalHits; i++) {
             SearchHit searchHit = response.getHits().getAt(i);

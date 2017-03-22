@@ -28,10 +28,7 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -43,7 +40,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -53,7 +49,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -63,7 +58,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
     DocumentMapperParser parser;
 
     @Before
-    public void before() {
+    public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
     }
@@ -219,7 +214,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("b", fields[1].stringValue());
 
         IndexShard shard = indexService.getShard(0);
-        shard.index(new Engine.Index(new Term("_uid", "1"), doc));
+        shard.index(new Engine.Index(new Term("_uid", doc.uid() ), doc));
         shard.refresh("test");
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             LeafReader leaf = searcher.getDirectoryReader().leaves().get(0).reader();
@@ -258,7 +253,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("b", fields[1].stringValue());
 
         IndexShard shard = indexService.getShard(0);
-        shard.index(new Engine.Index(new Term("_uid", "1"), doc));
+        shard.index(new Engine.Index(new Term("_uid", doc.uid()), doc));
         shard.refresh("test");
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             LeafReader leaf = searcher.getDirectoryReader().leaves().get(0).reader();
@@ -573,23 +568,5 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
-
-        // empty name allowed in index created before 5.0
-        Version oldVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_2_0_0, Version.V_2_3_5);
-        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
-        indexService = createIndex("test_old", oldIndexSettings);
-        parser = indexService.mapperService().documentMapperParser();
-
-        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
-        String downgradedMapping = XContentFactory.jsonBuilder().startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("")
-                            .field("type", "string")
-                            .field("fielddata", false)
-                        .endObject()
-                    .endObject()
-                .endObject().endObject().string();
-        assertEquals(downgradedMapping, defaultMapper.mappingSource().string());
     }
 }

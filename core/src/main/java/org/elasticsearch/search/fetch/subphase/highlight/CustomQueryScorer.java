@@ -24,7 +24,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.search.highlight.WeightedSpanTerm;
 import org.apache.lucene.search.highlight.WeightedSpanTermExtractor;
-import org.apache.lucene.spatial.geopoint.search.GeoPointInBBoxQuery;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.query.HasChildQueryBuilder;
@@ -67,21 +66,18 @@ public final class CustomQueryScorer extends QueryScorer {
 
     private static class CustomWeightedSpanTermExtractor extends WeightedSpanTermExtractor {
 
-        public CustomWeightedSpanTermExtractor() {
+        CustomWeightedSpanTermExtractor() {
             super();
         }
 
-        public CustomWeightedSpanTermExtractor(String defaultField) {
+        CustomWeightedSpanTermExtractor(String defaultField) {
             super(defaultField);
         }
 
         @Override
         protected void extractUnknownQuery(Query query,
                                            Map<String, WeightedSpanTerm> terms) throws IOException {
-            if (query instanceof FiltersFunctionScoreQuery) {
-                query = ((FiltersFunctionScoreQuery) query).getSubQuery();
-                extract(query, 1F, terms);
-            } else if (terms.isEmpty()) {
+            if (terms.isEmpty()) {
                 extractWeightedTerms(terms, query, 1F);
             }
         }
@@ -92,6 +88,8 @@ public final class CustomQueryScorer extends QueryScorer {
                 return;
             } else if (query instanceof FunctionScoreQuery) {
                 super.extract(((FunctionScoreQuery) query).getSubQuery(), boost, terms);
+            } else if (query instanceof FiltersFunctionScoreQuery) {
+                super.extract(((FiltersFunctionScoreQuery) query).getSubQuery(), boost, terms);
             } else {
                 super.extract(query, boost, terms);
             }

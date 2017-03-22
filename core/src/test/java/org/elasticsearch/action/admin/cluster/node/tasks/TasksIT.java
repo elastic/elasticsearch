@@ -38,14 +38,19 @@ import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationActionTests;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -82,14 +87,20 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyCollectionOf;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Integration tests for task management API
@@ -288,10 +299,13 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManageListeners(BulkAction.NAME + "[s][r]");  // shard task on replica
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
-        client().prepareBulk().add(client().prepareIndex("test", "doc", "test_id").setSource("{\"foo\": \"bar\"}")).get();
+        client().prepareBulk().add(client().prepareIndex("test", "doc", "test_id")
+            .setSource("{\"foo\": \"bar\"}", XContentType.JSON)).get();
 
         // the bulk operation should produce one main task
-        assertEquals(1, numberOfEvents(BulkAction.NAME, Tuple::v1));
+        List<TaskInfo> topTask = findEvents(BulkAction.NAME, Tuple::v1);
+        assertEquals(1, topTask.size());
+        assertEquals("requests[1], indices[test]", topTask.get(0).getDescription());
 
         // we should also get 1 or 2 [s] operation with main operation as a parent
         // in case the primary is located on the coordinating node we will have 1 operation, otherwise - 2
@@ -305,17 +319,20 @@ public class TasksIT extends ESIntegTestCase {
             shardTask = shardTasks.get(0);
             // and it should have the main task as a parent
             assertParentTask(shardTask, findEvents(BulkAction.NAME, Tuple::v1).get(0));
+            assertEquals("requests[1], index[test]", shardTask.getDescription());
         } else {
             if (shardTasks.get(0).getParentTaskId().equals(shardTasks.get(1).getTaskId())) {
                 // task 1 is the parent of task 0, that means that task 0 will control [s][p] and [s][r] tasks
                  shardTask = shardTasks.get(0);
                 // in turn the parent of the task 1 should be the main task
                 assertParentTask(shardTasks.get(1), findEvents(BulkAction.NAME, Tuple::v1).get(0));
+                assertEquals("requests[1], index[test]", shardTask.getDescription());
             } else {
                 // otherwise task 1 will control [s][p] and [s][r] tasks
                 shardTask = shardTasks.get(1);
                 // in turn the parent of the task 0 should be the main task
                 assertParentTask(shardTasks.get(0), findEvents(BulkAction.NAME, Tuple::v1).get(0));
+                assertEquals("requests[1], index[test]", shardTask.getDescription());
             }
         }
 
@@ -327,6 +344,49 @@ public class TasksIT extends ESIntegTestCase {
         // they all should have the same shard task as a parent
         assertEquals(getNumShards("test").numReplicas, numberOfEvents(BulkAction.NAME + "[s][r]", Tuple::v1));
         assertParentTask(findEvents(BulkAction.NAME + "[s][r]", Tuple::v1), shardTask);
+    }
+
+
+    public void testSearchTaskDescriptions() {
+        registerTaskManageListeners(SearchAction.NAME);  // main task
+        registerTaskManageListeners(SearchAction.NAME + "[*]");  // shard task
+        createIndex("test");
+        ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
+        client().prepareIndex("test", "doc", "test_id").setSource("{\"foo\": \"bar\"}", XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        assertSearchResponse(client().prepareSearch("test").setTypes("doc").setQuery(QueryBuilders.matchAllQuery()).get());
+
+        // the search operation should produce one main task
+        List<TaskInfo> mainTask = findEvents(SearchAction.NAME, Tuple::v1);
+        assertEquals(1, mainTask.size());
+        assertThat(mainTask.get(0).getDescription(), startsWith("indices[test], types[doc], search_type["));
+        assertThat(mainTask.get(0).getDescription(), containsString("\"query\":{\"match_all\""));
+
+        // check that if we have any shard-level requests they all have non-zero length description
+        List<TaskInfo> shardTasks = findEvents(SearchAction.NAME + "[*]", Tuple::v1);
+        for (TaskInfo taskInfo : shardTasks) {
+            assertThat(taskInfo.getParentTaskId(), notNullValue());
+            assertEquals(mainTask.get(0).getTaskId(), taskInfo.getParentTaskId());
+            switch (taskInfo.getAction()) {
+                case SearchTransportService.QUERY_ACTION_NAME:
+                case SearchTransportService.DFS_ACTION_NAME:
+                    assertTrue(taskInfo.getDescription(), Regex.simpleMatch("shardId[[test][*]]", taskInfo.getDescription()));
+                    break;
+                case SearchTransportService.QUERY_ID_ACTION_NAME:
+                    assertTrue(taskInfo.getDescription(), Regex.simpleMatch("id[*], indices[test]", taskInfo.getDescription()));
+                    break;
+                case SearchTransportService.FETCH_ID_ACTION_NAME:
+                    assertTrue(taskInfo.getDescription(), Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null]",
+                        taskInfo.getDescription()));
+                    break;
+                default:
+                    fail("Unexpected action [" + taskInfo.getAction() + "] with description [" + taskInfo.getDescription() + "]");
+            }
+            // assert that all task descriptions have non-zero length
+            assertThat(taskInfo.getDescription().length(), greaterThan(0));
+        }
+
     }
 
     /**
@@ -673,13 +733,13 @@ public class TasksIT extends ESIntegTestCase {
             .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.action", taskInfo.getAction())))
             .get();
 
-        assertEquals(1L, searchResponse.getHits().totalHits());
+        assertEquals(1L, searchResponse.getHits().getTotalHits());
 
         searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX).setTypes(TaskResultsService.TASK_TYPE)
                 .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.node", taskInfo.getTaskId().getNodeId())))
                 .get();
 
-        assertEquals(1L, searchResponse.getHits().totalHits());
+        assertEquals(1L, searchResponse.getHits().getTotalHits());
 
         GetTaskResponse getResponse = expectFinishedTask(taskId);
         assertEquals(result, getResponse.getTask().getResponseAsMap());

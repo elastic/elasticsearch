@@ -30,13 +30,10 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -284,11 +281,6 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
         return validationException;
     }
 
-    @Override
-    public List<? extends IndicesRequest> subRequests() {
-        return items;
-    }
-
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
      * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
@@ -322,32 +314,19 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
         return this;
     }
 
-
-    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, byte[] data, int from, int length) throws Exception {
-        return add(defaultIndex, defaultType, defaultFields, defaultFetchSource, new BytesArray(data, from, length), true);
-    }
-
-    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, BytesReference data) throws Exception {
-        return add(defaultIndex, defaultType, defaultFields, defaultFetchSource, data, true);
-    }
-
-    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, BytesReference data, boolean allowExplicitIndex) throws Exception {
-        return add(defaultIndex, defaultType, defaultFields, defaultFetchSource, null, data, allowExplicitIndex);
-    }
-
-    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, @Nullable String defaultRouting, BytesReference data, boolean allowExplicitIndex) throws IOException {
-        try (XContentParser parser = XContentFactory.xContent(data).createParser(data)) {
-            XContentParser.Token token;
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    if ("docs".equals(currentFieldName)) {
-                        parseDocuments(parser, this.items, defaultIndex, defaultType, defaultFields, defaultFetchSource, defaultRouting, allowExplicitIndex);
-                    } else if ("ids".equals(currentFieldName)) {
-                        parseIds(parser, this.items, defaultIndex, defaultType, defaultFields, defaultFetchSource, defaultRouting);
-                    }
+    public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields,
+            @Nullable FetchSourceContext defaultFetchSource, @Nullable String defaultRouting, XContentParser parser,
+            boolean allowExplicitIndex) throws IOException {
+        XContentParser.Token token;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if ("docs".equals(currentFieldName)) {
+                    parseDocuments(parser, this.items, defaultIndex, defaultType, defaultFields, defaultFetchSource, defaultRouting, allowExplicitIndex);
+                } else if ("ids".equals(currentFieldName)) {
+                    parseIds(parser, this.items, defaultIndex, defaultType, defaultFields, defaultFetchSource, defaultRouting);
                 }
             }
         }
@@ -400,7 +379,8 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
                     } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
                         versionType = VersionType.fromString(parser.text());
                     } else if ("_source".equals(currentFieldName)) {
-                        if (parser.isBooleanValue()) {
+                        // check lenient to avoid interpreting the value as string but parse strict in order to provoke an error early on.
+                        if (parser.isBooleanValueLenient()) {
                             fetchSourceContext = new FetchSourceContext(parser.booleanValue(), fetchSourceContext.includes(),
                                 fetchSourceContext.excludes());
                         } else if (token == XContentParser.Token.VALUE_STRING) {

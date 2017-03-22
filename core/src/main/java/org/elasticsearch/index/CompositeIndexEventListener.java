@@ -30,6 +30,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -176,48 +177,24 @@ final class CompositeIndexEventListener implements IndexEventListener {
     }
 
     @Override
-    public void beforeIndexClosed(IndexService indexService) {
+    public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
         for (IndexEventListener listener : listeners) {
             try {
-                listener.beforeIndexClosed(indexService);
+                listener.beforeIndexRemoved(indexService, reason);
             } catch (Exception e) {
-                logger.warn("failed to invoke before index closed callback", e);
+                logger.warn("failed to invoke before index removed callback", e);
                 throw e;
             }
         }
     }
 
     @Override
-    public void beforeIndexDeleted(IndexService indexService) {
+    public void afterIndexRemoved(Index index, IndexSettings indexSettings, IndexRemovalReason reason) {
         for (IndexEventListener listener : listeners) {
             try {
-                listener.beforeIndexDeleted(indexService);
+                listener.afterIndexRemoved(index, indexSettings, reason);
             } catch (Exception e) {
-                logger.warn("failed to invoke before index deleted callback", e);
-                throw e;
-            }
-        }
-    }
-
-    @Override
-    public void afterIndexDeleted(Index index, Settings indexSettings) {
-        for (IndexEventListener listener : listeners) {
-            try {
-                listener.afterIndexDeleted(index, indexSettings);
-            } catch (Exception e) {
-                logger.warn("failed to invoke after index deleted callback", e);
-                throw e;
-            }
-        }
-    }
-
-    @Override
-    public void afterIndexClosed(Index index, Settings indexSettings) {
-        for (IndexEventListener listener : listeners) {
-            try {
-                listener.afterIndexClosed(index, indexSettings);
-            } catch (Exception e) {
-                logger.warn("failed to invoke after index closed callback", e);
+                logger.warn("failed to invoke after index removed callback", e);
                 throw e;
             }
         }

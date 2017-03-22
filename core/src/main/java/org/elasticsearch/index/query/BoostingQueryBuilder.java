@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * The BoostingQuery class can be used to effectively demote results that match a given query.
@@ -137,12 +136,12 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         builder.endObject();
     }
 
-    public static Optional<BoostingQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static BoostingQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
-        Optional<QueryBuilder> positiveQuery = null;
+        QueryBuilder positiveQuery = null;
         boolean positiveQueryFound = false;
-        Optional<QueryBuilder> negativeQuery = null;
+        QueryBuilder negativeQuery = null;
         boolean negativeQueryFound = false;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         float negativeBoost = -1;
@@ -154,21 +153,21 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, POSITIVE_FIELD)) {
+                if (POSITIVE_FIELD.match(currentFieldName)) {
                     positiveQuery = parseContext.parseInnerQueryBuilder();
                     positiveQueryFound = true;
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, NEGATIVE_FIELD)) {
+                } else if (NEGATIVE_FIELD.match(currentFieldName)) {
                     negativeQuery = parseContext.parseInnerQueryBuilder();
                     negativeQueryFound = true;
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[boosting] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, NEGATIVE_BOOST_FIELD)) {
+                if (NEGATIVE_BOOST_FIELD.match(currentFieldName)) {
                     negativeBoost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[boosting] query does not support [" + currentFieldName + "]");
@@ -186,15 +185,12 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
             throw new ParsingException(parser.getTokenLocation(),
                     "[boosting] query requires 'negative_boost' to be set to be a positive value'");
         }
-        if (positiveQuery.isPresent() == false || negativeQuery.isPresent() == false) {
-            return Optional.empty();
-        }
 
-        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery.get(), negativeQuery.get());
+        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery, negativeQuery);
         boostingQuery.negativeBoost(negativeBoost);
         boostingQuery.boost(boost);
         boostingQuery.queryName(queryName);
-        return Optional.of(boostingQuery);
+        return boostingQuery;
     }
 
     @Override

@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -74,7 +75,8 @@ public class DocumentMapper implements ToXContent {
                 final MetadataFieldMapper metadataMapper;
                 if (existingMetadataMapper == null) {
                     final TypeParser parser = entry.getValue();
-                    metadataMapper = parser.getDefault(indexSettings, mapperService.fullName(name), builder.name());
+                    metadataMapper = parser.getDefault(mapperService.fullName(name),
+                            mapperService.documentMapperParser().parserContext(builder.name()));
                 } else {
                     metadataMapper = existingMetadataMapper;
                 }
@@ -235,14 +237,6 @@ public class DocumentMapper implements ToXContent {
         return metadataMapper(ParentFieldMapper.class);
     }
 
-    public TimestampFieldMapper timestampFieldMapper() {
-        return metadataMapper(TimestampFieldMapper.class);
-    }
-
-    public TTLFieldMapper TTLFieldMapper() {
-        return metadataMapper(TTLFieldMapper.class);
-    }
-
     public IndexFieldMapper IndexFieldMapper() {
         return metadataMapper(IndexFieldMapper.class);
     }
@@ -263,8 +257,9 @@ public class DocumentMapper implements ToXContent {
         return this.objectMappers;
     }
 
+    // TODO this method looks like it is only used in tests...
     public ParsedDocument parse(String index, String type, String id, BytesReference source) throws MapperParsingException {
-        return parse(SourceToParse.source(index, type, id, source));
+        return parse(SourceToParse.source(index, type, id, source, XContentType.JSON));
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
@@ -335,6 +330,11 @@ public class DocumentMapper implements ToXContent {
      */
     public DocumentMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
         Mapping updated = this.mapping.updateFieldType(fullNameToFieldType);
+        if (updated == this.mapping) {
+            // no change
+            return this;
+        }
+        assert updated == updated.updateFieldType(fullNameToFieldType) : "updateFieldType operation is not idempotent";
         return new DocumentMapper(mapperService, updated);
     }
 

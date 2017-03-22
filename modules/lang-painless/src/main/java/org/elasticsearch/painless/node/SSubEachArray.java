@@ -47,7 +47,7 @@ final class SSubEachArray extends AStatement {
     private Variable index = null;
     private Type indexed = null;
 
-    public SSubEachArray(Location location, Variable variable, AExpression expression, SBlock block) {
+    SSubEachArray(Location location, Variable variable, AExpression expression, SBlock block) {
         super(location);
 
         this.variable = Objects.requireNonNull(variable);
@@ -106,5 +106,10 @@ final class SSubEachArray extends AStatement {
 
         writer.goTo(begin);
         writer.mark(end);
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(variable.type.name, variable.name, expression, block);
     }
 }

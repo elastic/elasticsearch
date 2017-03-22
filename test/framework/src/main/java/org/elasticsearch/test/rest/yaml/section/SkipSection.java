@@ -19,9 +19,13 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.yaml.Features;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,6 +36,65 @@ import java.util.List;
  * - a specific test feature required that might not be implemented yet by the runner
  */
 public class SkipSection {
+    /**
+     * Parse a {@link SkipSection} if the next field is {@code skip}, otherwise returns {@link SkipSection#EMPTY}.
+     */
+    public static SkipSection parseIfNext(XContentParser parser) throws IOException {
+        ParserUtils.advanceToFieldName(parser);
+
+        if ("skip".equals(parser.currentName())) {
+            SkipSection section = parse(parser);
+            parser.nextToken();
+            return section;
+        }
+
+        return EMPTY;
+    }
+
+    public static SkipSection parse(XContentParser parser) throws IOException {
+        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new IllegalArgumentException("Expected [" + XContentParser.Token.START_OBJECT +
+                    ", found [" + parser.currentToken() + "], the skip section is not properly indented");
+        }
+        String currentFieldName = null;
+        XContentParser.Token token;
+        String version = null;
+        String reason = null;
+        List<String> features = new ArrayList<>();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if ("version".equals(currentFieldName)) {
+                    version = parser.text();
+                } else if ("reason".equals(currentFieldName)) {
+                    reason = parser.text();
+                } else if ("features".equals(currentFieldName)) {
+                    features.add(parser.text());
+                }
+                else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "field " + currentFieldName + " not supported within skip section");
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if ("features".equals(currentFieldName)) {
+                    while(parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        features.add(parser.text());
+                    }
+                }
+            }
+        }
+
+        parser.nextToken();
+
+        if (!Strings.hasLength(version) && features.isEmpty()) {
+            throw new ParsingException(parser.getTokenLocation(), "version or features is mandatory within skip section");
+        }
+        if (Strings.hasLength(version) && !Strings.hasLength(reason)) {
+            throw new ParsingException(parser.getTokenLocation(), "reason is mandatory within skip version section");
+        }
+        return new SkipSection(version, features, reason);
+    }
 
     public static final SkipSection EMPTY = new SkipSection();
 

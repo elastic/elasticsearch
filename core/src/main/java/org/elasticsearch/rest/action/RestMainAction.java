@@ -23,8 +23,6 @@ import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -40,8 +38,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
 public class RestMainAction extends BaseRestHandler {
-
-    @Inject
     public RestMainAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/", this);

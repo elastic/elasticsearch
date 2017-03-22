@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.TypeFieldMapper;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQueryBuilder> {
     public static final String NAME = "parent_id";
@@ -116,7 +115,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
         builder.endObject();
     }
 
-    public static Optional<ParentIdQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static ParentIdQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String type = null;
@@ -129,15 +128,15 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
+                if (TYPE_FIELD.match(currentFieldName)) {
                     type = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ID_FIELD)) {
+                } else if (ID_FIELD.match(currentFieldName)) {
                     id = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, IGNORE_UNMAPPED_FIELD)) {
+                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
                     ignoreUnmapped = parser.booleanValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[parent_id] query does not support [" + currentFieldName + "]");
@@ -150,7 +149,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
         queryBuilder.queryName(queryName);
         queryBuilder.boost(boost);
         queryBuilder.ignoreUnmapped(ignoreUnmapped);
-        return Optional.of(queryBuilder);
+        return queryBuilder;
     }
 
 

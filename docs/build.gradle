@@ -78,8 +78,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/analysis/tokenfilters/stemmer-override-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/stemmer-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/stop-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/synonym-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/synonym-graph-tokenfilter.asciidoc',
   'reference/cat/snapshots.asciidoc',
   'reference/cat/templates.asciidoc',
   'reference/cat/thread_pool.asciidoc',
@@ -143,6 +141,7 @@ integTestCluster {
   configFile 'scripts/my_map_script.painless'
   configFile 'scripts/my_combine_script.painless'
   configFile 'scripts/my_reduce_script.painless'
+  configFile 'analysis/synonym.txt'
   configFile 'userdict_ja.txt'
   configFile 'KeywordTokenizer.rbbi'
   // Whitelist reindexing from the local node so we can test it.

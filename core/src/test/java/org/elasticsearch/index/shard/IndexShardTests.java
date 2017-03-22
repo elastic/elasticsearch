@@ -551,7 +551,7 @@ public class IndexShardTests extends IndexShardTestCase {
                                               ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
         Field uidField = new Field("_uid", Uid.createUid(type, id), UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
-        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        SeqNoFieldMapper.SequenceID seqID = SeqNoFieldMapper.SequenceID.emptySeqID();
         document.add(uidField);
         document.add(versionField);
         document.add(seqID.seqNo);

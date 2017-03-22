@@ -29,8 +29,8 @@ class DeleteVersionValue extends VersionValue {
 
     private final long time;
 
-    DeleteVersionValue(long version,long seqNo, long term, long time) {
-        super(version, seqNo, term);
+    DeleteVersionValue(long version, long time) {
+        super(version);
         this.time = time;
     }
 
@@ -53,8 +53,6 @@ class DeleteVersionValue extends VersionValue {
     public String toString() {
         return "DeleteVersionValue{" +
             "version=" + getVersion() +
-            ", seqNo=" + getSeqNo() +
-            ", term=" + getTerm() +
             ",time=" + time +
             '}';
     }

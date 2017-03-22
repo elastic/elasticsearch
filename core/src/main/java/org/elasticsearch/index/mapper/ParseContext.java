@@ -254,12 +254,12 @@ public abstract class ParseContext {
         }
 
         @Override
-        public SeqNoFieldMapper.SequenceIDFields seqID() {
+        public SeqNoFieldMapper.SequenceID seqID() {
             return in.seqID();
         }
 
         @Override
-        public void seqID(SeqNoFieldMapper.SequenceIDFields seqID) {
+        public void seqID(SeqNoFieldMapper.SequenceID seqID) {
             in.seqID(seqID);
         }
 
@@ -310,7 +310,7 @@ public abstract class ParseContext {
 
         private Field version;
 
-        private SeqNoFieldMapper.SequenceIDFields seqID;
+        private SeqNoFieldMapper.SequenceID seqID;
 
         private final AllEntries allEntries;
 
@@ -404,12 +404,12 @@ public abstract class ParseContext {
         }
 
         @Override
-        public SeqNoFieldMapper.SequenceIDFields seqID() {
+        public SeqNoFieldMapper.SequenceID seqID() {
             return this.seqID;
         }
 
         @Override
-        public void seqID(SeqNoFieldMapper.SequenceIDFields seqID) {
+        public void seqID(SeqNoFieldMapper.SequenceID seqID) {
             this.seqID = seqID;
         }
 
@@ -539,9 +539,9 @@ public abstract class ParseContext {
 
     public abstract void version(Field version);
 
-    public abstract SeqNoFieldMapper.SequenceIDFields seqID();
+    public abstract SeqNoFieldMapper.SequenceID seqID();
 
-    public abstract void seqID(SeqNoFieldMapper.SequenceIDFields seqID);
+    public abstract void seqID(SeqNoFieldMapper.SequenceID seqID);
 
     public final boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
         return includeInAll(includeInAll, mapper.fieldType().indexOptions() != IndexOptions.NONE);

@@ -55,8 +55,8 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
-import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
+import org.elasticsearch.common.lucene.uid.VersionsResolver;
+import org.elasticsearch.common.lucene.uid.VersionsResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -464,7 +464,7 @@ public abstract class Engine implements Closeable {
         final Searcher searcher = searcherFactory.apply("get");
         final DocIdAndVersion docIdAndVersion;
         try {
-            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.reader(), get.uid());
+            docIdAndVersion = VersionsResolver.loadDocIdAndVersion(searcher.reader(), get.uid());
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
             //TODO: A better exception goes here

@@ -29,12 +29,9 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
-import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.common.lucene.uid.VersionsResolver.DocIdAndVersion;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 
 import java.io.IOException;
 
@@ -46,7 +43,7 @@ import java.io.IOException;
  *  in more than one document!  It will only return the first one it
  *  finds. */
 
-final class PerThreadIDAndVersionSeqNoLookup {
+final class PerThreadIDAndVersionLookup {
     // TODO: do we really need to store all this stuff? some if it might not speed up anything.
     // we keep it around for now, to reduce the amount of e.g. hash lookups by field and stuff
 
@@ -54,10 +51,7 @@ final class PerThreadIDAndVersionSeqNoLookup {
     private final TermsEnum termsEnum;
     /** _version data */
     private final NumericDocValues versions;
-    /** _seq_no data */
-    private final NumericDocValues seqNos;
-    /** _primary_term data */
-    private final NumericDocValues primaryTerms;
+
     /** Reused for iteration (when the term exists) */
     private PostingsEnum docsEnum;
 
@@ -66,15 +60,13 @@ final class PerThreadIDAndVersionSeqNoLookup {
     /**
      * Initialize lookup for the provided segment
      */
-    PerThreadIDAndVersionSeqNoLookup(LeafReader reader) throws IOException {
+    PerThreadIDAndVersionLookup(LeafReader reader) throws IOException {
         Fields fields = reader.fields();
         Terms terms = fields.terms(UidFieldMapper.NAME);
         termsEnum = terms.iterator();
         assert termsEnum != null;
         versions = reader.getNumericDocValues(VersionFieldMapper.NAME);
         assert versions != null;
-        seqNos = reader.getNumericDocValues(SeqNoFieldMapper.NAME);
-        primaryTerms = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
         readerKey = reader.getCoreCacheKey();
     }
 
@@ -106,21 +98,5 @@ final class PerThreadIDAndVersionSeqNoLookup {
         } else {
             return DocIdSetIterator.NO_MORE_DOCS;
         }
-    }
-
-    /** Return null if id is not found. */
-    public DocIdAndSeqNo lookupSequenceNo(BytesRef id, Bits liveDocs, LeafReaderContext context) throws IOException {
-        assert context.reader().getCoreCacheKey().equals(readerKey);
-        int docID = getDocID(id, liveDocs);
-        if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-            return new DocIdAndSeqNo(docID, seqNos == null ? SequenceNumbersService.UNASSIGNED_SEQ_NO : seqNos.get(docID), context);
-        } else {
-            return null;
-        }
-    }
-
-    /** returns 0 if the primary term is not found */
-    public long lookUpPrimaryTerm(int docID) throws IOException {
-            return primaryTerms == null ? 0  : primaryTerms.get(docID);
     }
 }

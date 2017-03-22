@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class IndexingSlowLogTests extends ESTestCase {
     public void testSlowLogParsedDocumentPrinterSourceToLog() throws IOException {
         BytesReference source = JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject().bytes();
-        ParsedDocument pd = new ParsedDocument(new NumericDocValuesField("version", 1), SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id",
+        ParsedDocument pd = new ParsedDocument(new NumericDocValuesField("version", 1), SeqNoFieldMapper.SequenceID.emptySeqID(), "id",
                 "test", null, null, source, XContentType.JSON, null);
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]

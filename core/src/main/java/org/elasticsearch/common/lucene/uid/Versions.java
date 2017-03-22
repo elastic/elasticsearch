@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene.uid;
 
-public class Versions {
+public final class Versions {
 
     /** used to indicate the write operation should succeed regardless of current version **/
     public static final long MATCH_ANY = -3L;

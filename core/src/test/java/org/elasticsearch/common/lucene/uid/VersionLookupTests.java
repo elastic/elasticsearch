@@ -31,7 +31,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
+import org.elasticsearch.common.lucene.uid.VersionsResolver.DocIdAndVersion;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -53,7 +53,7 @@ public class VersionLookupTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(writer);
         LeafReaderContext segment = reader.leaves().get(0);
-        PerThreadIDAndVersionSeqNoLookup lookup = new PerThreadIDAndVersionSeqNoLookup(segment.reader());
+        PerThreadIDAndVersionLookup lookup = new PerThreadIDAndVersionLookup(segment.reader());
         // found doc
         DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), null, segment);
         assertNotNull(result);
@@ -81,7 +81,7 @@ public class VersionLookupTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(writer);
         LeafReaderContext segment = reader.leaves().get(0);
-        PerThreadIDAndVersionSeqNoLookup lookup = new PerThreadIDAndVersionSeqNoLookup(segment.reader());
+        PerThreadIDAndVersionLookup lookup = new PerThreadIDAndVersionLookup(segment.reader());
         // return the last doc when there are duplicates
         DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), null, segment);
         assertNotNull(result);

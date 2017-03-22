@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -65,13 +66,13 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
      * A sequence ID, which is made up of a sequence number (both the searchable
      * and doc_value version of the field) and the primary term.
      */
-    public static class SequenceIDFields {
+    public static class SequenceID {
 
         public final Field seqNo;
         public final Field seqNoDocValue;
         public final Field primaryTerm;
 
-        public SequenceIDFields(Field seqNo, Field seqNoDocValue, Field primaryTerm) {
+        public SequenceID(Field seqNo, Field seqNoDocValue, Field primaryTerm) {
             Objects.requireNonNull(seqNo, "sequence number field cannot be null");
             Objects.requireNonNull(seqNoDocValue, "sequence number dv field cannot be null");
             Objects.requireNonNull(primaryTerm, "primary term field cannot be null");
@@ -80,9 +81,9 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             this.primaryTerm = primaryTerm;
         }
 
-        public static SequenceIDFields emptySeqID() {
-            return new SequenceIDFields(new LongPoint(NAME, SequenceNumbersService.UNASSIGNED_SEQ_NO),
-                    new NumericDocValuesField(NAME, SequenceNumbersService.UNASSIGNED_SEQ_NO),
+        public static SequenceID emptySeqID() {
+            return new SequenceID(new LongPoint(NAME, SequenceNumbersService.UNASSIGNED_SEQ_NO),
+                    new SortedNumericDocValuesField(NAME, SequenceNumbersService.UNASSIGNED_SEQ_NO),
                     new NumericDocValuesField(PRIMARY_TERM_NAME, 0));
         }
     }
@@ -241,7 +242,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         // see InternalEngine.innerIndex to see where the real version value is set
         // also see ParsedDocument.updateSeqID (called by innerIndex)
-        SequenceIDFields seqID = SequenceIDFields.emptySeqID();
+        SequenceID seqID = SequenceID.emptySeqID();
         context.seqID(seqID);
         fields.add(seqID.seqNo);
         fields.add(seqID.seqNoDocValue);
@@ -263,7 +264,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         for (int i = 1; i < context.docs().size(); i++) {
             final Document doc = context.docs().get(i);
             doc.add(new LongPoint(NAME, 1));
-            doc.add(new NumericDocValuesField(NAME, 1L));
+            doc.add(new SortedNumericDocValuesField(NAME, 1L));
             doc.add(new NumericDocValuesField(PRIMARY_TERM_NAME, 0L));
         }
     }

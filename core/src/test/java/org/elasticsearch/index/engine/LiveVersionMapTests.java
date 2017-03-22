@@ -33,7 +33,7 @@ public class LiveVersionMapTests extends ESTestCase {
         for (int i = 0; i < 100000; ++i) {
             BytesRefBuilder uid = new BytesRefBuilder();
             uid.copyChars(TestUtil.randomSimpleString(random(), 10, 20));
-            VersionValue version = new VersionValue(randomLong(), randomLong(), randomLong());
+            VersionValue version = new VersionValue(randomLong());
             map.putUnderLock(uid.toBytesRef(), version);
         }
         long actualRamBytesUsed = RamUsageTester.sizeOf(map);
@@ -48,7 +48,7 @@ public class LiveVersionMapTests extends ESTestCase {
         for (int i = 0; i < 100000; ++i) {
             BytesRefBuilder uid = new BytesRefBuilder();
             uid.copyChars(TestUtil.randomSimpleString(random(), 10, 20));
-            VersionValue version = new VersionValue(randomLong(), randomLong(), randomLong());
+            VersionValue version = new VersionValue(randomLong());
             map.putUnderLock(uid.toBytesRef(), version);
         }
         actualRamBytesUsed = RamUsageTester.sizeOf(map);

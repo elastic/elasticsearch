@@ -3,7 +3,7 @@
 
 experimental[]
 
-The `synonym_graph` token filter allows to easily handle synonyms, 
+The `synonym_graph` token filter allows to easily handle synonyms,
 including multi-word synonyms correctly during the analysis process.
 
 In order to properly handle multi-word synonyms this token filter
@@ -13,8 +13,8 @@ http://blog.mikemccandless.com/2012/04/lucenes-tokenstreams-are-actually.html[Lu
 
 ["NOTE",id="synonym-graph-index-note"]
 ===============================
-This token filter is designed to be used as part of a search analyzer 
-only.  If you want to apply synonyms during indexing please use the 
+This token filter is designed to be used as part of a search analyzer
+only.  If you want to apply synonyms during indexing please use the
 standard <<analysis-synonym-tokenfilter,synonym token filter>>.
 ===============================
 
@@ -45,8 +45,8 @@ Here is an example:
 
 The above configures a `search_synonyms` filter, with a path of
 `analysis/synonym.txt` (relative to the `config` location). The
-`search_synonyms` analyzer is then configured with the filter. 
-Additional settings are: `ignore_case` (defaults to `false`), and 
+`search_synonyms` analyzer is then configured with the filter.
+Additional settings are: `ignore_case` (defaults to `false`), and
 `expand` (defaults to `true`).
 
 The `tokenizer` parameter controls the tokenizers that will be used to
@@ -106,7 +106,7 @@ configuration file (note use of `synonyms` instead of `synonyms_path`):
             "synonyms" : [
                 "lol, laughing out loud",
                 "universe, cosmos"
-            ] 
+            ]
         }
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -30,20 +31,26 @@ import java.io.IOException;
  */
 public class QueryExplanation  implements Streamable {
 
+    public static final int RANDOM_SHARD = -1;
+
     private String index;
-    
+
+    private int shard = RANDOM_SHARD;
+
     private boolean valid;
-    
+
     private String explanation;
-    
+
     private String error;
 
     QueryExplanation() {
-        
+
     }
-    
-    public QueryExplanation(String index, boolean valid, String explanation, String error) {
+
+    public QueryExplanation(String index, int shard, boolean valid, String explanation,
+                            String error) {
         this.index = index;
+        this.shard = shard;
         this.valid = valid;
         this.explanation = explanation;
         this.error = error;
@@ -51,6 +58,10 @@ public class QueryExplanation  implements Streamable {
 
     public String getIndex() {
         return this.index;
+    }
+
+    public int getShard() {
+        return this.shard;
     }
 
     public boolean isValid() {
@@ -68,6 +79,11 @@ public class QueryExplanation  implements Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         index = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+            shard = in.readInt();
+        } else {
+            shard = RANDOM_SHARD;
+        }
         valid = in.readBoolean();
         explanation = in.readOptionalString();
         error = in.readOptionalString();
@@ -76,6 +92,9 @@ public class QueryExplanation  implements Streamable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
+        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+            out.writeInt(shard);
+        }
         out.writeBoolean(valid);
         out.writeOptionalString(explanation);
         out.writeOptionalString(error);

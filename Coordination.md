@@ -5,6 +5,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 5042: jk
 * 5341: 100
 * 7601: JAH
+* 8217: Rocky Road
 * 8362: 1337
 * 9538: Krispy Belgian Cookies
 * 10096: jk
@@ -23,6 +24,7 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 16564: Oink
 * 16641: Your Choice
 * 16671: Honey Boo Boo Fan Club
+* 16836: The code less traveled
 * 17597: 100
 * 17620: JAH
 * 17853: JQ
@@ -30,10 +32,11 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 18543: Oink
 * 19391: FDJ
 * 20912: Evil_Engineers
+* 21312: Rocky Road
 * 21418: marathon
-* 21772: Random 1
 * 21802: JQ
 * 21862: JTeam1
+* 22881: JavaGeeks
 * 21946: Honey Boo Boo Fan Club
 * 21974: Krispy Belgian Cookies
 * 21978: Krispy Belgian Cookies
@@ -50,8 +53,8 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 22840: Group SmallBit
 * 22845: java ych
 * 22870: Group SmallBit
+* 22881: JavaGeeks
 * 23044: marathon
-* 23121: The code less traveled
 * 23193: 100
 * 23208: java ych
 * 23268: Your Choice
@@ -59,6 +62,8 @@ Issue number: group name (no links to elasticsearch, just the number - sort by i
 * 23435: The Best Engineers, The Best
 * 23436: JTeam1
 * 23446: JavaGeeks
-* 23570: Random 1
 * 23609: marathon
-* 23646: marathon
+* 23646: Chicken Nugget Trio
+* 23664: Random 1
+* 23673: Random 1
+

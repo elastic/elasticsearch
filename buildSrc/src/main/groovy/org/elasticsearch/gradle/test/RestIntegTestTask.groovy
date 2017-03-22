@@ -21,7 +21,6 @@ package org.elasticsearch.gradle.test
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.BuildPlugin
 import org.gradle.api.DefaultTask
-import org.gradle.api.GradleException
 import org.gradle.api.Task
 import org.gradle.api.execution.TaskExecutionAdapter
 import org.gradle.api.internal.tasks.options.Option
@@ -31,7 +30,6 @@ import org.gradle.api.tasks.TaskState
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
-import java.nio.file.Paths
 import java.util.stream.Stream
 
 /**

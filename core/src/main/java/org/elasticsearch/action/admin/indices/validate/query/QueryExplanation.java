@@ -78,6 +78,8 @@ public class QueryExplanation  implements Streamable {
         index = in.readString();
         if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
             shard = in.readInt();
+        } else {
+            shard = RANDOM_SHARD;
         }
         valid = in.readBoolean();
         explanation = in.readOptionalString();

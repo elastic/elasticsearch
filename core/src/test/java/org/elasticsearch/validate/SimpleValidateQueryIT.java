@@ -259,6 +259,8 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate("test")
             .addMapping("type1", "field", "type=text,analyzer=whitespace")
             .setSettings(SETTING_NUMBER_OF_SHARDS, 2).get();
+        // We are relying on specific routing behaviors for the result to be right, so
+        // we cannot randomize the number of shards or change ids here.
         client().prepareIndex("test", "type1", "1")
             .setSource("field", "quick lazy huge brown pidgin").get();
         client().prepareIndex("test", "type1", "2")

@@ -146,47 +146,6 @@ When the query is valid, the explanation defaults to the string
 representation of that query. With `rewrite` set to `true`, the explanation
 is more detailed showing the actual Lucene query that will be executed.
 
-For Fuzzy Queries:
-
-[source,js]
---------------------------------------------------
-GET twitter/tweet/_validate/query?rewrite=true
-{
-  "query": {
-    "match": {
-      "user": {
-        "query": "kimchy",
-        "fuzziness": "auto"
-      }
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[skip:the output is randomized depending on which shard we hit]
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-   "valid": true,
-   "_shards": {
-      "total": 1,
-      "successful": 1,
-      "failed": 0
-   },
-   "explanations": [
-      {
-         "index": "twitter",
-         "valid": true,
-         "explanation": "+user:kimchy +user:kimchi^0.75 #(ConstantScore(_type:tweet))^0.0"
-      }
-   ]
-}
---------------------------------------------------
-// TESTRESPONSE
-
 For More Like This:
 
 [source,js]
@@ -228,10 +187,13 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE
 
-By default The request is executed on a single shard only, which is randomly
+By default, the request is executed on a single shard only, which is randomly
 selected. The detailed explanation of the query may depend on which shard is
-being hit, and therefore may vary from one request to another. The
-`all_shards` parameter can be used to get response from all available shards.
+being hit, and therefore may vary from one request to another. So, in case of
+query rewrite the `all_shards` parameter should be used to get response from
+all available shards.
+
+For Fuzzy Queries:
 
 [source,js]
 --------------------------------------------------

@@ -21,7 +21,6 @@ package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.PagedBytesReference;
-import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 
@@ -31,7 +30,7 @@ import java.io.IOException;
  * A @link {@link StreamOutput} that uses {@link BigArrays} to acquire pages of
  * bytes, which avoids frequent reallocation &amp; copying of the internal data.
  */
-public class BytesStreamOutput extends StreamOutput implements BytesStream {
+public class BytesStreamOutput extends BytesStream {
 
     protected final BigArrays bigArrays;
 

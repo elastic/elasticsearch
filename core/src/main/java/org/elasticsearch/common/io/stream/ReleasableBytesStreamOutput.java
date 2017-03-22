@@ -20,7 +20,6 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
-import org.elasticsearch.common.io.ReleasableBytesStream;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -36,7 +35,7 @@ import org.elasticsearch.common.util.ByteArray;
  * elsewhere.
  */
 public class ReleasableBytesStreamOutput extends BytesStreamOutput
-    implements ReleasableBytesStream,Releasable {
+    implements Releasable {
 
     private Releasable releasable;
 

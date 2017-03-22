@@ -21,13 +21,11 @@ package org.elasticsearch.common.io;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Callback;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.BufferedReader;
-import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -243,24 +241,23 @@ public abstract class Streams {
     }
 
     /**
-     * Wraps the given {@link BytesStreamOutput} in a {@link StreamOutput} that simply flushes when
-     * close is called. The returned values from this method also implements the {@link BytesStream}
-     * interface.
+     * Wraps the given {@link BytesStream} in a {@link StreamOutput} that simply flushes when
+     * close is called.
      */
-    public static StreamOutput flushOnCloseStream(BytesStreamOutput os) {
+    public static BytesStream flushOnCloseStream(BytesStream os) {
         return new FlushOnCloseOutputStream(os);
     }
 
     /**
-     * A wrapper around a {@link BytesStreamOutput} that makes the close operation a flush. This is
+     * A wrapper around a {@link BytesStream} that makes the close operation a flush. This is
      * needed as sometimes a stream will be closed but the bytes that the stream holds still need
      * to be used and the stream cannot be closed until the bytes have been consumed.
      */
-    private static class FlushOnCloseOutputStream extends StreamOutput implements BytesStream {
+    private static class FlushOnCloseOutputStream extends BytesStream {
 
-        private final BytesStreamOutput delegate;
+        private final BytesStream delegate;
 
-        private FlushOnCloseOutputStream(BytesStreamOutput bytesStreamOutput) {
+        private FlushOnCloseOutputStream(BytesStream bytesStreamOutput) {
             this.delegate = bytesStreamOutput;
         }
 

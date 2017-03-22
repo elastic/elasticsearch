@@ -771,29 +771,41 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return engine.syncFlush(syncId, expectedCommitId);
     }
 
-    public Engine.CommitId flush(FlushRequest request) throws ElasticsearchException {
-        boolean waitIfOngoing = request.waitIfOngoing();
-        boolean force = request.force();
-        if (logger.isTraceEnabled()) {
-            logger.trace("flush with {}", request);
-        }
-        // we allows flush while recovering, since we allow for operations to happen
-        // while recovering, and we want to keep the translog at bay (up to deletes, which
-        // we don't gc). Yet, we don't use flush internally to clear deletes and flush the indexwriter since
-        // we use #writeIndexingBuffer for this now.
+    /**
+     * Executes the given flush request against the engine.
+     *
+     * @param request the flush request
+     * @return the commit ID
+     */
+    public Engine.CommitId flush(FlushRequest request) {
+        final boolean waitIfOngoing = request.waitIfOngoing();
+        final boolean force = request.force();
+        logger.trace("flush with {}", request);
+        /*
+         * We allow flushes while recovery since we allow operations to happen while recovering and
+         * we want to keep the translog under control (up to deletes, which we do not GC). Yet, we
+         * do not use flush internally to clear deletes and flush the index writer since we use
+         * Engine#writeIndexingBuffer for this now.
+         */
         verifyNotClosed();
-        Engine engine = getEngine();
+        final Engine engine = getEngine();
         if (engine.isRecovering()) {
-            throw new IllegalIndexShardStateException(shardId(), state, "flush is only allowed if the engine is not recovery" +
-                " from translog");
+            throw new IllegalIndexShardStateException(
+                    shardId(),
+                    state,
+                    "flush is only allowed if the engine is not recovery from translog");
         }
-        long time = System.nanoTime();
-        Engine.CommitId commitId = engine.flush(force, waitIfOngoing);
+        final long time = System.nanoTime();
+        final Engine.CommitId commitId = engine.flush(force, waitIfOngoing);
         flushMetric.inc(System.nanoTime() - time);
         return commitId;
-
     }
 
+    /**
+     * Rolls the tranlog generation.
+     *
+     * @throws IOException if any file operations on the translog throw an I/O exception
+     */
     private void rollTranslogGeneration() throws IOException {
         final Engine engine = getEngine();
         engine.getTranslog().rollGeneration();

@@ -42,7 +42,7 @@ The cache can be expired manually with the <<indices-clearcache,`clear-cache` AP
 
 [source,js]
 ------------------------
-POST /kimchy,elasticsearch/_cache/clear?request_cache=true
+POST /kimchy,elasticsearch/_cache/clear?request=true
 ------------------------
 // CONSOLE
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]

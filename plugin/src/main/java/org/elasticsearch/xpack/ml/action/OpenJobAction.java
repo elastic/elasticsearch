@@ -11,7 +11,6 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -234,8 +233,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, PersistentActio
         @Override
         protected void onCancelled() {
             String reason = getReasonCancelled();
-            boolean restart = CancelTasksRequest.DEFAULT_REASON.equals(reason) == false;
-            autodetectProcessManager.closeJob(jobId, restart, reason);
+            autodetectProcessManager.closeJob(jobId, false, reason);
         }
 
         static boolean match(Task task, String expectedJobId) {

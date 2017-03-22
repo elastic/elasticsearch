@@ -77,7 +77,7 @@ class TestProgressLogger implements AggregatedEventListener {
     /** Have we finished a whole suite yet? */
     volatile boolean suiteFinished = false
     /* Note that we probably overuse volatile here but it isn't hurting us and
-      lets us move things around without worrying about breaking things. */
+       lets us move things around without worrying about breaking things. */
 
     @Subscribe
     void onStart(AggregatedStartEvent e) throws IOException {

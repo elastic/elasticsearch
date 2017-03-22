@@ -35,8 +35,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.MlMetadata;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -179,7 +179,7 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutData
 
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
-        private XPackLicenseState licenseState;
+        private final XPackLicenseState licenseState;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,

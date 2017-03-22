@@ -196,7 +196,7 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
         private final JobManager jobManager;
-        private XPackLicenseState licenseState;
+        private final XPackLicenseState licenseState;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,

@@ -14,9 +14,11 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
@@ -192,6 +194,15 @@ public class StartDatafeedActionTests extends ESTestCase {
         datafeedTask = new PersistentTask<>(datafeedTask, DatafeedState.STARTED);
         taskMap.put(1L, datafeedTask);
         StartDatafeedAction.validate("datafeed_id", mlMetadata1, tasks, nodes);
+    }
+
+    public static StartDatafeedAction.DatafeedTask createDatafeedTask(long id, String type, String action,
+                                                                      TaskId parentTaskId,
+                                                                      StartDatafeedAction.Request request,
+                                                                      DatafeedJobRunner datafeedJobRunner) {
+        StartDatafeedAction.DatafeedTask task = new StartDatafeedAction.DatafeedTask(id, type, action, parentTaskId, request);
+        task.datafeedJobRunner = datafeedJobRunner;
+        return task;
     }
 
 }

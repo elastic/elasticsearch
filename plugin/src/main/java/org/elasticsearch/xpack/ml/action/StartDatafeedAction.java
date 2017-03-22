@@ -262,22 +262,14 @@ public class StartDatafeedAction
         private final String datafeedId;
         private final long startTime;
         private final Long endTime;
-        private volatile DatafeedJobRunner datafeedJobRunner;
+        /* only pck protected for testing */
+        volatile DatafeedJobRunner datafeedJobRunner;
 
-        public DatafeedTask(long id, String type, String action, TaskId parentTaskId, Request request) {
+        DatafeedTask(long id, String type, String action, TaskId parentTaskId, Request request) {
             super(id, type, action, "datafeed-" + request.getDatafeedId(), parentTaskId);
             this.datafeedId = request.getDatafeedId();
             this.startTime = request.getStartTime();
             this.endTime = request.getEndTime();
-        }
-
-        /* only for testing */
-        public DatafeedTask(long id, String type, String action, TaskId parentTaskId, Request request, DatafeedJobRunner datafeedJobRunner) {
-            super(id, type, action, "datafeed-" + request.getDatafeedId(), parentTaskId);
-            this.datafeedId = request.getDatafeedId();
-            this.startTime = request.startTime;
-            this.endTime = request.endTime;
-            this.datafeedJobRunner = datafeedJobRunner;
         }
 
         public String getDatafeedId() {

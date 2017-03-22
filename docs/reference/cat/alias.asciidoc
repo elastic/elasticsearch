@@ -54,5 +54,5 @@ alias4 test1 -      2            1,2
 The output shows that `alias2` has configured a filter, and specific routing
 configurations in `alias3` and `alias4`.
 
-If you only want to get information about a single alias, you can specify
-the alias in the URL, for example `/_cat/aliases/alias1`.
+If you only want to get information about a single or multiple aliases, you can specify
+the alias in the URL, for example `/_cat/aliases/alias1` or `/_cat/aliases/alias1,alias2`.

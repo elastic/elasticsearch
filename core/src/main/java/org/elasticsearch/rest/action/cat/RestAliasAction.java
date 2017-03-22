@@ -46,7 +46,7 @@ public class RestAliasAction extends AbstractCatAction {
     @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final GetAliasesRequest getAliasesRequest = request.hasParam("alias") ?
-                new GetAliasesRequest(request.param("alias")) :
+                new GetAliasesRequest(request.param("alias").split(",")) :
                 new GetAliasesRequest();
         getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
 

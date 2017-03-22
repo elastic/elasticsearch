@@ -26,8 +26,8 @@ grant {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 
   // Needed so that Hadoop can load the correct classes for SPI and JAAS
-  //   org.apache.hadoop.security.SecurityUtil clinit
-  //   org.apache.hadoop.security.UserGroupInformation.newLoginContext()
+  // org.apache.hadoop.security.SecurityUtil clinit
+  // org.apache.hadoop.security.UserGroupInformation.newLoginContext()
   permission java.lang.RuntimePermission "setContextClassLoader";
 
   // org.apache.hadoop.util.StringUtils clinit

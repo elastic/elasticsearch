@@ -1161,9 +1161,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     } catch (SnapshotMissingException smex) {
                                         logger.info((Supplier<?>) () -> new ParameterizedMessage(
                                             "Tried deleting in-progress snapshot [{}], but it " +
-                                            "could not be found after failed snapshot abort",
+                                            "could not be found after failing to abort.",
                                             smex.getSnapshotName()), e);
-                                        listener.onFailure(smex);
+                                        listener.onFailure(new SnapshotException(snapshot,
+                                            "Tried deleting in-progress snapshot [{}], but it " +
+                                            "could not be found after failing to abort."));
                                     }
                                 });
                             }

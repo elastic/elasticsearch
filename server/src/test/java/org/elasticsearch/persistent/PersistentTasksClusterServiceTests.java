@@ -28,9 +28,9 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.persistent.PersistentTasks.Assignment;
-import org.elasticsearch.persistent.PersistentTasks.PersistentTask;
-import org.elasticsearch.persistent.TestPersistentActionPlugin.TestRequest;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestRequest;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,13 +39,13 @@ import java.util.HashSet;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.persistent.TransportPersistentAction.NO_NODE_FOUND;
+import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class PersistentTaskClusterServiceTests extends ESTestCase {
+public class PersistentTasksClusterServiceTests extends ESTestCase {
 
     public void testReassignmentRequired() {
         int numberOfIterations = randomIntBetween(1, 30);
@@ -60,10 +60,10 @@ public class PersistentTaskClusterServiceTests extends ESTestCase {
                 clusterState = insignificantChange(clusterState);
             }
             ClusterChangedEvent event = new ClusterChangedEvent("test", clusterState, previousState);
-            assertThat(dumpEvent(event), PersistentTaskClusterService.reassignmentRequired(event,
-                    new PersistentTaskClusterService.ExecutorNodeDecider() {
+            assertThat(dumpEvent(event), PersistentTasksClusterService.reassignmentRequired(event,
+                    new PersistentTasksClusterService.ExecutorNodeDecider() {
                         @Override
-                        public <Request extends PersistentActionRequest> Assignment getAssignment(
+                        public <Request extends PersistentTaskRequest> Assignment getAssignment(
                                 String action, ClusterState currentState, Request request) {
                             if ("never_assign".equals(((TestRequest) request).getTestParam())) {
                                 return NO_NODE_FOUND;
@@ -76,14 +76,14 @@ public class PersistentTaskClusterServiceTests extends ESTestCase {
 
     public void testReassignTasksWithNoTasks() {
         ClusterState clusterState = initialState();
-        assertThat(reassign(clusterState).metaData().custom(PersistentTasks.TYPE), nullValue());
+        assertThat(reassign(clusterState).metaData().custom(PersistentTasksCustomMetaData.TYPE), nullValue());
     }
 
     public void testReassignConsidersClusterStateUpdates() {
         ClusterState clusterState = initialState();
         ClusterState.Builder builder = ClusterState.builder(clusterState);
-        PersistentTasks.Builder tasks = PersistentTasks.builder(
-                clusterState.metaData().custom(PersistentTasks.TYPE));
+        PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder(
+                clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE));
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
         addTestNodes(nodes, randomIntBetween(1, 10));
         int numberOfTasks = randomIntBetween(2, 40);
@@ -91,11 +91,11 @@ public class PersistentTaskClusterServiceTests extends ESTestCase {
             addTask(tasks, "should_assign", "assign_one", randomBoolean() ? null : "no_longer_exits", false);
         }
 
-        MetaData.Builder metaData = MetaData.builder(clusterState.metaData()).putCustom(PersistentTasks.TYPE, tasks.build());
+        MetaData.Builder metaData = MetaData.builder(clusterState.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks.build());
         clusterState = builder.metaData(metaData).nodes(nodes).build();
         ClusterState newClusterState = reassign(clusterState);
 
-        PersistentTasks tasksInProgress = newClusterState.getMetaData().custom(PersistentTasks.TYPE);
+        PersistentTasksCustomMetaData tasksInProgress = newClusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         assertThat(tasksInProgress, notNullValue());
 
     }
@@ -103,8 +103,8 @@ public class PersistentTaskClusterServiceTests extends ESTestCase {
     public void testReassignTasks() {
         ClusterState clusterState = initialState();
         ClusterState.Builder builder = ClusterState.builder(clusterState);
-        PersistentTasks.Builder tasks = PersistentTasks.builder(
-                clusterState.metaData().custom(PersistentTasks.TYPE));
+        PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder(
+                clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE));
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
         addTestNodes(nodes, randomIntBetween(1, 10));
         int numberOfTasks = randomIntBetween(0, 40);
@@ -128,11 +128,11 @@ public class PersistentTaskClusterServiceTests extends ESTestCase {
 
             }
         }
-        MetaData.Builder metaData = MetaData.builder(clusterState.metaData()).putCustom(PersistentTasks.TYPE, tasks.build());
+        MetaData.Builder metaData = MetaData.builder(clusterState.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks.build());
         clusterState = builder.metaData(metaData).nodes(nodes).build();
         ClusterState newClusterState = reassign(clusterState);
 
-        PersistentTasks tasksInProgress = newClusterState.getMetaData().custom(PersistentTasks.TYPE);
+        PersistentTasksCustomMetaData tasksInProgress = newClusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         assertThat(tasksInProgress, notNullValue());
 
         assertThat("number of tasks shouldn't change as a result or reassignment",
@@ -143,15 +143,15 @@ public class PersistentTaskClusterServiceTests extends ESTestCase {
         for (PersistentTask<?> task : tasksInProgress.tasks()) {
             if (task.isStopped()) {
                 assertThat("stopped tasks should be never assigned", task.getExecutorNode(), nullValue());
-                assertThat(task.getAssignment().getExplanation(), equalTo("explanation: " + task.getAction()));
+                assertThat(task.getAssignment().getExplanation(), equalTo("explanation: " + task.getTaskName()));
             } else {
                 // explanation should correspond to the action name
-                switch (task.getAction()) {
+                switch (task.getTaskName()) {
                     case "should_assign":
                         assertThat(task.getExecutorNode(), notNullValue());
                         assertThat(task.isAssigned(), equalTo(true));
                         if (clusterState.nodes().nodeExists(task.getExecutorNode()) == false) {
-                            logger.info(clusterState.metaData().custom(PersistentTasks.TYPE).toString());
+                            logger.info(clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE).toString());
                         }
                         assertThat("task should be assigned to a node that is in the cluster, was assigned to " + task.getExecutorNode(),
                                 clusterState.nodes().nodeExists(task.getExecutorNode()), equalTo(true));
@@ -172,7 +172,7 @@ public class PersistentTaskClusterServiceTests extends ESTestCase {
                         }
                         break;
                     default:
-                        fail("Unknown action " + task.getAction());
+                        fail("Unknown action " + task.getTaskName());
                 }
             }
         }
@@ -186,10 +186,10 @@ public class PersistentTaskClusterServiceTests extends ESTestCase {
     }
 
     private ClusterState reassign(ClusterState clusterState) {
-        return PersistentTaskClusterService.reassignTasks(clusterState, logger,
-                new PersistentTaskClusterService.ExecutorNodeDecider() {
+        return PersistentTasksClusterService.reassignTasks(clusterState, logger,
+                new PersistentTasksClusterService.ExecutorNodeDecider() {
                     @Override
-                    public <Request extends PersistentActionRequest> Assignment getAssignment(
+                    public <Request extends PersistentTaskRequest> Assignment getAssignment(
                             String action, ClusterState currentState, Request request) {
                         TestRequest testRequest = (TestRequest) request;
                         switch (testRequest.getTestParam()) {
@@ -213,7 +213,7 @@ public class PersistentTaskClusterServiceTests extends ESTestCase {
 
     private Assignment assignOnlyOneTaskAtATime(ClusterState clusterState) {
         DiscoveryNodes nodes = clusterState.nodes();
-        PersistentTasks tasksInProgress = clusterState.getMetaData().custom(PersistentTasks.TYPE);
+        PersistentTasksCustomMetaData tasksInProgress = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         if (tasksInProgress.findTasks("assign_one",
                 task -> task.isStopped() == false && nodes.nodeExists(task.getExecutorNode())).isEmpty()) {
             return randomNodeAssignment(clusterState.nodes());
@@ -242,12 +242,12 @@ public class PersistentTaskClusterServiceTests extends ESTestCase {
         return "nodes_changed: " + event.nodesChanged() +
                 " nodes_removed:" + event.nodesRemoved() +
                 " routing_table_changed:" + event.routingTableChanged() +
-                " tasks: " + event.state().metaData().custom(PersistentTasks.TYPE);
+                " tasks: " + event.state().metaData().custom(PersistentTasksCustomMetaData.TYPE);
     }
 
     private ClusterState significantChange(ClusterState clusterState) {
         ClusterState.Builder builder = ClusterState.builder(clusterState);
-        PersistentTasks tasks = clusterState.getMetaData().custom(PersistentTasks.TYPE);
+        PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         if (tasks != null) {
             if (randomBoolean()) {
                 for (PersistentTask<?> task : tasks.tasks()) {
@@ -265,11 +265,12 @@ public class PersistentTaskClusterServiceTests extends ESTestCase {
             // we don't have any unassigned tasks - add some
             if (randomBoolean()) {
                 logger.info("added random task");
-                addRandomTask(builder, MetaData.builder(clusterState.metaData()), PersistentTasks.builder(tasks), null, false);
+                addRandomTask(builder, MetaData.builder(clusterState.metaData()), PersistentTasksCustomMetaData.builder(tasks), null,
+                        false);
                 tasksOrNodesChanged = true;
             } else {
                 logger.info("added unassignable task with custom assignment message");
-                addRandomTask(builder, MetaData.builder(clusterState.metaData()), PersistentTasks.builder(tasks),
+                addRandomTask(builder, MetaData.builder(clusterState.metaData()), PersistentTasksCustomMetaData.builder(tasks),
                         new Assignment(null, "change me"), "never_assign", false);
                 tasksOrNodesChanged = true;
             }
@@ -292,10 +293,10 @@ public class PersistentTaskClusterServiceTests extends ESTestCase {
         return builder.build();
     }
 
-    private PersistentTasks removeTasksWithChangingAssignment(PersistentTasks tasks) {
+    private PersistentTasksCustomMetaData removeTasksWithChangingAssignment(PersistentTasksCustomMetaData tasks) {
         if (tasks != null) {
             boolean changed = false;
-            PersistentTasks.Builder tasksBuilder = PersistentTasks.builder(tasks);
+            PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder(tasks);
             for (PersistentTask<?> task : tasks.tasks()) {
                 // Remove all unassigned tasks that cause changing assignments they might trigger a significant change
                 if ("never_assign".equals(((TestRequest) task.getRequest()).getTestParam()) &&
@@ -314,9 +315,9 @@ public class PersistentTaskClusterServiceTests extends ESTestCase {
 
     private ClusterState insignificantChange(ClusterState clusterState) {
         ClusterState.Builder builder = ClusterState.builder(clusterState);
-        PersistentTasks tasks = clusterState.getMetaData().custom(PersistentTasks.TYPE);
+        PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         tasks = removeTasksWithChangingAssignment(tasks);
-        PersistentTasks.Builder tasksBuilder = PersistentTasks.builder(tasks);
+        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder(tasks);
 
         if (randomBoolean()) {
             if (hasAssignableTasks(tasks, clusterState.nodes()) == false) {
@@ -338,7 +339,7 @@ public class PersistentTaskClusterServiceTests extends ESTestCase {
                 } else {
                     logger.info("changed routing table");
                     MetaData.Builder metaData = MetaData.builder(clusterState.metaData());
-                    metaData.putCustom(PersistentTasks.TYPE, tasksBuilder.build());
+                    metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build());
                     RoutingTable.Builder routingTable = RoutingTable.builder(clusterState.routingTable());
                     changeRoutingTable(metaData, routingTable);
                     builder.metaData(metaData).routingTable(routingTable.build());
@@ -360,12 +361,12 @@ public class PersistentTaskClusterServiceTests extends ESTestCase {
             // clear the task
             if (randomBoolean()) {
                 logger.info("removed all tasks");
-                MetaData.Builder metaData = MetaData.builder(clusterState.metaData()).putCustom(PersistentTasks.TYPE,
-                        PersistentTasks.builder().build());
+                MetaData.Builder metaData = MetaData.builder(clusterState.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE,
+                        PersistentTasksCustomMetaData.builder().build());
                 return builder.metaData(metaData).build();
             } else {
                 logger.info("set task custom to null");
-                MetaData.Builder metaData = MetaData.builder(clusterState.metaData()).removeCustom(PersistentTasks.TYPE);
+                MetaData.Builder metaData = MetaData.builder(clusterState.metaData()).removeCustom(PersistentTasksCustomMetaData.TYPE);
                 return builder.metaData(metaData).build();
             }
         }
@@ -384,11 +385,11 @@ public class PersistentTaskClusterServiceTests extends ESTestCase {
                 .numberOfReplicas(1)
                 .build();
         MetaData.Builder metaData = MetaData.builder(clusterState.metaData()).put(indexMetaData, false)
-                .putCustom(PersistentTasks.TYPE, tasksBuilder.build());
+                .putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build());
         return builder.metaData(metaData).build();
     }
 
-    private boolean hasAssignableTasks(PersistentTasks tasks, DiscoveryNodes discoveryNodes) {
+    private boolean hasAssignableTasks(PersistentTasksCustomMetaData tasks, DiscoveryNodes discoveryNodes) {
         if (tasks == null || tasks.tasks().isEmpty()) {
             return false;
         }
@@ -403,26 +404,26 @@ public class PersistentTaskClusterServiceTests extends ESTestCase {
         });
     }
 
-    private boolean hasTasksAssignedTo(PersistentTasks tasks, String nodeId) {
+    private boolean hasTasksAssignedTo(PersistentTasksCustomMetaData tasks, String nodeId) {
         return tasks != null && tasks.tasks().stream().anyMatch(
                 task -> nodeId.equals(task.getExecutorNode())) == false;
     }
 
     private ClusterState.Builder addRandomTask(ClusterState.Builder clusterStateBuilder,
-                                               MetaData.Builder metaData, PersistentTasks.Builder tasks,
+                                               MetaData.Builder metaData, PersistentTasksCustomMetaData.Builder tasks,
                                                String node, boolean stopped) {
         return addRandomTask(clusterStateBuilder, metaData, tasks, new Assignment(node, randomAsciiOfLength(10)),
                 randomAsciiOfLength(10), stopped);
     }
 
     private ClusterState.Builder addRandomTask(ClusterState.Builder clusterStateBuilder,
-                                               MetaData.Builder metaData, PersistentTasks.Builder tasks,
+                                               MetaData.Builder metaData, PersistentTasksCustomMetaData.Builder tasks,
                                                Assignment assignment, String param, boolean stopped) {
-        return clusterStateBuilder.metaData(metaData.putCustom(PersistentTasks.TYPE,
+        return clusterStateBuilder.metaData(metaData.putCustom(PersistentTasksCustomMetaData.TYPE,
                 tasks.addTask(randomAsciiOfLength(10), new TestRequest(param), stopped, randomBoolean(), assignment).build()));
     }
 
-    private void addTask(PersistentTasks.Builder tasks, String action, String param, String node, boolean stopped) {
+    private void addTask(PersistentTasksCustomMetaData.Builder tasks, String action, String param, String node, boolean stopped) {
         tasks.addTask(action, new TestRequest(param), stopped, randomBoolean(), new Assignment(node, "explanation: " + action));
     }
 

@@ -16,12 +16,12 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.persistent.PersistentActionCoordinator.State;
-import org.elasticsearch.persistent.PersistentActionCoordinator.Status;
+import org.elasticsearch.persistent.PersistentTasksNodeService.State;
+import org.elasticsearch.persistent.PersistentTasksNodeService.Status;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class PersistentActionCoordinatorStatusTests extends AbstractWireSerializingTestCase<Status> {
+public class PersistentTasksNodeServiceStatusTests extends AbstractWireSerializingTestCase<Status> {
 
     @Override
     protected Status createTestInstance() {

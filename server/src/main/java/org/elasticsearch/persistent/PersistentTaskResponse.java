@@ -26,16 +26,16 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Response upon a successful start or an persistent action
+ * Response upon a successful start or an persistent task
  */
-public class PersistentActionResponse extends ActionResponse {
+public class PersistentTaskResponse extends ActionResponse {
     private long taskId;
 
-    public PersistentActionResponse() {
+    public PersistentTaskResponse() {
         super();
     }
 
-    public PersistentActionResponse(long taskId) {
+    public PersistentTaskResponse(long taskId) {
         this.taskId = taskId;
     }
 
@@ -59,7 +59,7 @@ public class PersistentActionResponse extends ActionResponse {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PersistentActionResponse that = (PersistentActionResponse) o;
+        PersistentTaskResponse that = (PersistentTaskResponse) o;
         return taskId == that.taskId;
     }
 

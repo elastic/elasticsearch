@@ -215,6 +215,9 @@ public class PreviewDatafeedAction extends Action<PreviewDatafeedAction.Request,
             }
             DatafeedConfig.Builder datafeedWithAutoChunking = new DatafeedConfig.Builder(datafeed);
             datafeedWithAutoChunking.setChunkingConfig(ChunkingConfig.newAuto());
+            // NB: this is using the client from the transport layer, NOT the internal client.
+            // This is important because it means the datafeed search will fail if the user
+            // requesting the preview doesn't have permission to search the relevant indices.
             DataExtractorFactory dataExtractorFactory = DataExtractorFactory.create(client, datafeedWithAutoChunking.build(), job);
             DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, System.currentTimeMillis());
             threadPool.generic().execute(() -> previewDatafeed(dataExtractor, listener));

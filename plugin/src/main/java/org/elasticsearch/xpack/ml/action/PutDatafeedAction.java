@@ -8,11 +8,13 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,22 +23,32 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.security.SecurityContext;
+import org.elasticsearch.xpack.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.security.support.Exceptions;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -180,14 +192,19 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutData
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
         private final XPackLicenseState licenseState;
+        private final Client client;
+        private final boolean securityEnabled;
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                               ThreadPool threadPool, XPackLicenseState licenseState, ActionFilters actionFilters,
+        public TransportAction(Settings settings, TransportService transportService,
+                               ClusterService clusterService, ThreadPool threadPool, Client client,
+                               XPackLicenseState licenseState, ActionFilters actionFilters,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(settings, PutDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, Request::new);
+            super(settings, PutDatafeedAction.NAME, transportService, clusterService, threadPool,
+                    actionFilters, indexNameExpressionResolver, Request::new);
             this.licenseState = licenseState;
+            this.client = client;
+            this.securityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
         }
 
         @Override
@@ -201,8 +218,58 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutData
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            clusterService.submitStateUpdateTask("put-datafeed-" + request.getDatafeed().getId(),
+        protected void masterOperation(Request request, ClusterState state,
+                                       ActionListener<Response> listener) throws Exception {
+            // If security is enabled only create the datafeed if the user requesting creation has
+            // permission to read the indices the datafeed is going to read from
+            if (securityEnabled) {
+                String username = new SecurityContext(settings,
+                        threadPool.getThreadContext()).getUser().principal();
+                ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
+                        r -> handlePrivsResponse(username, request, r, listener),
+                        listener::onFailure);
+
+                HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
+                privRequest.username(username);
+                privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
+                // We just check for permission to use the search action.  In reality we'll also
+                // use the scroll action, but that's considered an implementation detail.
+                privRequest.indexPrivileges(RoleDescriptor.IndicesPrivileges.builder()
+                        .indices(request.getDatafeed().getIndexes()
+                                .toArray(new String[0]))
+                        .privileges(SearchAction.NAME)
+                        .build());
+
+                client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+            } else {
+                putDatafeed(request, listener);
+            }
+        }
+
+        private void handlePrivsResponse(String username, Request request,
+                                         HasPrivilegesResponse response,
+                                         ActionListener<Response> listener) throws IOException {
+            if (response.isCompleteMatch()) {
+                putDatafeed(request, listener);
+            } else {
+                XContentBuilder builder = JsonXContent.contentBuilder();
+                builder.startObject();
+                for (HasPrivilegesResponse.IndexPrivileges index : response.getIndexPrivileges()) {
+                    builder.field(index.getIndex());
+                    builder.map(index.getPrivileges());
+                }
+                builder.endObject();
+
+                listener.onFailure(Exceptions.authorizationError("Cannot create datafeed [{}]" +
+                                " because user {} lacks permissions on the indexes to be" +
+                                " searched: {}",
+                        request.getDatafeed().getId(), username, builder.string()));
+            }
+        }
+
+        private void putDatafeed(Request request, ActionListener<Response> listener) {
+            clusterService.submitStateUpdateTask(
+                    "put-datafeed-" + request.getDatafeed().getId(),
                     new AckedClusterStateUpdateTask<Response>(request, listener) {
 
                         @Override
@@ -210,11 +277,13 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutData
                             if (acknowledged) {
                                 logger.info("Created datafeed [{}]", request.getDatafeed().getId());
                             }
-                            return new Response(acknowledged, request.getDatafeed());
+                            return new Response(acknowledged,
+                                    request.getDatafeed());
                         }
 
                         @Override
-                        public ClusterState execute(ClusterState currentState) throws Exception {
+                        public ClusterState execute(ClusterState currentState)
+                                throws Exception {
                             return putDatafeed(request, currentState);
                         }
                     });

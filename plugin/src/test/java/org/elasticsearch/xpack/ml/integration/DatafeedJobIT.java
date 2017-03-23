@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -31,12 +32,15 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DatafeedJobIT extends ESRestTestCase {
 
-
-    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("elastic", new SecuredString("changeme".toCharArray()));
+    private static final String BASIC_AUTH_VALUE_ELASTIC =
+            basicAuthHeaderValue("elastic", new SecuredString("changeme".toCharArray()));
+    private static final String BASIC_AUTH_VALUE_ML_ADMIN =
+            basicAuthHeaderValue("ml_admin", new SecuredString("changeme".toCharArray()));
 
     @Override
     protected Settings restClientSettings() {
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization",
+                BASIC_AUTH_VALUE_ELASTIC).build();
     }
 
     @Override
@@ -46,6 +50,16 @@ public class DatafeedJobIT extends ESRestTestCase {
 
     @Before
     public void setUpData() throws Exception {
+
+        // This user has admin rights on machine learning, but (importantly for the tests) no
+        // rights on any of the data indexes
+        String user = "{"
+                + "  \"password\" : \"changeme\","
+                + "  \"roles\" : [ \"machine_learning_admin\" ]"
+                + "}";
+
+        client().performRequest("put", "_xpack/security/user/ml_admin", Collections.emptyMap(),
+                new StringEntity(user, ContentType.APPLICATION_JSON));
 
         String mappings = "{"
                 + "  \"mappings\": {"
@@ -227,6 +241,57 @@ public class DatafeedJobIT extends ESRestTestCase {
     public void testLookbackOnlyGivenEmptyIndex() throws Exception {
         new LookbackOnlyTestHelper("lookback-9", "airline-data-empty").setShouldSucceedInput(false).setShouldSucceedProcessing(false)
                 .execute();
+    }
+
+    public void testInsufficientSearchPrivilegesOnPut() throws Exception {
+        String jobId = "privs-put-job";
+        String job = "{\"description\":\"Aggs job\",\"analysis_config\" :{\"bucket_span\":\"1h\","
+                + "\"summary_count_field_name\":\"doc_count\","
+                + "\"detectors\":[{\"function\":\"mean\","
+                + "\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]},"
+                + "\"data_description\" : {\"time_field\":\"time stamp\"}"
+                + "}";
+        client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId,
+                Collections.emptyMap(), new StringEntity(job, ContentType.APPLICATION_JSON));
+
+        String datafeedId = "datafeed-" + jobId;
+        // This should be disallowed, because even though the ml_admin user has permission to
+        // create a datafeed they DON'T have permission to search the index the datafeed is
+        // configured to read
+        ResponseException e = expectThrows(ResponseException.class, () ->
+                new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs", "response")
+                        .setAuthHeader(BASIC_AUTH_VALUE_ML_ADMIN)
+                        .build());
+
+        assertThat(e.getMessage(), containsString("Cannot create datafeed"));
+        assertThat(e.getMessage(),
+                containsString("user ml_admin lacks permissions on the indexes to be searched"));
+    }
+
+    public void testInsufficientSearchPrivilegesOnPreview() throws Exception {
+        String jobId = "privs-preview-job";
+        String job = "{\"description\":\"Aggs job\",\"analysis_config\" :{\"bucket_span\":\"1h\","
+                + "\"summary_count_field_name\":\"doc_count\","
+                + "\"detectors\":[{\"function\":\"mean\","
+                + "\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]},"
+                + "\"data_description\" : {\"time_field\":\"time stamp\"}"
+                + "}";
+        client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId,
+                Collections.emptyMap(), new StringEntity(job, ContentType.APPLICATION_JSON));
+
+        String datafeedId = "datafeed-" + jobId;
+        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs", "response").build();
+
+        // This should be disallowed, because ml_admin is trying to preview a datafeed created by
+        // by another user (elastic in this case) that will reveal the content of an index they
+        // don't have permission to search directly
+        ResponseException e = expectThrows(ResponseException.class, () ->
+                client().performRequest("get",
+                        MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_preview",
+                        new BasicHeader("Authorization", BASIC_AUTH_VALUE_ML_ADMIN)));
+
+        assertThat(e.getMessage(),
+                containsString("[indices:data/read/search] is unauthorized for user [ml_admin]"));
     }
 
     public void testLookbackOnlyGivenAggregationsWithHistogram() throws Exception {
@@ -474,6 +539,7 @@ public class DatafeedJobIT extends ESRestTestCase {
         boolean source;
         String scriptedFields;
         String aggregations;
+        String authHeader = BASIC_AUTH_VALUE_ELASTIC;
 
         DatafeedBuilder(String datafeedId, String jobId, String index, String type) {
             this.datafeedId = datafeedId;
@@ -497,6 +563,11 @@ public class DatafeedJobIT extends ESRestTestCase {
             return this;
         }
 
+        DatafeedBuilder setAuthHeader(String authHeader) {
+            this.authHeader = authHeader;
+            return this;
+        }
+
         Response build() throws IOException {
             String datafeedConfig = "{"
                     + "\"job_id\": \"" + jobId + "\",\"indexes\":[\"" + index + "\"],\"types\":[\"" + type + "\"]"
@@ -505,7 +576,8 @@ public class DatafeedJobIT extends ESRestTestCase {
                     + (aggregations == null ? "" : ",\"aggs\":" + aggregations)
                     + "}";
             return client().performRequest("put", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId, Collections.emptyMap(),
-                    new StringEntity(datafeedConfig, ContentType.APPLICATION_JSON));
+                    new StringEntity(datafeedConfig, ContentType.APPLICATION_JSON),
+                    new BasicHeader("Authorization", authHeader));
         }
     }
 }

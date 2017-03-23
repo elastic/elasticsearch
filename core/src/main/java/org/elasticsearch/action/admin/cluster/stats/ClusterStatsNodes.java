@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -73,7 +74,8 @@ public class ClusterStatsNodes implements ToXContent {
             this.plugins.addAll(nodeResponse.nodeInfo().getPlugins().getPluginInfos());
 
             // now do the stats that should be deduped by hardware (implemented by ip deduping)
-            TransportAddress publishAddress = nodeResponse.nodeInfo().getTransport().address().publishAddress();
+            TransportAddress publishAddress =
+                    nodeResponse.nodeInfo().getTransport().address().publishAddress();
             final InetAddress inetAddress = publishAddress.address().getAddress();
             if (!seenAddresses.add(inetAddress)) {
                 continue;
@@ -209,7 +211,8 @@ public class ClusterStatsNodes implements ToXContent {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params)
+                throws IOException {
             builder.field(Fields.TOTAL, total);
             for (Map.Entry<String, Integer> entry : roles.entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
@@ -280,7 +283,8 @@ public class ClusterStatsNodes implements ToXContent {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params)
+                throws IOException {
             builder.field(Fields.AVAILABLE_PROCESSORS, availableProcessors);
             builder.field(Fields.ALLOCATED_PROCESSORS, allocatedProcessors);
             builder.startArray(Fields.NAMES);
@@ -326,7 +330,8 @@ public class ClusterStatsNodes implements ToXContent {
                     // fd can be -1 if not supported on platform
                     totalOpenFileDescriptors += fd;
                 }
-                // we still do min max calc on -1, so we'll have an indication of it not being supported on one of the nodes.
+                // we still do min max calc on -1, so we'll have an indication
+                // of it not being supported on one of the nodes.
                 minOpenFileDescriptors = Math.min(minOpenFileDescriptors, fd);
                 maxOpenFileDescriptors = Math.max(maxOpenFileDescriptors, fd);
             }
@@ -375,7 +380,8 @@ public class ClusterStatsNodes implements ToXContent {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params)
+                throws IOException {
             builder.startObject(Fields.CPU).field(Fields.PERCENT, cpuPercent).endObject();
             if (count > 0) {
                 builder.startObject(Fields.OPEN_FILE_DESCRIPTORS);
@@ -479,7 +485,8 @@ public class ClusterStatsNodes implements ToXContent {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params)
+                throws IOException {
             builder.timeValueField(Fields.MAX_UPTIME_IN_MILLIS, Fields.MAX_UPTIME, maxUptime);
             builder.startArray(Fields.VERSIONS);
             for (ObjectIntCursor<JvmVersion> v : versions) {
@@ -540,17 +547,21 @@ public class ClusterStatsNodes implements ToXContent {
         private final Map<String, AtomicInteger> transportTypes;
         private final Map<String, AtomicInteger> httpTypes;
 
-        private NetworkTypes(final List<NodeInfo> nodeInfos) {
+        NetworkTypes(final List<NodeInfo> nodeInfos) {
             final Map<String, AtomicInteger> transportTypes = new HashMap<>();
             final Map<String, AtomicInteger> httpTypes = new HashMap<>();
             for (final NodeInfo nodeInfo : nodeInfos) {
                 final Settings settings = nodeInfo.getSettings();
                 final String transportType =
-                    settings.get(NetworkModule.TRANSPORT_TYPE_KEY, NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.get(settings));
+                    settings.get(NetworkModule.TRANSPORT_TYPE_KEY,
+                            NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.get(settings));
                 final String httpType =
-                    settings.get(NetworkModule.HTTP_TYPE_KEY, NetworkModule.HTTP_DEFAULT_TYPE_SETTING.get(settings));
-                transportTypes.computeIfAbsent(transportType, k -> new AtomicInteger()).incrementAndGet();
-                httpTypes.computeIfAbsent(httpType, k -> new AtomicInteger()).incrementAndGet();
+                    settings.get(NetworkModule.HTTP_TYPE_KEY,
+                            NetworkModule.HTTP_DEFAULT_TYPE_SETTING.get(settings));
+                transportTypes.computeIfAbsent(transportType,
+                        k -> new AtomicInteger()).incrementAndGet();
+                httpTypes.computeIfAbsent(httpType,
+                        k -> new AtomicInteger()).incrementAndGet();
             }
             this.transportTypes = Collections.unmodifiableMap(transportTypes);
             this.httpTypes = Collections.unmodifiableMap(httpTypes);
@@ -560,12 +571,16 @@ public class ClusterStatsNodes implements ToXContent {
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             builder.startObject("transport_types");
             for (final Map.Entry<String, AtomicInteger> entry : transportTypes.entrySet()) {
-                builder.field(entry.getKey(), entry.getValue().get());
+                if (Strings.hasText(entry.getKey())) {
+                    builder.field(entry.getKey(), entry.getValue().get());
+                }
             }
             builder.endObject();
             builder.startObject("http_types");
             for (final Map.Entry<String, AtomicInteger> entry : httpTypes.entrySet()) {
-                builder.field(entry.getKey(), entry.getValue().get());
+                if (Strings.hasText(entry.getKey())) {
+                    builder.field(entry.getKey(), entry.getValue().get());
+                }
             }
             builder.endObject();
             return builder;

@@ -40,10 +40,11 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         assertThat(doc.rootDoc().get(UidFieldMapper.NAME), notNullValue());
         assertThat(doc.rootDoc().get(IdFieldMapper.NAME), nullValue());

@@ -163,6 +163,8 @@ public class SearchHitTests extends ESTestCase {
         }
         assertEquals("my_index", parsed.getIndex());
         assertEquals(1, parsed.getScore(), Float.MIN_VALUE);
+        assertNull(parsed.getType());
+        assertNull(parsed.getId());
     }
 
     public void testToXContent() throws IOException {

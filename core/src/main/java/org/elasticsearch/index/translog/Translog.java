@@ -1404,7 +1404,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             assert readers.stream().anyMatch(r -> r.getGeneration() == currentCommittingGeneration)
                     : "readers missing committing generation [" + currentCommittingGeneration + "]";
             // set the last committed generation otherwise old files will not be cleaned up
-            lastCommittedTranslogFileGeneration = currentCommittingGeneration;
+            lastCommittedTranslogFileGeneration = currentCommittingGeneration + 1;
             currentCommittingGeneration = NOT_SET_GENERATION;
             trimUnreferencedReaders();
         }
@@ -1420,7 +1420,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             long minReferencedGen = outstandingViews.stream().mapToLong(View::minTranslogGeneration).min().orElse(Long.MAX_VALUE);
             minReferencedGen = Math.min(lastCommittedTranslogFileGeneration, minReferencedGen);
             final long finalMinReferencedGen = minReferencedGen;
-            List<TranslogReader> unreferenced = readers.stream().filter(r -> r.getGeneration() <= finalMinReferencedGen).collect(Collectors.toList());
+            List<TranslogReader> unreferenced = readers.stream().filter(r -> r.getGeneration() < finalMinReferencedGen).collect(Collectors.toList());
             for (final TranslogReader unreferencedReader : unreferenced) {
                 Path translogPath = unreferencedReader.path();
                 logger.trace("delete translog file - not referenced and not current anymore {}", translogPath);

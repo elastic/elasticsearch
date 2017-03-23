@@ -272,6 +272,35 @@ GET /_snapshot/my_backup/snapshot_1
 -----------------------------------
 // CONSOLE
 
+This command returns basic information about the snapshot including start and end time, version of
+elasticsearch that created the snapshot, the list of included indices, the current state of the
+snapshot and the list of failures that occurred during the snapshot. The snapshot `state` can be
+
+[horizontal]
+`IN_PROGRESS`::
+
+  The snapshot is currently running.
+
+`SUCCESS`::
+
+  The snapshot finished and all shards were stored successfully.
+
+`FAILED`::
+
+  The snapshot finished with an error and failed to store any data.
+
+`PARTIAL`::
+
+  The global cluster state was stored, but data of at least one shard wasn't stored successfully.
+  The `failure` section in this case should contain more detailed information about shards
+  that were not processed correctly.
+
+`INCOMPATIBLE`::
+
+  The snapshot was created with an old version of elasticsearch and therefore is incompatible with
+  the current version of the cluster.
+
+
 Similar as for repositories, information about multiple snapshots can be queried in one go, supporting wildcards as well:
 
 [source,sh]

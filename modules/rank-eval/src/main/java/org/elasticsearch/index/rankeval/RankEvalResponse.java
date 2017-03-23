@@ -32,28 +32,41 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * For each qa specification identified by its id this response returns the respective
- * averaged precisionAnN value.
+ * For each qa specification identified by its id this response returns the
+ * respective averaged precisionAnN value.
  *
- * In addition for each query the document ids that haven't been found annotated is returned as well.
+ * In addition for each query the document ids that haven't been found annotated
+ * is returned as well.
  *
- * Documents of unknown quality - i.e. those that haven't been supplied in the set of annotated documents but have been returned
- * by the search are not taken into consideration when computing precision at n - they are ignored.
+ * Documents of unknown quality - i.e. those that haven't been supplied in the
+ * set of annotated documents but have been returned by the search are not taken
+ * into consideration when computing precision at n - they are ignored.
  *
  **/
-//TODO instead of just returning averages over complete results, think of other statistics, micro avg, macro avg, partial results
+// TODO instead of just returning averages over complete results, think of other
+// statistics, micro avg, macro avg, partial results
 public class RankEvalResponse extends ActionResponse implements ToXContentObject {
-    /**Average precision observed when issuing query intents with this specification.*/
+    /**
+     * Average precision observed when issuing query intents with this
+     * specification.
+     */
     private double qualityLevel;
-    /**Mapping from intent id to all documents seen for this intent that were not annotated.*/
+    /**
+     * Mapping from intent id to all documents seen for this intent that were
+     * not annotated.
+     */
     private Map<String, EvalQueryQuality> details;
-    /**Mapping from intent id to potential exceptions that were thrown on query execution.*/
+    /**
+     * Mapping from intent id to potential exceptions that were thrown on query
+     * execution.
+     */
     private Map<String, Exception> failures;
 
     public RankEvalResponse() {
     }
 
-    public RankEvalResponse(double qualityLevel, Map<String, EvalQueryQuality> partialResults, Map<String, Exception> failures) {
+    public RankEvalResponse(double qualityLevel, Map<String, EvalQueryQuality> partialResults,
+            Map<String, Exception> failures) {
         this.qualityLevel = qualityLevel;
         this.details = partialResults;
         this.failures = failures;
@@ -73,7 +86,8 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
 
     @Override
     public String toString() {
-        return "RankEvalResponse, quality: " + qualityLevel + ", partial results: " + details + ", number of failures: " + failures.size();
+        return "RankEvalResponse, quality: " + qualityLevel + ", partial results: " + details
+                + ", number of failures: " + failures.size();
     }
 
     @Override
@@ -124,7 +138,8 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
         builder.startObject("failures");
         for (String key : failures.keySet()) {
             builder.startObject(key);
-            ElasticsearchException.generateFailureXContent(builder, params, failures.get(key), true);
+            ElasticsearchException.generateFailureXContent(builder, params, failures.get(key),
+                    true);
             builder.endObject();
         }
         builder.endObject();

@@ -30,9 +30,10 @@ import java.util.Optional;
 public class RatedSearchHitTests extends ESTestCase {
 
     public static RatedSearchHit randomRatedSearchHit() {
-        Optional<Integer> rating = randomBoolean() ? Optional.empty() : Optional.of(randomIntBetween(0, 5));
-        SearchHit searchHit = new SearchHit(randomIntBetween(0, 10), randomAsciiOfLength(10), new Text(randomAsciiOfLength(10)),
-                Collections.emptyMap());
+        Optional<Integer> rating = randomBoolean() ? Optional.empty()
+                : Optional.of(randomIntBetween(0, 5));
+        SearchHit searchHit = new SearchHit(randomIntBetween(0, 10), randomAsciiOfLength(10),
+                new Text(randomAsciiOfLength(10)), Collections.emptyMap());
         RatedSearchHit ratedSearchHit = new RatedSearchHit(searchHit, rating);
         return ratedSearchHit;
     }
@@ -45,8 +46,8 @@ public class RatedSearchHitTests extends ESTestCase {
             rating = rating.isPresent() ? Optional.of(rating.get() + 1) : Optional.of(randomInt(5));
             break;
         case 1:
-            hit = new SearchHit(hit.docId(), hit.getId() + randomAsciiOfLength(10), new Text(hit.getType()),
-                    Collections.emptyMap());
+            hit = new SearchHit(hit.docId(), hit.getId() + randomAsciiOfLength(10),
+                    new Text(hit.getType()), Collections.emptyMap());
             break;
         default:
             throw new IllegalStateException("The test should only allow two parameters mutated");

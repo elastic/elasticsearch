@@ -56,27 +56,32 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
 
 /**
- * Instances of this class execute a collection of search intents (read: user supplied query parameters) against a set of
- * possible search requests (read: search specifications, expressed as query/search request templates) and compares the result
- * against a set of annotated documents per search intent.
+ * Instances of this class execute a collection of search intents (read: user
+ * supplied query parameters) against a set of possible search requests (read:
+ * search specifications, expressed as query/search request templates) and
+ * compares the result against a set of annotated documents per search intent.
  *
- * If any documents are returned that haven't been annotated the document id of those is returned per search intent.
+ * If any documents are returned that haven't been annotated the document id of
+ * those is returned per search intent.
  *
- * The resulting search quality is computed in terms of precision at n and returned for each search specification for the full
- * set of search intents as averaged precision at n.
- * */
-public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequest, RankEvalResponse> {
+ * The resulting search quality is computed in terms of precision at n and
+ * returned for each search specification for the full set of search intents as
+ * averaged precision at n.
+ */
+public class TransportRankEvalAction
+        extends HandledTransportAction<RankEvalRequest, RankEvalResponse> {
     private Client client;
     private ScriptService scriptService;
     Queue<RequestTask> taskQueue = new ConcurrentLinkedQueue<>();
     private NamedXContentRegistry namedXContentRegistry;
 
     @Inject
-    public TransportRankEvalAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, Client client, TransportService transportService,
-            ScriptService scriptService, NamedXContentRegistry namedXContentRegistry) {
-        super(settings, RankEvalAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                RankEvalRequest::new);
+    public TransportRankEvalAction(Settings settings, ThreadPool threadPool,
+            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+            Client client, TransportService transportService, ScriptService scriptService,
+            NamedXContentRegistry namedXContentRegistry) {
+        super(settings, RankEvalAction.NAME, threadPool, transportService, actionFilters,
+                indexNameExpressionResolver, RankEvalRequest::new);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
         this.client = client;
@@ -88,26 +93,28 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
 
         Collection<RatedRequest> ratedRequests = qualityTask.getRatedRequests();
         AtomicInteger responseCounter = new AtomicInteger(ratedRequests.size());
-        Map<String, EvalQueryQuality> partialResults = new ConcurrentHashMap<>(ratedRequests.size());
+        Map<String, EvalQueryQuality> partialResults = new ConcurrentHashMap<>(
+                ratedRequests.size());
         Map<String, Exception> errors = new ConcurrentHashMap<>(ratedRequests.size());
 
         Map<String, CompiledScript> scriptsWithoutParams = new HashMap<>();
         for (Entry<String, Script> entry : qualityTask.getTemplates().entrySet()) {
-             scriptsWithoutParams.put(
-                     entry.getKey(),
-                     scriptService.compile(entry.getValue(), ScriptContext.Standard.SEARCH));
+            scriptsWithoutParams.put(entry.getKey(),
+                    scriptService.compile(entry.getValue(), ScriptContext.Standard.SEARCH));
         }
 
         for (RatedRequest ratedRequest : ratedRequests) {
-            final RankEvalActionListener searchListener = new RankEvalActionListener(listener, qualityTask.getMetric(), ratedRequest,
-                    partialResults, errors, responseCounter);
+            final RankEvalActionListener searchListener = new RankEvalActionListener(listener,
+                    qualityTask.getMetric(), ratedRequest, partialResults, errors, responseCounter);
             SearchSourceBuilder ratedSearchSource = ratedRequest.getTestRequest();
             if (ratedSearchSource == null) {
                 Map<String, Object> params = ratedRequest.getParams();
                 String templateId = ratedRequest.getTemplateId();
                 CompiledScript compiled = scriptsWithoutParams.get(templateId);
-                BytesReference resolvedRequest = (BytesReference) (scriptService.executable(compiled, params).run());
-                try (XContentParser subParser = createParser(namedXContentRegistry, resolvedRequest, XContentType.JSON)) {
+                BytesReference resolvedRequest = (BytesReference) (scriptService
+                        .executable(compiled, params).run());
+                try (XContentParser subParser = createParser(namedXContentRegistry, resolvedRequest,
+                        XContentType.JSON)) {
                     QueryParseContext parseContext = new QueryParseContext(subParser);
                     ratedSearchSource = SearchSourceBuilder.fromXContent(parseContext);
                 } catch (IOException e) {
@@ -118,7 +125,8 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             if (summaryFields.isEmpty()) {
                 ratedSearchSource.fetchSource(false);
             } else {
-                ratedSearchSource.fetchSource(summaryFields.toArray(new String[summaryFields.size()]), new String[0]);
+                ratedSearchSource.fetchSource(
+                        summaryFields.toArray(new String[summaryFields.size()]), new String[0]);
             }
 
             String[] indices = new String[ratedRequest.getIndices().size()];
@@ -133,8 +141,10 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             taskQueue.add(task);
         }
 
-        // Execute top n tasks, further execution is triggered in RankEvalActionListener
-        for (int i = 0; (i < Math.min(ratedRequests.size(), qualityTask.getMaxConcurrentSearches())); i++) {
+        // Execute top n tasks, further execution is triggered in
+        // RankEvalActionListener
+        for (int i = 0; (i < Math.min(ratedRequests.size(),
+                qualityTask.getMaxConcurrentSearches())); i++) {
             RequestTask task = taskQueue.poll();
             client.search(task.request, task.searchListener);
         }
@@ -159,8 +169,10 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         private RankedListQualityMetric metric;
         private AtomicInteger responseCounter;
 
-        public RankEvalActionListener(ActionListener<RankEvalResponse> listener, RankedListQualityMetric metric, RatedRequest specification,
-                Map<String, EvalQueryQuality> details, Map<String, Exception> errors, AtomicInteger responseCounter) {
+        public RankEvalActionListener(ActionListener<RankEvalResponse> listener,
+                RankedListQualityMetric metric, RatedRequest specification,
+                Map<String, EvalQueryQuality> details, Map<String, Exception> errors,
+                AtomicInteger responseCounter) {
             this.listener = listener;
             this.metric = metric;
             this.errors = errors;
@@ -172,7 +184,8 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         @Override
         public void onResponse(SearchResponse searchResponse) {
             SearchHit[] hits = searchResponse.getHits().getHits();
-            EvalQueryQuality queryQuality = metric.evaluate(specification.getId(), hits, specification.getRatedDocs());
+            EvalQueryQuality queryQuality = metric.evaluate(specification.getId(), hits,
+                    specification.getRatedDocs());
             requestDetails.put(specification.getId(), queryQuality);
             handleResponse();
         }
@@ -186,9 +199,10 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         private void handleResponse() {
             if (responseCounter.decrementAndGet() == 0) {
                 // TODO add other statistics like micro/macro avg?
-                listener.onResponse(new RankEvalResponse(metric.combine(requestDetails.values()), requestDetails, errors));
+                listener.onResponse(new RankEvalResponse(metric.combine(requestDetails.values()),
+                        requestDetails, errors));
             } else {
-                if (! taskQueue.isEmpty()) {
+                if (!taskQueue.isEmpty()) {
                     RequestTask task = taskQueue.poll();
                     client.search(task.request, task.searchListener);
                 }

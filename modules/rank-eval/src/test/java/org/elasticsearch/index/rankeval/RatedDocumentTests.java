@@ -42,7 +42,8 @@ public class RatedDocumentTests extends ESTestCase {
     public void testXContentParsing() throws IOException {
         RatedDocument testItem = createRatedDocument();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        XContentBuilder shuffled = shuffleXContent(testItem.toXContent(builder, ToXContent.EMPTY_PARAMS));
+        XContentBuilder shuffled = shuffleXContent(
+                testItem.toXContent(builder, ToXContent.EMPTY_PARAMS));
         try (XContentParser itemParser = createParser(shuffled)) {
             RatedDocument parsedItem = RatedDocument.fromXContent(itemParser);
             assertNotSame(testItem, parsedItem);
@@ -66,11 +67,14 @@ public class RatedDocumentTests extends ESTestCase {
     }
 
     public void testInvalidParsing() throws IOException {
-        expectThrows(IllegalArgumentException.class, () -> new RatedDocument(null, "abc", "abc", 10));
+        expectThrows(IllegalArgumentException.class,
+                () -> new RatedDocument(null, "abc", "abc", 10));
         expectThrows(IllegalArgumentException.class, () -> new RatedDocument("", "abc", "abc", 10));
-        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("abc", null, "abc", 10));
+        expectThrows(IllegalArgumentException.class,
+                () -> new RatedDocument("abc", null, "abc", 10));
         expectThrows(IllegalArgumentException.class, () -> new RatedDocument("abc", "", "abc", 10));
-        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("abc", "abc", null, 10));
+        expectThrows(IllegalArgumentException.class,
+                () -> new RatedDocument("abc", "abc", null, 10));
         expectThrows(IllegalArgumentException.class, () -> new RatedDocument("abc", "abc", "", 10));
     }
 

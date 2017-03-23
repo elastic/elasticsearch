@@ -42,40 +42,50 @@ public class RankEvalTestHelper {
         assertFalse("testItem is equal to null", testItem.equals(null));
         assertFalse("testItem is equal to incompatible type", testItem.equals(""));
         assertTrue("testItem is not equal to self", testItem.equals(testItem));
-        assertThat("same testItem's hashcode returns different values if called multiple times", testItem.hashCode(),
-                equalTo(testItem.hashCode()));
+        assertThat("same testItem's hashcode returns different values if called multiple times",
+                testItem.hashCode(), equalTo(testItem.hashCode()));
 
         assertThat("different testItem should not be equal", mutation, not(equalTo(testItem)));
 
         assertNotSame("testItem copy is not same as original", testItem, secondCopy);
         assertTrue("testItem is not equal to its copy", testItem.equals(secondCopy));
         assertTrue("equals is not symmetric", secondCopy.equals(testItem));
-        assertThat("testItem copy's hashcode is different from original hashcode", secondCopy.hashCode(),
-                equalTo(testItem.hashCode()));
+        assertThat("testItem copy's hashcode is different from original hashcode",
+                secondCopy.hashCode(), equalTo(testItem.hashCode()));
     }
 
     /**
      * Make a deep copy of an object by running it through a BytesStreamOutput
-     * @param original the original object
-     * @param reader a function able to create a new copy of this type
+     *
+     * @param original
+     *            the original object
+     * @param reader
+     *            a function able to create a new copy of this type
      * @return a new copy of the original object
      */
-    public static <T extends Writeable> T copy(T original, Writeable.Reader<T> reader) throws IOException {
+    public static <T extends Writeable> T copy(T original, Writeable.Reader<T> reader)
+            throws IOException {
         return copy(original, reader, new NamedWriteableRegistry(Collections.emptyList()));
     }
 
     /**
      * Make a deep copy of an object by running it through a BytesStreamOutput
-     * @param original the original object
-     * @param reader a function able to create a new copy of this type
-     * @param namedWriteableRegistry must be non-empty if the object itself or nested object implement {@link NamedWriteable}
+     *
+     * @param original
+     *            the original object
+     * @param reader
+     *            a function able to create a new copy of this type
+     * @param namedWriteableRegistry
+     *            must be non-empty if the object itself or nested object
+     *            implement {@link NamedWriteable}
      * @return a new copy of the original object
      */
-    public static <T extends Writeable> T copy(T original, Writeable.Reader<T> reader, NamedWriteableRegistry namedWriteableRegistry)
-            throws IOException {
+    public static <T extends Writeable> T copy(T original, Writeable.Reader<T> reader,
+            NamedWriteableRegistry namedWriteableRegistry) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(),
+                    namedWriteableRegistry)) {
                 return reader.read(in);
             }
         }

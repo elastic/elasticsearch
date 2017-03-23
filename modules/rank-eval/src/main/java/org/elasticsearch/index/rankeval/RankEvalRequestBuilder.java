@@ -23,21 +23,24 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class RankEvalRequestBuilder extends ActionRequestBuilder<RankEvalRequest, RankEvalResponse, RankEvalRequestBuilder> {
-    
-    public RankEvalRequestBuilder(ElasticsearchClient client, Action<RankEvalRequest, RankEvalResponse, RankEvalRequestBuilder> action,
+public class RankEvalRequestBuilder
+        extends ActionRequestBuilder<RankEvalRequest, RankEvalResponse, RankEvalRequestBuilder> {
+
+    public RankEvalRequestBuilder(ElasticsearchClient client,
+            Action<RankEvalRequest, RankEvalResponse, RankEvalRequestBuilder> action,
             RankEvalRequest request) {
         super(client, action, request);
     }
 
+    @Override
     public RankEvalRequest request() {
         return request;
     }
-    
+
     public void setRankEvalSpec(RankEvalSpec spec) {
         this.request.setRankEvalSpec(spec);
     }
-    
+
     public RankEvalSpec getRankEvalSpec() {
         return this.request.getRankEvalSpec();
     }

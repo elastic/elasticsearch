@@ -25,7 +25,8 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Action used to start precision at qa evaluations.
  **/
-public class RankEvalAction extends Action<RankEvalRequest, RankEvalResponse, RankEvalRequestBuilder> {
+public class RankEvalAction
+        extends Action<RankEvalRequest, RankEvalResponse, RankEvalRequestBuilder> {
 
     public static final RankEvalAction INSTANCE = new RankEvalAction();
     public static final String NAME = "indices:data/read/quality";

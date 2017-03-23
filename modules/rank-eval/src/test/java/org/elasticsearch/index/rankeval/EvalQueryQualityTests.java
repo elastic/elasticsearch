@@ -28,7 +28,8 @@ import java.util.List;
 
 public class EvalQueryQualityTests extends ESTestCase {
 
-    private static NamedWriteableRegistry namedWritableRegistry = new NamedWriteableRegistry(new RankEvalPlugin().getNamedWriteables());
+    private static NamedWriteableRegistry namedWritableRegistry = new NamedWriteableRegistry(
+            new RankEvalPlugin().getNamedWriteables());
 
     public static EvalQueryQuality randomEvalQueryQuality() {
         List<DocumentKey> unknownDocs = new ArrayList<>();
@@ -41,7 +42,8 @@ public class EvalQueryQualityTests extends ESTestCase {
         for (int i = 0; i < numberOfSearchHits; i++) {
             ratedHits.add(RatedSearchHitTests.randomRatedSearchHit());
         }
-        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(randomAsciiOfLength(10), randomDoubleBetween(0.0, 1.0, true));
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(randomAsciiOfLength(10),
+                randomDoubleBetween(0.0, 1.0, true));
         if (randomBoolean()) {
             // TODO randomize this
             evalQueryQuality.addMetricDetails(new Precision.Breakdown(1, 5));
@@ -52,7 +54,8 @@ public class EvalQueryQualityTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         EvalQueryQuality original = randomEvalQueryQuality();
-        EvalQueryQuality deserialized = RankEvalTestHelper.copy(original, EvalQueryQuality::new, namedWritableRegistry);
+        EvalQueryQuality deserialized = RankEvalTestHelper.copy(original, EvalQueryQuality::new,
+                namedWritableRegistry);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);

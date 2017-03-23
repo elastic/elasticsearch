@@ -43,32 +43,37 @@ public class RankEvalPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(new ActionHandler<>(RankEvalAction.INSTANCE, TransportRankEvalAction.class));
+        return Arrays.asList(
+                new ActionHandler<>(RankEvalAction.INSTANCE, TransportRankEvalAction.class));
     }
 
-
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
+    public List<RestHandler> getRestHandlers(Settings settings, RestController restController,
+            ClusterSettings clusterSettings, IndexScopedSettings indexScopedSettings,
+            SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(new RestRankEvalAction(settings, restController));
     }
 
     /**
-     * Returns parsers for {@link NamedWriteable} this plugin will use over the transport protocol.
+     * Returns parsers for {@link NamedWriteable} this plugin will use over the
+     * transport protocol.
+     *
      * @see NamedWriteableRegistry
      */
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, Precision.NAME, Precision::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, ReciprocalRank.NAME, ReciprocalRank::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, DiscountedCumulativeGain.NAME,
-                DiscountedCumulativeGain::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class,
+                Precision.NAME, Precision::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class,
+                ReciprocalRank.NAME, ReciprocalRank::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class,
+                DiscountedCumulativeGain.NAME, DiscountedCumulativeGain::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(MetricDetails.class, Precision.NAME,
                 Precision.Breakdown::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(MetricDetails.class, ReciprocalRank.NAME,
-                ReciprocalRank.Breakdown::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(MetricDetails.class,
+                ReciprocalRank.NAME, ReciprocalRank.Breakdown::new));
         return namedWriteables;
     }
 }

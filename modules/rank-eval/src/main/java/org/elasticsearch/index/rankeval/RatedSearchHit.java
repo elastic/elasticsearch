@@ -42,7 +42,8 @@ public class RatedSearchHit implements Writeable, ToXContent {
     }
 
     public RatedSearchHit(StreamInput in) throws IOException {
-        this(SearchHit.readSearchHit(in), in.readBoolean() == true ? Optional.of(in.readVInt()) : Optional.empty());
+        this(SearchHit.readSearchHit(in),
+                in.readBoolean() == true ? Optional.of(in.readVInt()) : Optional.empty());
     }
 
     @Override
@@ -63,7 +64,8 @@ public class RatedSearchHit implements Writeable, ToXContent {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params)
+            throws IOException {
         builder.startObject();
         builder.field("hit", (ToXContent) searchHit);
         builder.field("rating", rating.orElse(null));
@@ -80,7 +82,8 @@ public class RatedSearchHit implements Writeable, ToXContent {
             return false;
         }
         RatedSearchHit other = (RatedSearchHit) obj;
-        // NORELEASE this is a workaround because InternalSearchHit does not properly implement equals()/hashCode(), so we compare their
+        // NORELEASE this is a workaround because InternalSearchHit does not
+        // properly implement equals()/hashCode(), so we compare their
         // xcontent
         XContentBuilder builder;
         String hitAsXContent;
@@ -89,17 +92,19 @@ public class RatedSearchHit implements Writeable, ToXContent {
             builder = XContentFactory.jsonBuilder();
             hitAsXContent = searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS).string();
             builder = XContentFactory.jsonBuilder();
-            otherHitAsXContent = other.searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS).string();
+            otherHitAsXContent = other.searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS)
+                    .string();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return Objects.equals(rating, other.rating) &&
-                Objects.equals(hitAsXContent, otherHitAsXContent);
+        return Objects.equals(rating, other.rating)
+                && Objects.equals(hitAsXContent, otherHitAsXContent);
     }
 
     @Override
     public final int hashCode() {
-        // NORELEASE for this to work requires InternalSearchHit to properly implement equals()/hashCode()
+        // NORELEASE for this to work requires InternalSearchHit to properly
+        // implement equals()/hashCode()
         XContentBuilder builder;
         String hitAsXContent;
         try {

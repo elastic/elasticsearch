@@ -37,10 +37,10 @@ import javax.naming.directory.SearchResult;
 import static org.elasticsearch.index.rankeval.RankedListQualityMetric.joinHitsWithRatings;
 
 /**
- * Evaluate reciprocal rank.
- * By default documents with a rating equal or bigger than 1 are considered to be "relevant" for the reciprocal rank
- * calculation. This value can be changes using the "relevant_rating_threshold" parameter.
- * */
+ * Evaluate reciprocal rank. By default documents with a rating equal or bigger
+ * than 1 are considered to be "relevant" for the reciprocal rank calculation.
+ * This value can be changes using the "relevant_rating_threshold" parameter.
+ */
 public class ReciprocalRank implements RankedListQualityMetric {
 
     public static final String NAME = "reciprocal_rank";
@@ -65,30 +65,34 @@ public class ReciprocalRank implements RankedListQualityMetric {
     }
 
     /**
-     * Sets the rating threshold above which ratings are considered to be "relevant" for this metric.
-     * */
+     * Sets the rating threshold above which ratings are considered to be
+     * "relevant" for this metric.
+     */
     public void setRelevantRatingThreshhold(int threshold) {
         if (threshold < 0) {
-            throw new IllegalArgumentException("Relevant rating threshold for precision must be positive integer.");
+            throw new IllegalArgumentException(
+                    "Relevant rating threshold for precision must be positive integer.");
         }
 
         this.relevantRatingThreshhold = threshold;
     }
 
     /**
-     * Return the rating threshold above which ratings are considered to be "relevant" for this metric.
-     * Defaults to 1.
-     * */
+     * Return the rating threshold above which ratings are considered to be
+     * "relevant" for this metric. Defaults to 1.
+     */
     public int getRelevantRatingThreshold() {
-        return relevantRatingThreshhold ;
+        return relevantRatingThreshhold;
     }
 
     /**
      * Compute ReciprocalRank based on provided relevant document IDs.
+     *
      * @return reciprocal Rank for above {@link SearchResult} list.
      **/
     @Override
-    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
+    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits,
+            List<RatedDocument> ratedDocs) {
         List<RatedSearchHit> ratedHits = joinHitsWithRatings(hits, ratedDocs);
         int firstRelevant = -1;
         int rank = 1;
@@ -115,7 +119,8 @@ public class ReciprocalRank implements RankedListQualityMetric {
         out.writeVInt(relevantRatingThreshhold);
     }
 
-    private static final ParseField RELEVANT_RATING_FIELD = new ParseField("relevant_rating_threshold");
+    private static final ParseField RELEVANT_RATING_FIELD = new ParseField(
+            "relevant_rating_threshold");
     private static final ObjectParser<ReciprocalRank, Void> PARSER = new ObjectParser<>(
             "reciprocal_rank", () -> new ReciprocalRank());
 
@@ -167,7 +172,8 @@ public class ReciprocalRank implements RankedListQualityMetric {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params)
+                throws IOException {
             builder.field("first_relevant", firstRelevantRank);
             return builder;
         }
@@ -185,6 +191,7 @@ public class ReciprocalRank implements RankedListQualityMetric {
         public int getFirstRelevantRank() {
             return firstRelevantRank;
         }
+
         @Override
         public final boolean equals(Object obj) {
             if (this == obj) {

@@ -26,11 +26,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-
 /**
- * Instances of this class represent a complete precision at request. They encode a precision task including search intents and search
- * specifications to be executed subsequently.
- * */
+ * Instances of this class represent a complete precision at request. They
+ * encode a precision task including search intents and search specifications to
+ * be executed subsequently.
+ */
 public class RankEvalRequest extends ActionRequest {
 
     /** The request data to use for evaluation. */
@@ -61,7 +61,6 @@ public class RankEvalRequest extends ActionRequest {
     public void setRankEvalSpec(RankEvalSpec task) {
         this.task = task;
     }
-
 
     @Override
     public void readFrom(StreamInput in) throws IOException {

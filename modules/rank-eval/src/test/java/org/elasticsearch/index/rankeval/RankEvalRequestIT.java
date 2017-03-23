@@ -37,8 +37,7 @@ import java.util.Set;
 
 import static org.elasticsearch.index.rankeval.RankedListQualityMetric.filterUnknownDocuments;
 
-
-public class RankEvalRequestIT  extends ESIntegTestCase {
+public class RankEvalRequestIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return Arrays.asList(RankEvalPlugin.class);
@@ -56,16 +55,11 @@ public class RankEvalRequestIT  extends ESIntegTestCase {
 
         client().prepareIndex("test", "testtype").setId("1")
                 .setSource("text", "berlin", "title", "Berlin, Germany").get();
-        client().prepareIndex("test", "testtype").setId("2")
-                .setSource("text", "amsterdam").get();
-        client().prepareIndex("test", "testtype").setId("3")
-                .setSource("text", "amsterdam").get();
-        client().prepareIndex("test", "testtype").setId("4")
-                .setSource("text", "amsterdam").get();
-        client().prepareIndex("test", "testtype").setId("5")
-                .setSource("text", "amsterdam").get();
-        client().prepareIndex("test", "testtype").setId("6")
-                .setSource("text", "amsterdam").get();
+        client().prepareIndex("test", "testtype").setId("2").setSource("text", "amsterdam").get();
+        client().prepareIndex("test", "testtype").setId("3").setSource("text", "amsterdam").get();
+        client().prepareIndex("test", "testtype").setId("4").setSource("text", "amsterdam").get();
+        client().prepareIndex("test", "testtype").setId("5").setSource("text", "amsterdam").get();
+        client().prepareIndex("test", "testtype").setId("6").setSource("text", "amsterdam").get();
         refresh();
     }
 
@@ -76,29 +70,31 @@ public class RankEvalRequestIT  extends ESIntegTestCase {
         List<RatedRequest> specifications = new ArrayList<>();
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
         testQuery.query(new MatchAllQueryBuilder());
-        RatedRequest amsterdamRequest = new RatedRequest(
-                "amsterdam_query", createRelevant("2", "3", "4", "5"), testQuery);
+        RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query",
+                createRelevant("2", "3", "4", "5"), testQuery);
         amsterdamRequest.setIndices(indices);
         amsterdamRequest.setTypes(types);
-        amsterdamRequest.setSummaryFields(Arrays.asList(new String[]{ "text", "title" }));
+        amsterdamRequest.setSummaryFields(Arrays.asList(new String[] { "text", "title" }));
 
         specifications.add(amsterdamRequest);
-        RatedRequest berlinRequest = new RatedRequest(
-                "berlin_query", createRelevant("1"), testQuery);
+        RatedRequest berlinRequest = new RatedRequest("berlin_query", createRelevant("1"),
+                testQuery);
         berlinRequest.setIndices(indices);
         berlinRequest.setTypes(types);
-        berlinRequest.setSummaryFields(Arrays.asList(new String[]{ "text", "title" }));
-        
+        berlinRequest.setSummaryFields(Arrays.asList(new String[] { "text", "title" }));
+
         specifications.add(berlinRequest);
 
         Precision metric = new Precision();
         metric.setIgnoreUnlabeled(true);
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
 
-        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(),
+                RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
 
-        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
+        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request())
+                .actionGet();
         assertEquals(1.0, response.getQualityLevel(), Double.MIN_VALUE);
         Set<Entry<String, EvalQueryQuality>> entrySet = response.getPartialResults().entrySet();
         assertEquals(2, entrySet.size());
@@ -134,7 +130,8 @@ public class RankEvalRequestIT  extends ESIntegTestCase {
     }
 
     /**
-     * test that running a bad query (e.g. one that will target a non existing field) will produce an error in the response
+     * test that running a bad query (e.g. one that will target a non existing
+     * field) will produce an error in the response
      */
     public void testBadQuery() {
         List<String> indices = Arrays.asList(new String[] { "test" });
@@ -143,7 +140,8 @@ public class RankEvalRequestIT  extends ESIntegTestCase {
         List<RatedRequest> specifications = new ArrayList<>();
         SearchSourceBuilder amsterdamQuery = new SearchSourceBuilder();
         amsterdamQuery.query(new MatchAllQueryBuilder());
-        RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query", createRelevant("2", "3", "4", "5"), amsterdamQuery);
+        RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query",
+                createRelevant("2", "3", "4", "5"), amsterdamQuery);
         amsterdamRequest.setIndices(indices);
         amsterdamRequest.setTypes(types);
         specifications.add(amsterdamRequest);
@@ -151,20 +149,25 @@ public class RankEvalRequestIT  extends ESIntegTestCase {
         SearchSourceBuilder brokenQuery = new SearchSourceBuilder();
         RangeQueryBuilder brokenRangeQuery = new RangeQueryBuilder("text").timeZone("CET");
         brokenQuery.query(brokenRangeQuery);
-        RatedRequest brokenRequest = new RatedRequest("broken_query", createRelevant("1"), brokenQuery);
+        RatedRequest brokenRequest = new RatedRequest("broken_query", createRelevant("1"),
+                brokenQuery);
         brokenRequest.setIndices(indices);
         brokenRequest.setTypes(types);
         specifications.add(brokenRequest);
 
         RankEvalSpec task = new RankEvalSpec(specifications, new Precision());
 
-        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(),
+                RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
 
-        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
+        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request())
+                .actionGet();
         assertEquals(1, response.getFailures().size());
-        ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(response.getFailures().get("broken_query"));
-        assertEquals("[range] time_zone can not be applied to non date field [text]", rootCauses[0].getMessage());
+        ElasticsearchException[] rootCauses = ElasticsearchException
+                .guessRootCauses(response.getFailures().get("broken_query"));
+        assertEquals("[range] time_zone can not be applied to non date field [text]",
+                rootCauses[0].getMessage());
 
     }
 
@@ -175,4 +178,4 @@ public class RankEvalRequestIT  extends ESIntegTestCase {
         }
         return relevant;
     }
- }
+}

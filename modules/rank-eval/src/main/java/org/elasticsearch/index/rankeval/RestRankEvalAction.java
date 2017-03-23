@@ -163,7 +163,8 @@ public class RestRankEvalAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
+            throws IOException {
         RankEvalRequest rankEvalRequest = new RankEvalRequest();
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             parseRankEvalRequest(rankEvalRequest, request, parser);
@@ -172,15 +173,19 @@ public class RestRankEvalAction extends BaseRestHandler {
                 new RestToXContentListener<RankEvalResponse>(channel));
     }
 
-    private static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request, XContentParser parser) {
-        List<String> indices = Arrays.asList(Strings.splitStringByCommaToArray(request.param("index")));
-        List<String> types = Arrays.asList(Strings.splitStringByCommaToArray(request.param("type")));
+    private static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request,
+            XContentParser parser) {
+        List<String> indices = Arrays
+                .asList(Strings.splitStringByCommaToArray(request.param("index")));
+        List<String> types = Arrays
+                .asList(Strings.splitStringByCommaToArray(request.param("type")));
         RankEvalSpec spec = null;
         spec = RankEvalSpec.parse(parser);
         for (RatedRequest specification : spec.getRatedRequests()) {
             specification.setIndices(indices);
             specification.setTypes(types);
-        };
+        }
+        ;
 
         rankEvalRequest.setRankEvalSpec(spec);
     }

@@ -43,9 +43,11 @@ public class PrecisionTests extends ESTestCase {
     public void testPrecisionAtFiveCalculation() {
         List<RatedDocument> rated = new ArrayList<>();
         rated.add(new RatedDocument("test", "testtype", "0", Rating.RELEVANT.ordinal()));
-        EvalQueryQuality evaluated = (new Precision()).evaluate("id", toSearchHits(rated, "test", "testtype"), rated);
+        EvalQueryQuality evaluated = (new Precision()).evaluate("id",
+                toSearchHits(rated, "test", "testtype"), rated);
         assertEquals(1, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(1, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(1,
+                ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(1, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
@@ -56,15 +58,18 @@ public class PrecisionTests extends ESTestCase {
         rated.add(new RatedDocument("test", "testtype", "2", Rating.RELEVANT.ordinal()));
         rated.add(new RatedDocument("test", "testtype", "3", Rating.RELEVANT.ordinal()));
         rated.add(new RatedDocument("test", "testtype", "4", Rating.IRRELEVANT.ordinal()));
-        EvalQueryQuality evaluated = (new Precision()).evaluate("id", toSearchHits(rated, "test", "testtype"), rated);
+        EvalQueryQuality evaluated = (new Precision()).evaluate("id",
+                toSearchHits(rated, "test", "testtype"), rated);
         assertEquals((double) 4 / 5, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(4, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(4,
+                ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(5, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
     /**
-     * test that the relevant rating threshold can be set to something larger than 1.
-     * e.g. we set it to 2 here and expect dics 0-2 to be not relevant, doc 3 and 4 to be relevant
+     * test that the relevant rating threshold can be set to something larger
+     * than 1. e.g. we set it to 2 here and expect dics 0-2 to be not relevant,
+     * doc 3 and 4 to be relevant
      */
     public void testPrecisionAtFiveRelevanceThreshold() {
         List<RatedDocument> rated = new ArrayList<>();
@@ -75,9 +80,11 @@ public class PrecisionTests extends ESTestCase {
         rated.add(new RatedDocument("test", "testtype", "4", 4));
         Precision precisionAtN = new Precision();
         precisionAtN.setRelevantRatingThreshhold(2);
-        EvalQueryQuality evaluated = precisionAtN.evaluate("id", toSearchHits(rated, "test", "testtype"), rated);
+        EvalQueryQuality evaluated = precisionAtN.evaluate("id",
+                toSearchHits(rated, "test", "testtype"), rated);
         assertEquals((double) 3 / 5, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(3, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(3,
+                ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(5, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
@@ -89,9 +96,11 @@ public class PrecisionTests extends ESTestCase {
         rated.add(new RatedDocument("test", "testtype", "1", Rating.RELEVANT.ordinal()));
         rated.add(new RatedDocument("test", "testtype", "2", Rating.IRRELEVANT.ordinal()));
         // the following search hits contain only the last three documents
-        EvalQueryQuality evaluated = (new Precision()).evaluate("id", toSearchHits(rated.subList(2, 5), "test", "testtype"), rated);
+        EvalQueryQuality evaluated = (new Precision()).evaluate("id",
+                toSearchHits(rated.subList(2, 5), "test", "testtype"), rated);
         assertEquals((double) 2 / 3, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(2, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(2,
+                ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(3, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
@@ -102,9 +111,11 @@ public class PrecisionTests extends ESTestCase {
         rated.add(new RatedDocument("test", "testtype", "0", Rating.RELEVANT.ordinal()));
         rated.add(new RatedDocument("test", "testtype", "1", Rating.RELEVANT.ordinal()));
         rated.add(new RatedDocument("test", "testtype", "2", Rating.IRRELEVANT.ordinal()));
-        EvalQueryQuality evaluated = (new Precision()).evaluate("id", toSearchHits(rated.subList(2, 5), "test", "testtype"), rated);
+        EvalQueryQuality evaluated = (new Precision()).evaluate("id",
+                toSearchHits(rated.subList(2, 5), "test", "testtype"), rated);
         assertEquals((double) 2 / 3, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(2, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(2,
+                ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(3, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
@@ -119,7 +130,8 @@ public class PrecisionTests extends ESTestCase {
 
         EvalQueryQuality evaluated = (new Precision()).evaluate("id", searchHits, rated);
         assertEquals((double) 2 / 3, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(2, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(2,
+                ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(3, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
 
         // also try with setting `ignore_unlabeled`
@@ -127,19 +139,22 @@ public class PrecisionTests extends ESTestCase {
         prec.setIgnoreUnlabeled(true);
         evaluated = prec.evaluate("id", searchHits, rated);
         assertEquals((double) 2 / 2, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(2, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(2,
+                ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(2, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
     public void testNoRatedDocs() throws Exception {
         SearchHit[] hits = new SearchHit[5];
         for (int i = 0; i < 5; i++) {
-            hits[i] = new SearchHit(i, i+"", new Text("type"), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "", new Text("type"), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new Index("index", "uuid"), 0));
         }
-        EvalQueryQuality evaluated = (new Precision()).evaluate("id", hits, Collections.emptyList());
+        EvalQueryQuality evaluated = (new Precision()).evaluate("id", hits,
+                Collections.emptyList());
         assertEquals(0.0d, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(0, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(0,
+                ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(5, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
 
         // also try with setting `ignore_unlabeled`
@@ -147,14 +162,13 @@ public class PrecisionTests extends ESTestCase {
         prec.setIgnoreUnlabeled(true);
         evaluated = prec.evaluate("id", hits, Collections.emptyList());
         assertEquals(0.0d, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(0, ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(0,
+                ((Precision.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(0, ((Precision.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
     public void testParseFromXContent() throws IOException {
-        String xContent = " {\n"
-         + "   \"relevant_rating_threshold\" : 2"
-         + "}";
+        String xContent = " {\n" + "   \"relevant_rating_threshold\" : 2" + "}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
             Precision precicionAt = Precision.fromXContent(parser);
             assertEquals(2, precicionAt.getRelevantRatingThreshold());
@@ -187,7 +201,8 @@ public class PrecisionTests extends ESTestCase {
     public void testXContentRoundtrip() throws IOException {
         Precision testItem = createTestItem();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        XContentBuilder shuffled = shuffleXContent(testItem.toXContent(builder, ToXContent.EMPTY_PARAMS));
+        XContentBuilder shuffled = shuffleXContent(
+                testItem.toXContent(builder, ToXContent.EMPTY_PARAMS));
         try (XContentParser itemParser = createParser(shuffled)) {
             itemParser.nextToken();
             itemParser.nextToken();
@@ -220,8 +235,9 @@ public class PrecisionTests extends ESTestCase {
         precision.setRelevantRatingThreshhold(relevantThreshold);
 
         List<Runnable> mutators = new ArrayList<>();
-        mutators.add(() -> precision.setIgnoreUnlabeled(! ignoreUnlabeled));
-        mutators.add(() -> precision.setRelevantRatingThreshhold(randomValueOtherThan(relevantThreshold, () -> randomIntBetween(0, 10))));
+        mutators.add(() -> precision.setIgnoreUnlabeled(!ignoreUnlabeled));
+        mutators.add(() -> precision.setRelevantRatingThreshhold(
+                randomValueOtherThan(relevantThreshold, () -> randomIntBetween(0, 10))));
         randomFrom(mutators).run();
         return precision;
     }
@@ -229,7 +245,7 @@ public class PrecisionTests extends ESTestCase {
     private static SearchHit[] toSearchHits(List<RatedDocument> rated, String index, String type) {
         SearchHit[] hits = new SearchHit[rated.size()];
         for (int i = 0; i < rated.size(); i++) {
-            hits[i] = new SearchHit(i, i+"", new Text(type), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "", new Text(type), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new Index(index, "uuid"), 0));
         }
         return hits;

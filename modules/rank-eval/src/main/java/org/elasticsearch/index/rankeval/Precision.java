@@ -46,14 +46,17 @@ public class Precision implements RankedListQualityMetric {
 
     public static final String NAME = "precision";
 
-    private static final ParseField RELEVANT_RATING_FIELD = new ParseField("relevant_rating_threshold");
+    private static final ParseField RELEVANT_RATING_FIELD = new ParseField(
+            "relevant_rating_threshold");
     private static final ParseField IGNORE_UNLABELED_FIELD = new ParseField("ignore_unlabeled");
-    private static final ObjectParser<Precision, Void> PARSER = new ObjectParser<>(NAME, Precision::new);
+    private static final ObjectParser<Precision, Void> PARSER = new ObjectParser<>(NAME,
+            Precision::new);
 
     /**
      * This setting controls how unlabeled documents in the search hits are
      * treated. Set to 'true', unlabeled documents are ignored and neither count
-     * as true or false positives. Set to 'false', they are treated as false positives.
+     * as true or false positives. Set to 'false', they are treated as false
+     * positives.
      */
     private boolean ignoreUnlabeled = false;
 
@@ -86,33 +89,35 @@ public class Precision implements RankedListQualityMetric {
     }
 
     /**
-     * Sets the rating threshold above which ratings are considered to be "relevant" for this metric.
-     * */
+     * Sets the rating threshold above which ratings are considered to be
+     * "relevant" for this metric.
+     */
     public void setRelevantRatingThreshhold(int threshold) {
         if (threshold < 0) {
-            throw new IllegalArgumentException("Relevant rating threshold for precision must be positive integer.");
+            throw new IllegalArgumentException(
+                    "Relevant rating threshold for precision must be positive integer.");
         }
         this.relevantRatingThreshhold = threshold;
     }
 
     /**
-     * Return the rating threshold above which ratings are considered to be "relevant" for this metric.
-     * Defaults to 1.
-     * */
+     * Return the rating threshold above which ratings are considered to be
+     * "relevant" for this metric. Defaults to 1.
+     */
     public int getRelevantRatingThreshold() {
-        return relevantRatingThreshhold ;
+        return relevantRatingThreshhold;
     }
 
     /**
      * Sets the 'ìgnore_unlabeled' parameter
-     * */
+     */
     public void setIgnoreUnlabeled(boolean ignoreUnlabeled) {
         this.ignoreUnlabeled = ignoreUnlabeled;
     }
 
     /**
      * Gets the 'ìgnore_unlabeled' parameter
-     * */
+     */
     public boolean getIgnoreUnlabeled() {
         return ignoreUnlabeled;
     }
@@ -121,11 +126,14 @@ public class Precision implements RankedListQualityMetric {
         return PARSER.apply(parser, null);
     }
 
-    /** Compute precisionAtN based on provided relevant document IDs.
+    /**
+     * Compute precisionAtN based on provided relevant document IDs.
+     *
      * @return precision at n for above {@link SearchResult} list.
      **/
     @Override
-    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
+    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits,
+            List<RatedDocument> ratedDocs) {
         int truePositives = 0;
         int falsePositives = 0;
         List<RatedSearchHit> ratedSearchHits = joinHitsWithRatings(hits, ratedDocs);
@@ -146,7 +154,8 @@ public class Precision implements RankedListQualityMetric {
             precision = (double) truePositives / (truePositives + falsePositives);
         }
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, precision);
-        evalQueryQuality.addMetricDetails(new Precision.Breakdown(truePositives, truePositives + falsePositives));
+        evalQueryQuality.addMetricDetails(
+                new Precision.Breakdown(truePositives, truePositives + falsePositives));
         evalQueryQuality.addHitsAndRatings(ratedSearchHits);
         return evalQueryQuality;
     }
@@ -171,8 +180,8 @@ public class Precision implements RankedListQualityMetric {
             return false;
         }
         Precision other = (Precision) obj;
-        return Objects.equals(relevantRatingThreshhold, other.relevantRatingThreshhold) &&
-                Objects.equals(ignoreUnlabeled, other.ignoreUnlabeled);
+        return Objects.equals(relevantRatingThreshhold, other.relevantRatingThreshhold)
+                && Objects.equals(ignoreUnlabeled, other.ignoreUnlabeled);
     }
 
     @Override
@@ -198,7 +207,8 @@ public class Precision implements RankedListQualityMetric {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params)
+                throws IOException {
             builder.field(RELEVANT_DOCS_RETRIEVED_FIELD, relevantRetrieved);
             builder.field(DOCS_RETRIEVED_FIELD, retrieved);
             return builder;
@@ -232,8 +242,8 @@ public class Precision implements RankedListQualityMetric {
                 return false;
             }
             Precision.Breakdown other = (Precision.Breakdown) obj;
-            return Objects.equals(relevantRetrieved, other.relevantRetrieved) &&
-                    Objects.equals(retrieved, other.retrieved);
+            return Objects.equals(relevantRetrieved, other.relevantRetrieved)
+                    && Objects.equals(retrieved, other.retrieved);
         }
 
         @Override

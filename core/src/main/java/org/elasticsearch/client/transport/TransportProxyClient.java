@@ -29,7 +29,6 @@ import org.elasticsearch.action.TransportActionNodeProxy;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

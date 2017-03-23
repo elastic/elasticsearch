@@ -39,14 +39,19 @@ import java.util.Map.Entry;
 import java.util.Objects;
 
 /**
- * This class defines a ranking evaluation task including an id, a collection of queries to evaluate and the evaluation metric.
+ * This class defines a ranking evaluation task including an id, a collection of
+ * queries to evaluate and the evaluation metric.
  *
- * Each QA run is based on a set of queries to send to the index and multiple QA specifications that define how to translate the query
- * intents into elastic search queries.
- * */
+ * Each QA run is based on a set of queries to send to the index and multiple QA
+ * specifications that define how to translate the query intents into elastic
+ * search queries.
+ */
 
 public class RankEvalSpec extends ToXContentToBytes implements Writeable {
-    /** Collection of query specifications, that is e.g. search request templates to use for query translation. */
+    /**
+     * Collection of query specifications, that is e.g. search request templates
+     * to use for query translation.
+     */
     private Collection<RatedRequest> ratedRequests = new ArrayList<>();
     /** Definition of the quality metric, e.g. precision at N */
     private RankedListQualityMetric metric;
@@ -57,10 +62,12 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     /** optional: Templates to base test requests on */
     private Map<String, Script> templates = new HashMap<>();
 
-    public RankEvalSpec(Collection<RatedRequest> ratedRequests, RankedListQualityMetric metric, Collection<ScriptWithId> templates) {
+    public RankEvalSpec(Collection<RatedRequest> ratedRequests, RankedListQualityMetric metric,
+            Collection<ScriptWithId> templates) {
         if (ratedRequests == null || ratedRequests.size() < 1) {
             throw new IllegalStateException(
-                    "Cannot evaluate ranking if no search requests with rated results are provided. Seen: " + ratedRequests);
+                    "Cannot evaluate ranking if no search requests with rated results are provided."
+                            + " Seen: " + ratedRequests);
         }
         if (metric == null) {
             throw new IllegalStateException(
@@ -70,8 +77,8 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
             for (RatedRequest request : ratedRequests) {
                 if (request.getTestRequest() == null) {
                     throw new IllegalStateException(
-                            "Cannot evaluate ranking if neither template nor test request is provided. Seen for request id: "
-                    + request.getId());
+                            "Cannot evaluate ranking if neither template nor test request is "
+                                    + "provided. Seen for request id: " + request.getId());
                 }
             }
         }
@@ -147,11 +154,13 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     private static final ParseField TEMPLATES_FIELD = new ParseField("templates");
     private static final ParseField METRIC_FIELD = new ParseField("metric");
     private static final ParseField REQUESTS_FIELD = new ParseField("requests");
-    private static final ParseField MAX_CONCURRENT_SEARCHES_FIELD = new ParseField("max_concurrent_searches");
+    private static final ParseField MAX_CONCURRENT_SEARCHES_FIELD
+    = new ParseField("max_concurrent_searches");
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RankEvalSpec, Void> PARSER =
             new ConstructingObjectParser<>("rank_eval",
-            a -> new RankEvalSpec((Collection<RatedRequest>) a[0], (RankedListQualityMetric) a[1], (Collection<ScriptWithId>) a[2]));
+                    a -> new RankEvalSpec((Collection<RatedRequest>) a[0],
+                            (RankedListQualityMetric) a[1], (Collection<ScriptWithId>) a[2]));
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> {
@@ -187,7 +196,8 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         }
 
         private static final ConstructingObjectParser<ScriptWithId, Void> PARSER =
-                new ConstructingObjectParser<>("script_with_id", a -> new ScriptWithId((String) a[0], (Script) a[1]));
+                new ConstructingObjectParser<>("script_with_id",
+                        a -> new ScriptWithId((String) a[0], (Script) a[1]));
 
         public static ScriptWithId fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
@@ -199,7 +209,8 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
                 try {
                     return Script.parse(p, "mustache");
                 } catch (IOException ex) {
-                    throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
+                    throw new ParsingException(p.getTokenLocation(), "error parsing rank request",
+                            ex);
                 }
             }, TEMPLATE_FIELD);
         }

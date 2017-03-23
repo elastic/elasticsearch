@@ -162,6 +162,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/823")
     public void testMiniFarequoteReopen() throws Exception {
         String jobId = "foo1_again";
         createFarequoteJob(jobId);

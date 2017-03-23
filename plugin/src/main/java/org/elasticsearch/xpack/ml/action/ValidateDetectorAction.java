@@ -62,8 +62,6 @@ extends Action<ValidateDetectorAction.Request, ValidateDetectorAction.Response, 
 
         private Detector detector;
 
-        // NORELEASE this needs to change so the body is not directly the
-        // detector but and object that contains a field for the detector
         public static Request parseRequest(XContentParser parser) {
             Detector detector = Detector.PARSER.apply(parser, null).build();
             return new Request(detector);

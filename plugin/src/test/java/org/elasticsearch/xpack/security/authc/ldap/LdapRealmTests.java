@@ -29,11 +29,14 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory.URLS_SETTING;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -86,6 +89,10 @@ public class LdapRealmTests extends LdapTestCase {
         User user = future.actionGet();
         assertThat(user, notNullValue());
         assertThat(user.roles(), arrayContaining("HMS Victory"));
+        assertThat(user.metadata(), notNullValue());
+        assertThat(user.metadata().get("ldap_dn"), equalTo("cn=" + VALID_USERNAME + ",ou=people,o=sevenSeas"));
+        assertThat(user.metadata().get("ldap_groups"), instanceOf(List.class));
+        assertThat((List<?>) user.metadata().get("ldap_groups"), contains("cn=HMS Victory,ou=crews,ou=groups,o=sevenSeas"));
     }
 
     public void testAuthenticateOneLevelGroupSearch() throws Exception {
@@ -105,6 +112,10 @@ public class LdapRealmTests extends LdapTestCase {
         User user = future.actionGet();
         assertThat(user, notNullValue());
         assertThat("For roles " + Arrays.toString(user.roles()), user.roles(), arrayContaining("HMS Victory"));
+        assertThat(user.metadata(), notNullValue());
+        assertThat(user.metadata().get("ldap_dn"), equalTo("cn=" + VALID_USERNAME + ",ou=people,o=sevenSeas"));
+        assertThat(user.metadata().get("ldap_groups"), instanceOf(List.class));
+        assertThat((List<?>) user.metadata().get("ldap_groups"), contains("cn=HMS Victory,ou=crews,ou=groups,o=sevenSeas"));
     }
 
     public void testAuthenticateCaching() throws Exception {

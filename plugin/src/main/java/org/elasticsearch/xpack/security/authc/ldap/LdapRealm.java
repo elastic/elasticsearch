@@ -17,6 +17,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
@@ -167,7 +168,11 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                 session.groups(ActionListener.wrap((groups) -> {
                             Set<String> roles = roleMapper.resolveRoles(session.userDn(), groups);
                             IOUtils.close(session);
-                            listener.onResponse(new User(username, roles.toArray(Strings.EMPTY_ARRAY)));
+                            final Map<String, Object> meta = MapBuilder.<String, Object>newMapBuilder()
+                                    .put("ldap_dn", session.userDn())
+                                    .put("ldap_groups", groups)
+                                    .map();
+                            listener.onResponse(new User(username, roles.toArray(Strings.EMPTY_ARRAY), null, null, meta, true));
                         },
                         (e) -> {
                             IOUtils.closeWhileHandlingException(session);

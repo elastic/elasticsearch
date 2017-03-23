@@ -23,6 +23,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -95,13 +96,14 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping.string()));
         assertEquals(mapping.string(), mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .field(getFromField(), getFrom(type))
             .field(getToField(), getTo(type))
             .endObject()
-            .endObject().bytes());
+            .endObject().bytes(),
+            XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -122,13 +124,14 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping.string()));
         assertEquals(mapping.string(), mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .field(getFromField(), getFrom(type))
             .field(getToField(), getTo(type))
             .endObject()
-            .endObject().bytes());
+            .endObject().bytes(),
+            XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
@@ -145,13 +148,14 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping.string()));
         assertEquals(mapping.string(), mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .field(getFromField(), getFrom(type))
             .field(getToField(), getTo(type))
             .endObject()
-            .endObject().bytes());
+            .endObject().bytes(),
+            XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -170,13 +174,14 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping.string()));
         assertEquals(mapping.string(), mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .field(getFromField(), getFrom(type))
             .field(getToField(), getTo(type))
             .endObject()
-            .endObject().bytes());
+            .endObject().bytes(),
+            XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -199,13 +204,14 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         assertEquals(mapping.string(), mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .field(getFromField(), getFrom(type))
             .field(getToField(), getTo(type))
             .endObject()
-            .endObject().bytes());
+            .endObject().bytes(),
+            XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -219,13 +225,14 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         assertEquals(mapping.string(), mapper2.mappingSource().toString());
 
-        ThrowingRunnable runnable = () -> mapper2.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ThrowingRunnable runnable = () -> mapper2.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .field(getFromField(), "5.2")
             .field(getToField(), "10")
             .endObject()
-            .endObject().bytes());
+            .endObject().bytes(),
+            XContentType.JSON));
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
         assertThat(e.getCause().getMessage(), anyOf(containsString("passed as String"), containsString("failed to parse date")));
     }
@@ -243,26 +250,28 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(mapping.string(), mapper.mappingSource().toString());
 
         // test null value for min and max
-        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .nullField(getFromField())
             .nullField(getToField())
             .endObject()
-            .endObject().bytes());
+            .endObject().bytes(),
+            XContentType.JSON));
         assertEquals(2, doc.rootDoc().getFields("field").length);
         IndexableField[] fields = doc.rootDoc().getFields("field");
         IndexableField storedField = fields[1];
         assertThat(storedField.stringValue(), containsString(type.equals("date_range") ? Long.MAX_VALUE+"" : getMax(type)+""));
 
         // test null max value
-        doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .field(getFromField(), getFrom(type))
             .nullField(getToField())
             .endObject()
-            .endObject().bytes());
+            .endObject().bytes(),
+            XContentType.JSON));
 
         fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -293,11 +302,12 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(mapping.string(), mapper.mappingSource().toString());
 
         // test no bounds specified
-        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
             .startObject("field")
             .endObject()
-            .endObject().bytes());
+            .endObject().bytes(),
+            XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);

@@ -56,9 +56,17 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
         }
         Collections.sort(plugins);
         for (final Path plugin : plugins) {
-            terminal.println(plugin.getFileName().toString());
-            PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin.toAbsolutePath()));
-            terminal.println(Terminal.Verbosity.VERBOSE, info.toString());
+            terminal.println(Terminal.Verbosity.SILENT, plugin.getFileName().toString());
+            try {
+                PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin.toAbsolutePath()));
+                terminal.println(Terminal.Verbosity.VERBOSE, info.toString());
+            } catch (IllegalArgumentException e) {
+                if (e.getMessage().contains("incompatible with Elasticsearch")) {
+                    terminal.println("WARNING: " + e.getMessage());
+                } else {
+                    throw e;
+                }
+            }
         }
     }
 }

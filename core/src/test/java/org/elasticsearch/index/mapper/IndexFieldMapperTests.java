@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -50,11 +51,12 @@ public class IndexFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .endObject()
-                .bytes());
+                .bytes(),
+                XContentType.JSON));
 
         assertThat(doc.rootDoc().get("_index"), nullValue());
         assertThat(doc.rootDoc().get("field"), equalTo("value"));

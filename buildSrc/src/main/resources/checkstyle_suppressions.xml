@@ -491,12 +491,10 @@
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]search[/\\]ReduceSearchPhaseException.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]search[/\\]RemoteClusterConnection.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]search[/\\]RemoteClusterService.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]search[/\\]SearchDfsQueryThenFetchAsyncAction.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]search[/\\]SearchPhase.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]search[/\\]SearchPhaseContext.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]search[/\\]SearchPhaseController.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]search[/\\]SearchPhaseExecutionException.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]search[/\\]SearchQueryThenFetchAsyncAction.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]search[/\\]SearchRequest.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]search[/\\]SearchRequestBuilder.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]search[/\\]SearchResponse.java" checks="LineLength" />
@@ -1578,7 +1576,6 @@
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugins[/\\]PluginSecurity.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugins[/\\]PluginsService.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugins[/\\]ProgressInputStream.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugins[/\\]RemovePluginCommand.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugins[/\\]RepositoryPlugin.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugins[/\\]ScriptPlugin.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugins[/\\]SearchPlugin.java" checks="LineLength" />
@@ -3845,7 +3842,6 @@
   <suppress files="plugins[/\\]discovery-gce[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]gce[/\\]GceInstancesServiceImpl.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-gce[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]gce[/\\]GceMetadataService.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-gce[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]gce[/\\]network[/\\]GceNameResolver.java" checks="LineLength" />
-  <suppress files="plugins[/\\]discovery-gce[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]cloud[/\\]gce[/\\]util[/\\]Access.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-gce[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]gce[/\\]GceUnicastHostsProvider.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-gce[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]discovery[/\\]gce[/\\]RetryHttpInitializerWrapper.java" checks="LineLength" />
   <suppress files="plugins[/\\]discovery-gce[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugin[/\\]discovery[/\\]gce[/\\]GceDiscoveryPlugin.java" checks="LineLength" />
@@ -3945,7 +3941,6 @@
   <suppress files="plugins[/\\]store-smb[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]store[/\\]smbsimplefs[/\\]SmbSimpleFsDirectoryService.java" checks="LineLength" />
   <suppress files="qa[/\\]backwards-5.0[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]backwards[/\\]IndexingIT.java" checks="LineLength" />
   <suppress files="qa[/\\]evil-tests[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]bootstrap[/\\]ESPolicyUnitTests.java" checks="LineLength" />
-  <suppress files="qa[/\\]evil-tests[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]bootstrap[/\\]EvilJNANativesTests.java" checks="LineLength" />
   <suppress files="qa[/\\]evil-tests[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]bootstrap[/\\]EvilSecurityTests.java" checks="LineLength" />
   <suppress files="qa[/\\]evil-tests[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]bootstrap[/\\]SystemCallFilterTests.java" checks="LineLength" />
   <suppress files="qa[/\\]evil-tests[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]cli[/\\]EvilCommandTests.java" checks="LineLength" />

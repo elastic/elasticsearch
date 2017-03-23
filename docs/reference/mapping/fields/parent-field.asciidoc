@@ -121,11 +121,17 @@ Global ordinals need to be rebuilt after any change to a shard. The more
 parent id values are stored in a shard, the longer it takes to rebuild the
 global ordinals for the `_parent` field.
 
-Global ordinals, by default, are built lazily: the first parent-child query or
-aggregation after a refresh will trigger building of global ordinals. This can
-introduce a significant latency spike for your users. You can use
-<<global-ordinals,eager_global_ordinals>> to shift the cost of building global
-ordinals from query time to refresh time, by mapping the `_parent` field as follows:
+Global ordinals, by default, are built eagerly: if the index has changed,
+global ordinals for the `_parent` field will be rebuilt as part of the refresh.
+This can add significant time the refresh. However most of the times this is the
+right trade-off, otherwise global ordinals are rebuilt when the first parent-child
+query or aggregation is used. This can introduce a significant latency spike for
+your users and usually this is worse as multiple global ordinals for the `_parent`
+field may be attempt rebuilt within a single refresh interval when many writes
+are occurring.
+
+When the parent/child is used infrequently and writes occur frequently it may
+make sense to disable eager loading:
 
 [source,js]
 --------------------------------------------------
@@ -136,7 +142,7 @@ PUT my_index
     "my_child": {
       "_parent": {
         "type": "my_parent",
-        "eager_global_ordinals": true
+        "eager_global_ordinals": false
       }
     }
   }

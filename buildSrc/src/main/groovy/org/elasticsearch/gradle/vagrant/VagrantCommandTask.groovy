@@ -19,15 +19,17 @@
 package org.elasticsearch.gradle.vagrant
 
 import org.apache.commons.io.output.TeeOutputStream
-import org.elasticsearch.gradle.ProgressLoggerFactoryInjection
 import org.elasticsearch.gradle.LoggedExec
 import org.gradle.api.tasks.Input
+import org.gradle.internal.logging.progress.ProgressLoggerFactory
+
+import javax.inject.Inject
 
 /**
  * Runs a vagrant command. Pretty much like Exec task but with a nicer output
  * formatter and defaults to `vagrant` as first part of commandLine.
  */
-public class VagrantCommandTask extends LoggedExec implements ProgressLoggerFactoryInjection {
+public class VagrantCommandTask extends LoggedExec {
 
     @Input
     String boxName
@@ -45,6 +47,11 @@ public class VagrantCommandTask extends LoggedExec implements ProgressLoggerFact
                 environment environmentVars
             }
         }
+    }
+
+    @Inject
+    ProgressLoggerFactory getProgressLoggerFactory() {
+        throw new UnsupportedOperationException()
     }
 
     protected OutputStream createLoggerOutputStream() {

@@ -8,7 +8,6 @@ import org.apache.tools.ant.BuildException
 import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.RuntimeConfigurable
 import org.apache.tools.ant.UnknownElement
-import org.elasticsearch.gradle.ProgressLoggerFactoryInjection
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.FileCollection
 import org.gradle.api.file.FileTreeElement
@@ -20,9 +19,12 @@ import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.util.PatternFilterable
 import org.gradle.api.tasks.util.PatternSet
+import org.gradle.internal.logging.progress.ProgressLoggerFactory
 import org.gradle.util.ConfigureUtil
 
-class RandomizedTestingTask extends DefaultTask implements ProgressLoggerFactoryInjection {
+import javax.inject.Inject
+
+class RandomizedTestingTask extends DefaultTask {
 
     // TODO: change to "executable" to match gradle test params?
     @Optional
@@ -90,6 +92,11 @@ class RandomizedTestingTask extends DefaultTask implements ProgressLoggerFactory
         outputs.upToDateWhen {false} // randomized tests are never up to date
         listenersConfig.listeners.add(new TestProgressLogger(factory: getProgressLoggerFactory()))
         listenersConfig.listeners.add(new TestReportLogger(logger: logger, config: testLoggingConfig))
+    }
+
+    @Inject
+    ProgressLoggerFactory getProgressLoggerFactory() {
+        throw new UnsupportedOperationException()
     }
 
     void jvmArgs(Iterable<String> arguments) {

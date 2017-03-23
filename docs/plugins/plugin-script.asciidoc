@@ -80,8 +80,8 @@ to a local Java truststore and pass the location to the script as follows:
 sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://....
 -----------------------------------
 
-[[listing-removing]]
-=== Listing and Removing Installed Plugins
+[[listing-removing-updating]]
+=== Listing, Removing and Updating Installed Plugins
 
 [float]
 === Listing plugins
@@ -108,6 +108,18 @@ sudo bin/elasticsearch-plugin remove [pluginname]
 -----------------------------------
 
 After a Java plugin has been removed, you will need to restart the node to complete the removal process.
+
+[float]
+=== Updating plugins
+
+Plugins are built for a specific version of Elasticsearch, and therefore must be reinstalled
+each time Elasticsearch is updated.
+
+[source,shell]
+-----------------------------------
+sudo bin/elasticsearch-plugin remove [pluginname]
+sudo bin/elasticsearch-plugin install [pluginname]
+-----------------------------------
 
 === Other command line parameters
 

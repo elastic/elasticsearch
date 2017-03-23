@@ -88,8 +88,8 @@ Contributing to the Elasticsearch codebase
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
 Make sure you have [Gradle](http://gradle.org) installed, as
-Elasticsearch uses it as its build system. Gradle must be version 2.13 _exactly_ in
-order to build successfully.
+Elasticsearch uses it as its build system. Gradle must be at least
+version 3.3 in order to build successfully.
 
 Eclipse users can automatically configure their IDE: `gradle eclipse`
 then `File: Import: Existing Projects into Workspace`. Select the
@@ -139,3 +139,32 @@ Before submitting your changes, run the test suite to make sure that nothing is 
 ```sh
 gradle check
 ```
+
+Contributing as part of a class
+-------------------------------
+In general Elasticsearch is happy to accept contributions that were created as
+part of a class but strongly advise against making the contribution as part of
+the class. So if you have code you wrote for a class feel free to submit it.
+
+Please, please, please do not assign contributing to Elasticsearch as part of a
+class. If you really want to assign writing code for Elasticsearch as an
+assignment then the code contributions should be made to your private clone and
+opening PRs against the primary Elasticsearch clone must be optional, fully
+voluntary, not for a grade, and without any deadlines.
+
+Because:
+
+* While the code review process is likely very educational, it can take wildly
+varying amounts of time depending on who is available, where the change is, and
+how deep the change is. There is no way to predict how long it will take unless
+we rush.
+* We do not rush reviews without a very, very good reason. Class deadlines
+aren't a good enough reason for us to rush reviews.
+* We deeply discourage opening a PR you don't intend to work through the entire
+code review process because it wastes our time.
+* We don't have the capacity to absorb an entire class full of new contributors,
+especially when they are unlikely to become long time contributors.
+
+Finally, we require that you run `gradle check` before submitting a
+non-documentation contribution. This is mentioned above, but it is worth
+repeating in this section because it has come up in this context.

@@ -43,6 +43,7 @@ import org.elasticsearch.transport.Transport;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -67,17 +68,17 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
     private final Object shardFailuresMutex = new Object();
     private final AtomicInteger successfulOps = new AtomicInteger();
-    private final long startTime;
+    private final TransportSearchAction.SearchTimeProvider timeProvider;
 
 
     protected AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
                                         Function<String, Transport.Connection> nodeIdToConnection,
                                         Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
                                         Executor executor, SearchRequest request,
-                                        ActionListener<SearchResponse> listener, GroupShardsIterator shardsIts, long startTime,
+                                        ActionListener<SearchResponse> listener, GroupShardsIterator shardsIts, TransportSearchAction.SearchTimeProvider timeProvider,
                                         long clusterStateVersion, SearchTask task, SearchPhaseResults<Result> resultConsumer) {
         super(name, request, shardsIts, logger);
-        this.startTime = startTime;
+        this.timeProvider = timeProvider;
         this.logger = logger;
         this.searchTransportService = searchTransportService;
         this.executor = executor;
@@ -94,10 +95,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     /**
      * Builds how long it took to execute the search.
      */
-    private long buildTookInMillis() {
-        // protect ourselves against time going backwards
-        // negative values don't make sense and we want to be able to serialize that thing as a vLong
-        return Math.max(1, System.currentTimeMillis() - startTime);
+    long buildTookInMillis() {
+        return TimeUnit.NANOSECONDS.toMillis(
+                timeProvider.getRelativeCurrentNanos() - timeProvider.getRelativeStartNanos());
     }
 
     /**
@@ -122,7 +122,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (successfulOps.get() == 0) { // we have 0 successful results that means we shortcut stuff and return a failure
             if (logger.isDebugEnabled()) {
                 final ShardOperationFailedException[] shardSearchFailures = ExceptionsHelper.groupBy(buildShardFailures());
-                Throwable cause = ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
+                Throwable cause = shardSearchFailures.length == 0 ? null :
+                    ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
                 logger.debug((Supplier<?>) () -> new ParameterizedMessage("All shards failed for phase: [{}]", getName()),
                     cause);
             }
@@ -300,7 +301,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shard.index().getUUID(), DEFAULT_INDEX_BOOST);
         return new ShardSearchTransportRequest(request, shardIt.shardId(), getNumShards(),
-            filter, indexBoost, startTime);
+            filter, indexBoost, timeProvider.getAbsoluteStartMillis());
     }
 
     /**

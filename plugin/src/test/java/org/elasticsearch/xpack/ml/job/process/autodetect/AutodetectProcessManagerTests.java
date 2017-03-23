@@ -11,6 +11,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -161,7 +162,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         Settings.Builder settings = Settings.builder();
         settings.put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), 3);
         AutodetectProcessManager manager = spy(new AutodetectProcessManager(settings.build(), client, threadPool, jobManager, jobProvider,
-                jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory, normalizerFactory, persistentTasksService));
+                jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
+                normalizerFactory, persistentTasksService,
+                new NamedXContentRegistry(Collections.emptyList())));
 
         DataCounts dataCounts = new DataCounts("foo");
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder("foo").build();
@@ -323,7 +326,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         AutodetectProcessFactory autodetectProcessFactory = (j, modelSnapshot, quantiles, filters, i, e) -> autodetectProcess;
         AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
-                jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory, normalizerFactory, persistentTasksService);
+                jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
+                normalizerFactory, persistentTasksService,
+                new NamedXContentRegistry(Collections.emptyList()));
 
         expectThrows(EsRejectedExecutionException.class,
                 () -> manager.create("my_id", 1L, dataCounts, modelSnapshot, quantiles, filters, false, e -> {}));
@@ -340,8 +345,10 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                                                    PersistentTasksService persistentTasksService) {
         ThreadPool threadPool = mock(ThreadPool.class);
         AutodetectProcessFactory autodetectProcessFactory = mock(AutodetectProcessFactory.class);
-        AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
-                jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory, normalizerFactory, persistentTasksService);
+        AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client,
+                threadPool, jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister,
+                autodetectProcessFactory, normalizerFactory, persistentTasksService,
+                new NamedXContentRegistry(Collections.emptyList()));
         manager = spy(manager);
         doReturn(communicator).when(manager)
                 .create(any(), anyLong(), eq(dataCounts), eq(modelSnapshot), eq(quantiles), eq(filters), anyBoolean(), any());

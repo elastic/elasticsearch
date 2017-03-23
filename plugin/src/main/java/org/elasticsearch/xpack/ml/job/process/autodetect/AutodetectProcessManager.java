@@ -14,6 +14,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -80,14 +81,17 @@ public class AutodetectProcessManager extends AbstractComponent {
 
     private final int maxAllowedRunningJobs;
 
-    public AutodetectProcessManager(Settings settings, Client client, ThreadPool threadPool, JobManager jobManager,
-                                    JobProvider jobProvider, JobResultsPersister jobResultsPersister,
-                                    JobDataCountsPersister jobDataCountsPersister,
-                                    AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
-                                    PersistentTasksService persistentTasksService) {
+    private NamedXContentRegistry xContentRegistry;
+
+    public AutodetectProcessManager(Settings settings, Client client, ThreadPool threadPool,
+            JobManager jobManager, JobProvider jobProvider, JobResultsPersister jobResultsPersister,
+            JobDataCountsPersister jobDataCountsPersister,
+            AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
+            PersistentTasksService persistentTasksService, NamedXContentRegistry xContentRegistry) {
         super(settings);
         this.client = client;
         this.threadPool = threadPool;
+        this.xContentRegistry = xContentRegistry;
         this.maxAllowedRunningJobs = MAX_RUNNING_JOBS_PER_NODE.get(settings);
         this.autodetectProcessFactory = autodetectProcessFactory;
         this.normalizerFactory = normalizerFactory;
@@ -275,7 +279,8 @@ public class AutodetectProcessManager extends AbstractComponent {
                 }
                 throw e;
             }
-            return new AutodetectCommunicator(taskId, job, process, dataCountsReporter, processor, handler);
+            return new AutodetectCommunicator(taskId, job, process, dataCountsReporter, processor,
+                    handler, xContentRegistry);
         }
     }
 

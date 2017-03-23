@@ -5,17 +5,28 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Map;
+import com.fasterxml.jackson.core.JsonParseException;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.XContentParser;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
+import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.Map;
+import java.util.Objects;
 
-class SimpleJsonRecordReader extends AbstractJsonRecordReader {
+class SimpleJsonRecordReader {
+    static final int PARSE_ERRORS_LIMIT = 100;
+
+    protected final XContentParser parser;
+    protected final Map<String, Integer> fieldMap;
+    protected final Logger logger;
+    protected int nestedLevel;
+    protected long fieldCount;
+    protected int errorCounter;
     private Deque<String> nestedFields;
     private String nestedPrefix;
 
@@ -29,8 +40,10 @@ class SimpleJsonRecordReader extends AbstractJsonRecordReader {
      * @param logger
      *            logger
      */
-    SimpleJsonRecordReader(JsonParser parser, Map<String, Integer> fieldMap, Logger logger) {
-        super(parser, fieldMap, logger);
+    SimpleJsonRecordReader(XContentParser parser, Map<String, Integer> fieldMap, Logger logger) {
+        this.parser = Objects.requireNonNull(parser);
+        this.fieldMap = Objects.requireNonNull(fieldMap);
+        this.logger = Objects.requireNonNull(logger);
     }
 
     /**
@@ -50,25 +63,24 @@ class SimpleJsonRecordReader extends AbstractJsonRecordReader {
      * @return The number of fields in the JSON doc or -1 if nothing was read
      * because the end of the stream was reached
      */
-    @Override
     public long read(String[] record, boolean[] gotFields) throws IOException {
         initArrays(record, gotFields);
         fieldCount = 0;
         clearNestedLevel();
 
-        JsonToken token = tryNextTokenOrReadToEndOnError();
-        while (!(token == JsonToken.END_OBJECT && nestedLevel == 0)) {
+        XContentParser.Token token = tryNextTokenOrReadToEndOnError();
+        while (!(token == XContentParser.Token.END_OBJECT && nestedLevel == 0)) {
             if (token == null) {
                 break;
             }
 
-            if (token == JsonToken.END_OBJECT) {
+            if (token == XContentParser.Token.END_OBJECT) {
                 --nestedLevel;
                 String objectFieldName = nestedFields.pop();
 
                 int lastIndex = nestedPrefix.length() - objectFieldName.length() - 1;
                 nestedPrefix = nestedPrefix.substring(0, lastIndex);
-            } else if (token == JsonToken.FIELD_NAME) {
+            } else if (token == XContentParser.Token.FIELD_NAME) {
                 parseFieldValuePair(record, gotFields);
             }
 
@@ -82,7 +94,6 @@ class SimpleJsonRecordReader extends AbstractJsonRecordReader {
         return fieldCount;
     }
 
-    @Override
     protected void clearNestedLevel() {
         nestedLevel = 0;
         nestedFields = new ArrayDeque<String>();
@@ -90,19 +101,19 @@ class SimpleJsonRecordReader extends AbstractJsonRecordReader {
     }
 
     private void parseFieldValuePair(String[] record, boolean[] gotFields) throws IOException {
-        String fieldName = parser.getCurrentName();
-        JsonToken token = tryNextTokenOrReadToEndOnError();
+        String fieldName = parser.currentName();
+        XContentParser.Token token = tryNextTokenOrReadToEndOnError();
 
         if (token == null) {
             return;
         }
 
-        if (token == JsonToken.START_OBJECT) {
+        if (token == XContentParser.Token.START_OBJECT) {
             ++nestedLevel;
             nestedFields.push(fieldName);
             nestedPrefix = nestedPrefix + fieldName + ".";
         } else {
-            if (token == JsonToken.START_ARRAY || token.isScalarValue()) {
+            if (token == XContentParser.Token.START_ARRAY || token.isValue()) {
                 ++fieldCount;
 
                 // Only do the donkey work of converting the field value to a
@@ -118,15 +129,15 @@ class SimpleJsonRecordReader extends AbstractJsonRecordReader {
         }
     }
 
-    private String parseSingleFieldValue(JsonToken token) throws IOException {
-        if (token == JsonToken.START_ARRAY) {
+    private String parseSingleFieldValue(XContentParser.Token token) throws IOException {
+        if (token == XContentParser.Token.START_ARRAY) {
             // Convert any scalar values in the array to a comma delimited
             // string.  (Arrays of more complex objects are ignored.)
             StringBuilder strBuilder = new StringBuilder();
             boolean needComma = false;
-            while (token != JsonToken.END_ARRAY) {
+            while (token != XContentParser.Token.END_ARRAY) {
                 token = tryNextTokenOrReadToEndOnError();
-                if (token.isScalarValue()) {
+                if (token.isValue()) {
                     if (needComma) {
                         strBuilder.append(',');
                     } else {
@@ -142,16 +153,16 @@ class SimpleJsonRecordReader extends AbstractJsonRecordReader {
         return tokenToString(token);
     }
 
-    private void skipSingleFieldValue(JsonToken token) throws IOException {
+    private void skipSingleFieldValue(XContentParser.Token token) throws IOException {
         // Scalar values don't need any extra skip code
-        if (token == JsonToken.START_ARRAY) {
+        if (token == XContentParser.Token.START_ARRAY) {
             // Consume the whole array but do nothing with it
             int arrayDepth = 1;
             do {
                 token = tryNextTokenOrReadToEndOnError();
-                if (token == JsonToken.END_ARRAY) {
+                if (token == XContentParser.Token.END_ARRAY) {
                     --arrayDepth;
-                } else if (token == JsonToken.START_ARRAY) {
+                } else if (token == XContentParser.Token.START_ARRAY) {
                     ++arrayDepth;
                 }
             }
@@ -165,10 +176,52 @@ class SimpleJsonRecordReader extends AbstractJsonRecordReader {
      * product treats them (which in turn is shaped by the fact that CSV
      * cannot distinguish empty string and null).
      */
-    private String tokenToString(JsonToken token) throws IOException {
-        if (token == null || token == JsonToken.VALUE_NULL) {
+    private String tokenToString(XContentParser.Token token) throws IOException {
+        if (token == null || token == XContentParser.Token.VALUE_NULL) {
             return "";
         }
-        return parser.getText();
+        return parser.text();
+    }
+
+    protected void initArrays(String[] record, boolean[] gotFields) {
+        Arrays.fill(gotFields, false);
+        Arrays.fill(record, "");
+    }
+
+    /**
+     * Returns null at the EOF or the next token
+     */
+    protected XContentParser.Token tryNextTokenOrReadToEndOnError() throws IOException {
+        try {
+            return parser.nextToken();
+        } catch (JsonParseException e) {
+            logger.warn("Attempting to recover from malformed JSON data.", e);
+            for (int i = 0; i <= nestedLevel; ++i) {
+                readToEndOfObject();
+            }
+            clearNestedLevel();
+        }
+
+        return parser.currentToken();
+    }
+
+    /**
+     * In some cases the parser doesn't recognise the '}' of a badly formed JSON
+     * document and so may skip to the end of the second document. In this case
+     * we lose an extra record.
+     */
+    protected void readToEndOfObject() throws IOException {
+        XContentParser.Token token = null;
+        do {
+            try {
+                token = parser.nextToken();
+            } catch (JsonParseException e) {
+                ++errorCounter;
+                if (errorCounter >= PARSE_ERRORS_LIMIT) {
+                    logger.error("Failed to recover from malformed JSON data.", e);
+                    throw new ElasticsearchParseException("The input JSON data is malformed.");
+                }
+            }
+        } while (token != XContentParser.Token.END_OBJECT);
     }
 }

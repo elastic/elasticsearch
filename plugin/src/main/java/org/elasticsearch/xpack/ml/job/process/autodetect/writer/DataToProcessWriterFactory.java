@@ -5,16 +5,15 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 
 /**
- * Factory for creating the suitable writer depending on
- * whether the data format is JSON or not, and on the kind
- * of date transformation that should occur.
+ * Factory for creating the suitable writer depending on whether the data format
+ * is JSON or not, and on the kind of date transformation that should occur.
  */
 public final class DataToProcessWriterFactory {
 
@@ -23,22 +22,23 @@ public final class DataToProcessWriterFactory {
     }
 
     /**
-     * Constructs a {@link DataToProcessWriter} depending on
-     * the data format and the time transformation.
+     * Constructs a {@link DataToProcessWriter} depending on the data format and
+     * the time transformation.
      *
-     * @return A {@link JsonDataToProcessWriter} if the data
-     * format is JSON or otherwise a {@link CsvDataToProcessWriter}
+     * @return A {@link JsonDataToProcessWriter} if the data format is JSON or
+     *         otherwise a {@link CsvDataToProcessWriter}
      */
-    public static DataToProcessWriter create(boolean includeControlField, AutodetectProcess autodetectProcess,
-                                             DataDescription dataDescription, AnalysisConfig analysisConfig,
-                                             DataCountsReporter dataCountsReporter) {
+    public static DataToProcessWriter create(boolean includeControlField,
+            AutodetectProcess autodetectProcess, DataDescription dataDescription,
+            AnalysisConfig analysisConfig, DataCountsReporter dataCountsReporter,
+            NamedXContentRegistry xContentRegistry) {
         switch (dataDescription.getFormat()) {
         case JSON:
-            return new JsonDataToProcessWriter(includeControlField, autodetectProcess, dataDescription, analysisConfig,
-                    dataCountsReporter);
+            return new JsonDataToProcessWriter(includeControlField, autodetectProcess,
+                    dataDescription, analysisConfig, dataCountsReporter, xContentRegistry);
         case DELIMITED:
-            return new CsvDataToProcessWriter(includeControlField, autodetectProcess, dataDescription, analysisConfig,
-                    dataCountsReporter);
+            return new CsvDataToProcessWriter(includeControlField, autodetectProcess,
+                    dataDescription, analysisConfig, dataCountsReporter);
         default:
             throw new IllegalArgumentException();
         }

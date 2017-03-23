@@ -123,12 +123,12 @@ import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
 import org.elasticsearch.xpack.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.xpack.persistent.CreatePersistentTaskAction;
-import org.elasticsearch.xpack.persistent.PersistentTasksClusterService;
-import org.elasticsearch.xpack.persistent.PersistentTasksNodeService;
-import org.elasticsearch.xpack.persistent.PersistentTasksExecutorRegistry;
 import org.elasticsearch.xpack.persistent.PersistentTaskRequest;
-import org.elasticsearch.xpack.persistent.PersistentTasksService;
+import org.elasticsearch.xpack.persistent.PersistentTasksClusterService;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.persistent.PersistentTasksExecutorRegistry;
+import org.elasticsearch.xpack.persistent.PersistentTasksNodeService;
+import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
 import org.elasticsearch.xpack.persistent.StartPersistentTaskAction;
 import org.elasticsearch.xpack.persistent.UpdatePersistentTaskStatusAction;
@@ -295,7 +295,7 @@ public class MachineLearning implements ActionPlugin {
         PersistentTasksService persistentTasksService = new PersistentTasksService(Settings.EMPTY, clusterService, internalClient);
         AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(settings, internalClient, threadPool,
                 jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
-                normalizerFactory, persistentTasksService);
+                normalizerFactory, persistentTasksService, xContentRegistry);
         DatafeedJobRunner datafeedJobRunner = new DatafeedJobRunner(threadPool, internalClient, clusterService, jobProvider,
                 System::currentTimeMillis, persistentTasksService, auditor);
         InvalidLicenseEnforcer invalidLicenseEnforcer =

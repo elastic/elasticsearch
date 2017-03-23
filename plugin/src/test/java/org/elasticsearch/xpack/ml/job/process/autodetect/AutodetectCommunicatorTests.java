@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
@@ -148,8 +149,9 @@ public class AutodetectCommunicatorTests extends ESTestCase {
             return null;
         }).when(executorService).execute(any(Runnable.class));
         DataCountsReporter dataCountsReporter = mock(DataCountsReporter.class);
-        return new AutodetectCommunicator(0L, createJobDetails(), autodetectProcess, dataCountsReporter, autoDetectResultProcessor,
-                e -> {});
+        return new AutodetectCommunicator(0L, createJobDetails(), autodetectProcess,
+                dataCountsReporter, autoDetectResultProcessor, e -> {
+                }, new NamedXContentRegistry(Collections.emptyList()));
     }
 
     public void testWriteToJobInUse() throws IOException {

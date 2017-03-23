@@ -5,11 +5,14 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.JsonParser;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
@@ -18,6 +21,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -27,7 +31,7 @@ import static org.mockito.Mockito.mock;
 public class SimpleJsonRecordReaderTests extends ESTestCase {
     public void testRead() throws JsonParseException, IOException {
         String data = "{\"a\":10, \"b\":20, \"c\":30}\n{\"b\":21, \"a\":11, \"c\":31}\n";
-        JsonParser parser = createParser(data);
+        XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = createFieldMap();
 
         SimpleJsonRecordReader reader = new SimpleJsonRecordReader(parser, fieldMap, mock(Logger.class));
@@ -51,7 +55,7 @@ public class SimpleJsonRecordReaderTests extends ESTestCase {
 
     public void testRead_GivenNestedField() throws JsonParseException, IOException {
         String data = "{\"a\":10, \"b\":20, \"c\":{\"d\":30, \"e\":40}}";
-        JsonParser parser = createParser(data);
+        XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = new HashMap<>();
         fieldMap.put("a", 0);
         fieldMap.put("b", 1);
@@ -73,7 +77,7 @@ public class SimpleJsonRecordReaderTests extends ESTestCase {
 
     public void testRead_GivenSingleValueArrays() throws JsonParseException, IOException {
         String data = "{\"a\":[10], \"b\":20, \"c\":{\"d\":30, \"e\":[40]}}";
-        JsonParser parser = createParser(data);
+        XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = new HashMap<>();
         fieldMap.put("a", 0);
         fieldMap.put("b", 1);
@@ -95,7 +99,7 @@ public class SimpleJsonRecordReaderTests extends ESTestCase {
 
     public void testRead_GivenMultiValueArrays() throws JsonParseException, IOException {
         String data = "{\"a\":[10, 11], \"b\":20, \"c\":{\"d\":30, \"e\":[40, 50]}, \"f\":[\"a\", \"a\", \"a\", \"a\"], \"g\":20}";
-        JsonParser parser = createParser(data);
+        XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = new HashMap<>();
         fieldMap.put("a", 0);
         fieldMap.put("g", 1);
@@ -123,7 +127,7 @@ public class SimpleJsonRecordReaderTests extends ESTestCase {
     public void testRead_RecoverFromBadJson() throws JsonParseException, IOException {
         // no opening '{'
         String data = "\"a\":10, \"b\":20, \"c\":30}\n{\"b\":21, \"a\":11, \"c\":31}\n{\"c\":32, \"b\":22, \"a\":12}";
-        JsonParser parser = createParser(data);
+        XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = createFieldMap();
 
         SimpleJsonRecordReader reader = new SimpleJsonRecordReader(parser, fieldMap, mock(Logger.class));
@@ -145,7 +149,7 @@ public class SimpleJsonRecordReaderTests extends ESTestCase {
         // nested object 'd' is missing a ','
         String data = "{\"a\":10, \"b\":20, \"c\":30}\n" +
                 "{\"b\":21, \"d\" : {\"ee\": 1 \"ff\":0}, \"a\":11, \"c\":31}";
-        JsonParser parser = createParser(data);
+        XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = createFieldMap();
 
         SimpleJsonRecordReader reader = new SimpleJsonRecordReader(parser, fieldMap, mock(Logger.class));
@@ -173,7 +177,7 @@ public class SimpleJsonRecordReaderTests extends ESTestCase {
             builder.append(String.format(Locale.ROOT, format, i));
         }
 
-        JsonParser parser = createParser(builder.toString());
+        XContentParser parser = createParser(builder.toString());
         Map<String, Integer> fieldMap = createFieldMap();
 
         SimpleJsonRecordReader reader = new SimpleJsonRecordReader(parser, fieldMap, mock(Logger.class));
@@ -197,7 +201,7 @@ public class SimpleJsonRecordReaderTests extends ESTestCase {
                 + "\n{\"b\":21, \"a\":11, \"c\":31}"
                 + "\n{\"c\":32, \"b\":22, \"a\":12}\n";
 
-        JsonParser parser = createParser(data);
+        XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = createFieldMap();
 
         SimpleJsonRecordReader reader = new SimpleJsonRecordReader(parser, fieldMap, mock(Logger.class));
@@ -210,10 +214,11 @@ public class SimpleJsonRecordReaderTests extends ESTestCase {
         assertEquals(3, reader.read(record, gotFields));
     }
 
-    private JsonParser createParser(String input) throws JsonParseException, IOException {
+    private XContentParser createParser(String input) throws JsonParseException, IOException {
         ByteArrayInputStream inputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8));
         InputStream inputStream2 = new CountingInputStream(inputStream, mock(DataCountsReporter.class));
-        return new JsonFactory().createParser(inputStream2);
+        return XContentFactory.xContent(XContentType.JSON)
+                .createParser(new NamedXContentRegistry(Collections.emptyList()), inputStream2);
     }
 
     private Map<String, Integer> createFieldMap() {

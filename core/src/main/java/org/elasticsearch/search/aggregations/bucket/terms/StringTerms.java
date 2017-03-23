@@ -86,7 +86,7 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
 
         @Override
         protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
-            return builder.field(CommonFields.KEY, getKeyAsString());
+            return builder.field(CommonFields.KEY.getPreferredName(), getKeyAsString());
         }
 
         @Override

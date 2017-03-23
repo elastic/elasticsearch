@@ -99,11 +99,11 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(CommonFields.KEY, term);
+            builder.field(CommonFields.KEY.getPreferredName(), term);
             if (format != DocValueFormat.RAW) {
-                builder.field(CommonFields.KEY_AS_STRING, format.format(term));
+                builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), format.format(term));
             }
-            builder.field(CommonFields.DOC_COUNT, getDocCount());
+            builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
             builder.field("score", score);
             builder.field("bg_count", supersetDf);
             aggregations.toXContentInternal(builder, params);
@@ -162,7 +162,7 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("doc_count", subsetSize);
-        builder.startArray(CommonFields.BUCKETS);
+        builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (Bucket bucket : buckets) {
             bucket.toXContent(builder, params);
         }

@@ -358,7 +358,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             return Stream.concat(readers.stream(), Stream.of(current))
-                    .filter(r -> r.getGeneration() > minGeneration)
+                    .filter(r -> r.getGeneration() >= minGeneration)
                     .mapToInt(BaseTranslogReader::totalOperations)
                     .sum();
         }
@@ -371,7 +371,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             return Stream.concat(readers.stream(), Stream.of(current))
-                    .filter(r -> r.getGeneration() > minGeneration)
+                    .filter(r -> r.getGeneration() >= minGeneration)
                     .mapToLong(BaseTranslogReader::sizeInBytes)
                     .sum();
         }
@@ -519,7 +519,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public Translog.View newView() {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            View view = new View(lastCommittedTranslogFileGeneration + 1);
+            View view = new View(lastCommittedTranslogFileGeneration);
             outstandingViews.add(view);
             return view;
         }
@@ -1418,9 +1418,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 return;
             }
             long minReferencedGen = outstandingViews.stream().mapToLong(View::minTranslogGeneration).min().orElse(Long.MAX_VALUE);
-            minReferencedGen = Math.min(lastCommittedTranslogFileGeneration + 1, minReferencedGen);
+            minReferencedGen = Math.min(lastCommittedTranslogFileGeneration, minReferencedGen);
             final long finalMinReferencedGen = minReferencedGen;
-            List<TranslogReader> unreferenced = readers.stream().filter(r -> r.getGeneration() < finalMinReferencedGen).collect(Collectors.toList());
+            List<TranslogReader> unreferenced = readers.stream().filter(r -> r.getGeneration() <= finalMinReferencedGen).collect(Collectors.toList());
             for (final TranslogReader unreferencedReader : unreferenced) {
                 Path translogPath = unreferencedReader.path();
                 logger.trace("delete translog file - not referenced and not current anymore {}", translogPath);

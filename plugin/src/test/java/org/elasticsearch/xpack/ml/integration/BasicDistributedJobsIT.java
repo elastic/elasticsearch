@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
@@ -359,14 +360,13 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         assertEquals(1, tasks.taskMap().size());
-        PersistentTask<?> task = tasks.findTasks(OpenJobAction.NAME, p -> {
-            return p.getRequest() instanceof OpenJobAction.Request &&
-                    jobId.equals(((OpenJobAction.Request) p.getRequest()).getJobId());
-        }).iterator().next();
+        PersistentTask<?> task = MlMetadata.getJobTask(jobId, tasks);
         assertNotNull(task);
 
         if (hasExecutorNode) {
             assertNotNull(task.getExecutorNode());
+            assertTrue(task.isCurrentStatus());
+            assertFalse(task.needsReassignment(clusterState.nodes()));
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
             Map<String, String> expectedNodeAttr = new HashMap<>();
             expectedNodeAttr.put(MAX_RUNNING_JOBS_PER_NODE.getKey(), "10");

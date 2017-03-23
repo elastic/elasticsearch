@@ -80,13 +80,11 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
                     .field("type", "murmur3")
                 .endObject().endObject().endObject().endObject().string();
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        ParsedDocument parsedDoc = mapper.parse(SourceToParse.source("test", "type", "1", 
-        		XContentFactory.jsonBuilder()
-        		.startObject()
-        		.field("field", "value")
-        		.endObject()
-        		.bytes(),
-        		XContentType.JSON));
+        ParsedDocument parsedDoc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "value")
+                .endObject().bytes(),
+                XContentType.JSON));
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertNotNull(fields);
         assertEquals(Arrays.toString(fields), 1, fields.length);

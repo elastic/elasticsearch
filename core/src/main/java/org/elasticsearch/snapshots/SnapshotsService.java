@@ -1150,11 +1150,24 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         @Override
                         public void onSnapshotFailure(Snapshot failedSnapshot, Exception e) {
                             if (failedSnapshot.equals(snapshot)) {
-                                logger.trace("deleted snapshot failed - deleting files", e);
+                                logger.warn("deleted snapshot failed - deleting files", e);
                                 removeListener(this);
-                                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() ->
-                                    deleteSnapshot(failedSnapshot.getRepository(), failedSnapshot.getSnapshotId().getName(), listener, true)
-                                );
+                                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                                    try {
+                                        deleteSnapshot(failedSnapshot.getRepository(),
+                                                       failedSnapshot.getSnapshotId().getName(),
+                                                       listener,
+                                                       true);
+                                    } catch (SnapshotMissingException smex) {
+                                        logger.info((Supplier<?>) () -> new ParameterizedMessage(
+                                            "Tried deleting in-progress snapshot [{}], but it " +
+                                            "could not be found after failing to abort.",
+                                            smex.getSnapshotName()), e);
+                                        listener.onFailure(new SnapshotException(snapshot,
+                                            "Tried deleting in-progress snapshot [{}], but it " +
+                                            "could not be found after failing to abort.", smex));
+                                    }
+                                });
                             }
                         }
                     });

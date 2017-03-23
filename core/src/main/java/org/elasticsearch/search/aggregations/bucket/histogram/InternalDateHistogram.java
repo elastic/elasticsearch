@@ -142,10 +142,10 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
                 builder.startObject();
             }
             if (format != DocValueFormat.RAW) {
-                builder.field(CommonFields.KEY_AS_STRING, keyAsString);
+                builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), keyAsString);
             }
-            builder.field(CommonFields.KEY, key);
-            builder.field(CommonFields.DOC_COUNT, docCount);
+            builder.field(CommonFields.KEY.getPreferredName(), key);
+            builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;
@@ -437,9 +437,9 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
-            builder.startObject(CommonFields.BUCKETS);
+            builder.startObject(CommonFields.BUCKETS.getPreferredName());
         } else {
-            builder.startArray(CommonFields.BUCKETS);
+            builder.startArray(CommonFields.BUCKETS.getPreferredName());
         }
         for (Bucket bucket : buckets) {
             bucket.toXContent(builder, params);

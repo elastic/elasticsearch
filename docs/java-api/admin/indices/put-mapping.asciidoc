@@ -60,7 +60,7 @@ You can use the same API to update an existing mapping:
 [source,java]
 --------------------------------------------------
 client.admin().indices().preparePutMapping("twitter")   <1>
-        .setType("tweet")                               <2>
+        .setType("user")                                <2>
         .setSource("{\n" +                              <3>
                 "  \"properties\": {\n" +
                 "    \"user_name\": {\n" +

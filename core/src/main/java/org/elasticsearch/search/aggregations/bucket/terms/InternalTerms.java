@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -43,10 +45,11 @@ import static java.util.Collections.unmodifiableList;
 public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends InternalTerms.Bucket<B>>
         extends InternalMultiBucketAggregation<A, B> implements Terms, ToXContent {
 
-    protected static final String DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME = "doc_count_error_upper_bound";
-    protected static final String SUM_OF_OTHER_DOC_COUNTS = "sum_other_doc_count";
+    protected static final ParseField DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME = new ParseField("doc_count_error_upper_bound");
+    protected static final ParseField SUM_OF_OTHER_DOC_COUNTS = new ParseField("sum_other_doc_count");
 
     public abstract static class Bucket<B extends Bucket<B>> extends Terms.Bucket {
+
         /**
          * Reads a bucket. Should be a constructor reference.
          */
@@ -140,6 +143,21 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
             return newBucket(docCount, aggs, docCountError);
         }
+
+        @Override
+        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            keyToXContent(builder);
+            builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
+            if (showDocCountError) {
+                builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName(), getDocCountError());
+            }
+            aggregations.toXContentInternal(builder, params);
+            builder.endObject();
+            return builder;
+        }
+
+        protected abstract XContentBuilder keyToXContent(XContentBuilder builder) throws IOException;
 
         @Override
         public boolean equals(Object obj) {
@@ -318,5 +336,17 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     @Override
     protected int doHashCode() {
         return Objects.hash(minDocCount, order, requiredSize);
+    }
+
+    protected static XContentBuilder doXContentCommon(XContentBuilder builder, Params params,
+                                               long docCountError, long otherDocCount, List<? extends Bucket> buckets) throws IOException {
+        builder.field(DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName(), docCountError);
+        builder.field(SUM_OF_OTHER_DOC_COUNTS.getPreferredName(), otherDocCount);
+        builder.startArray(CommonFields.BUCKETS.getPreferredName());
+        for (Bucket bucket : buckets) {
+            bucket.toXContent(builder, params);
+        }
+        builder.endArray();
+        return builder;
     }
 }

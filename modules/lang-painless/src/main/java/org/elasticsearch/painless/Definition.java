@@ -96,6 +96,7 @@ public final class Definition {
     public static final Type PATTERN_TYPE = INSTANCE.getType("Pattern");
     public static final Type MATCHER_TYPE = INSTANCE.getType("Matcher");
     public static final Type ITERATOR_TYPE = INSTANCE.getType("Iterator");
+    public static final Type ARRAY_LIST_TYPE = INSTANCE.getType("ArrayList");
 
     public enum Sort {
         VOID(       void.class      , Void.class      , null          , 0 , true  , false , false , false ),

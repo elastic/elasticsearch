@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
@@ -153,8 +152,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadPool.Cancellable cancellable = mock(ThreadPool.Cancellable.class);
         when(threadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(cancellable);
-        when(threadPool.executor(MachineLearning.AUTODETECT_PROCESS_THREAD_POOL_NAME))
-                .thenReturn(EsExecutors.newDirectExecutorService());
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.newDirectExecutorService());
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         when(autodetectProcess.isProcessAlive()).thenReturn(true);
         when(autodetectProcess.readAutodetectResults()).thenReturn(Collections.emptyIterator());
@@ -344,6 +342,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private AutodetectProcessManager createManager(AutodetectCommunicator communicator, Client client,
                                                    PersistentTasksService persistentTasksService) {
         ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.newDirectExecutorService());
         AutodetectProcessFactory autodetectProcessFactory = mock(AutodetectProcessFactory.class);
         AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client,
                 threadPool, jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister,

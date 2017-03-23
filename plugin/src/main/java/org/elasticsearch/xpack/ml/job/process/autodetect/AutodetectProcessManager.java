@@ -13,6 +13,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestStatus;
@@ -205,20 +206,31 @@ public class AutodetectProcessManager extends AbstractComponent {
 
     public void openJob(String jobId, long taskId, boolean ignoreDowntime, Consumer<Exception> handler) {
         gatherRequiredInformation(jobId, (dataCounts, modelSnapshot, quantiles, filters) -> {
-            try {
-                AutodetectCommunicator communicator = autoDetectCommunicatorByJob.computeIfAbsent(jobId, id ->
-                        create(id, taskId, dataCounts, modelSnapshot, quantiles, filters, ignoreDowntime, handler));
-                communicator.writeJobInputHeader();
-                setJobState(taskId, jobId, JobState.OPENED);
-            } catch (Exception e1) {
-                if (e1 instanceof ElasticsearchStatusException) {
-                    logger.info(e1.getMessage());
-                } else {
-                    String msg = String.format(Locale.ROOT, "[%s] exception while opening job", jobId);
-                    logger.error(msg, e1);
+            // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
+            threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    handler.accept(e);
                 }
-                setJobState(taskId, JobState.FAILED, e2 -> handler.accept(e1));
-            }
+
+                @Override
+                protected void doRun() throws Exception {
+                    try {
+                        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.computeIfAbsent(jobId, id ->
+                                create(id, taskId, dataCounts, modelSnapshot, quantiles, filters, ignoreDowntime, handler));
+                        communicator.writeJobInputHeader();
+                        setJobState(taskId, jobId, JobState.OPENED);
+                    } catch (Exception e1) {
+                        if (e1 instanceof ElasticsearchStatusException) {
+                            logger.info(e1.getMessage());
+                        } else {
+                            String msg = String.format(Locale.ROOT, "[%s] exception while opening job", jobId);
+                            logger.error(msg, e1);
+                        }
+                        setJobState(taskId, JobState.FAILED, e2 -> handler.accept(e1));
+                    }
+                }
+            });
         }, e1 -> {
             logger.warn("Failed to gather information required to open job [" + jobId + "]", e1);
             setJobState(taskId, JobState.FAILED, e2 -> handler.accept(e1));

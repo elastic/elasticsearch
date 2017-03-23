@@ -330,8 +330,8 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
                     logger.info("Deleting results after '" + deleteAfter + "'");
 
-                    // NORELEASE: JobDataDeleter is basically delete-by-query.
-                    // We should replace this whole abstraction with DBQ eventually
+                    // TODO JobDataDeleter is basically delete-by-query.
+                    // We should replace this whole abstraction with DBQ eventually (See #821)
                     JobDataDeleter dataDeleter = new JobDataDeleter(client, jobId);
                     dataDeleter.deleteResultsFromTime(deleteAfter.getTime() + 1, new ActionListener<Boolean>() {
                         @Override

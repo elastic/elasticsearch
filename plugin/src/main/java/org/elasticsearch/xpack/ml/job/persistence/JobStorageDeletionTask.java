@@ -103,7 +103,6 @@ public class JobStorageDeletionTask extends Task {
 
         // Step 2. DBQ done, delete the state
         // -------
-        // TODO norelease more robust handling of failures?
         ActionListener<BulkByScrollResponse> dbqHandler = ActionListener.wrap(bulkByScrollResponse -> {
                     if (bulkByScrollResponse.isTimedOut()) {
                         logger.warn("DeleteByQuery for indices [" + indexName + ", " + indexPattern + "] timed out.");

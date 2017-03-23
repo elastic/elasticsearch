@@ -22,10 +22,9 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.transport.Transport;
 
@@ -33,33 +32,60 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 
-final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySearchResultProvider> {
+final class SearchQueryThenFetchAsyncAction
+        extends AbstractSearchAsyncAction<QuerySearchResultProvider> {
 
-    SearchQueryThenFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
-                                    Function<String, Transport.Connection> nodeIdToConnection,
-                                    Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
-                                    SearchPhaseController searchPhaseController, Executor executor,
-                                    SearchRequest request, ActionListener<SearchResponse> listener,
-                                    GroupShardsIterator shardsIts, long startTime, long clusterStateVersion,
-                                    SearchTask task) {
-        super(logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, searchPhaseController, executor,
-            request, listener, shardsIts, startTime, clusterStateVersion, task);
+    private final SearchPhaseController searchPhaseController;
 
+    SearchQueryThenFetchAsyncAction(
+            final Logger logger,
+            final SearchTransportService searchTransportService,
+            final Function<String, Transport.Connection> nodeIdToConnection,
+            final Map<String, AliasFilter> aliasFilter,
+            final Map<String, Float> concreteIndexBoosts,
+            final SearchPhaseController searchPhaseController,
+            final Executor executor,
+            final SearchRequest request,
+            final ActionListener<SearchResponse> listener,
+            final GroupShardsIterator shardsIts,
+            final TransportSearchAction.SearchTimeProvider timeProvider,
+            long clusterStateVersion,
+            SearchTask task) {
+        super(
+                "query",
+                logger,
+                searchTransportService,
+                nodeIdToConnection,
+                aliasFilter,
+                concreteIndexBoosts,
+                executor,
+                request,
+                listener,
+                shardsIts,
+                timeProvider,
+                clusterStateVersion,
+                task,
+                searchPhaseController.newSearchPhaseResults(request, shardsIts.size()));
+        this.searchPhaseController = searchPhaseController;
+    }
+
+
+    protected void executePhaseOnShard(
+            final ShardIterator shardIt,
+            final ShardRouting shard,
+            final ActionListener<QuerySearchResultProvider> listener) {
+        getSearchTransport().sendExecuteQuery(
+                getConnection(shard.currentNodeId()),
+                buildShardSearchRequest(shardIt, shard),
+                getTask(),
+                listener);
     }
 
     @Override
-    protected String initialPhaseName() {
-        return "query";
+    protected SearchPhase getNextPhase(
+            final SearchPhaseResults<QuerySearchResultProvider> results,
+            final SearchPhaseContext context) {
+        return new FetchSearchPhase(results, searchPhaseController, context);
     }
 
-    @Override
-    protected void sendExecuteFirstPhase(Transport.Connection connection, ShardSearchTransportRequest request,
-                                         ActionListener<QuerySearchResultProvider> listener) {
-        searchTransportService.sendExecuteQuery(connection, request, task, listener);
-    }
-
-    @Override
-    protected CheckedRunnable<Exception> getNextPhase(AtomicArray<QuerySearchResultProvider> initialResults) {
-        return new FetchPhase(initialResults, searchPhaseController);
-    }
 }

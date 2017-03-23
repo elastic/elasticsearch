@@ -23,7 +23,6 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
@@ -55,10 +54,10 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
             if (hitContext.hit().fieldsOrNull() == null) {
                 hitContext.hit().fields(new HashMap<>(2));
             }
-            SearchHitField hitField = hitContext.hit().fields().get(field);
+            SearchHitField hitField = hitContext.hit().getFields().get(field);
             if (hitField == null) {
-                hitField = new InternalSearchHitField(field, new ArrayList<>(2));
-                hitContext.hit().fields().put(field, hitField);
+                hitField = new SearchHitField(field, new ArrayList<>(2));
+                hitContext.hit().getFields().put(field, hitField);
             }
             MappedFieldType fieldType = context.mapperService().fullName(field);
             if (fieldType != null) {
@@ -67,7 +66,7 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                 AtomicFieldData data = context.fieldData().getForField(fieldType).load(hitContext.readerContext());
                 ScriptDocValues<?> values = data.getScriptValues();
                 values.setNextDocId(hitContext.docId());
-                hitField.values().addAll(values);
+                hitField.getValues().addAll(values);
             }
         }
     }

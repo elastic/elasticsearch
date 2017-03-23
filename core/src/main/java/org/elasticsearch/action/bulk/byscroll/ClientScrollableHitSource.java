@@ -113,8 +113,8 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     }
 
     @Override
-    protected void cleanup() {
-        // Nothing to do
+    protected void cleanup(Runnable onCompletion) {
+        onCompletion.run();
     }
 
     /**
@@ -255,7 +255,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
 
         private <T> T fieldValue(String fieldName) {
             SearchHitField field = delegate.field(fieldName);
-            return field == null ? null : field.value();
+            return field == null ? null : field.getValue();
         }
     }
 }

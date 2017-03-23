@@ -150,6 +150,18 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         return builder;
     }
 
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder("SnapshotDeletionsInProgress[");
+        for (int i = 0; i < entries.size(); i++) {
+            builder.append(entries.get(i).getSnapshot().getSnapshotId().getName());
+            if (i + 1 < entries.size()) {
+                builder.append(",");
+            }
+        }
+        return builder.append("]").toString();
+    }
+
     /**
      * A class representing a snapshot deletion request entry in the cluster state.
      */

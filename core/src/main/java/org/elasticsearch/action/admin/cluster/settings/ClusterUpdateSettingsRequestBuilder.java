@@ -53,16 +53,6 @@ public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuil
 
     /**
      * Sets the source containing the transient settings to be updated. They will not survive a full cluster restart
-     * @deprecated use {@link #setTransientSettings(String, XContentType)} to avoid content type detection
-     */
-    @Deprecated
-    public ClusterUpdateSettingsRequestBuilder setTransientSettings(String settings) {
-        request.transientSettings(settings);
-        return this;
-    }
-
-    /**
-     * Sets the source containing the transient settings to be updated. They will not survive a full cluster restart
      */
     public ClusterUpdateSettingsRequestBuilder setTransientSettings(String settings, XContentType xContentType) {
         request.transientSettings(settings, xContentType);
@@ -89,16 +79,6 @@ public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuil
      * Sets the persistent settings to be updated. They will get applied cross restarts
      */
     public ClusterUpdateSettingsRequestBuilder setPersistentSettings(Settings.Builder settings) {
-        request.persistentSettings(settings);
-        return this;
-    }
-
-    /**
-     * Sets the source containing the persistent settings to be updated. They will get applied cross restarts
-     * @deprecated use {@link #setPersistentSettings(String, XContentType)} to avoid content type detection
-     */
-    @Deprecated
-    public ClusterUpdateSettingsRequestBuilder setPersistentSettings(String settings) {
         request.persistentSettings(settings);
         return this;
     }

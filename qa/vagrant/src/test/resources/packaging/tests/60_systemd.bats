@@ -87,10 +87,12 @@ setup() {
     #                     Always AssumeMP on RHEL.
     #                   - Resolves: rhbz#1381990
     #
-    # Here we set the "-XX:-AssumeMP" option to false again:
-    lsb_release=$(lsb_release -i)
-    if [[ "$lsb_release" =~ "CentOS" ]] || [[ "$lsb_release" =~ "OracleServer" ]]; then
-        echo "-XX:-AssumeMP" >> $ESCONFIG/jvm.options
+    if [ -x "$(command -v lsb_release)" ]; then
+        # Here we set the "-XX:-AssumeMP" option to false again:
+        lsb_release=$(lsb_release -i)
+        if [[ "$lsb_release" =~ "CentOS" ]] || [[ "$lsb_release" =~ "OracleServer" ]]; then
+            echo "-XX:-AssumeMP" >> $ESCONFIG/jvm.options
+        fi
     fi
 
     systemctl start elasticsearch.service

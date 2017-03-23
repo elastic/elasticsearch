@@ -20,6 +20,7 @@
 package org.elasticsearch;
 
 import org.apache.lucene.analysis.en.PorterStemFilterFactory;
+import org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilterFactory;
 import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
 import org.apache.lucene.analysis.util.CharFilterFactory;
@@ -146,6 +147,10 @@ public class AnalysisFactoryTestCase extends ESTestCase {
 
         // this one "seems to mess up offsets". probably shouldn't be a tokenizer...
         .put("wikipedia",     Void.class)
+
+        // TODO: expose these
+        .put("simplepattern",    Void.class)
+        .put("simplepatternsplit",    Void.class)
         .immutableMap();
 
     static final Map<PreBuiltTokenizers, Class<?>> PREBUILT_TOKENIZERS;
@@ -249,6 +254,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("type",                      KeepTypesFilterFactory.class)
         .put("uppercase",                 UpperCaseTokenFilterFactory.class)
         .put("worddelimiter",             WordDelimiterTokenFilterFactory.class)
+        .put("worddelimitergraph",        WordDelimiterGraphFilterFactory.class)
         .put("flattengraph",              FlattenGraphTokenFilterFactory.class)
 
         // TODO: these tokenfilters are not yet exposed: useful?

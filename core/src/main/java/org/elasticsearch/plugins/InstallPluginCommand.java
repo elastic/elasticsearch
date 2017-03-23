@@ -30,6 +30,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -103,6 +104,13 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 class InstallPluginCommand extends EnvironmentAwareCommand {
 
     private static final String PROPERTY_STAGING_ID = "es.plugins.staging";
+
+    // exit codes for install
+    /** A plugin with the same name is already installed. */
+    static final int PLUGIN_EXISTS = 1;
+    /** The plugin zip is not properly structured. */
+    static final int PLUGIN_MALFORMED = 2;
+
 
     /** The builtin modules, which are plugins, but cannot be installed or removed. */
     static final Set<String> MODULES;
@@ -265,6 +273,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     /** Downloads a zip from the url, into a temp file under the given temp dir. */
+    @SuppressForbidden(reason = "We use getInputStream to download plugins")
     private Path downloadZip(Terminal terminal, String urlString, Path tmpDir) throws IOException {
         terminal.println(VERBOSE, "Retrieving zip from " + urlString);
         URL url = new URL(urlString);
@@ -314,6 +323,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     /** Downloads a zip from the url, as well as a SHA1 checksum, and checks the checksum. */
+    @SuppressForbidden(reason = "We use openStream to download plugins")
     private Path downloadZipAndChecksum(Terminal terminal, String urlString, Path tmpDir) throws Exception {
         Path zip = downloadZip(terminal, urlString, tmpDir);
         pathsToDeleteOnShutdown.add(zip);
@@ -330,7 +340,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         byte[] zipbytes = Files.readAllBytes(zip);
         String gotChecksum = MessageDigests.toHexString(MessageDigests.sha1().digest(zipbytes));
         if (expectedChecksum.equals(gotChecksum) == false) {
-            throw new UserException(ExitCodes.IO_ERROR, "SHA1 mismatch, expected " + expectedChecksum + " but got " + gotChecksum);
+            throw new UserException(ExitCodes.IO_ERROR,
+                "SHA1 mismatch, expected " + expectedChecksum + " but got " + gotChecksum);
         }
 
         return zip;
@@ -354,12 +365,14 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 hasEsDir = true;
                 Path targetFile = target.resolve(entry.getName().substring("elasticsearch/".length()));
 
-                // Using the entry name as a path can result in an entry outside of the plugin dir, either if the
-                // name starts with the root of the filesystem, or it is a relative entry like ../whatever.
-                // This check attempts to identify both cases by first normalizing the path (which removes foo/..)
-                // and ensuring the normalized entry is still rooted with the target plugin directory.
+                // Using the entry name as a path can result in an entry outside of the plugin dir,
+                // either if the name starts with the root of the filesystem, or it is a relative
+                // entry like ../whatever. This check attempts to identify both cases by first
+                // normalizing the path (which removes foo/..) and ensuring the normalized entry
+                // is still rooted with the target plugin directory.
                 if (targetFile.normalize().startsWith(target) == false) {
-                    throw new IOException("Zip contains entry name '" + entry.getName() + "' resolving outside of plugin directory");
+                    throw new UserException(PLUGIN_MALFORMED, "Zip contains entry name '" +
+                        entry.getName() + "' resolving outside of plugin directory");
                 }
 
                 // be on the safe side: do not rely on that directories are always extracted
@@ -381,7 +394,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         Files.delete(zip);
         if (hasEsDir == false) {
             IOUtils.rm(target);
-            throw new UserException(ExitCodes.DATA_ERROR, "`elasticsearch` directory is missing in the plugin zip");
+            throw new UserException(PLUGIN_MALFORMED,
+                                    "`elasticsearch` directory is missing in the plugin zip");
         }
         return target;
     }
@@ -421,10 +435,11 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         if (Files.exists(destination)) {
             final String message = String.format(
                 Locale.ROOT,
-                "plugin directory [%s] already exists; if you need to update the plugin, uninstall it first using command 'remove %s'",
+                "plugin directory [%s] already exists; if you need to update the plugin, " +
+                    "uninstall it first using command 'remove %s'",
                 destination.toAbsolutePath(),
                 info.getName());
-            throw new UserException(ExitCodes.CONFIG, message);
+            throw new UserException(PLUGIN_EXISTS, message);
         }
 
         terminal.println(VERBOSE, info.toString());
@@ -432,8 +447,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         // don't let user install plugin as a module...
         // they might be unavoidably in maven central and are packaged up the same way)
         if (MODULES.contains(info.getName())) {
-            throw new UserException(
-                    ExitCodes.USAGE, "plugin '" + info.getName() + "' cannot be installed like this, it is a system module");
+            throw new UserException(ExitCodes.USAGE, "plugin '" + info.getName() +
+                "' cannot be installed like this, it is a system module");
         }
 
         // check for jar hell before any copying
@@ -452,8 +467,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     /** check a candidate plugin for jar hell before installing it */
     void jarHellCheck(Path candidate, Path pluginsDir) throws Exception {
         // create list of current jars in classpath
-        final List<URL> jars = new ArrayList<>();
-        jars.addAll(Arrays.asList(JarHell.parseClassPath()));
+        final Set<URL> jars = new HashSet<>(JarHell.parseClassPath());
 
         // read existing bundles. this does some checks on the installation too.
         PluginsService.getPluginBundles(pluginsDir);
@@ -461,13 +475,15 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         // add plugin jars to the list
         Path pluginJars[] = FileSystemUtils.files(candidate, "*.jar");
         for (Path jar : pluginJars) {
-            jars.add(jar.toUri().toURL());
+            if (jars.add(jar.toUri().toURL()) == false) {
+                throw new IllegalStateException("jar hell! duplicate plugin jar: " + jar);
+            }
         }
         // TODO: no jars should be an error
         // TODO: verify the classname exists in one of the jars!
 
         // check combined (current classpath + new jars to-be-added)
-        JarHell.checkJarHell(jars.toArray(new URL[jars.size()]));
+        JarHell.checkJarHell(jars);
     }
 
     /**
@@ -530,7 +546,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     /** Copies the files from {@code tmpBinDir} into {@code destBinDir}, along with permissions from dest dirs parent. */
     private void installBin(PluginInfo info, Path tmpBinDir, Path destBinDir) throws Exception {
         if (Files.isDirectory(tmpBinDir) == false) {
-            throw new UserException(ExitCodes.IO_ERROR, "bin in plugin " + info.getName() + " is not a directory");
+            throw new UserException(PLUGIN_MALFORMED, "bin in plugin " + info.getName() + " is not a directory");
         }
         Files.createDirectory(destBinDir);
         setFileAttributes(destBinDir, BIN_DIR_PERMS);
@@ -538,9 +554,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmpBinDir)) {
             for (Path srcFile : stream) {
                 if (Files.isDirectory(srcFile)) {
-                    throw new UserException(
-                        ExitCodes.DATA_ERROR,
-                        "Directories not allowed in bin dir for plugin " + info.getName() + ", found " + srcFile.getFileName());
+                    throw new UserException(PLUGIN_MALFORMED, "Directories not allowed in bin dir " +
+                        "for plugin " + info.getName() + ", found " + srcFile.getFileName());
                 }
 
                 Path destFile = destBinDir.resolve(tmpBinDir.relativize(srcFile));
@@ -557,7 +572,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      */
     private void installConfig(PluginInfo info, Path tmpConfigDir, Path destConfigDir) throws Exception {
         if (Files.isDirectory(tmpConfigDir) == false) {
-            throw new UserException(ExitCodes.IO_ERROR, "config in plugin " + info.getName() + " is not a directory");
+            throw new UserException(PLUGIN_MALFORMED,
+                "config in plugin " + info.getName() + " is not a directory");
         }
 
         Files.createDirectories(destConfigDir);
@@ -573,7 +589,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmpConfigDir)) {
             for (Path srcFile : stream) {
                 if (Files.isDirectory(srcFile)) {
-                    throw new UserException(ExitCodes.DATA_ERROR, "Directories not allowed in config dir for plugin " + info.getName());
+                    throw new UserException(PLUGIN_MALFORMED,
+                        "Directories not allowed in config dir for plugin " + info.getName());
                 }
 
                 Path destFile = destConfigDir.resolve(tmpConfigDir.relativize(srcFile));

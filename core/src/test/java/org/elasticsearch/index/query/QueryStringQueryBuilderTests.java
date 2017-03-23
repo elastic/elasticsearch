@@ -24,11 +24,12 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.GraphQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -40,13 +41,19 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
@@ -395,99 +402,87 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
             // simple multi-term
             Query query = queryParser.parse("guinea pig");
-            Query expectedQuery = new GraphQuery(
-                new BooleanQuery.Builder()
-                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), defaultOp))
-                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), defaultOp))
-                    .build(),
-                new TermQuery(new Term(STRING_FIELD_NAME, "cavy"))
-            );
+            Query expectedQuery = new BooleanQuery.Builder()
+                    .add(new BooleanQuery.Builder()
+                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), Occur.MUST)
+                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), Occur.MUST).build(), defaultOp)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), defaultOp)
+                    .build();
             assertThat(query, Matchers.equalTo(expectedQuery));
 
             // simple with additional tokens
             query = queryParser.parse("that guinea pig smells");
-            expectedQuery = new GraphQuery(
-                new BooleanQuery.Builder()
-                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "that")), defaultOp))
-                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), defaultOp))
-                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), defaultOp))
-                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), defaultOp))
-                    .build(),
-                new BooleanQuery.Builder()
-                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "that")), defaultOp))
-                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), defaultOp))
-                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), defaultOp))
-                    .build()
-            );
+            expectedQuery = new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "that")), defaultOp)
+                    .add(new BooleanQuery.Builder()
+                         .add(new BooleanQuery.Builder()
+                            .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), Occur.MUST))
+                            .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), Occur.MUST))
+                            .build(), Occur.SHOULD)
+                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), Occur.SHOULD).build(), defaultOp)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), defaultOp)
+                    .build();
             assertThat(query, Matchers.equalTo(expectedQuery));
 
             // complex
             query = queryParser.parse("+that -(guinea pig) +smells");
             expectedQuery = new BooleanQuery.Builder()
-                .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "that")), BooleanClause.Occur.MUST))
-                .add(new BooleanClause(new GraphQuery(
-                    new BooleanQuery.Builder()
-                        .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), defaultOp))
-                        .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), defaultOp))
-                        .build(),
-                    new TermQuery(new Term(STRING_FIELD_NAME, "cavy"))
-                ), BooleanClause.Occur.MUST_NOT))
-                .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), BooleanClause.Occur.MUST))
-                .build();
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "that")), Occur.MUST)
+                    .add(new BooleanQuery.Builder()
+                            .add(new BooleanQuery.Builder()
+                                 .add(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), Occur.MUST)
+                                 .add(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), Occur.MUST)
+                                 .build(), defaultOp)
+                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), defaultOp)
+                            .build(), Occur.MUST_NOT)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), Occur.MUST)
+                    .build();
 
             assertThat(query, Matchers.equalTo(expectedQuery));
 
-            // no paren should cause guinea and pig to be treated as separate tokens
+            // no parent should cause guinea and pig to be treated as separate tokens
             query = queryParser.parse("+that -guinea pig +smells");
             expectedQuery = new BooleanQuery.Builder()
-                .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "that")), BooleanClause.Occur.MUST))
-                .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), BooleanClause.Occur.MUST_NOT))
-                .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), defaultOp))
-                .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), BooleanClause.Occur.MUST))
+                .add(new TermQuery(new Term(STRING_FIELD_NAME, "that")), BooleanClause.Occur.MUST)
+                .add(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), BooleanClause.Occur.MUST_NOT)
+                .add(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), defaultOp)
+                .add(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), BooleanClause.Occur.MUST)
                 .build();
 
             assertThat(query, Matchers.equalTo(expectedQuery));
 
-            // phrase
+            // span query
             query = queryParser.parse("\"that guinea pig smells\"");
             expectedQuery = new BooleanQuery.Builder()
+                .add(new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
+                    .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")))
+                    .addClause(new SpanOrQuery(
+                        new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
+                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea")))
+                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig"))).build(),
+                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))))
+                    .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells")))
+                    .build(), Occur.SHOULD)
                 .setDisableCoord(true)
-                .add(new BooleanClause(new GraphQuery(
-                    new PhraseQuery.Builder()
-                        .add(new Term(STRING_FIELD_NAME, "that"))
-                        .add(new Term(STRING_FIELD_NAME, "guinea"))
-                        .add(new Term(STRING_FIELD_NAME, "pig"))
-                        .add(new Term(STRING_FIELD_NAME, "smells"))
-                        .build(),
-                    new PhraseQuery.Builder()
-                        .add(new Term(STRING_FIELD_NAME, "that"))
-                        .add(new Term(STRING_FIELD_NAME, "cavy"))
-                        .add(new Term(STRING_FIELD_NAME, "smells"))
-                        .build()
-                ), BooleanClause.Occur.SHOULD)).build();
-
+                .build();
             assertThat(query, Matchers.equalTo(expectedQuery));
 
-            // phrase with slop
+            // span query with slop
             query = queryParser.parse("\"that guinea pig smells\"~2");
             expectedQuery = new BooleanQuery.Builder()
+                .add(new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
+                    .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")))
+                    .addClause(new SpanOrQuery(
+                        new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
+                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea")))
+                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig"))).build(),
+                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))))
+                    .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells")))
+                    .setSlop(2)
+                    .build(),
+                    Occur.SHOULD)
                 .setDisableCoord(true)
-                .add(new BooleanClause(new GraphQuery(
-                    new PhraseQuery.Builder()
-                        .add(new Term(STRING_FIELD_NAME, "that"))
-                        .add(new Term(STRING_FIELD_NAME, "guinea"))
-                        .add(new Term(STRING_FIELD_NAME, "pig"))
-                        .add(new Term(STRING_FIELD_NAME, "smells"))
-                        .setSlop(2)
-                        .build(),
-                    new PhraseQuery.Builder()
-                        .add(new Term(STRING_FIELD_NAME, "that"))
-                        .add(new Term(STRING_FIELD_NAME, "cavy"))
-                        .add(new Term(STRING_FIELD_NAME, "smells"))
-                        .setSlop(2)
-                        .build()
-                ), BooleanClause.Occur.SHOULD)).build();
-
+                .build();
             assertThat(query, Matchers.equalTo(expectedQuery));
         }
     }
@@ -815,9 +810,57 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     .build();
             assertThat(query, equalTo(expectedQuery));
         }
-
-
     }
+
+    public void testExistsFieldQuery() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext context = createShardContext();
+        QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
+        Query query = queryBuilder.toQuery(context);
+        Query expected = new ConstantScoreQuery(new TermQuery(new Term("_field_names", "foo")));
+        assertThat(query, equalTo(expected));
+
+        queryBuilder = new QueryStringQueryBuilder("_all:*");
+        query = queryBuilder.toQuery(context);
+        expected = new ConstantScoreQuery(new TermQuery(new Term("_field_names", "_all")));
+        assertThat(query, equalTo(expected));
+
+        queryBuilder = new QueryStringQueryBuilder("*:*");
+        query = queryBuilder.toQuery(context);
+        expected = new MatchAllDocsQuery();
+        assertThat(query, equalTo(expected));
+
+        queryBuilder = new QueryStringQueryBuilder("*");
+        query = queryBuilder.toQuery(context);
+        List<Query> fieldQueries = new ArrayList<> ();
+        for (String type : QueryStringQueryBuilder.allQueryableDefaultFields(context).keySet()) {
+            fieldQueries.add(new ConstantScoreQuery(new TermQuery(new Term("_field_names", type))));
+        }
+        expected = new DisjunctionMaxQuery(fieldQueries, 0f);
+        assertThat(query, equalTo(expected));
+    }
+
+    public void testDisabledFieldNamesField() throws Exception {
+        QueryShardContext context = createShardContext();
+        context.getMapperService().merge("new_type",
+            new CompressedXContent(
+                PutMappingRequest.buildFromSimplifiedDef("new_type",
+                    "foo", "type=text",
+                    "_field_names", "enabled=false").string()),
+            MapperService.MergeReason.MAPPING_UPDATE, true);
+        QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
+        Query query = queryBuilder.toQuery(context);
+        Query expected = new WildcardQuery(new Term("foo", "*"));
+        assertThat(query, equalTo(expected));
+        context.getMapperService().merge("new_type",
+            new CompressedXContent(
+                PutMappingRequest.buildFromSimplifiedDef("new_type",
+                    "foo", "type=text",
+                    "_field_names", "enabled=true").string()),
+            MapperService.MergeReason.MAPPING_UPDATE, true);
+    }
+
+
 
     public void testFromJson() throws IOException {
         String json =

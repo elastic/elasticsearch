@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -94,7 +95,8 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
         assertThat(query, notNullValue());
         assertThat(query,
                 either(instanceOf(BooleanQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
-                .or(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
+                .or(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class))
+                .or(instanceOf(IndexOrDocValuesQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
     }
 
     public void testIllegalValues() {

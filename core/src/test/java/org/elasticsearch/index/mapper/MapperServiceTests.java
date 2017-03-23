@@ -38,6 +38,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
@@ -189,6 +190,22 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: "));
     }
 
+    public void testMergeParentTypesSame() {
+        // Verifies that a merge (absent a DocumentMapper change)
+        // doesn't change the parentTypes reference.
+        // The collection was being rewrapped with each merge
+        // in v5.2 resulting in eventual StackOverflowErrors.
+        // https://github.com/elastic/elasticsearch/issues/23604
+
+        IndexService indexService1 = createIndex("index1");
+        MapperService mapperService = indexService1.mapperService();
+        Set<String> parentTypes = mapperService.getParentTypes();
+
+        Map<String, Map<String, Object>> mappings = new HashMap<>();
+        mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false);
+        assertSame(parentTypes, mapperService.getParentTypes());
+    }
+
     public void testOtherDocumentMappersOnlyUpdatedWhenChangingFieldType() throws IOException {
         IndexService indexService = createIndex("test");
 
@@ -241,7 +258,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         // partitioned index must have routing
          IllegalArgumentException noRoutingException = expectThrows(IllegalArgumentException.class, () -> {
             client().admin().indices().prepareCreate("test-index")
-                    .addMapping("type", "{\"type\":{}}")
+                    .addMapping("type", "{\"type\":{}}", XContentType.JSON)
                     .setSettings(Settings.builder()
                         .put("index.number_of_shards", 4)
                         .put("index.routing_partition_size", 2))
@@ -252,8 +269,9 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         // partitioned index cannot have parent/child relationships
         IllegalArgumentException parentException = expectThrows(IllegalArgumentException.class, () -> {
             client().admin().indices().prepareCreate("test-index")
-                    .addMapping("parent", "{\"parent\":{\"_routing\":{\"required\":true}}}")
-                    .addMapping("child", "{\"child\": {\"_routing\":{\"required\":true}, \"_parent\": {\"type\": \"parent\"}}}")
+                    .addMapping("parent", "{\"parent\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
+                    .addMapping("child", "{\"child\": {\"_routing\":{\"required\":true}, \"_parent\": {\"type\": \"parent\"}}}",
+                        XContentType.JSON)
                     .setSettings(Settings.builder()
                         .put("index.number_of_shards", 4)
                         .put("index.routing_partition_size", 2))
@@ -263,7 +281,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
 
         // valid partitioned index
         assertTrue(client().admin().indices().prepareCreate("test-index")
-            .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}")
+            .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
             .setSettings(Settings.builder()
                 .put("index.number_of_shards", 4)
                 .put("index.routing_partition_size", 2))

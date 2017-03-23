@@ -47,7 +47,7 @@ import static org.elasticsearch.common.inject.internal.MoreTypes.canonicalize;
  * <p>
  * This syntax cannot be used to create type literals that have wildcard
  * parameters, such as {@code Class<?>} or {@code List<? extends CharSequence>}.
- * Such type literals must be constructed programatically, either by {@link
+ * Such type literals must be constructed programmatically, either by {@link
  * Method#getGenericReturnType extracting types from members} or by using the
  * {@link Types} factory class.
  * <p>

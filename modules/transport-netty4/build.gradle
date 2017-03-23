@@ -29,17 +29,22 @@ esplugin {
     hasClientJar = true
 }
 
+compileJava.options.compilerArgs << "-Xlint:-try"
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 
 dependencies {
     // network stack
-    compile "io.netty:netty-buffer:4.1.7.Final"
-    compile "io.netty:netty-codec:4.1.7.Final"
-    compile "io.netty:netty-codec-http:4.1.7.Final"
-    compile "io.netty:netty-common:4.1.7.Final"
-    compile "io.netty:netty-handler:4.1.7.Final"
-    compile "io.netty:netty-resolver:4.1.7.Final"
-    compile "io.netty:netty-transport:4.1.7.Final"
+    compile "io.netty:netty-buffer:4.1.9.Final"
+    compile "io.netty:netty-codec:4.1.9.Final"
+    compile "io.netty:netty-codec-http:4.1.9.Final"
+    compile "io.netty:netty-common:4.1.9.Final"
+    compile "io.netty:netty-handler:4.1.9.Final"
+    compile "io.netty:netty-resolver:4.1.9.Final"
+    compile "io.netty:netty-transport:4.1.9.Final"
+}
+
+dependencyLicenses {
+  mapping from: /netty-.*/, to: 'netty'
 }
 
 thirdPartyAudit.excludes = [
@@ -56,11 +61,10 @@ thirdPartyAudit.excludes = [
         'org.apache.commons.logging.LogFactory',
 
         // from io.netty.handler.ssl.OpenSslEngine (netty)
-        'org.apache.tomcat.jni.Buffer',
-        'org.apache.tomcat.jni.Library',
-        'org.apache.tomcat.jni.Pool',
-        'org.apache.tomcat.jni.SSL',
-        'org.apache.tomcat.jni.SSLContext',
+        'io.netty.internal.tcnative.Buffer',
+        'io.netty.internal.tcnative.Library',
+        'io.netty.internal.tcnative.SSL',
+        'io.netty.internal.tcnative.SSLContext',
 
         // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
         'org.bouncycastle.asn1.x500.X500Name',
@@ -107,45 +111,28 @@ thirdPartyAudit.excludes = [
         'com.ning.compress.lzf.LZFEncoder',
         'com.ning.compress.lzf.util.ChunkDecoderFactory',
         'com.ning.compress.lzf.util.ChunkEncoderFactory',
-        'javassist.ClassClassPath',
-        'javassist.ClassPath',
-        'javassist.ClassPool',
-        'javassist.CtClass',
-        'javassist.CtMethod',
         'lzma.sdk.lzma.Encoder',
         'net.jpountz.lz4.LZ4Compressor',
         'net.jpountz.lz4.LZ4Factory',
         'net.jpountz.lz4.LZ4FastDecompressor',
         'net.jpountz.xxhash.StreamingXXHash32',
         'net.jpountz.xxhash.XXHashFactory',
-        'org.apache.tomcat.Apr',
-        'org.apache.tomcat.jni.CertificateRequestedCallback',
-        'org.apache.tomcat.jni.CertificateRequestedCallback$KeyMaterial',
-        'org.apache.tomcat.jni.CertificateVerifier',
-        'org.apache.tomcat.jni.SessionTicketKey',
+        'io.netty.internal.tcnative.CertificateRequestedCallback',
+        'io.netty.internal.tcnative.CertificateRequestedCallback$KeyMaterial',
+        'io.netty.internal.tcnative.CertificateVerifier',
+        'io.netty.internal.tcnative.SessionTicketKey',
         'org.eclipse.jetty.alpn.ALPN$ClientProvider',
         'org.eclipse.jetty.alpn.ALPN$ServerProvider',
         'org.eclipse.jetty.alpn.ALPN',
 
         'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
         'io.netty.util.internal.PlatformDependent0',
+        'io.netty.util.internal.PlatformDependent0$1',
         'io.netty.util.internal.PlatformDependent0$2',
         'io.netty.util.internal.PlatformDependent0$3',
-        'io.netty.util.internal.chmv8.ConcurrentHashMapV8',
-        'io.netty.util.internal.chmv8.ConcurrentHashMapV8$1',
-        'io.netty.util.internal.chmv8.ConcurrentHashMapV8$TreeBin',
-        'io.netty.util.internal.chmv8.CountedCompleter',
-        'io.netty.util.internal.chmv8.CountedCompleter$1',
-        'io.netty.util.internal.chmv8.ForkJoinPool',
-        'io.netty.util.internal.chmv8.ForkJoinPool$2',
-        'io.netty.util.internal.chmv8.ForkJoinPool$WorkQueue',
-        'io.netty.util.internal.chmv8.ForkJoinTask',
-        'io.netty.util.internal.chmv8.ForkJoinTask$1',
-        'io.netty.util.internal.chmv8.Striped64',
-        'io.netty.util.internal.chmv8.Striped64$1',
-        'io.netty.util.internal.chmv8.Striped64$Cell',
         'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
         'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
+        'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueue',
         'io.netty.util.internal.shaded.org.jctools.queues.ConcurrentSequencedCircularArrayQueue',
         'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
         'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerField',
@@ -153,7 +140,6 @@ thirdPartyAudit.excludes = [
         'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerField',
         'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueHeadLimitField',
         'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueTailField',
-        'io.netty.util.internal.shaded.org.jctools.queues.MpscChunkedArrayQueue',
         'io.netty.util.internal.shaded.org.jctools.util.JvmInfo',
         'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
         'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',

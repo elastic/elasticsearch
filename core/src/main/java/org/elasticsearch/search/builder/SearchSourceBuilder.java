@@ -38,11 +38,11 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -314,6 +314,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * From index to start the search from. Defaults to <tt>0</tt>.
      */
     public SearchSourceBuilder from(int from) {
+        if (from < 0) {
+            throw new IllegalArgumentException("[from] parameter cannot be negative");
+        }
         this.from = from;
         return this;
     }
@@ -1359,7 +1362,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         currentFieldName = parser.currentName();
                     } else if (token.isValue()) {
                         if (SCRIPT_FIELD.match(currentFieldName)) {
-                            script = Script.parse(parser, context.getDefaultScriptLanguage());
+                            script = Script.parse(parser);
                         } else if (IGNORE_FAILURE_FIELD.match(currentFieldName)) {
                             ignoreFailure = parser.booleanValue();
                         } else {
@@ -1368,7 +1371,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         }
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if (SCRIPT_FIELD.match(currentFieldName)) {
-                            script = Script.parse(parser, context.getDefaultScriptLanguage());
+                            script = Script.parse(parser);
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName
                                     + "].", parser.getTokenLocation());

@@ -86,7 +86,7 @@ comprehensive example.
 
 |`split_on_whitespace` |Whether query text should be split on whitespace prior to analysis.
 Instead  the queryparser would parse around only real 'operators'. Default to `false`.
-It is not allowed to set this option to `false` if `autoGeneratePhraseQueries` is already set to `true`.
+It is not allowed to set this option to `false` if `auto_generate_phrase_queries` is already set to `true`.
 
 |`all_fields` | Perform the query on all fields detected in the mapping that can
 be queried. Will be used by default when the `_all` field is disabled and no

@@ -19,19 +19,109 @@
 
 package org.elasticsearch.search.suggest;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.suggest.Suggest.Suggestion;
+import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
+import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SuggestTests extends ESTestCase {
+
+    static NamedXContentRegistry getSuggestersRegistry() {
+        List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
+        namedXContents.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("term"),
+                (parser, context) -> TermSuggestion.fromXContent(parser, (String)context)));
+        namedXContents.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("phrase"),
+                (parser, context) -> PhraseSuggestion.fromXContent(parser, (String)context)));
+        namedXContents.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("completion"),
+                (parser, context) -> CompletionSuggestion.fromXContent(parser, (String)context)));
+        return new NamedXContentRegistry(namedXContents);
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return getSuggestersRegistry();
+    }
+
+    public static Suggest createTestItem() {
+        int numEntries = randomIntBetween(0, 5);
+        List<Suggestion<? extends Entry<? extends Option>>> suggestions = new ArrayList<>();
+        for (int i = 0; i < numEntries; i++) {
+            suggestions.add(SuggestionTests.createTestItem());
+        }
+        return new Suggest(suggestions);
+    }
+
+    public void testFromXContent() throws IOException {
+        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
+        Suggest suggest = createTestItem();
+        XContentType xContentType = randomFrom(XContentType.values());
+        boolean humanReadable = randomBoolean();
+        BytesReference originalBytes = toXContent(suggest, xContentType, params, humanReadable);
+        Suggest parsed;
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureFieldName(parser, parser.nextToken(), Suggest.NAME);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            parsed = Suggest.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+        assertEquals(suggest.size(), parsed.size());
+        for (Suggestion suggestion : suggest) {
+            Suggestion<? extends Entry<? extends Option>> parsedSuggestion = parsed.getSuggestion(suggestion.getName());
+            assertNotNull(parsedSuggestion);
+            assertEquals(suggestion.getClass(), parsedSuggestion.getClass());
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, params, humanReadable), xContentType);
+    }
+
+    public void testToXContent() throws IOException {
+        Option option = new Option(new Text("someText"), new Text("somethingHighlighted"), 1.3f, true);
+        Entry<Option> entry = new Entry<>(new Text("entryText"), 42, 313);
+        entry.addOption(option);
+        Suggestion<Entry<Option>> suggestion = new Suggestion<>("suggestionName", 5);
+        suggestion.addTerm(entry);
+        Suggest suggest = new Suggest(Collections.singletonList(suggestion));
+        BytesReference xContent = toXContent(suggest, XContentType.JSON, randomBoolean());
+        assertEquals(
+                "{\"suggest\":"
+                        + "{\"suggestionName\":"
+                            + "[{\"text\":\"entryText\","
+                            + "\"offset\":42,"
+                            + "\"length\":313,"
+                            + "\"options\":[{\"text\":\"someText\","
+                                        + "\"highlighted\":\"somethingHighlighted\","
+                                        + "\"score\":1.3,"
+                                        + "\"collate_match\":true}]"
+                            + "}]"
+                        + "}"
+                +"}",
+                xContent.utf8ToString());
+    }
 
     public void testFilter() throws Exception {
         List<Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>> suggestions;

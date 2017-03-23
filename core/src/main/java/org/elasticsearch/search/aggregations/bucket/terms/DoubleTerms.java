@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Result of the {@link TermsAggregator} when the field is some kind of decimal number like a float, double, or distance.
@@ -85,19 +86,22 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(CommonFields.KEY, term);
+        protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
+            builder.field(CommonFields.KEY.getPreferredName(), term);
             if (format != DocValueFormat.RAW) {
-                builder.field(CommonFields.KEY_AS_STRING, format.format(term));
+                builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), format.format(term));
             }
-            builder.field(CommonFields.DOC_COUNT, getDocCount());
-            if (showDocCountError) {
-                builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, getDocCountError());
-            }
-            aggregations.toXContentInternal(builder, params);
-            builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return super.equals(obj) && Objects.equals(term, ((Bucket) obj).term);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), term);
         }
     }
 
@@ -139,18 +143,6 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
     }
 
     @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, docCountError);
-        builder.field(SUM_OF_OTHER_DOC_COUNTS, otherDocCount);
-        builder.startArray(CommonFields.BUCKETS);
-        for (Bucket bucket : buckets) {
-            bucket.toXContent(builder, params);
-        }
-        builder.endArray();
-        return builder;
-    }
-
-    @Override
     protected Bucket[] createBucketsArray(int size) {
         return new Bucket[size];
     }
@@ -160,7 +152,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         boolean promoteToDouble = false;
         for (InternalAggregation agg : aggregations) {
             if (agg instanceof LongTerms && ((LongTerms) agg).format == DocValueFormat.RAW) {
-                /**
+                /*
                  * this terms agg mixes longs and doubles, we must promote longs to doubles to make the internal aggs
                  * compatible
                  */

@@ -180,7 +180,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
                     for (NodeGatewayStartedShards response : fetchResponse.responses) {
                         if (shardExistsInNode(response)) {
                             IndicesShardStoresResponse.StoreStatus.AllocationStatus allocationStatus = getAllocationStatus(fetchResponse.shardId.getIndexName(), fetchResponse.shardId.id(), response.getNode());
-                            storeStatuses.add(new IndicesShardStoresResponse.StoreStatus(response.getNode(), response.legacyVersion(), response.allocationId(), allocationStatus, response.storeException()));
+                            storeStatuses.add(new IndicesShardStoresResponse.StoreStatus(response.getNode(), response.allocationId(), allocationStatus, response.storeException()));
                         }
                     }
                     CollectionUtil.timSort(storeStatuses);
@@ -213,7 +213,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
              * A shard exists/existed in a node only if shard state file exists in the node
              */
             private boolean shardExistsInNode(final NodeGatewayStartedShards response) {
-                return response.storeException() != null || response.legacyVersion() != -1 || response.allocationId() != null;
+                return response.storeException() != null || response.allocationId() != null;
             }
 
             @Override

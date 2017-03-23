@@ -34,11 +34,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.action.bulk.byscroll.AbstractAsyncBulkByScrollAction;
-import org.elasticsearch.action.bulk.byscroll.AbstractBulkByScrollRequest;
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource;
-import org.elasticsearch.action.bulk.byscroll.WorkingBulkByScrollTask;
 import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.Hit;
 import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -73,8 +68,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -449,9 +444,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertThat(client.lastScroll.get().request.scroll().keepAlive().seconds(), either(equalTo(110L)).or(equalTo(109L)));
 
         // Now we can simulate a response and check the delay that we used for the task
-        InternalSearchHit hit = new InternalSearchHit(0, "id", new Text("type"), emptyMap());
-        InternalSearchHits hits = new InternalSearchHits(new InternalSearchHit[] { hit }, 0, 0);
-        InternalSearchResponse internalResponse = new InternalSearchResponse(hits, null, null, null, false, false);
+        SearchHit hit = new SearchHit(0, "id", new Text("type"), emptyMap());
+        SearchHits hits = new SearchHits(new SearchHit[] { hit }, 0, 0);
+        InternalSearchResponse internalResponse = new InternalSearchResponse(hits, null, null, null, false, false, 1);
         SearchResponse searchResponse = new SearchResponse(internalResponse, scrollId(), 5, 4, randomLong(), null);
 
         if (randomBoolean()) {

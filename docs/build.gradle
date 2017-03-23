@@ -26,7 +26,6 @@ apply plugin: 'elasticsearch.docs-test'
 buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/bucket/geodistance-aggregation.asciidoc',
   'reference/aggregations/bucket/geohashgrid-aggregation.asciidoc',
-  'reference/aggregations/bucket/histogram-aggregation.asciidoc',
   'reference/aggregations/bucket/iprange-aggregation.asciidoc',
   'reference/aggregations/bucket/missing-aggregation.asciidoc',
   'reference/aggregations/bucket/nested-aggregation.asciidoc',
@@ -74,16 +73,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/analysis/tokenfilters/keyword-repeat-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/limit-token-count-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/lowercase-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/pattern-capture-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/snowball-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/stemmer-override-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/stemmer-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/stop-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/synonym-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/synonym-graph-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/word-delimiter-tokenfilter.asciidoc',
-  'reference/cat/recovery.asciidoc',
-  'reference/cat/shards.asciidoc',
   'reference/cat/snapshots.asciidoc',
   'reference/cat/templates.asciidoc',
   'reference/cat/thread_pool.asciidoc',
@@ -91,19 +80,13 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/cluster/nodes-info.asciidoc',
   'reference/cluster/nodes-stats.asciidoc',
   'reference/cluster/pending.asciidoc',
-  'reference/cluster/reroute.asciidoc',
   'reference/cluster/state.asciidoc',
   'reference/cluster/stats.asciidoc',
   'reference/cluster/tasks.asciidoc',
-  'reference/cluster/update-settings.asciidoc',
-  'reference/docs/bulk.asciidoc',
   'reference/docs/delete-by-query.asciidoc',
   'reference/docs/delete.asciidoc',
   'reference/docs/index_.asciidoc',
-  'reference/docs/multi-get.asciidoc',
-  'reference/docs/multi-termvectors.asciidoc',
   'reference/docs/reindex.asciidoc',
-  'reference/docs/termvectors.asciidoc',
   'reference/docs/update-by-query.asciidoc',
   'reference/docs/update.asciidoc',
   'reference/index-modules/similarity.asciidoc',
@@ -114,9 +97,7 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/indices/put-mapping.asciidoc',
   'reference/indices/recovery.asciidoc',
   'reference/indices/segments.asciidoc',
-  'reference/indices/shadow-replicas.asciidoc',
   'reference/indices/shard-stores.asciidoc',
-  'reference/indices/update-settings.asciidoc',
   'reference/ingest/ingest-node.asciidoc',
   'reference/mapping/dynamic/templates.asciidoc',
   'reference/mapping/fields/all-field.asciidoc',
@@ -128,48 +109,42 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/mapping/types/nested.asciidoc',
   'reference/mapping/types/object.asciidoc',
   'reference/mapping/types/percolator.asciidoc',
-  'reference/modules/scripting/native.asciidoc',
   'reference/modules/scripting/security.asciidoc',
   'reference/modules/scripting/using.asciidoc',
-  'reference/modules/transport.asciidoc',
-  'reference/modules/cross-cluster-search.asciidoc', // this is hart to test since we need 2 clusters -- maybe we can trick it into referencing itself...
+  'reference/modules/cross-cluster-search.asciidoc', // this is hard to test since we need 2 clusters -- maybe we can trick it into referencing itself...
   'reference/query-dsl/exists-query.asciidoc',
   'reference/query-dsl/function-score-query.asciidoc',
   'reference/query-dsl/geo-shape-query.asciidoc',
-  'reference/query-dsl/terms-query.asciidoc',
   'reference/search/field-stats.asciidoc',
-  'reference/search/multi-search.asciidoc',
   'reference/search/profile.asciidoc',
   'reference/search/request/highlighting.asciidoc',
   'reference/search/request/inner-hits.asciidoc',
-  'reference/search/request/rescore.asciidoc',
-  'reference/search/search-template.asciidoc',
 ]
 
-integTest {
-  cluster {
-    setting 'script.inline', 'true'
-    setting 'script.stored', 'true'
-    setting 'script.max_compilations_per_minute', '1000'
-    /* Enable regexes in painless so our tests don't complain about example
-     * snippets that use them. */
-    setting 'script.painless.regex.enabled', 'true'
-    Closure configFile = {
-      extraConfigFile it, "src/test/cluster/config/$it"
-    }
-    configFile 'scripts/my_script.painless'
-    configFile 'scripts/my_init_script.painless'
-    configFile 'scripts/my_map_script.painless'
-    configFile 'scripts/my_combine_script.painless'
-    configFile 'scripts/my_reduce_script.painless'
-    configFile 'userdict_ja.txt'
-    configFile 'KeywordTokenizer.rbbi'
-    // Whitelist reindexing from the local node so we can test it.
-    setting 'reindex.remote.whitelist', '127.0.0.1:*'
+integTestCluster {
+  setting 'script.inline', 'true'
+  setting 'script.stored', 'true'
+  setting 'script.max_compilations_per_minute', '1000'
+  /* Enable regexes in painless so our tests don't complain about example
+   * snippets that use them. */
+  setting 'script.painless.regex.enabled', 'true'
+  Closure configFile = {
+    extraConfigFile it, "src/test/cluster/config/$it"
   }
+  configFile 'scripts/my_script.painless'
+  configFile 'scripts/my_init_script.painless'
+  configFile 'scripts/my_map_script.painless'
+  configFile 'scripts/my_combine_script.painless'
+  configFile 'scripts/my_reduce_script.painless'
+  configFile 'analysis/synonym.txt'
+  configFile 'analysis/stemmer_override.txt'
+  configFile 'userdict_ja.txt'
+  configFile 'KeywordTokenizer.rbbi'
+  // Whitelist reindexing from the local node so we can test it.
+  setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 
-// Build the cluser with all plugins
+// Build the cluster with all plugins
 
 project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
   /* Skip repositories. We just aren't going to be able to test them so it
@@ -178,10 +153,8 @@ project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { 
     return
   }
   subproj.afterEvaluate { // need to wait until the project has been configured
-    integTest {
-      cluster {
-        plugin subproj.path
-      }
+    integTestCluster {
+      plugin subproj.path
     }
   }
 }
@@ -191,35 +164,33 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'build.gradle'
   // That is where the snippets go, not where they come from!
   exclude 'build'
-  // This file simply doesn't pass yet. We should figure out how to fix it.
-  exclude 'reference/modules/snapshots.asciidoc'
 }
 
 Closure setupTwitter = { String name, int count ->
   buildRestTests.setups[name] = '''
   - do:
-    indices.create:
-      index: twitter
-      body:
-        settings:
-          number_of_shards: 1
-          number_of_replicas: 1
-        mappings:
-          tweet:
-            properties:
-              user:
-                type: keyword
-                doc_values: true
-              date:
-                type: date
-              likes:
-                type: long
+        indices.create:
+          index: twitter
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              tweet:
+                properties:
+                  user:
+                    type: keyword
+                    doc_values: true
+                  date:
+                    type: date
+                  likes:
+                    type: long
   - do:
-    bulk:
-      index: twitter
-      type: tweet
-      refresh: true
-      body: |'''
+        bulk:
+          index: twitter
+          type: tweet
+          refresh: true
+          body: |'''
     for (int i = 0; i < count; i++) {
       String user, text
       if (i == 0) {
@@ -230,8 +201,8 @@ Closure setupTwitter = { String name, int count ->
         text = "some message with the number $i"
       }
       buildRestTests.setups[name] += """
-        {"index":{"_id": "$i"}}
-        {"user": "$user", "message": "$text", "date": "2009-11-15T14:12:12", "likes": $i}"""
+            {"index":{"_id": "$i"}}
+            {"user": "$user", "message": "$text", "date": "2009-11-15T14:12:12", "likes": $i}"""
     }
   }
 setupTwitter('twitter', 5)
@@ -253,79 +224,79 @@ buildRestTests.setups['host'] = '''
 // Used by scripted metric docs
 buildRestTests.setups['ledger'] = '''
   - do:
-    indices.create:
-      index: ledger
-      body:
-        settings:
-          number_of_shards: 2
-          number_of_replicas: 1
-        mappings:
-          sale:
-            properties:
-              type:
-                type: keyword
-              amount:
-                type: double
+        indices.create:
+          index: ledger
+          body:
+            settings:
+              number_of_shards: 2
+              number_of_replicas: 1
+            mappings:
+              sale:
+                properties:
+                  type:
+                    type: keyword
+                  amount:
+                    type: double
   - do:
-    bulk:
-      index: ledger
-      type: item
-      refresh: true
-      body: |
-        {"index":{}}
-        {"date": "2015/01/01 00:00:00", "amount": 200, "type": "sale", "description": "something"}
-        {"index":{}}
-        {"date": "2015/01/01 00:00:00", "amount": 10, "type": "expense", "decription": "another thing"}
-        {"index":{}}
-        {"date": "2015/01/01 00:00:00", "amount": 150, "type": "sale", "description": "blah"}
-        {"index":{}}
-        {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "cost of blah"}
-        {"index":{}}
-        {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "advertisement"}'''
+        bulk:
+          index: ledger
+          type: item
+          refresh: true
+          body: |
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 200, "type": "sale", "description": "something"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 10, "type": "expense", "decription": "another thing"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 150, "type": "sale", "description": "blah"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "cost of blah"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "advertisement"}'''
 
 // Used by aggregation docs
 buildRestTests.setups['sales'] = '''
   - do:
-    indices.create:
-      index: sales
-      body:
-        settings:
-          number_of_shards: 2
-          number_of_replicas: 1
-        mappings:
-          sale:
-            properties:
-              type:
-                type: keyword
+        indices.create:
+          index: sales
+          body:
+            settings:
+              number_of_shards: 2
+              number_of_replicas: 1
+            mappings:
+              sale:
+                properties:
+                  type:
+                    type: keyword
   - do:
-    bulk:
-      index: sales
-      type: sale
-      refresh: true
-      body: |
-        {"index":{}}
-        {"date": "2015/01/01 00:00:00", "price": 200, "type": "hat"}
-        {"index":{}}
-        {"date": "2015/01/01 00:00:00", "price": 200, "type": "t-shirt"}
-        {"index":{}}
-        {"date": "2015/01/01 00:00:00", "price": 150, "type": "bag"}
-        {"index":{}}
-        {"date": "2015/02/01 00:00:00", "price": 50, "type": "hat"}
-        {"index":{}}
-        {"date": "2015/02/01 00:00:00", "price": 10, "type": "t-shirt"}
-        {"index":{}}
-        {"date": "2015/03/01 00:00:00", "price": 200, "type": "hat"}
-        {"index":{}}
-        {"date": "2015/03/01 00:00:00", "price": 175, "type": "t-shirt"}'''
+        bulk:
+          index: sales
+          type: sale
+          refresh: true
+          body: |
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "t-shirt"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 150, "promoted": true, "rating": 5, "type": "bag"}
+            {"index":{}}
+            {"date": "2015/02/01 00:00:00", "price": 50, "promoted": false, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/02/01 00:00:00", "price": 10, "promoted": true, "rating": 4, "type": "t-shirt"}
+            {"index":{}}
+            {"date": "2015/03/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/03/01 00:00:00", "price": 175, "promoted": false, "rating": 2, "type": "t-shirt"}'''
 
 // Dummy bank account data used by getting-started.asciidoc
 buildRestTests.setups['bank'] = '''
   - do:
-    bulk:
-      index: bank
-      type: account
-      refresh: true
-      body: |
+        bulk:
+          index: bank
+          type: account
+          refresh: true
+          body: |
 #bank_data#
 '''
 /* Load the actual accounts only if we're going to use them. This complicates
@@ -336,35 +307,35 @@ buildRestTests.inputs.file(accountsFile)
 buildRestTests.doFirst {
   String accounts = accountsFile.getText('UTF-8')
   // Indent like a yaml test needs
-  accounts = accounts.replaceAll('(?m)^', '        ')
+  accounts = accounts.replaceAll('(?m)^', '            ')
   buildRestTests.setups['bank'] =
     buildRestTests.setups['bank'].replace('#bank_data#', accounts)
 }
 
 buildRestTests.setups['range_index'] = '''
   - do :
-    indices.create:
-      index: range_index
-      body:
-        settings:
-          number_of_shards: 2
-          number_of_replicas: 1
-        mappings:
-          my_type:
-            properties:
-              expected_attendees:
-                type: integer_range
-              time_frame:
-                type: date_range
-                format: yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis
+        indices.create:
+          index: range_index
+          body:
+            settings:
+              number_of_shards: 2
+              number_of_replicas: 1
+            mappings:
+              my_type:
+                properties:
+                  expected_attendees:
+                    type: integer_range
+                  time_frame:
+                    type: date_range
+                    format: yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis
   - do:
-    bulk:
-      index: range_index
-      type: my_type
-      refresh: true
-      body: |
-        {"index":{"_id": 1}}
-        {"expected_attendees": {"gte": 10, "lte": 20}, "time_frame": {"gte": "2015-10-31 12:00:00", "lte": "2015-11-01"}}'''
+        bulk:
+          index: range_index
+          type: my_type
+          refresh: true
+          body: |
+            {"index":{"_id": 1}}
+            {"expected_attendees": {"gte": 10, "lte": 20}, "time_frame": {"gte": "2015-10-31 12:00:00", "lte": "2015-11-01"}}'''
 
 // Used by index boost doc
 buildRestTests.setups['index_boost'] = '''
@@ -383,25 +354,25 @@ buildRestTests.setups['index_boost'] = '''
 // Used by sampler and diversified-sampler aggregation docs
 buildRestTests.setups['stackoverflow'] = '''
   - do:
-    indices.create:
-      index: stackoverflow
-      body:
-        settings:
-          number_of_shards: 1
-          number_of_replicas: 1
-        mappings:
-          question:
-            properties:
-              author:
-                type: keyword
-              tags:
-                type: keyword
+        indices.create:
+          index: stackoverflow
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              question:
+                properties:
+                  author:
+                    type: keyword
+                  tags:
+                    type: keyword
   - do:
-    bulk:
-      index: stackoverflow
-      type: question
-      refresh: true
-      body: |'''
+        bulk:
+          index: stackoverflow
+          type: question
+          refresh: true
+          body: |'''
 
 // Make Kibana strongly connected to elasticsearch and logstash
 // Make Kibana rarer (and therefore higher-ranking) than Javascript
@@ -410,52 +381,53 @@ buildRestTests.setups['stackoverflow'] = '''
 
 for (int i = 0; i < 150; i++) {
   buildRestTests.setups['stackoverflow'] += """
-        {"index":{}}
-        {"author": "very_relevant_$i", "tags": ["elasticsearch", "kibana"]}"""
+            {"index":{}}
+            {"author": "very_relevant_$i", "tags": ["elasticsearch", "kibana"]}"""
 }
 for (int i = 0; i < 50; i++) {
   buildRestTests.setups['stackoverflow'] += """
-        {"index":{}}
-        {"author": "very_relevant_$i", "tags": ["logstash", "kibana"]}"""
+            {"index":{}}
+            {"author": "very_relevant_$i", "tags": ["logstash", "kibana"]}"""
 }
 for (int i = 0; i < 200; i++) {
   buildRestTests.setups['stackoverflow'] += """
-        {"index":{}}
-        {"author": "partially_relevant_$i", "tags": ["javascript", "jquery"]}"""
+            {"index":{}}
+            {"author": "partially_relevant_$i", "tags": ["javascript", "jquery"]}"""
 }
 for (int i = 0; i < 200; i++) {
   buildRestTests.setups['stackoverflow'] += """
-        {"index":{}}
-        {"author": "partially_relevant_$i", "tags": ["javascript", "angular"]}"""
+            {"index":{}}
+            {"author": "partially_relevant_$i", "tags": ["javascript", "angular"]}"""
 }
 for (int i = 0; i < 50; i++) {
   buildRestTests.setups['stackoverflow'] += """
-        {"index":{}}
-        {"author": "noisy author", "tags": ["elasticsearch", "cabana"]}"""
+            {"index":{}}
+            {"author": "noisy author", "tags": ["elasticsearch", "cabana"]}"""
 }
 buildRestTests.setups['stackoverflow'] += """
 """
+
 // Used by some aggregations
 buildRestTests.setups['exams'] = '''
   - do:
-    indices.create:
-      index: exams
-      body:
-        settings:
-          number_of_shards: 1
-          number_of_replicas: 1
-        mappings:
-          exam:
-            properties:
-              grade:
-                type: byte
+        indices.create:
+          index: exams
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              exam:
+                properties:
+                  grade:
+                    type: byte
   - do:
-    bulk:
-      index: exams
-      type: exam
-      refresh: true
-      body: |
-        {"index":{}}
-        {"grade": 100}
-        {"index":{}}
-        {"grade": 50}'''
+        bulk:
+          index: exams
+          type: exam
+          refresh: true
+          body: |
+            {"index":{}}
+            {"grade": 100}
+            {"index":{}}
+            {"grade": 50}'''

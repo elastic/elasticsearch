@@ -27,6 +27,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,15 +36,25 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 
 /**
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
  * of the relevant action, and if it has failed or not (with the failure message incase it failed).
  */
 public class BulkItemResponse implements Streamable, StatusToXContentObject {
+
+    private static final String _INDEX = "_index";
+    private static final String _TYPE = "_type";
+    private static final String _ID = "_id";
+    private static final String STATUS = "status";
+    private static final String ERROR = "error";
 
     @Override
     public RestStatus status() {
@@ -56,13 +67,13 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         builder.startObject(opType.getLowercase());
         if (failure == null) {
             response.innerToXContent(builder, params);
-            builder.field(Fields.STATUS, response.status().getStatus());
+            builder.field(STATUS, response.status().getStatus());
         } else {
-            builder.field(Fields._INDEX, failure.getIndex());
-            builder.field(Fields._TYPE, failure.getType());
-            builder.field(Fields._ID, failure.getId());
-            builder.field(Fields.STATUS, failure.getStatus().getStatus());
-            builder.startObject(Fields.ERROR);
+            builder.field(_INDEX, failure.getIndex());
+            builder.field(_TYPE, failure.getType());
+            builder.field(_ID, failure.getId());
+            builder.field(STATUS, failure.getStatus().getStatus());
+            builder.startObject(ERROR);
             ElasticsearchException.generateThrowableXContent(builder, params, failure.getCause());
             builder.endObject();
         }
@@ -71,12 +82,78 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         return builder;
     }
 
-    static final class Fields {
-        static final String _INDEX = "_index";
-        static final String _TYPE = "_type";
-        static final String _ID = "_id";
-        static final String STATUS = "status";
-        static final String ERROR = "error";
+    /**
+     * Reads a {@link BulkItemResponse} from a {@link XContentParser}.
+     *
+     * @param parser the {@link XContentParser}
+     * @param id the id to assign to the parsed {@link BulkItemResponse}. It is usually the index of
+     *           the item in the {@link BulkResponse#getItems} array.
+     */
+    public static BulkItemResponse fromXContent(XContentParser parser, int id) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+
+        String currentFieldName = parser.currentName();
+        token = parser.nextToken();
+
+        final OpType opType = OpType.fromString(currentFieldName);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+
+        DocWriteResponse.Builder builder = null;
+        CheckedConsumer<XContentParser, IOException> itemParser = null;
+
+        if (opType == OpType.INDEX || opType == OpType.CREATE) {
+            final IndexResponse.Builder indexResponseBuilder = new IndexResponse.Builder();
+            builder = indexResponseBuilder;
+            itemParser = (indexParser) -> IndexResponse.parseXContentFields(indexParser, indexResponseBuilder);
+
+        } else if (opType == OpType.UPDATE) {
+            final UpdateResponse.Builder updateResponseBuilder = new UpdateResponse.Builder();
+            builder = updateResponseBuilder;
+            itemParser = (updateParser) -> UpdateResponse.parseXContentFields(updateParser, updateResponseBuilder);
+
+        } else if (opType == OpType.DELETE) {
+            final DeleteResponse.Builder deleteResponseBuilder = new DeleteResponse.Builder();
+            builder = deleteResponseBuilder;
+            itemParser = (deleteParser) -> DeleteResponse.parseXContentFields(deleteParser, deleteResponseBuilder);
+        } else {
+            throwUnknownField(currentFieldName, parser.getTokenLocation());
+        }
+
+        RestStatus status = null;
+        ElasticsearchException exception = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            }
+
+            if (ERROR.equals(currentFieldName)) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    exception = ElasticsearchException.fromXContent(parser);
+                }
+            } else if (STATUS.equals(currentFieldName)) {
+                if (token == XContentParser.Token.VALUE_NUMBER) {
+                    status = RestStatus.fromCode(parser.intValue());
+                }
+            } else {
+                itemParser.accept(parser);
+            }
+        }
+
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser::getTokenLocation);
+        token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser::getTokenLocation);
+
+        BulkItemResponse bulkItemResponse;
+        if (exception != null) {
+            Failure failure = new Failure(builder.getShardId().getIndexName(), builder.getType(), builder.getId(), exception, status);
+            bulkItemResponse = new BulkItemResponse(id, opType, failure);
+        } else {
+            bulkItemResponse = new BulkItemResponse(id, opType, builder.build());
+        }
+        return bulkItemResponse;
     }
 
     /**
@@ -95,12 +172,16 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
         private final Exception cause;
         private final RestStatus status;
 
-        public Failure(String index, String type, String id, Exception cause) {
+        Failure(String index, String type, String id, Exception cause, RestStatus status) {
             this.index = index;
             this.type = type;
             this.id = id;
             this.cause = cause;
-            this.status = ExceptionsHelper.status(cause);
+            this.status = status;
+        }
+
+        public Failure(String index, String type, String id, Exception cause) {
+            this(index, type, id, cause, ExceptionsHelper.status(cause));
         }
 
         /**

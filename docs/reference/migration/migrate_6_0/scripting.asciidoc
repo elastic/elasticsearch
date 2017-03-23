@@ -8,7 +8,7 @@ Use painless instead.
 
 ==== Date fields now return dates
 
-`doc.some_date_field.value` now returns `ReadableDateTime`s instead of
+`doc.some_date_field.value` now returns ++ReadableDateTime++s instead of
 milliseconds since epoch as a `long`. The same is true for
 `doc.some_date_field[some_number]`. Use `doc.some_date_field.value.millis` to
 fetch the milliseconds since epoch if you need it.

@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -61,10 +62,12 @@ public class RestRequestTests extends ESTestCase {
         assertEquals(BytesArray.EMPTY, new ContentRestRequest("", emptyMap()).contentOrSourceParam().v2());
         assertEquals(new BytesArray("stuff"), new ContentRestRequest("stuff", emptyMap()).contentOrSourceParam().v2());
         assertEquals(new BytesArray("stuff"),
-            new ContentRestRequest("stuff", singletonMap("source", "stuff2")).contentOrSourceParam().v2());
+            new ContentRestRequest("stuff", MapBuilder.<String, String>newMapBuilder()
+                .put("source", "stuff2").put("source_content_type", "application/json").immutableMap()).contentOrSourceParam().v2());
         assertEquals(new BytesArray("{\"foo\": \"stuff\"}"),
-            new ContentRestRequest("", singletonMap("source", "{\"foo\": \"stuff\"}")).contentOrSourceParam().v2());
-        assertWarnings("Deprecated use of the [source] parameter without the [source_content_type] parameter.");
+            new ContentRestRequest("", MapBuilder.<String, String>newMapBuilder()
+                .put("source", "{\"foo\": \"stuff\"}").put("source_content_type", "application/json").immutableMap())
+                .contentOrSourceParam().v2());
     }
 
     public void testHasContentOrSourceParam() throws IOException {
@@ -80,8 +83,8 @@ public class RestRequestTests extends ESTestCase {
         assertEquals("Body required", e.getMessage());
         assertEquals(emptyMap(), new ContentRestRequest("{}", emptyMap()).contentOrSourceParamParser().map());
         assertEquals(emptyMap(), new ContentRestRequest("{}", singletonMap("source", "stuff2")).contentOrSourceParamParser().map());
-        assertEquals(emptyMap(), new ContentRestRequest("", singletonMap("source", "{}")).contentOrSourceParamParser().map());
-        assertWarnings("Deprecated use of the [source] parameter without the [source_content_type] parameter.");
+        assertEquals(emptyMap(), new ContentRestRequest("", MapBuilder.<String, String>newMapBuilder()
+            .put("source", "{}").put("source_content_type", "application/json").immutableMap()).contentOrSourceParamParser().map());
     }
 
     public void testWithContentOrSourceParamParserOrNull() throws IOException {
@@ -89,9 +92,10 @@ public class RestRequestTests extends ESTestCase {
         new ContentRestRequest("{}", emptyMap()).withContentOrSourceParamParserOrNull(parser -> assertEquals(emptyMap(), parser.map()));
         new ContentRestRequest("{}", singletonMap("source", "stuff2")).withContentOrSourceParamParserOrNull(parser ->
                 assertEquals(emptyMap(), parser.map()));
-        new ContentRestRequest("", singletonMap("source", "{}")).withContentOrSourceParamParserOrNull(parser ->
+        new ContentRestRequest("", MapBuilder.<String, String>newMapBuilder().put("source_content_type", "application/json")
+            .put("source", "{}").immutableMap())
+        .withContentOrSourceParamParserOrNull(parser ->
                 assertEquals(emptyMap(), parser.map()));
-        assertWarnings("Deprecated use of the [source] parameter without the [source_content_type] parameter.");
     }
 
     public void testContentTypeParsing() {

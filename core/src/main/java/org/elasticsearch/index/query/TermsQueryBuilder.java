@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -253,7 +253,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     if (o instanceof BytesRef) {
                         b = (BytesRef) o;
                     } else {
-                        builder.copyChars(o.toString()); 
+                        builder.copyChars(o.toString());
                         b = builder.get();
                     }
                     bytesOut.writeBytes(b.bytes, b.offset, b.length);
@@ -410,7 +410,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             for (int i = 0; i < filterValues.length; i++) {
                 filterValues[i] = BytesRefs.toBytesRef(values.get(i));
             }
-            return new TermsQuery(fieldName, filterValues);
+            return new TermInSetQuery(fieldName, filterValues);
         }
     }
 

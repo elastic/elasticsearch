@@ -28,10 +28,12 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -44,6 +46,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.Transport;
@@ -59,6 +62,7 @@ import org.mockito.Matchers;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -148,7 +152,9 @@ public class UnicastZenPingTests extends ESTestCase {
             networkService,
             v) {
             @Override
-            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) {
+            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                      CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+                throws ConnectTransportException {
                 throw new AssertionError("zen pings should never connect to node (got [" + node + "])");
             }
         };
@@ -419,7 +425,16 @@ public class UnicastZenPingTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             new NamedWriteableRegistry(Collections.emptyList()),
             networkService,
-            Version.CURRENT);
+            Version.CURRENT) {
+
+            @Override
+            public BoundTransportAddress boundAddress() {
+                return new BoundTransportAddress(
+                    new TransportAddress[]{new TransportAddress(InetAddress.getLoopbackAddress(), 9500)},
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9500)
+                );
+            }
+        };
         closeables.push(transport);
         final TransportService transportService =
             new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null);
@@ -442,6 +457,50 @@ public class UnicastZenPingTests extends ESTestCase {
         assertThat(ports, equalTo(IntStream.range(9300, 9300 + limitPortCounts).mapToObj(m -> m).collect(Collectors.toSet())));
     }
 
+    public void testRemovingLocalAddresses() throws InterruptedException {
+        final NetworkService networkService = new NetworkService(Settings.EMPTY, Collections.emptyList());
+        final InetAddress loopbackAddress = InetAddress.getLoopbackAddress();
+        final Transport transport = new MockTcpTransport(
+            Settings.EMPTY,
+            threadPool,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            new NoneCircuitBreakerService(),
+            new NamedWriteableRegistry(Collections.emptyList()),
+            networkService,
+            Version.CURRENT) {
+
+            @Override
+            public BoundTransportAddress boundAddress() {
+                return new BoundTransportAddress(
+                    new TransportAddress[]{
+                        new TransportAddress(loopbackAddress, 9300),
+                        new TransportAddress(loopbackAddress, 9301)
+                    },
+                    new TransportAddress(loopbackAddress, 9302)
+                );
+            }
+        };
+        closeables.push(transport);
+        final TransportService transportService =
+            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null);
+        closeables.push(transportService);
+        final List<DiscoveryNode> discoveryNodes = TestUnicastZenPing.resolveHostsLists(
+            executorService,
+            logger,
+            Collections.singletonList(NetworkAddress.format(loopbackAddress)),
+            10,
+            transportService,
+            "test_",
+            TimeValue.timeValueSeconds(1));
+        assertThat(discoveryNodes, hasSize(7));
+        final Set<Integer> ports = new HashSet<>();
+        for (final DiscoveryNode discoveryNode : discoveryNodes) {
+            assertTrue(discoveryNode.getAddress().address().getAddress().isLoopbackAddress());
+            ports.add(discoveryNode.getAddress().getPort());
+        }
+        assertThat(ports, equalTo(IntStream.range(9303, 9310).mapToObj(m -> m).collect(Collectors.toSet())));
+    }
+
     public void testUnknownHost() throws InterruptedException {
         final Logger logger = mock(Logger.class);
         final NetworkService networkService = new NetworkService(Settings.EMPTY, Collections.emptyList());
@@ -455,6 +514,14 @@ public class UnicastZenPingTests extends ESTestCase {
             new NamedWriteableRegistry(Collections.emptyList()),
             networkService,
             Version.CURRENT) {
+
+            @Override
+            public BoundTransportAddress boundAddress() {
+                return new BoundTransportAddress(
+                    new TransportAddress[]{new TransportAddress(InetAddress.getLoopbackAddress(), 9300)},
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300)
+                );
+            }
 
             @Override
             public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
@@ -494,6 +561,14 @@ public class UnicastZenPingTests extends ESTestCase {
             new NamedWriteableRegistry(Collections.emptyList()),
             networkService,
             Version.CURRENT) {
+
+            @Override
+            public BoundTransportAddress boundAddress() {
+                return new BoundTransportAddress(
+                    new TransportAddress[]{new TransportAddress(InetAddress.getLoopbackAddress(), 9500)},
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9500)
+                );
+            }
 
             @Override
             public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
@@ -699,7 +774,15 @@ public class UnicastZenPingTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             new NamedWriteableRegistry(Collections.emptyList()),
             networkService,
-            Version.CURRENT);
+            Version.CURRENT) {
+            @Override
+            public BoundTransportAddress boundAddress() {
+                return new BoundTransportAddress(
+                    new TransportAddress[]{new TransportAddress(InetAddress.getLoopbackAddress(), 9300)},
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300)
+                );
+            }
+        };
         closeables.push(transport);
 
         final TransportService transportService =

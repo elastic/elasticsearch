@@ -22,6 +22,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.Snippet;
+import org.apache.lucene.search.uhighlight.BoundedBreakIteratorScanner;
 import org.apache.lucene.search.uhighlight.CustomPassageFormatter;
 import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.apache.lucene.util.BytesRef;
@@ -34,12 +35,15 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.text.BreakIterator;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.elasticsearch.search.fetch.subphase.highlight.PostingsHighlighter.filterSnippets;
 import static org.elasticsearch.search.fetch.subphase.highlight.PostingsHighlighter.mergeFieldValues;
 
@@ -78,7 +82,7 @@ public class UnifiedHighlighter implements Highlighter {
         int numberOfFragments;
         try {
             Analyzer analyzer =
-                context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
+                context.mapperService().documentMapper(hitContext.hit().getType()).mappers().indexAnalyzer();
             List<Object> fieldValues = HighlightUtils.loadFieldValues(field, fieldMapper, context, hitContext);
             fieldValues = fieldValues.stream().map(obj -> {
                 if (obj instanceof BytesRef) {
@@ -93,19 +97,22 @@ public class UnifiedHighlighter implements Highlighter {
                 // we use a control char to separate values, which is the only char that the custom break iterator
                 // breaks the text on, so we don't lose the distinction between the different values of a field and we
                 // get back a snippet per value
-                String fieldValue = mergeFieldValues(fieldValues, HighlightUtils.NULL_SEPARATOR);
+                String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
                 org.apache.lucene.search.postingshighlight.CustomSeparatorBreakIterator breakIterator =
                     new org.apache.lucene.search.postingshighlight
-                        .CustomSeparatorBreakIterator(HighlightUtils.NULL_SEPARATOR);
+                        .CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
                 highlighter =
                     new CustomUnifiedHighlighter(searcher, analyzer, mapperHighlighterEntry.passageFormatter,
-                        breakIterator, fieldValue, field.fieldOptions().noMatchSize() > 0);
+                        field.fieldOptions().boundaryScannerLocale(), breakIterator, fieldValue,
+                        field.fieldOptions().noMatchSize());
                 numberOfFragments = fieldValues.size(); // we are highlighting the whole content, one snippet per value
             } else {
                 //using paragraph separator we make sure that each field value holds a discrete passage for highlighting
-                String fieldValue = mergeFieldValues(fieldValues, HighlightUtils.PARAGRAPH_SEPARATOR);
+                String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
+                BreakIterator bi = getBreakIterator(field);
                 highlighter = new CustomUnifiedHighlighter(searcher, analyzer,
-                    mapperHighlighterEntry.passageFormatter, null, fieldValue, field.fieldOptions().noMatchSize() > 0);
+                    mapperHighlighterEntry.passageFormatter, field.fieldOptions().boundaryScannerLocale(), bi,
+                    fieldValue, field.fieldOptions().noMatchSize());
                 numberOfFragments = field.fieldOptions().numberOfFragments();
             }
             if (field.fieldOptions().requireFieldMatch()) {
@@ -144,11 +151,34 @@ public class UnifiedHighlighter implements Highlighter {
         return null;
     }
 
-    static class HighlighterEntry {
+    private BreakIterator getBreakIterator(SearchContextHighlight.Field field) {
+        final SearchContextHighlight.FieldOptions fieldOptions = field.fieldOptions();
+        final Locale locale =
+            fieldOptions.boundaryScannerLocale() != null ? fieldOptions.boundaryScannerLocale() :
+                Locale.ROOT;
+        final HighlightBuilder.BoundaryScannerType type =
+            fieldOptions.boundaryScannerType()  != null ? fieldOptions.boundaryScannerType() :
+                HighlightBuilder.BoundaryScannerType.SENTENCE;
+        int maxLen = fieldOptions.fragmentCharSize();
+        switch (type) {
+            case SENTENCE:
+                if (maxLen > 0) {
+                    return BoundedBreakIteratorScanner.getSentence(locale, maxLen);
+                }
+                return BreakIterator.getSentenceInstance(locale);
+            case WORD:
+                // ignore maxLen
+                return BreakIterator.getWordInstance(locale);
+            default:
+                throw new IllegalArgumentException("Invalid boundary scanner type: " + type.toString());
+        }
+    }
+
+    private static class HighlighterEntry {
         Map<FieldMapper, MapperHighlighterEntry> mappers = new HashMap<>();
     }
 
-    static class MapperHighlighterEntry {
+    private static class MapperHighlighterEntry {
         final CustomPassageFormatter passageFormatter;
 
         private MapperHighlighterEntry(CustomPassageFormatter passageFormatter) {

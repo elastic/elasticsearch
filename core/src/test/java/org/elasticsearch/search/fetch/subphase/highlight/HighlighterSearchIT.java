@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -43,6 +44,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -56,6 +58,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.client.Requests.searchRequest;
@@ -746,7 +749,120 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch("test").setSource(source).get();
 
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <em>quick</em> brown fox jumps over"));
+    }
 
+    public void testHighlighterWithSentenceBoundaryScanner() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        ensureGreen();
+
+        indexRandom(true, client().prepareIndex("test", "type1")
+                .setSource("field1", "A sentence with few words. Another sentence with even more words."));
+
+        for (String type : new String[] {"unified", "fvh"}) {
+            logger.info("--> highlighting and searching on 'field' with sentence boundary_scanner");
+            SearchSourceBuilder source = searchSource()
+                .query(termQuery("field1", "sentence"))
+                .highlighter(highlight()
+                    .field("field1", 21, 2)
+                    .highlighterType(type)
+                    .preTags("<xxx>").postTags("</xxx>")
+                    .boundaryScannerType(BoundaryScannerType.SENTENCE));
+            SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
+
+            assertHighlight(searchResponse, 0, "field1", 0, 2, anyOf(
+                equalTo("A <xxx>sentence</xxx> with few words"),
+                equalTo("A <xxx>sentence</xxx> with few words. ")
+            ));
+
+            assertHighlight(searchResponse, 0, "field1", 1, 2, anyOf(
+                equalTo("Another <xxx>sentence</xxx> with"),
+                equalTo("Another <xxx>sentence</xxx> with even more words. ")
+            ));
+        }
+    }
+
+    public void testHighlighterWithSentenceBoundaryScannerAndLocale() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        ensureGreen();
+
+        indexRandom(true, client().prepareIndex("test", "type1")
+                .setSource("field1", "A sentence with few words. Another sentence with even more words."));
+
+        for (String type : new String[] {"fvh", "unified"}) {
+            logger.info("--> highlighting and searching on 'field' with sentence boundary_scanner");
+            SearchSourceBuilder source = searchSource()
+                .query(termQuery("field1", "sentence"))
+                .highlighter(highlight()
+                    .field("field1", 21, 2)
+                    .highlighterType(type)
+                    .preTags("<xxx>").postTags("</xxx>")
+                    .boundaryScannerType(BoundaryScannerType.SENTENCE)
+                    .boundaryScannerLocale(Locale.ENGLISH.toLanguageTag()));
+
+            SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
+
+            assertHighlight(searchResponse, 0, "field1", 0, 2, anyOf(
+                equalTo("A <xxx>sentence</xxx> with few words"),
+                equalTo("A <xxx>sentence</xxx> with few words. ")
+            ));
+
+            assertHighlight(searchResponse, 0, "field1", 1, 2, anyOf(
+                equalTo("Another <xxx>sentence</xxx> with"),
+                equalTo("Another <xxx>sentence</xxx> with even more words. ")
+            ));
+        }
+    }
+
+    public void testHighlighterWithWordBoundaryScanner() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        ensureGreen();
+
+        indexRandom(true, client().prepareIndex("test", "type1")
+                .setSource("field1", "some quick and hairy brown:fox jumped over the lazy dog"));
+
+        logger.info("--> highlighting and searching on 'field' with word boundary_scanner");
+        for (String type : new String[] {"unified", "fvh"}) {
+            SearchSourceBuilder source = searchSource()
+                    .query(termQuery("field1", "some"))
+                    .highlighter(highlight()
+                            .field("field1", 23, 1)
+                            .highlighterType(type)
+                            .preTags("<xxx>").postTags("</xxx>")
+                            .boundaryScannerType(BoundaryScannerType.WORD));
+
+            SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
+
+            assertHighlight(searchResponse, 0, "field1", 0, 1, anyOf(
+                equalTo("<xxx>some</xxx> quick and hairy brown"),
+                equalTo("<xxx>some</xxx>")
+            ));
+        }
+    }
+
+    public void testHighlighterWithWordBoundaryScannerAndLocale() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
+        ensureGreen();
+
+        indexRandom(true, client().prepareIndex("test", "type1")
+                .setSource("field1", "some quick and hairy brown:fox jumped over the lazy dog"));
+
+        for (String type : new String[] {"unified", "fvh"}) {
+            SearchSourceBuilder source = searchSource()
+                .query(termQuery("field1", "some"))
+                .highlighter(highlight()
+                    .field("field1", 23, 1)
+                    .highlighterType(type)
+                    .preTags("<xxx>").postTags("</xxx>")
+                    .boundaryScannerType(BoundaryScannerType.WORD)
+                    .boundaryScannerLocale(Locale.ENGLISH.toLanguageTag()));
+
+            SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
+
+            assertHighlight(searchResponse, 0, "field1", 0, 1, anyOf(
+                equalTo("<xxx>some</xxx> quick and hairy brown"),
+                equalTo("<xxx>some</xxx>")
+            ));
+        }
     }
 
     /**
@@ -972,7 +1088,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         for (int i = 0; i < COUNT; i++) {
             SearchHit hit = searchResponse.getHits().getHits()[i];
             // LUCENE 3.1 UPGRADE: Caused adding the space at the end...
-            assertHighlight(searchResponse, i, "field1", 0, 1, equalTo("<em>test</em> " + hit.id()));
+            assertHighlight(searchResponse, i, "field1", 0, 1, equalTo("<em>test</em> " + hit.getId()));
         }
     }
 
@@ -1599,7 +1715,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .highlighter(
                     new HighlightBuilder().field(new HighlightBuilder.Field("highlight_field").fragmentSize(-1).numOfFragments(1)
                         .fragmenter("simple")).highlighterType(type)).get();
-            assertThat(response.getHits().hits()[0].highlightFields().isEmpty(), equalTo(true));
+            assertThat(response.getHits().getHits()[0].getHighlightFields().isEmpty(), equalTo(true));
         }
     }
 
@@ -1751,13 +1867,13 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
         assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some"));
 
+        // Unified hl also works but the fragment is longer than the plain highlighter because of the boundary is the word
+        field.highlighterType("unified");
+        response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
+        assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some"));
+
         // Postings hl also works but the fragment is the whole first sentence (size ignored)
         field.highlighterType("postings");
-        response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
-        assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some of me should get cut off."));
-
-        // Unified hl also works but the fragment is the whole first sentence (size ignored)
-        field.highlighterType("unified");
         response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
         assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some of me should get cut off."));
 
@@ -1770,13 +1886,12 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
         assertHighlight(response, 0, "text", 0, 1, equalTo(text));
 
+        field.highlighterType("unified");
+        response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
+        assertHighlight(response, 0, "text", 0, 1, equalTo(text));
+
         //no difference using postings hl as the noMatchSize is ignored (just needs to be greater than 0)
         field.highlighterType("postings");
-        response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
-        assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some of me should get cut off."));
-
-        //no difference using unified hl as the noMatchSize is ignored (just needs to be greater than 0)
-        field.highlighterType("unified");
         response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
         assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some of me should get cut off."));
 
@@ -1789,13 +1904,13 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
         assertHighlight(response, 0, "text", 0, 1, equalTo(text));
 
+        // unified hl returns the first sentence as the noMatchSize does not cross sentence boundary.
+        field.highlighterType("unified");
+        response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
+        assertHighlight(response, 0, "text", 0, 1, equalTo(text));
+
         //no difference using postings hl as the noMatchSize is ignored (just needs to be greater than 0)
         field.highlighterType("postings");
-        response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
-        assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some of me should get cut off."));
-
-        //no difference using unified hl as the noMatchSize is ignored (just needs to be greater than 0)
-        field.highlighterType("unified");
         response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
         assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some of me should get cut off."));
 
@@ -1808,11 +1923,11 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field).noMatchSize(21)).get();
         assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some"));
 
-        field.highlighterType("postings");
-        response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field).noMatchSize(21)).get();
-        assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some of me should get cut off."));
-
         field.highlighterType("unified");
+        response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field).noMatchSize(21)).get();
+        assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some"));
+
+        field.highlighterType("postings");
         response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field).noMatchSize(21)).get();
         assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some of me should get cut off."));
 
@@ -1857,13 +1972,12 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
         assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some"));
 
+        field.highlighterType("unified");
+        response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
+        assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some"));
+
         // Postings hl also works but the fragment is the whole first sentence (size ignored)
         field.highlighterType("postings");
-        response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
-        assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some of me should get cut off."));
-
-        // Unified hl also works but the fragment is the whole first sentence (size ignored)
-        field.highlighterType("unified");
         response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
         assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some of me should get cut off."));
 
@@ -1890,11 +2004,12 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .highlighter(new HighlightBuilder().field(field)).get();
         assertNotHighlighted(response, 0, "text");
 
+        // except for the unified highlighter which starts from the first string with actual content
         field.highlighterType("unified");
         response = client().prepareSearch("test")
             .setQuery(idsQueryBuilder)
             .highlighter(new HighlightBuilder().field(field)).get();
-        assertNotHighlighted(response, 0, "text");
+        assertHighlight(response, 0, "text", 0, 1, equalTo("I am short"));
 
         // But if the field was actually empty then you should get no highlighting field
         index("test", "type1", "3", "text", new String[] {});
@@ -1941,7 +2056,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .highlighter(new HighlightBuilder().field(field)).get();
         assertNotHighlighted(response, 0, "text");
 
-        field.highlighterType("fvh");
+        field.highlighterType("unified");
         response = client().prepareSearch("test")
                 .setQuery(idsQueryBuilder)
                 .highlighter(new HighlightBuilder().field(field)).get();
@@ -1991,13 +2106,13 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
         assertHighlight(response, 0, "text", 0, 1, equalTo("This is the first sentence"));
 
+        field.highlighterType("unified");
+        response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
+        assertHighlight(response, 0, "text", 0, 1, equalTo("This is the first sentence"));
+
+
         // Postings hl also works but the fragment is the whole first sentence (size ignored)
         field.highlighterType("postings");
-        response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
-        assertHighlight(response, 0, "text", 0, 1, equalTo("This is the first sentence."));
-
-        // Unified hl also works but the fragment is the whole first sentence (size ignored)
-        field.highlighterType("unified");
         response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
         assertHighlight(response, 0, "text", 0, 1, equalTo("This is the first sentence."));
 
@@ -2151,11 +2266,11 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             assertHitCount(searchResponse, 2L);
 
             for (SearchHit searchHit : searchResponse.getHits()) {
-                if ("1".equals(searchHit.id())) {
+                if ("1".equals(searchHit.getId())) {
                     assertHighlight(searchHit, "field1", 0, 1, equalTo("The quick brown <field1>fox</field1> jumps over the lazy dog. "
                         + "The lazy red <field1>fox</field1> jumps over the quick dog. "
                         + "The quick brown dog jumps over the lazy <field1>fox</field1>."));
-                } else if ("2".equals(searchHit.id())) {
+                } else if ("2".equals(searchHit.getId())) {
                     assertHighlight(searchHit, "field1", 0, 3,
                         equalTo("The quick brown <field1>fox</field1> jumps over the lazy dog. Second sentence not finished"));
                     assertHighlight(searchHit, "field1", 1, 3, equalTo("The lazy red <field1>fox</field1> jumps over the quick dog."));
@@ -2244,7 +2359,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
             SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
 
-            Map<String, HighlightField> highlightFieldMap = searchResponse.getHits().getAt(0).highlightFields();
+            Map<String, HighlightField> highlightFieldMap = searchResponse.getHits().getAt(0).getHighlightFields();
             assertThat(highlightFieldMap.size(), equalTo(1));
             HighlightField field1 = highlightFieldMap.get("field1");
             assertThat(field1.fragments().length, equalTo(5));
@@ -2663,9 +2778,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             SearchResponse searchResponse =
                 searchRequestBuilder.get();
             assertHitCount(searchResponse, COUNT);
-            assertThat(searchResponse.getHits().hits().length, equalTo(COUNT));
+            assertThat(searchResponse.getHits().getHits().length, equalTo(COUNT));
             for (SearchHit hit : searchResponse.getHits()) {
-                String prefix = prefixes.get(hit.id());
+                String prefix = prefixes.get(hit.getId());
                 assertHighlight(hit, "field1", 0, 1, equalTo("Sentence " + prefix + " <em>test</em>."));
             }
         }
@@ -2817,8 +2932,8 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             new SearchSourceBuilder().query(query)
                 .highlighter(new HighlightBuilder().field("*").highlighterType(highlighterType))).get();
         assertNoFailures(search);
-        assertThat(search.getHits().totalHits(), equalTo(1L));
-        assertThat(search.getHits().getAt(0).highlightFields().get("text").fragments().length, equalTo(1));
+        assertThat(search.getHits().getTotalHits(), equalTo(1L));
+        assertThat(search.getHits().getAt(0).getHighlightFields().get("text").fragments().length, equalTo(1));
     }
 
     public void testGeoFieldHighlightingWhenQueryGetsRewritten() throws IOException {
@@ -2853,7 +2968,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchResponse search = client().prepareSearch().setSource(
             new SearchSourceBuilder().query(query).highlighter(new HighlightBuilder().highlighterType("plain").field("jd"))).get();
         assertNoFailures(search);
-        assertThat(search.getHits().totalHits(), equalTo(1L));
+        assertThat(search.getHits().getTotalHits(), equalTo(1L));
     }
 
 
@@ -2880,7 +2995,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .query(QueryBuilders.matchQuery("keyword_field", "some text"))
                 .highlighter(new HighlightBuilder().field("*"))).get();
         assertNoFailures(search);
-        assertThat(search.getHits().totalHits(), equalTo(1L));
+        assertThat(search.getHits().getTotalHits(), equalTo(1L));
         assertThat(search.getHits().getAt(0).getHighlightFields().get("keyword_field").getFragments()[0].string(),
                 equalTo("<em>some text</em>"));
     }
@@ -2902,7 +3017,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .field("store", true)
                     .endObject()
                 .endObject().endObject().endObject().string();
-        prepareCreate("test").addMapping("type", mapping).get();
+        prepareCreate("test").addMapping("type", mapping, XContentType.JSON).get();
 
         client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject().startArray("foo")
                     .startObject().field("text", "brown").endObject()
@@ -2918,7 +3033,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .requireFieldMatch(false))
                 .get();
         assertHitCount(searchResponse, 1);
-        HighlightField field = searchResponse.getHits().getAt(0).highlightFields().get("foo_text");
+        HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo_text");
         assertThat(field.getFragments().length, equalTo(2));
         assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
         assertThat(field.getFragments()[1].string(), equalTo("<em>cow</em>"));
@@ -2937,7 +3052,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                     .field(new Field("text")).highlighterType(type))
                 .get();
             assertHitCount(searchResponse, 1);
-            HighlightField field = searchResponse.getHits().getAt(0).highlightFields().get("text");
+            HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("text");
             assertThat(field.getFragments().length, equalTo(1));
             assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
         }
@@ -2960,7 +3075,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                     .field(new Field("text")).highlighterType(type))
                 .get();
             assertHitCount(searchResponse, 1);
-            HighlightField field = searchResponse.getHits().getAt(0).highlightFields().get("text");
+            HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("text");
             assertThat(field.getFragments().length, equalTo(1));
             assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
         }

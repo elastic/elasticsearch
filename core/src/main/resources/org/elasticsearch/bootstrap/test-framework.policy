@@ -33,7 +33,7 @@ grant codeBase "${codebase.securemock-1.2.jar}" {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-grant codeBase "${codebase.lucene-test-framework-6.4.1.jar}" {
+grant codeBase "${codebase.lucene-test-framework-6.5.0-snapshot-d00c5ca.jar}" {
   // needed by RamUsageTester
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // needed for testing hardlinks in StoreRecoveryTests since we install MockFS
@@ -42,7 +42,7 @@ grant codeBase "${codebase.lucene-test-framework-6.4.1.jar}" {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
-grant codeBase "${codebase.randomizedtesting-runner-2.4.0.jar}" {
+grant codeBase "${codebase.randomizedtesting-runner-2.5.0.jar}" {
   // optionally needed for access to private test methods (e.g. beforeClass)
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // needed to fail tests on uncaught exceptions from other threads

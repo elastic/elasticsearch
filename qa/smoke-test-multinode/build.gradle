@@ -22,7 +22,8 @@ apply plugin: 'elasticsearch.rest-test'
 
 integTest {
   includePackaged = true
-  cluster {
-    numNodes = 2
-  }
+}
+
+integTestCluster {
+  numNodes = 2
 }

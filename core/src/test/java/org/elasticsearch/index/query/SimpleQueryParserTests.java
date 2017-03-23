@@ -25,12 +25,14 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.GraphQuery;
-import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -138,27 +140,27 @@ public class SimpleQueryParserTests extends ESTestCase {
 
             // phrase will pick it up
             query = parser.parse("\"guinea pig\"");
-
-            expectedQuery = new GraphQuery(
-                new PhraseQuery("field1", "guinea", "pig"),
-                new TermQuery(new Term("field1", "cavy")));
+            SpanTermQuery span1 = new SpanTermQuery(new Term("field1", "guinea"));
+            SpanTermQuery span2 = new SpanTermQuery(new Term("field1", "pig"));
+            expectedQuery = new SpanOrQuery(
+                new SpanNearQuery(new SpanQuery[] { span1, span2 }, 0, true),
+                new SpanTermQuery(new Term("field1", "cavy")));
 
             assertThat(query, equalTo(expectedQuery));
 
             // phrase with slop
-            query = parser.parse("big \"guinea pig\"~2");
+            query = parser.parse("big \"tiny guinea pig\"~2");
 
             expectedQuery = new BooleanQuery.Builder()
-                .add(new BooleanClause(new TermQuery(new Term("field1", "big")), defaultOp))
-                .add(new BooleanClause(new GraphQuery(
-                    new PhraseQuery.Builder()
-                        .add(new Term("field1", "guinea"))
-                        .add(new Term("field1", "pig"))
-                        .setSlop(2)
-                        .build(),
-                    new TermQuery(new Term("field1", "cavy"))), defaultOp))
+                .add(new TermQuery(new Term("field1", "big")), defaultOp)
+                .add(new SpanNearQuery(new SpanQuery[] {
+                    new SpanTermQuery(new Term("field1", "tiny")),
+                    new SpanOrQuery(
+                        new SpanNearQuery(new SpanQuery[] { span1, span2 }, 0, true),
+                        new SpanTermQuery(new Term("field1", "cavy"))
+                    )
+                }, 2, true), defaultOp)
                 .build();
-
             assertThat(query, equalTo(expectedQuery));
         }
     }

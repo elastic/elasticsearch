@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -1028,7 +1029,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 ).execute().actionGet();
         assertSearchResponse(response);
 
-        assertThat("Expected 24 buckets for one day aggregation with hourly interval", response.getHits().totalHits(), equalTo(2L));
+        assertThat("Expected 24 buckets for one day aggregation with hourly interval", response.getHits().getTotalHits(), equalTo(2L));
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -1051,7 +1052,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
     public void testSingleValueWithMultipleDateFormatsFromMapping() throws Exception {
         String mappingJson = jsonBuilder().startObject().startObject("type").startObject("properties").startObject("date").field("type", "date").field("format", "dateOptionalTime||dd-MM-yyyy").endObject().endObject().endObject().endObject().string();
-        prepareCreate("idx2").addMapping("type", mappingJson).execute().actionGet();
+        prepareCreate("idx2").addMapping("type", mappingJson, XContentType.JSON).execute().actionGet();
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[5];
         for (int i = 0; i < reqs.length; i++) {
             reqs[i] = client().prepareIndex("idx2", "type", "" + i).setSource(jsonBuilder().startObject().field("date", "10-03-2014").endObject());

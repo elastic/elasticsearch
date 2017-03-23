@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.suggest;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -68,12 +68,10 @@ import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -114,6 +112,36 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         indexRandom(true, indexRequestBuilders);
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
         assertSuggestions("foo", prefix, "suggestion10", "suggestion9", "suggestion8", "suggestion7", "suggestion6");
+    }
+
+    /**
+     * test that suggestion works if prefix is either provided via {@link CompletionSuggestionBuilder#text(String)} or
+     * {@link SuggestBuilder#setGlobalText(String)}
+     */
+    public void testTextAndGlobalText() throws Exception {
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
+        createIndexAndMapping(mapping);
+        int numDocs = 10;
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = 1; i <= numDocs; i++) {
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i).setSource(jsonBuilder().startObject().startObject(FIELD)
+                    .field("input", "suggestion" + i).field("weight", i).endObject().endObject()));
+        }
+        indexRandom(true, indexRequestBuilders);
+        CompletionSuggestionBuilder noText = SuggestBuilders.completionSuggestion(FIELD);
+        SearchResponse searchResponse = client().prepareSearch(INDEX)
+                .suggest(new SuggestBuilder().addSuggestion("foo", noText).setGlobalText("sugg")).execute().actionGet();
+        assertSuggestions(searchResponse, "foo", "suggestion10", "suggestion9", "suggestion8", "suggestion7", "suggestion6");
+
+        CompletionSuggestionBuilder withText = SuggestBuilders.completionSuggestion(FIELD).text("sugg");
+        searchResponse = client().prepareSearch(INDEX)
+                .suggest(new SuggestBuilder().addSuggestion("foo", withText)).execute().actionGet();
+        assertSuggestions(searchResponse, "foo", "suggestion10", "suggestion9", "suggestion8", "suggestion7", "suggestion6");
+
+        // test that suggestion text takes precedence over global text
+        searchResponse = client().prepareSearch(INDEX)
+                .suggest(new SuggestBuilder().addSuggestion("foo", withText).setGlobalText("bogus")).execute().actionGet();
+        assertSuggestions(searchResponse, "foo", "suggestion10", "suggestion9", "suggestion8", "suggestion7", "suggestion6");
     }
 
     public void testRegex() throws Exception {
@@ -217,8 +245,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         for (CompletionSuggestion.Entry.Option option : options) {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
             assertSearchHit(option.getHit(), hasId("" + id));
-            assertSearchHit(option.getHit(), hasScore(((float) id)));
-            assertNotNull(option.getHit().source());
+            assertSearchHit(option.getHit(), hasScore((id)));
+            assertNotNull(option.getHit().getSourceAsMap());
             id--;
         }
     }
@@ -252,8 +280,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         for (CompletionSuggestion.Entry.Option option : options) {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
             assertSearchHit(option.getHit(), hasId("" + id));
-            assertSearchHit(option.getHit(), hasScore(((float) id)));
-            assertNull(option.getHit().source());
+            assertSearchHit(option.getHit(), hasScore((id)));
+            assertNull(option.getHit().getSourceAsMap());
             id--;
         }
     }
@@ -289,9 +317,9 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         for (CompletionSuggestion.Entry.Option option : options) {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
             assertSearchHit(option.getHit(), hasId("" + id));
-            assertSearchHit(option.getHit(), hasScore(((float) id)));
-            assertNotNull(option.getHit().source());
-            Set<String> sourceFields = option.getHit().sourceAsMap().keySet();
+            assertSearchHit(option.getHit(), hasScore((id)));
+            assertNotNull(option.getHit().getSourceAsMap());
+            Set<String> sourceFields = option.getHit().getSourceAsMap().keySet();
             assertThat(sourceFields, contains("a"));
             assertThat(sourceFields, not(contains("b")));
             id--;
@@ -973,7 +1001,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         refresh();
 
         assertSuggestions("b");
-        assertThat(2L, equalTo(client().prepareSearch(INDEX).setSize(0).get().getHits().totalHits()));
+        assertThat(2L, equalTo(client().prepareSearch(INDEX).setSize(0).get().getHits().getTotalHits()));
         for (IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get(INDEX)) {
             ShardSegments[] shards = seg.getShards();
             for (ShardSegments shardSegments : shards) {
@@ -1065,7 +1093,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject()
                 .string();
 
-        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping).get());
+        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping, XContentType.JSON).get());
         ensureGreen();
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "strings make me happy", FIELD + "_1", "nulls make me sad")

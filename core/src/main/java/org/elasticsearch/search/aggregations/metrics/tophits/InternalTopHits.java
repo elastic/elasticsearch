@@ -23,17 +23,14 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHits;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -43,13 +40,13 @@ import java.util.Map;
 /**
  * Results of the {@link TopHitsAggregator}.
  */
-public class InternalTopHits extends InternalMetricsAggregation implements TopHits {
+public class InternalTopHits extends InternalAggregation implements TopHits {
     private int from;
     private int size;
     private TopDocs topDocs;
-    private InternalSearchHits searchHits;
+    private SearchHits searchHits;
 
-    public InternalTopHits(String name, int from, int size, TopDocs topDocs, InternalSearchHits searchHits,
+    public InternalTopHits(String name, int from, int size, TopDocs topDocs, SearchHits searchHits,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.from = from;
@@ -67,7 +64,7 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
         size = in.readVInt();
         topDocs = Lucene.readTopDocs(in);
         assert topDocs != null;
-        searchHits = InternalSearchHits.readSearchHits(in);
+        searchHits = SearchHits.readSearchHits(in);
     }
 
     @Override
@@ -98,47 +95,54 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
 
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        InternalSearchHits[] shardHits = new InternalSearchHits[aggregations.size()];
+        final SearchHits[] shardHits = new SearchHits[aggregations.size()];
+        final int from;
+        final int size;
+        if (reduceContext.isFinalReduce()) {
+            from = this.from;
+            size = this.size;
+        } else {
+            // if we are not in the final reduce we need to ensure we maintain all possible elements during reduce
+            // hence for pagination we need to maintain all hits until we are in the final phase.
+            from = 0;
+            size = this.from + this.size;
+        }
 
         final TopDocs reducedTopDocs;
         final TopDocs[] shardDocs;
 
-        try {
-            if (topDocs instanceof TopFieldDocs) {
-                Sort sort = new Sort(((TopFieldDocs) topDocs).fields);
-                shardDocs = new TopFieldDocs[aggregations.size()];
-                for (int i = 0; i < shardDocs.length; i++) {
-                    InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
-                    shardDocs[i] = (TopFieldDocs) topHitsAgg.topDocs;
-                    shardHits[i] = topHitsAgg.searchHits;
-                }
-                reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs);
-            } else {
-                shardDocs = new TopDocs[aggregations.size()];
-                for (int i = 0; i < shardDocs.length; i++) {
-                    InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
-                    shardDocs[i] = topHitsAgg.topDocs;
-                    shardHits[i] = topHitsAgg.searchHits;
-                }
-                reducedTopDocs = TopDocs.merge(from, size, shardDocs);
+        if (topDocs instanceof TopFieldDocs) {
+            Sort sort = new Sort(((TopFieldDocs) topDocs).fields);
+            shardDocs = new TopFieldDocs[aggregations.size()];
+            for (int i = 0; i < shardDocs.length; i++) {
+                InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
+                shardDocs[i] = topHitsAgg.topDocs;
+                shardHits[i] = topHitsAgg.searchHits;
             }
-
-            final int[] tracker = new int[shardHits.length];
-            InternalSearchHit[] hits = new InternalSearchHit[reducedTopDocs.scoreDocs.length];
-            for (int i = 0; i < reducedTopDocs.scoreDocs.length; i++) {
-                ScoreDoc scoreDoc = reducedTopDocs.scoreDocs[i];
-                int position;
-                do {
-                    position = tracker[scoreDoc.shardIndex]++;
-                } while (shardDocs[scoreDoc.shardIndex].scoreDocs[position] != scoreDoc);
-                hits[i] = (InternalSearchHit) shardHits[scoreDoc.shardIndex].getAt(position);
+            reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs, true);
+        } else {
+            shardDocs = new TopDocs[aggregations.size()];
+            for (int i = 0; i < shardDocs.length; i++) {
+                InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
+                shardDocs[i] = topHitsAgg.topDocs;
+                shardHits[i] = topHitsAgg.searchHits;
             }
-            return new InternalTopHits(name, from, size, reducedTopDocs, new InternalSearchHits(hits, reducedTopDocs.totalHits,
-                    reducedTopDocs.getMaxScore()),
-                    pipelineAggregators(), getMetaData());
-        } catch (IOException e) {
-            throw ExceptionsHelper.convertToElastic(e);
+            reducedTopDocs = TopDocs.merge(from, size, shardDocs, true);
         }
+
+        final int[] tracker = new int[shardHits.length];
+        SearchHit[] hits = new SearchHit[reducedTopDocs.scoreDocs.length];
+        for (int i = 0; i < reducedTopDocs.scoreDocs.length; i++) {
+            ScoreDoc scoreDoc = reducedTopDocs.scoreDocs[i];
+            int position;
+            do {
+                position = tracker[scoreDoc.shardIndex]++;
+            } while (shardDocs[scoreDoc.shardIndex].scoreDocs[position] != scoreDoc);
+            hits[i] = shardHits[scoreDoc.shardIndex].getAt(position);
+        }
+        return new InternalTopHits(name, this.from, this.size, reducedTopDocs, new SearchHits(hits, reducedTopDocs.totalHits,
+                reducedTopDocs.getMaxScore()),
+                pipelineAggregators(), getMetaData());
     }
 
     @Override
@@ -168,7 +172,7 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
             ScoreDoc thisDoc = topDocs.scoreDocs[d];
             ScoreDoc otherDoc = other.topDocs.scoreDocs[d];
             if (thisDoc.doc != otherDoc.doc) return false;
-            if (thisDoc.score != otherDoc.score) return false;
+            if (Double.compare(thisDoc.score, otherDoc.score) != 0) return false;
             if (thisDoc.shardIndex != otherDoc.shardIndex) return false;
             if (thisDoc instanceof FieldDoc) {
                 if (false == (otherDoc instanceof FieldDoc)) return false;

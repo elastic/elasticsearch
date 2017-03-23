@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -73,7 +74,6 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
             out.writeVLong(docCount);
             aggregations.writeTo(out);
         }
-
 
         @Override
         public String getKeyAsString() {
@@ -120,18 +120,34 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(CommonFields.KEY, getKeyAsString());
-            builder.field(CommonFields.DOC_COUNT, docCount);
+            builder.field(CommonFields.KEY.getPreferredName(), getKeyAsString());
+            builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Bucket bucket = (Bucket) o;
+            return geohashAsLong == bucket.geohashAsLong &&
+                docCount == bucket.docCount &&
+                Objects.equals(aggregations, bucket.aggregations);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(geohashAsLong, docCount, aggregations);
+        }
+
     }
 
     private final int requiredSize;
     private final List<Bucket> buckets;
 
-    public InternalGeoHashGrid(String name, int requiredSize, List<Bucket> buckets, List<PipelineAggregator> pipelineAggregators,
+    InternalGeoHashGrid(String name, int requiredSize, List<Bucket> buckets, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.requiredSize = requiredSize;
@@ -175,7 +191,6 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
     @Override
     public InternalGeoHashGrid doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-
         LongObjectPagedHashMap<List<Bucket>> buckets = null;
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoHashGrid grid = (InternalGeoHashGrid) aggregation;
@@ -192,7 +207,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
             }
         }
 
-        final int size = (int) Math.min(requiredSize, buckets.size());
+        final int size = Math.toIntExact(reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size()));
         BucketPriorityQueue ordered = new BucketPriorityQueue(size);
         for (LongObjectPagedHashMap.Cursor<List<Bucket>> cursor : buckets) {
             List<Bucket> sameCellBuckets = cursor.value;
@@ -208,12 +223,29 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(CommonFields.BUCKETS);
+        builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (Bucket bucket : buckets) {
             bucket.toXContent(builder, params);
         }
         builder.endArray();
         return builder;
+    }
+
+    // package protected for testing
+    int getRequiredSize() {
+        return requiredSize;
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(requiredSize, buckets);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalGeoHashGrid other = (InternalGeoHashGrid) obj;
+        return Objects.equals(requiredSize, other.requiredSize) &&
+            Objects.equals(buckets, other.buckets);
     }
 
     static class BucketPriorityQueue extends PriorityQueue<Bucket> {
@@ -224,14 +256,14 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
         @Override
         protected boolean lessThan(Bucket o1, Bucket o2) {
-            long i = o2.getDocCount() - o1.getDocCount();
-            if (i == 0) {
-                i = o2.compareTo(o1);
-                if (i == 0) {
-                    i = System.identityHashCode(o2) - System.identityHashCode(o1);
+            int cmp = Long.compare(o2.getDocCount(), o1.getDocCount());
+            if (cmp == 0) {
+                cmp = o2.compareTo(o1);
+                if (cmp == 0) {
+                    cmp = System.identityHashCode(o2) - System.identityHashCode(o1);
                 }
             }
-            return i > 0;
+            return cmp > 0;
         }
     }
 }

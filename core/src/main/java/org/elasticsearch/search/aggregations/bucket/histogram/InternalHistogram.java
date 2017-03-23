@@ -138,10 +138,10 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 builder.startObject();
             }
             if (format != DocValueFormat.RAW) {
-                builder.field(CommonFields.KEY_AS_STRING, keyAsString);
+                builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), keyAsString);
             }
-            builder.field(CommonFields.KEY, key);
-            builder.field(CommonFields.DOC_COUNT, docCount);
+            builder.field(CommonFields.KEY.getPreferredName(), key);
+            builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;
@@ -308,7 +308,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 if (top.current.key != key) {
                     // the key changes, reduce what we already buffered and reset the buffer for current buckets
                     final Bucket reduced = currentBuckets.get(0).reduce(currentBuckets, reduceContext);
-                    if (reduced.getDocCount() >= minDocCount) {
+                    if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
                         reducedBuckets.add(reduced);
                     }
                     currentBuckets.clear();
@@ -329,7 +329,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
             if (currentBuckets.isEmpty() == false) {
                 final Bucket reduced = currentBuckets.get(0).reduce(currentBuckets, reduceContext);
-                if (reduced.getDocCount() >= minDocCount) {
+                if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
                     reducedBuckets.add(reduced);
                 }
             }
@@ -400,7 +400,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             addEmptyBuckets(reducedBuckets, reduceContext);
         }
 
-        if (order == InternalOrder.KEY_ASC) {
+        if (order == InternalOrder.KEY_ASC || reduceContext.isFinalReduce() == false) {
             // nothing to do, data are already sorted since shards return
             // sorted buckets and the merge-sort performed by reduceBuckets
             // maintains order
@@ -421,9 +421,9 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
-            builder.startObject(CommonFields.BUCKETS);
+            builder.startObject(CommonFields.BUCKETS.getPreferredName());
         } else {
-            builder.startArray(CommonFields.BUCKETS);
+            builder.startArray(CommonFields.BUCKETS.getPreferredName());
         }
         for (Bucket bucket : buckets) {
             bucket.toXContent(builder, params);

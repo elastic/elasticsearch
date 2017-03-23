@@ -78,7 +78,7 @@ public class PostingsHighlighter implements Highlighter {
         List<Snippet> snippets = new ArrayList<>();
         int numberOfFragments;
         try {
-            Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
+            Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().getType()).mappers().indexAnalyzer();
             List<Object> fieldValues = HighlightUtils.loadFieldValues(field, fieldMapper, context, hitContext);
             CustomPostingsHighlighter highlighter;
             if (field.fieldOptions().numberOfFragments() == 0) {

@@ -41,7 +41,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
     }
 
     @AfterClass
-    public static void cleanupClient() throws IOException {
+    public static void cleanupClient() {
         restHighLevelClient = null;
     }
 

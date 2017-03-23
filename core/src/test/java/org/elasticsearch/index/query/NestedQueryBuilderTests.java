@@ -27,6 +27,7 @@ import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -85,8 +86,8 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     @Override
     protected void doAssertLuceneQuery(NestedQueryBuilder queryBuilder, Query query, SearchContext searchContext) throws IOException {
         QueryBuilder innerQueryBuilder = queryBuilder.query();
-        assertThat(query, instanceOf(ToParentBlockJoinQuery.class));
-        ToParentBlockJoinQuery parentBlockJoinQuery = (ToParentBlockJoinQuery) query;
+        assertThat(query, instanceOf(ESToParentBlockJoinQuery.class));
+        ESToParentBlockJoinQuery parentBlockJoinQuery = (ESToParentBlockJoinQuery) query;
         // TODO how to assert this?
         if (queryBuilder.innerHit() != null) {
             // have to rewrite again because the provided queryBuilder hasn't been rewritten (directly returned from

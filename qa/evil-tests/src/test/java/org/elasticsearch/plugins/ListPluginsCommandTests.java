@@ -25,18 +25,15 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.common.inject.spi.HasDependencies;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.Version;
 import org.junit.Before;
 
 @LuceneTestCase.SuppressFileSystems("*")
@@ -153,6 +150,28 @@ public class ListPluginsCommandTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> listPlugins(home));
         assertEquals(e.getMessage(), "Property [name] is missing in [" +
                 env.pluginsFile().resolve("fake1").resolve(PluginInfo.ES_PLUGIN_PROPERTIES).toString() + "]");
+    }
+
+    public void testExistingIncompatiblePlugin() throws Exception {
+        PluginTestUtil.writeProperties(env.pluginsFile().resolve("fake_plugin1"),
+            "description", "fake desc 1",
+            "name", "fake_plugin1",
+            "version", "1.0",
+            "elasticsearch.version", Version.fromString("1.0.0").toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "classname", "org.fake1");
+        buildFakePlugin(env, "fake desc 2", "fake_plugin2", "org.fake2");
+
+        MockTerminal terminal = listPlugins(home);
+        assertEquals("fake_plugin1\n" +
+                     "WARNING: Plugin [fake_plugin1] is incompatible with Elasticsearch [" +
+                     Version.CURRENT.toString() + "]. Was designed for version [1.0.0]\n" +
+                     "fake_plugin2\n",
+                     terminal.getOutput());
+
+        String[] params = {"-s"};
+        terminal = listPlugins(home, params);
+        assertEquals("fake_plugin1\nfake_plugin2\n", terminal.getOutput());
     }
 
 }

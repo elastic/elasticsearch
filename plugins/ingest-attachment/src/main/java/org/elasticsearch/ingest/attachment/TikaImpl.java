@@ -22,8 +22,10 @@ package org.elasticsearch.ingest.attachment;
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
+import org.apache.tika.mime.MediaType;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.Parser;
+import org.apache.tika.parser.ParserDecorator;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.SuppressForbidden;
@@ -45,7 +47,11 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.security.ProtectionDomain;
 import java.security.SecurityPermission;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.PropertyPermission;
+import java.util.Set;
 
 /**
  * Runs tika with limited parsers and limited permissions.
@@ -53,6 +59,9 @@ import java.util.PropertyPermission;
  * Do NOT make public
  */
 final class TikaImpl {
+
+    /** Exclude some formats */
+    private static final Set<MediaType> EXCLUDES = Collections.singleton(MediaType.application("x-tika-ooxml"));
 
     /** subset of parsers for types we support */
     private static final Parser PARSERS[] = new Parser[] {
@@ -63,7 +72,7 @@ final class TikaImpl {
         new org.apache.tika.parser.txt.TXTParser(),
         new org.apache.tika.parser.microsoft.OfficeParser(),
         new org.apache.tika.parser.microsoft.OldExcelParser(),
-        new org.apache.tika.parser.microsoft.ooxml.OOXMLParser(),
+        ParserDecorator.withoutTypes(new org.apache.tika.parser.microsoft.ooxml.OOXMLParser(), EXCLUDES),
         new org.apache.tika.parser.odf.OpenDocumentParser(),
         new org.apache.tika.parser.iwork.IWorkPackageParser(),
         new org.apache.tika.parser.xml.DcXMLParser(),
@@ -121,7 +130,12 @@ final class TikaImpl {
         addReadPermissions(perms, JarHell.parseClassPath());
         // plugin jars
         if (TikaImpl.class.getClassLoader() instanceof URLClassLoader) {
-            addReadPermissions(perms, ((URLClassLoader)TikaImpl.class.getClassLoader()).getURLs());
+            URL[] urls = ((URLClassLoader)TikaImpl.class.getClassLoader()).getURLs();
+            Set<URL> set = new LinkedHashSet<>(Arrays.asList(urls));
+            if (set.size() != urls.length) {
+                throw new AssertionError("duplicate jars: " + Arrays.toString(urls));
+            }
+            addReadPermissions(perms, set);
         }
         // jvm's java.io.tmpdir (needs read/write)
         perms.add(new FilePermission(System.getProperty("java.io.tmpdir") + System.getProperty("file.separator") + "-",
@@ -138,7 +152,7 @@ final class TikaImpl {
 
     // add resources to (what is typically) a jar, but might not be (e.g. in tests/IDE)
     @SuppressForbidden(reason = "adds access to jar resources")
-    static void addReadPermissions(Permissions perms, URL resources[]) {
+    static void addReadPermissions(Permissions perms, Set<URL> resources) {
         try {
             for (URL url : resources) {
                 Path path = PathUtils.get(url.toURI());

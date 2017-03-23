@@ -190,7 +190,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         if (initScript != null) {
             executableInitScript = queryShardContext.getLazyExecutableScript(initScript, ScriptContext.Standard.AGGS);
         } else {
-            executableInitScript = (p) -> null;;
+            executableInitScript = (p) -> null;
         }
         Function<Map<String, Object>, SearchScript> searchMapScript = queryShardContext.getLazySearchScript(mapScript,
             ScriptContext.Standard.AGGS);
@@ -251,13 +251,13 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.VALUE_STRING) {
                 if (INIT_SCRIPT_FIELD.match(currentFieldName)) {
-                    initScript = Script.parse(parser, context.getDefaultScriptLanguage());
+                    initScript = Script.parse(parser);
                 } else if (MAP_SCRIPT_FIELD.match(currentFieldName)) {
-                    mapScript = Script.parse(parser, context.getDefaultScriptLanguage());
+                    mapScript = Script.parse(parser);
                 } else if (COMBINE_SCRIPT_FIELD.match(currentFieldName)) {
-                    combineScript = Script.parse(parser, context.getDefaultScriptLanguage());
+                    combineScript = Script.parse(parser);
                 } else if (REDUCE_SCRIPT_FIELD.match(currentFieldName)) {
-                    reduceScript = Script.parse(parser, context.getDefaultScriptLanguage());
+                    reduceScript = Script.parse(parser);
                 } else if (token == XContentParser.Token.START_OBJECT &&
                         PARAMS_FIELD.match(currentFieldName)) {
                     params = parser.map();

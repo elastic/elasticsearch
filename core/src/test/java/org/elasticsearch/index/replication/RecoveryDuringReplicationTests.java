@@ -20,10 +20,20 @@
 package org.elasticsearch.index.replication;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngineTests;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -37,6 +47,9 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -153,9 +166,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final int rollbackDocs = randomIntBetween(1, 5);
                 logger.info("--> indexing {} rollback docs", rollbackDocs);
                 for (int i = 0; i < rollbackDocs; i++) {
-                    final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "rollback_" + i).source("{}");
-                    indexOnPrimary(indexRequest, oldPrimary);
-                    indexOnReplica(indexRequest, replica);
+                    final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "rollback_" + i)
+                            .source("{}", XContentType.JSON);
+                    final IndexResponse primaryResponse = indexOnPrimary(indexRequest, oldPrimary);
+                    indexOnReplica(primaryResponse, indexRequest, replica);
                 }
                 if (randomBoolean()) {
                     oldPrimary.flush(new FlushRequest(index.getName()));
@@ -188,6 +202,121 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             shards.recoverReplica(newReplica);
 
             shards.assertAllEqual(totalDocs);
+        }
+    }
+
+    @TestLogging("_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE," +
+        "org.elasticsearch.discovery:TRACE," +
+        "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE," +
+        "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE," +
+        "org.elasticsearch.index.seqno:TRACE"
+    )
+    public void testWaitForPendingSeqNo() throws Exception {
+        IndexMetaData metaData = buildIndexMetaData(1);
+
+        final int pendingDocs = randomIntBetween(1, 5);
+        final AtomicReference<Semaphore> blockIndexingOnPrimary = new AtomicReference<>();
+        final CountDownLatch blockedIndexers = new CountDownLatch(pendingDocs);
+
+        try (ReplicationGroup shards = new ReplicationGroup(metaData) {
+            @Override
+            protected EngineFactory getEngineFactory(ShardRouting routing) {
+                if (routing.primary()) {
+                    return new EngineFactory() {
+                        @Override
+                        public Engine newReadWriteEngine(EngineConfig config) {
+                            return InternalEngineTests.createInternalEngine((directory, writerConfig) ->
+                                new IndexWriter(directory, writerConfig) {
+                                    @Override
+                                    public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
+                                        Semaphore block = blockIndexingOnPrimary.get();
+                                        if (block != null) {
+                                            blockedIndexers.countDown();
+                                            try {
+                                                block.acquire();
+                                            } catch (InterruptedException e) {
+                                                throw new AssertionError("unexpectedly interrupted", e);
+                                            }
+                                        }
+                                        return super.addDocument(doc);
+                                    }
+
+                                }, null, config);
+                        }
+
+                        @Override
+                        public Engine newReadOnlyEngine(EngineConfig config) {
+                            throw new UnsupportedOperationException();
+                        }
+                    };
+                } else {
+                    return null;
+                }
+            }
+        }) {
+            shards.startAll();
+            int docs = shards.indexDocs(randomIntBetween(1,10));
+            IndexShard replica = shards.getReplicas().get(0);
+            shards.removeReplica(replica);
+            closeShards(replica);
+
+            docs += pendingDocs;
+            final Semaphore pendingDocsSemaphore = new Semaphore(pendingDocs);
+            blockIndexingOnPrimary.set(pendingDocsSemaphore);
+            blockIndexingOnPrimary.get().acquire(pendingDocs);
+            CountDownLatch pendingDocsDone = new CountDownLatch(pendingDocs);
+            for (int i = 0; i < pendingDocs; i++) {
+                final String id = "pending_" + i;
+                threadPool.generic().submit(() -> {
+                    try {
+                        shards.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    } finally {
+                        pendingDocsDone.countDown();
+                    }
+                });
+            }
+
+            // wait for the pending ops to "hang"
+            blockedIndexers.await();
+
+            blockIndexingOnPrimary.set(null);
+            // index some more
+            docs += shards.indexDocs(randomInt(5));
+
+            IndexShard newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
+
+            CountDownLatch recoveryStart = new CountDownLatch(1);
+            AtomicBoolean preparedForTranslog = new AtomicBoolean(false);
+            final Future<Void> recoveryFuture = shards.asyncRecoverReplica(newReplica, (indexShard, node) -> {
+                recoveryStart.countDown();
+                return new RecoveryTarget(indexShard, node, recoveryListener, l -> {
+                }) {
+                    @Override
+                    public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
+                        preparedForTranslog.set(true);
+                        super.prepareForTranslogOperations(totalTranslogOps, maxUnsafeAutoIdTimestamp);
+                    }
+                };
+            });
+
+            recoveryStart.await();
+
+            for (int i = 0; i < pendingDocs; i++) {
+                assertFalse((pendingDocs - i) + " pending operations, recovery should wait", preparedForTranslog.get());
+                pendingDocsSemaphore.release();
+            }
+
+            pendingDocsDone.await();
+
+            // now recovery can finish
+            recoveryFuture.get();
+
+            assertThat(newReplica.recoveryState().getIndex().fileDetails(), empty());
+            assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(docs));
+
+            shards.assertAllEqual(docs);
         }
     }
 

@@ -38,6 +38,7 @@ import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
 
+import java.nio.charset.StandardCharsets
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit
 
@@ -51,22 +52,18 @@ class ClusterFormationTasks {
      *
      * Returns a list of NodeInfo objects for each node in the cluster.
      */
-    static List<NodeInfo> setup(Project project, Task task, ClusterConfiguration config) {
-        if (task.getEnabled() == false) {
-            // no need to add cluster formation tasks if the task won't run!
-            return
-        }
+    static List<NodeInfo> setup(Project project, String prefix, Task runner, ClusterConfiguration config) {
         File sharedDir = new File(project.buildDir, "cluster/shared")
         // first we remove everything in the shared cluster directory to ensure there are no leftovers in repos or anything
         // in theory this should not be necessary but repositories are only deleted in the cluster-state and not on-disk
         // such that snapshots survive failures / test runs and there is no simple way today to fix that.
-        Task cleanup = project.tasks.create(name: "${task.name}#prepareCluster.cleanShared", type: Delete, dependsOn: task.dependsOn.collect()) {
+        Task cleanup = project.tasks.create(name: "${prefix}#prepareCluster.cleanShared", type: Delete, dependsOn: runner.dependsOn.collect()) {
             delete sharedDir
             doLast {
                 sharedDir.mkdirs()
             }
         }
-        List<Task> startTasks = [cleanup]
+        List<Task> startTasks = []
         List<NodeInfo> nodes = []
         if (config.numNodes < config.numBwcNodes) {
             throw new GradleException("numNodes must be >= numBwcNodes [${config.numNodes} < ${config.numBwcNodes}]")
@@ -75,7 +72,7 @@ class ClusterFormationTasks {
             throw new GradleException("bwcVersion must not be null if numBwcNodes is > 0")
         }
         // this is our current version distribution configuration we use for all kinds of REST tests etc.
-        String distroConfigName = "${task.name}_elasticsearchDistro"
+        String distroConfigName = "${prefix}_elasticsearchDistro"
         Configuration currentDistro = project.configurations.create(distroConfigName)
         configureDistributionDependency(project, config.distribution, currentDistro, VersionProperties.elasticsearch)
         if (config.bwcVersion != null && config.numBwcNodes > 0) {
@@ -89,7 +86,7 @@ class ClusterFormationTasks {
             }
             configureDistributionDependency(project, config.distribution, project.configurations.elasticsearchBwcDistro, config.bwcVersion)
             for (Map.Entry<String, Project> entry : config.plugins.entrySet()) {
-                configureBwcPluginDependency("${task.name}_elasticsearchBwcPlugins", project, entry.getValue(),
+                configureBwcPluginDependency("${prefix}_elasticsearchBwcPlugins", project, entry.getValue(),
                         project.configurations.elasticsearchBwcPlugins, config.bwcVersion)
             }
             project.configurations.elasticsearchBwcDistro.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
@@ -104,13 +101,14 @@ class ClusterFormationTasks {
                 elasticsearchVersion = config.bwcVersion
                 distro = project.configurations.elasticsearchBwcDistro
             }
-            NodeInfo node = new NodeInfo(config, i, project, task, elasticsearchVersion, sharedDir)
+            NodeInfo node = new NodeInfo(config, i, project, prefix, elasticsearchVersion, sharedDir)
             nodes.add(node)
-            startTasks.add(configureNode(project, task, cleanup, node, distro, nodes.get(0)))
+            Task dependsOn = startTasks.empty ? cleanup : startTasks.get(0)
+            startTasks.add(configureNode(project, prefix, runner, dependsOn, node, distro, nodes.get(0)))
         }
 
-        Task wait = configureWaitTask("${task.name}#wait", project, nodes, startTasks)
-        task.dependsOn(wait)
+        Task wait = configureWaitTask("${prefix}#wait", project, nodes, startTasks)
+        runner.dependsOn(wait)
 
         return nodes
     }
@@ -150,58 +148,62 @@ class ClusterFormationTasks {
      *
      * @return a task which starts the node.
      */
-    static Task configureNode(Project project, Task task, Object dependsOn, NodeInfo node, Configuration configuration, NodeInfo seedNode) {
+    static Task configureNode(Project project, String prefix, Task runner, Object dependsOn, NodeInfo node, Configuration configuration, NodeInfo seedNode) {
 
         // tasks are chained so their execution order is maintained
-        Task setup = project.tasks.create(name: taskName(task, node, 'clean'), type: Delete, dependsOn: dependsOn) {
+        Task setup = project.tasks.create(name: taskName(prefix, node, 'clean'), type: Delete, dependsOn: dependsOn) {
             delete node.homeDir
             delete node.cwd
             doLast {
                 node.cwd.mkdirs()
             }
         }
-        setup = configureCheckPreviousTask(taskName(task, node, 'checkPrevious'), project, setup, node)
-        setup = configureStopTask(taskName(task, node, 'stopPrevious'), project, setup, node)
-        setup = configureExtractTask(taskName(task, node, 'extract'), project, setup, node, configuration)
-        setup = configureWriteConfigTask(taskName(task, node, 'configure'), project, setup, node, seedNode)
+
+        setup = configureCheckPreviousTask(taskName(prefix, node, 'checkPrevious'), project, setup, node)
+        setup = configureStopTask(taskName(prefix, node, 'stopPrevious'), project, setup, node)
+        setup = configureExtractTask(taskName(prefix, node, 'extract'), project, setup, node, configuration)
+        setup = configureWriteConfigTask(taskName(prefix, node, 'configure'), project, setup, node, seedNode)
+        setup = configureCreateKeystoreTask(taskName(prefix, node, 'createKeystore'), project, setup, node)
+        setup = configureAddKeystoreSettingTasks(prefix, project, setup, node)
+
         if (node.config.plugins.isEmpty() == false) {
             if (node.nodeVersion == VersionProperties.elasticsearch) {
-                setup = configureCopyPluginsTask(taskName(task, node, 'copyPlugins'), project, setup, node)
+                setup = configureCopyPluginsTask(taskName(prefix, node, 'copyPlugins'), project, setup, node)
             } else {
-                setup = configureCopyBwcPluginsTask(taskName(task, node, 'copyBwcPlugins'), project, setup, node)
+                setup = configureCopyBwcPluginsTask(taskName(prefix, node, 'copyBwcPlugins'), project, setup, node)
             }
         }
 
         // install modules
         for (Project module : node.config.modules) {
             String actionName = pluginTaskName('install', module.name, 'Module')
-            setup = configureInstallModuleTask(taskName(task, node, actionName), project, setup, node, module)
+            setup = configureInstallModuleTask(taskName(prefix, node, actionName), project, setup, node, module)
         }
 
         // install plugins
         for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
             String actionName = pluginTaskName('install', plugin.getKey(), 'Plugin')
-            setup = configureInstallPluginTask(taskName(task, node, actionName), project, setup, node, plugin.getValue())
+            setup = configureInstallPluginTask(taskName(prefix, node, actionName), project, setup, node, plugin.getValue())
         }
 
         // sets up any extra config files that need to be copied over to the ES instance;
         // its run after plugins have been installed, as the extra config files may belong to plugins
-        setup = configureExtraConfigFilesTask(taskName(task, node, 'extraConfig'), project, setup, node)
+        setup = configureExtraConfigFilesTask(taskName(prefix, node, 'extraConfig'), project, setup, node)
 
         // extra setup commands
         for (Map.Entry<String, Object[]> command : node.config.setupCommands.entrySet()) {
             // the first argument is the actual script name, relative to home
             Object[] args = command.getValue().clone()
             args[0] = new File(node.homeDir, args[0].toString())
-            setup = configureExecTask(taskName(task, node, command.getKey()), project, setup, node, args)
+            setup = configureExecTask(taskName(prefix, node, command.getKey()), project, setup, node, args)
         }
 
-        Task start = configureStartTask(taskName(task, node, 'start'), project, setup, node)
+        Task start = configureStartTask(taskName(prefix, node, 'start'), project, setup, node)
 
         if (node.config.daemonize) {
-            Task stop = configureStopTask(taskName(task, node, 'stop'), project, [], node)
+            Task stop = configureStopTask(taskName(prefix, node, 'stop'), project, [], node)
             // if we are running in the background, make sure to stop the server when the task completes
-            task.finalizedBy(stop)
+            runner.finalizedBy(stop)
             start.finalizedBy(stop)
         }
         return start
@@ -304,6 +306,33 @@ class ClusterFormationTasks {
             logger.info("Configuring ${configFile}")
             configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')
         }
+    }
+
+    /** Adds a task to create keystore */
+    static Task configureCreateKeystoreTask(String name, Project project, Task setup, NodeInfo node) {
+        if (node.config.keystoreSettings.isEmpty()) {
+            return setup
+        } else {
+            File esKeystoreUtil = Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
+            return configureExecTask(name, project, setup, node, esKeystoreUtil, 'create')
+        }
+    }
+
+    /** Adds tasks to add settings to the keystore */
+    static Task configureAddKeystoreSettingTasks(String parent, Project project, Task setup, NodeInfo node) {
+        Map kvs = node.config.keystoreSettings
+        File esKeystoreUtil = Paths.get(node.homeDir.toString(), "bin/" + "elasticsearch-keystore").toFile()
+        Task parentTask = setup
+        for (Map.Entry<String, String> entry in kvs) {
+            String key = entry.getKey()
+            String name = taskName(parent, node, 'addToKeystore#' + key)
+            Task t = configureExecTask(name, project, parentTask, node, esKeystoreUtil, 'add', key, '-x')
+            t.doFirst {
+                standardInput = new ByteArrayInputStream(entry.getValue().getBytes(StandardCharsets.UTF_8))
+            }
+            parentTask = t
+        }
+        return parentTask
     }
 
     static Task configureExtraConfigFilesTask(String name, Project project, Task setup, NodeInfo node) {
@@ -648,11 +677,11 @@ class ClusterFormationTasks {
     }
 
     /** Returns a unique task name for this task and node configuration */
-    static String taskName(Task parentTask, NodeInfo node, String action) {
+    static String taskName(String prefix, NodeInfo node, String action) {
         if (node.config.numNodes > 1) {
-            return "${parentTask.name}#node${node.nodeNum}.${action}"
+            return "${prefix}#node${node.nodeNum}.${action}"
         } else {
-            return "${parentTask.name}#${action}"
+            return "${prefix}#${action}"
         }
     }
 

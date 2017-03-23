@@ -40,7 +40,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -67,7 +66,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
 import org.elasticsearch.test.disruption.LongGCDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -1127,22 +1125,10 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                 .setSource("{\"int_field\":1}", XContentType.JSON));
         }
         indexRandom(true, indexRequestBuilderList);
-        SingleNodeDisruption disruption = new BlockClusterStateProcessing(node_2, random());
 
-        internalCluster().setDisruptionScheme(disruption);
-        MockTransportService transportServiceNode2 = (MockTransportService) internalCluster().getInstance(TransportService.class, node_2);
-        CountDownLatch beginRelocationLatch = new CountDownLatch(1);
-        CountDownLatch endRelocationLatch = new CountDownLatch(1);
-        transportServiceNode2.addTracer(new IndicesStoreIntegrationIT.ReclocationStartEndTracer(logger, beginRelocationLatch,
-            endRelocationLatch));
-        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_2)).get();
-        // wait for relocation to start
-        beginRelocationLatch.await();
-        disruption.startDisrupting();
-        // wait for relocation to finish
-        endRelocationLatch.await();
+        IndicesStoreIntegrationIT.relocateAndBlockCompletion(logger, "test", 0, node_1, node_2);
         // now search for the documents and see if we get a reply
-        assertThat(client().prepareSearch().setSize(0).get().getHits().totalHits(), equalTo(100L));
+        assertThat(client().prepareSearch().setSize(0).get().getHits().getTotalHits(), equalTo(100L));
     }
 
     public void testIndexImportedFromDataOnlyNodesIfMasterLostDataFolder() throws Exception {

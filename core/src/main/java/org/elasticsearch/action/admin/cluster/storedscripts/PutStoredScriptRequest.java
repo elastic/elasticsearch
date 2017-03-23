@@ -45,11 +45,6 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         super();
     }
 
-    @Deprecated
-    public PutStoredScriptRequest(String id, String lang, BytesReference content) {
-        this(id, lang, content, XContentFactory.xContentType(content));
-    }
-
     public PutStoredScriptRequest(String id, String lang, BytesReference content, XContentType xContentType) {
         super();
         this.id = id;
@@ -108,15 +103,6 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     }
 
     /**
-     * Set the script source using bytes.
-     * @deprecated this method is deprecated as it relies on content type detection. Use {@link #content(BytesReference, XContentType)}
-     */
-    @Deprecated
-    public PutStoredScriptRequest content(BytesReference content) {
-        return content(content, XContentFactory.xContentType(content));
-    }
-
-    /**
      * Set the script source and the content type of the bytes.
      */
     public PutStoredScriptRequest content(BytesReference content, XContentType xContentType) {
@@ -137,7 +123,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
 
         id = in.readOptionalString();
         content = in.readBytesReference();
-        if (in.getVersion().after(Version.V_5_3_0_UNRELEASED)) { // TODO update to onOrAfter after backporting
+        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
             xContentType = XContentType.readFrom(in);
         } else {
             xContentType = XContentFactory.xContentType(content);
@@ -151,7 +137,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         out.writeString(lang == null ? "" : lang);
         out.writeOptionalString(id);
         out.writeBytesReference(content);
-        if (out.getVersion().after(Version.V_5_3_0_UNRELEASED)) { // TODO update to onOrAfter after backporting
+        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
             xContentType.writeTo(out);
         }
     }

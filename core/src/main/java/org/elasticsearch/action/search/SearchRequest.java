@@ -70,6 +70,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private Scroll scroll;
 
+    private int batchedReduceSize = 512;
+
     private String[] types = Strings.EMPTY_ARRAY;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
@@ -275,6 +277,25 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
+     * Sets the number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection
+     * mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
+     */
+    public void setBatchedReduceSize(int batchedReduceSize) {
+        if (batchedReduceSize <= 1) {
+            throw new IllegalArgumentException("batchedReduceSize must be >= 2");
+        }
+        this.batchedReduceSize = batchedReduceSize;
+    }
+
+    /**
+     * Returns the number of shard results that should be reduced at once on the coordinating node. This value should be used as a
+     * protection mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
+     */
+    public int getBatchedReduceSize() {
+        return batchedReduceSize;
+    }
+
+    /**
      * @return true if the request only has suggest
      */
     public boolean isSuggestOnly() {
@@ -320,6 +341,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         requestCache = in.readOptionalBoolean();
+        batchedReduceSize = in.readVInt();
     }
 
     @Override
@@ -337,6 +359,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
+        out.writeVInt(batchedReduceSize);
     }
 
     @Override

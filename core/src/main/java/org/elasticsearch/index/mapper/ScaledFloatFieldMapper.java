@@ -251,7 +251,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 }
                 hi = Math.round(Math.floor(dValue * scalingFactor));
             }
-            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true);
+            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues());
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -265,11 +265,16 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (stats == null) {
                 return null;
             }
-            return new FieldStats.Double(stats.getMaxDoc(), stats.getDocCount(),
+            if (stats.hasMinMax()) {
+                return new FieldStats.Double(stats.getMaxDoc(), stats.getDocCount(),
                     stats.getSumDocFreq(), stats.getSumTotalTermFreq(),
                     stats.isSearchable(), stats.isAggregatable(),
-                    stats.getMinValue() == null ? null : stats.getMinValue() / scalingFactor,
-                    stats.getMaxValue() == null ? null : stats.getMaxValue() / scalingFactor);
+                    stats.getMinValue() / scalingFactor,
+                    stats.getMaxValue() / scalingFactor);
+            }
+            return new FieldStats.Double(stats.getMaxDoc(), stats.getDocCount(),
+                stats.getSumDocFreq(), stats.getSumTotalTermFreq(),
+                stats.isSearchable(), stats.isAggregatable());
         }
 
         @Override

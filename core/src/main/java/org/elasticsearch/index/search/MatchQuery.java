@@ -27,13 +27,18 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.GraphQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
@@ -49,7 +54,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
-import java.util.List;
 
 public class MatchQuery {
 
@@ -318,17 +322,6 @@ public class MatchQuery {
 
         public Query createPhrasePrefixQuery(String field, String queryText, int phraseSlop, int maxExpansions) {
             final Query query = createFieldQuery(getAnalyzer(), Occur.MUST, field, queryText, true, phraseSlop);
-            if (query instanceof GraphQuery) {
-                // we have a graph query, convert inner queries to multi phrase prefix queries
-                List<Query> oldQueries = ((GraphQuery) query).getQueries();
-                Query[] queries = new Query[oldQueries.size()];
-                for (int i = 0; i < queries.length; i++) {
-                    queries[i] = toMultiPhrasePrefix(oldQueries.get(i), phraseSlop, maxExpansions);
-                }
-
-                return new GraphQuery(queries);
-            }
-
             return toMultiPhrasePrefix(query, phraseSlop, maxExpansions);
         }
 
@@ -339,6 +332,9 @@ public class MatchQuery {
                 BoostQuery bq = (BoostQuery) innerQuery;
                 boost *= bq.getBoost();
                 innerQuery = bq.getQuery();
+            }
+            if (query instanceof SpanQuery) {
+                return toSpanQueryPrefix((SpanQuery) query, boost);
             }
             final MultiPhrasePrefixQuery prefixQuery = new MultiPhrasePrefixQuery();
             prefixQuery.setMaxExpansions(maxExpansions);
@@ -369,29 +365,40 @@ public class MatchQuery {
             return query;
         }
 
+        private Query toSpanQueryPrefix(SpanQuery query, float boost) {
+            if (query instanceof SpanTermQuery) {
+                SpanMultiTermQueryWrapper<PrefixQuery> ret =
+                    new SpanMultiTermQueryWrapper<>(new PrefixQuery(((SpanTermQuery) query).getTerm()));
+                return boost == 1 ? ret : new BoostQuery(ret, boost);
+            } else if (query instanceof SpanNearQuery) {
+                SpanNearQuery spanNearQuery = (SpanNearQuery) query;
+                SpanQuery[] clauses = spanNearQuery.getClauses();
+                if (clauses[clauses.length-1] instanceof SpanTermQuery) {
+                    clauses[clauses.length-1] = new SpanMultiTermQueryWrapper<>(
+                        new PrefixQuery(((SpanTermQuery) clauses[clauses.length-1]).getTerm())
+                    );
+                }
+                SpanNearQuery newQuery = new SpanNearQuery(clauses, spanNearQuery.getSlop(), spanNearQuery.isInOrder());
+                return boost == 1 ? newQuery : new BoostQuery(newQuery, boost);
+            } else if (query instanceof SpanOrQuery) {
+                SpanOrQuery orQuery = (SpanOrQuery) query;
+                SpanQuery[] clauses = new SpanQuery[orQuery.getClauses().length];
+                for (int i = 0; i < clauses.length; i++) {
+                    clauses[i] = (SpanQuery) toSpanQueryPrefix(orQuery.getClauses()[i], 1);
+                }
+                return boost == 1 ? new SpanOrQuery(clauses) : new BoostQuery(new SpanOrQuery(clauses), boost);
+            } else {
+                return query;
+            }
+        }
+
         public Query createCommonTermsQuery(String field, String queryText, Occur highFreqOccur, Occur lowFreqOccur, float
             maxTermFrequency, MappedFieldType fieldType) {
             Query booleanQuery = createBooleanQuery(field, queryText, lowFreqOccur);
             if (booleanQuery != null && booleanQuery instanceof BooleanQuery) {
                 BooleanQuery bq = (BooleanQuery) booleanQuery;
                 return boolToExtendedCommonTermsQuery(bq, highFreqOccur, lowFreqOccur, maxTermFrequency, fieldType);
-            } else if (booleanQuery != null && booleanQuery instanceof GraphQuery && ((GraphQuery) booleanQuery).hasBoolean()) {
-                // we have a graph query that has at least one boolean sub-query
-                // re-build and use extended common terms
-                List<Query> oldQueries = ((GraphQuery) booleanQuery).getQueries();
-                Query[] queries = new Query[oldQueries.size()];
-                for (int i = 0; i < queries.length; i++) {
-                    Query oldQuery = oldQueries.get(i);
-                    if (oldQuery instanceof BooleanQuery) {
-                        queries[i] = boolToExtendedCommonTermsQuery((BooleanQuery) oldQuery, highFreqOccur, lowFreqOccur, maxTermFrequency, fieldType);
-                    } else {
-                        queries[i] = oldQuery;
-                    }
-                }
-
-                return new GraphQuery(queries);
             }
-
             return booleanQuery;
         }
 

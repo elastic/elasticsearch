@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Result of the running the significant terms aggregation on a String field.
@@ -103,13 +104,23 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(CommonFields.KEY, getKeyAsString());
-            builder.field(CommonFields.DOC_COUNT, getDocCount());
+            builder.field(CommonFields.KEY.getPreferredName(), getKeyAsString());
+            builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
             builder.field("score", score);
             builder.field("bg_count", supersetDf);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return super.equals(obj) && Objects.equals(termBytes, ((SignificantStringTerms.Bucket) obj).termBytes);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), termBytes);
         }
     }
 
@@ -153,7 +164,7 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("doc_count", subsetSize);
-        builder.startArray(CommonFields.BUCKETS);
+        builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (Bucket bucket : buckets) {
             //There is a condition (presumably when only one shard has a bucket?) where reduce is not called
             // and I end up with buckets that contravene the user's min_doc_count criteria in my reducer

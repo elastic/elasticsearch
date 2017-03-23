@@ -162,7 +162,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
     }
 
     public static class GeoPointFieldType extends MappedFieldType {
-        GeoPointFieldType() {
+        public GeoPointFieldType() {
         }
 
         GeoPointFieldType(GeoPointFieldType ref) {

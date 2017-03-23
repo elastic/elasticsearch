@@ -384,15 +384,15 @@ public class ConvertProcessorTests extends ESTestCase {
             case 2:
                 boolean randomBoolean = randomBoolean();
                 randomValue = randomBoolean;
-				break;
-			case 3:
-				long randomLong = randomLong();
-				randomValue = randomLong;
+                break;
+            case 3:
+                long randomLong = randomLong();
+                randomValue = randomLong;
                 break;
 			case 4:
-				double randomDouble = randomDouble();
-				randomValue = randomDouble;
-				break;
+                double randomDouble = randomDouble();
+                randomValue = randomDouble;
+                break;
             default:
                 throw new UnsupportedOperationException();
         }

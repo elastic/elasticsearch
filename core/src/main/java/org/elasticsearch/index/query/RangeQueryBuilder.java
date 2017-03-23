@@ -494,7 +494,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             if (mapper instanceof DateFieldMapper.DateFieldType) {
 
                 query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper,
-                        timeZone, getForceDateParser(), context);
+                        timeZone, getForceDateParser(), context::nowInMillis);
             } else if (mapper instanceof RangeFieldMapper.RangeFieldType) {
                 DateMathParser forcedDateParser = null;
                 if (mapper.typeName() == RangeFieldMapper.RangeType.DATE.name && this.format != null) {

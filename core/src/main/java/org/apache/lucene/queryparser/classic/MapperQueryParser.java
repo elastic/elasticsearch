@@ -20,13 +20,12 @@
 package org.apache.lucene.queryparser.classic;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -50,15 +49,15 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
-import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Collections;
+
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
@@ -313,7 +312,7 @@ public class MapperQueryParser extends QueryParser {
                 if (currentFieldType instanceof DateFieldMapper.DateFieldType && settings.timeZone() != null) {
                     DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) this.currentFieldType;
                     rangeQuery = dateFieldType.rangeQuery(part1Binary, part2Binary,
-                            startInclusive, endInclusive, settings.timeZone(), null, context);
+                            startInclusive, endInclusive, settings.timeZone(), null, context::nowInMillis);
                 } else {
                     rangeQuery = currentFieldType.rangeQuery(part1Binary, part2Binary, startInclusive, endInclusive, context);
                 }
@@ -731,6 +730,7 @@ public class MapperQueryParser extends QueryParser {
      * Checks if graph analysis should be enabled for the field depending
      * on the provided {@link Analyzer}
      */
+    @Override
     protected Query createFieldQuery(Analyzer analyzer, BooleanClause.Occur operator, String field,
                                      String queryText, boolean quoted, int phraseSlop) {
         assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;

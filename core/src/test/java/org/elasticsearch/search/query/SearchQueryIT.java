@@ -94,7 +94,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSeco
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1720,11 +1719,14 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).getId(), is("3"));
 
-        // When we use long values, it means we have ms since epoch UTC based so we don't apply any transformation
-        Exception e = expectThrows(SearchPhaseExecutionException.class, () ->
-            client().prepareSearch("test")
-                    .setQuery(QueryBuilders.rangeQuery("date").from(1388534400000L).to(1388537940999L).timeZone("+01:00"))
-                    .get());
+        // When we use long values, it means we have ms since epoch UTC based so we don't apply any
+        // time zone transformation
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("date")
+                            .from(DateTime.parse("2014-01-01T04:00:00+03:00").getMillis())
+                            .to(DateTime.parse("2014-01-01T04:59:00+03:00").getMillis())
+                            .timeZone(randomTimeZone(random()).getID())).get();
+        assertHitCount(searchResponse, 1L);
+        assertThat(searchResponse.getHits().getAt(0).getId(), is("3"));
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01").to("2014-01-01T00:59:00").timeZone("-01:00"))
@@ -1739,7 +1741,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getId(), is("4"));
 
         // A Range Filter on a numeric field with a TimeZone should raise an exception
-        e = expectThrows(SearchPhaseExecutionException.class, () ->
+        Exception e = expectThrows(SearchPhaseExecutionException.class, () ->
             client().prepareSearch("test")
                     .setQuery(QueryBuilders.rangeQuery("num").from("0").to("4").timeZone("-01:00"))
                     .get());

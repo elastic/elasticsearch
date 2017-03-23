@@ -138,7 +138,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
             query = ((IndexOrDocValuesQuery) query).getIndexQuery();
             assertThat(query, instanceOf(PointRangeQuery.class));
-            MapperService mapperService = context.getQueryShardContext().getMapperService();
+            QueryShardContext queryShardContext = context.getQueryShardContext();
+            MapperService mapperService = queryShardContext.getMapperService();
             MappedFieldType mappedFieldType = mapperService.fullName(DATE_FIELD_NAME);
             final Long fromInMillis;
             final Long toInMillis;
@@ -148,12 +149,12 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     ((DateFieldMapper.DateFieldType) mappedFieldType).parseToMilliseconds(queryBuilder.from(),
                         queryBuilder.includeLower(),
                         queryBuilder.getDateTimeZone(),
-                        queryBuilder.getForceDateParser(), context.getQueryShardContext());
+                        queryBuilder.getForceDateParser(), queryShardContext::nowInMillis);
                 toInMillis = queryBuilder.to() == null ? null :
                     ((DateFieldMapper.DateFieldType) mappedFieldType).parseToMilliseconds(queryBuilder.to(),
                         queryBuilder.includeUpper(),
                         queryBuilder.getDateTimeZone(),
-                        queryBuilder.getForceDateParser(), context.getQueryShardContext());
+                        queryBuilder.getForceDateParser(), queryShardContext::nowInMillis);
             } else {
                 fromInMillis = toInMillis = null;
                 fail("unexpected mapped field type: [" + mappedFieldType.getClass() + "] " + mappedFieldType.toString());

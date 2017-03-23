@@ -902,7 +902,8 @@ public class NodeToStringTests extends ESTestCase {
         CompilerSettings compilerSettings = new CompilerSettings();
         compilerSettings.setRegexesEnabled(true);
         try {
-            return Walker.buildPainlessTree(scriptInterface, getTestName(), code, compilerSettings, null);
+            return Walker.buildPainlessTree(scriptInterface, getTestName(), code, compilerSettings,
+                    definition, null);
         } catch (Exception e) {
             throw new AssertionError("Failed to compile: " + code, e);
         }

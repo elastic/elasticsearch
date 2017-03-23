@@ -486,7 +486,7 @@ public final class Definition {
     }
 
     /** Returns whether or not a non-array type exists. */
-    public static boolean isSimpleType(final String name) {
+    public boolean isSimpleType(final String name) {
         return INSTANCE.structsMap.containsKey(name);
     }
 

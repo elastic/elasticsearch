@@ -52,13 +52,12 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.JobStateObserver;
 import org.elasticsearch.xpack.persistent.NodePersistentTask;
-import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.persistent.PersistentTaskRequest;
-import org.elasticsearch.xpack.persistent.PersistentTasksService;
-import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
-import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
+import org.elasticsearch.xpack.persistent.PersistentTasksService;
+import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -452,20 +451,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             throw new ElasticsearchStatusException("Cannot open job [" + jobId + "] because it has been marked as deleted",
                     RestStatus.CONFLICT);
         }
-        PersistentTask<?> task = MlMetadata.getJobTask(jobId, tasks);
         JobState jobState = MlMetadata.getJobState(jobId, tasks);
-        if (task != null && jobState == JobState.OPENED) {
-            if (task.isAssigned() == false) {
-                // We can skip the job state check below, because the task got unassigned after we went into
-                // opened state on a node that disappeared and we didn't have the opportunity to set the status to failed
-                return;
-            } else if (nodes.nodeExists(task.getExecutorNode()) == false) {
-                // The state is open and the node were running on no longer exists.
-                // We can skip the job state check below, because when the node
-                // disappeared we didn't have time to set the status to failed.
-                return;
-            }
-        }
         if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
             throw new ElasticsearchStatusException("[" + jobId + "] expected state [" + JobState.CLOSED
                     + "] or [" + JobState.FAILED + "], but got [" + jobState + "]", RestStatus.CONFLICT);

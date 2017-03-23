@@ -58,12 +58,12 @@ import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.NodePersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTaskRequest;
-import org.elasticsearch.xpack.persistent.PersistentTasksService;
-import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
+import org.elasticsearch.xpack.persistent.PersistentTasksService;
+import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -478,20 +478,7 @@ public class StartDatafeedAction
                     RestStatus.CONFLICT, JobState.OPENED, jobState);
         }
 
-        PersistentTask<?> datafeedTask = MlMetadata.getDatafeedTask(datafeedId, tasks);
         DatafeedState datafeedState = MlMetadata.getDatafeedState(datafeedId, tasks);
-        if (datafeedTask != null && datafeedState == DatafeedState.STARTED) {
-            if (datafeedTask.isAssigned() == false) {
-                // We can skip the datafeed state check below, because the task got unassigned after we went into
-                // started state on a node that disappeared and we didn't have the opportunity to set the status to stopped
-                return;
-            } else if (nodes.nodeExists(datafeedTask.getExecutorNode()) == false) {
-                // The state is started and the node were running on no longer exists.
-                // We can skip the datafeed state check below, because when the node
-                // disappeared we didn't have time to set the state to stopped.
-                return;
-            }
-        }
         if (datafeedState == DatafeedState.STARTED) {
             throw new ElasticsearchStatusException("datafeed [{}] already started, expected datafeed state [{}], but got [{}]",
                     RestStatus.CONFLICT, datafeedId, DatafeedState.STOPPED, DatafeedState.STARTED);

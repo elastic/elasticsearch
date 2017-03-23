@@ -166,36 +166,6 @@ public class StartDatafeedActionTests extends ESTestCase {
                 "but got [started]"));
     }
 
-    public void testValidate_staleTask() {
-        Job job1 = createScheduledJob("job_id").build();
-        DatafeedConfig datafeedConfig = createDatafeed("datafeed_id", "job_id", Collections.singletonList("*"));
-        MlMetadata mlMetadata1 = new MlMetadata.Builder()
-                .putJob(job1, false)
-                .putDatafeed(datafeedConfig)
-                .build();
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("node_name", "node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                        Collections.emptyMap(), Collections.emptySet(), Version.CURRENT))
-                .build();
-
-        PersistentTask<OpenJobAction.Request> jobTask = createJobTask(0L, "job_id", "node_id2", JobState.OPENED);
-        PersistentTask<StartDatafeedAction.Request> datafeedTask =
-                new PersistentTask<>(0L, StartDatafeedAction.NAME, new StartDatafeedAction.Request("datafeed_id", 0L),
-                        false, true, new Assignment("node_id1", "test assignment"));
-        datafeedTask = new PersistentTask<>(datafeedTask, DatafeedState.STARTED);
-        Map<Long, PersistentTask<?>> taskMap = new HashMap<>();
-        taskMap.put(0L, jobTask);
-        taskMap.put(1L, datafeedTask);
-        PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(2L, taskMap);
-        StartDatafeedAction.validate("datafeed_id", mlMetadata1, tasks, nodes);
-
-        datafeedTask = new PersistentTask<>(0L, StartDatafeedAction.NAME, new StartDatafeedAction.Request("datafeed_id", 0L),
-                        false, true, INITIAL_ASSIGNMENT);
-        datafeedTask = new PersistentTask<>(datafeedTask, DatafeedState.STARTED);
-        taskMap.put(1L, datafeedTask);
-        StartDatafeedAction.validate("datafeed_id", mlMetadata1, tasks, nodes);
-    }
-
     public static StartDatafeedAction.DatafeedTask createDatafeedTask(long id, String type, String action,
                                                                       TaskId parentTaskId,
                                                                       StartDatafeedAction.Request request,

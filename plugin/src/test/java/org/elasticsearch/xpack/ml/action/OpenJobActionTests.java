@@ -62,10 +62,6 @@ public class OpenJobActionTests extends ESTestCase {
         OpenJobAction.validate("job_id", mlBuilder.build(), tasks, nodes);
         OpenJobAction.validate("job_id", mlBuilder.build(), new PersistentTasksCustomMetaData(1L, Collections.emptyMap()), nodes);
         OpenJobAction.validate("job_id", mlBuilder.build(), null, nodes);
-
-        task = createJobTask(1L, "job_id", "_other_node_id", JobState.OPENED);
-        tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(1L, task));
-        OpenJobAction.validate("job_id", mlBuilder.build(), tasks, nodes);
     }
 
     public void testValidate_jobMissing() {

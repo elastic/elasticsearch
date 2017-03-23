@@ -20,22 +20,18 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 
-import java.util.Collections;
 import java.util.Map;
+import java.util.function.Function;
 
 public class InternalTemplateService implements TemplateService {
 
-    private final ScriptService scriptService;
+    private final org.elasticsearch.script.TemplateService templateService;
 
-    InternalTemplateService(ScriptService scriptService) {
-        this.scriptService = scriptService;
+    InternalTemplateService(org.elasticsearch.script.TemplateService templateService) {
+        this.templateService = templateService;
     }
 
     @Override
@@ -43,17 +39,12 @@ public class InternalTemplateService implements TemplateService {
         int mustacheStart = template.indexOf("{{");
         int mustacheEnd = template.indexOf("}}");
         if (mustacheStart != -1 && mustacheEnd != -1 && mustacheStart < mustacheEnd) {
-            Script script = new Script(ScriptType.INLINE, "mustache", template, Collections.emptyMap());
-            CompiledScript compiledScript = scriptService.compile(script, ScriptContext.Standard.INGEST);
+            Function<Map<String, Object>, BytesReference> compiled = templateService.template(
+                    template, ScriptType.INLINE, ScriptContext.Standard.INGEST);
             return new Template() {
                 @Override
                 public String execute(Map<String, Object> model) {
-                    ExecutableScript executableScript = scriptService.executable(compiledScript, model);
-                    Object result = executableScript.run();
-                    if (result instanceof BytesReference) {
-                        return ((BytesReference) result).utf8ToString();
-                    }
-                    return String.valueOf(result);
+                    return compiled.apply(model).utf8ToString();
                 }
 
                 @Override

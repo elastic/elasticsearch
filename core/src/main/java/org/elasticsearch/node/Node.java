@@ -335,8 +335,10 @@ public class Node implements Closeable {
             clusterService.addListener(scriptModule.getScriptService()); // NOCOMMIT why not do this in the service's ctor?
             clusterService.addListener(scriptModule.getTemplateService());
             resourcesToClose.add(clusterService);
-            final IngestService ingestService = new IngestService(settings, threadPool, this.environment,
-                scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(), pluginsService.filterPlugins(IngestPlugin.class));
+            final IngestService ingestService = new IngestService(settings, threadPool,
+                    this.environment, scriptModule.getTemplateService(),
+                    scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(),
+                    pluginsService.filterPlugins(IngestPlugin.class));
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
 
             ModulesBuilder modules = new ModulesBuilder();

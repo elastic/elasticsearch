@@ -51,6 +51,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
 public class ScriptService extends AbstractComponent implements Closeable, ClusterStateListener {
@@ -126,8 +127,15 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
             @Override
             protected StoredScriptSource lookupStoredScript(ClusterState clusterState, CacheKey cacheKey) {
-                ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
-                if (scriptMetadata == null) {
+                if (clusterState == null) {
+                    return null;
+                }
+                MetaData metaData = clusterState.metaData();
+                if (metaData == null) {
+                    return null;
+                }
+                ScriptMetaData scriptMetaData = clusterState.metaData().custom(ScriptMetaData.TYPE);
+                if (scriptMetaData == null) {
                     return null;
                 }
                 
@@ -155,7 +163,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     throw new IllegalArgumentException("illegal stored script format [" + id + "] use only <id>");
                 }
 
-                return scriptMetadata.getStoredScript(id, cacheKey.lang);
+                return scriptMetaData.getStoredScript(id, cacheKey.lang);
             }
 
             @Override
@@ -362,7 +370,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         private CacheKey(String lang, String idOrCode, Map<String, String> options) {
             this.lang = lang;
             this.idOrCode = idOrCode;
-            this.options = options;
+            this.options = options == null ? emptyMap() : options;
         }
 
         @Override
@@ -374,7 +382,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
             if (lang != null ? !lang.equals(cacheKey.lang) : cacheKey.lang != null) return false;
             if (!idOrCode.equals(cacheKey.idOrCode)) return false;
-            return options != null ? options.equals(cacheKey.options) : cacheKey.options == null;
+            return options.equals(cacheKey.options);
 
         }
 
@@ -382,14 +390,14 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         public int hashCode() {
             int result = lang != null ? lang.hashCode() : 0;
             result = 31 * result + idOrCode.hashCode();
-            result = 31 * result + (options != null ? options.hashCode() : 0);
+            result = 31 * result + options.hashCode();
             return result;
         }
 
         @Override
         public String toString() {
             String result = "lang=" + lang + ", id=" + idOrCode;
-            if (options != null) {
+            if (false == options.isEmpty()) {
                 result += ", options " + options; 
             }
             return result;

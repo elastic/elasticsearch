@@ -34,14 +34,15 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.TemplateService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Collections;
+import java.util.Map;
+import java.util.function.Function;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.script.ScriptContext.Standard.SEARCH;
 
 public class TransportSearchTemplateAction extends HandledTransportAction<SearchTemplateRequest, SearchTemplateResponse> {
@@ -65,8 +66,11 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     protected void doExecute(SearchTemplateRequest request, ActionListener<SearchTemplateResponse> listener) {
         final SearchTemplateResponse response = new SearchTemplateResponse();
         try {
-            BytesReference source = templateService.render(request.getScript(), request.getScriptType(), SEARCH,
-                    request.getScriptParams() == null ? Collections.emptyMap() : request.getScriptParams());
+            Function<Map<String, Object>, BytesReference> template =
+                    templateService.template(request.getScript(), request.getScriptType(), SEARCH);
+            Map<String, Object> params =
+                    request.getScriptParams() == null ? emptyMap() : request.getScriptParams();
+            BytesReference source = template.apply(params);
             response.setSource(source);
 
             if (request.isSimulate()) {

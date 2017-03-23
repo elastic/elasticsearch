@@ -21,12 +21,10 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
@@ -107,9 +105,14 @@ public class QueryRewriteContext {
         return nowInMillis.getAsLong();
     }
 
-    public BytesReference getTemplateBytes(Script template) {
-        return templateService.render(template.getIdOrCode(), template.getType(), ScriptContext.Standard.SEARCH,
-                template.getParams());
+    public BytesReference getTemplateBytes(Script template) { // TODO remove this and use getTemplateService directly
+        return templateService
+                .template(template.getIdOrCode(), template.getType(), ScriptContext.Standard.SEARCH)
+                .apply(template.getParams());
+    }
+
+    public ScriptService getScriptService() {
+        return scriptService;
     }
 
     public TemplateService getTemplateService() {

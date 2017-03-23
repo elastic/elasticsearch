@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -34,11 +35,12 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 
 public class TemplateService implements ClusterStateListener {
-    public interface Backend extends ScriptEngineService {} // NOCOMMIT this should diverge....
+    public interface Backend extends ScriptEngineService {} // TODO customize this for templates
 
     private static final Logger logger = ESLoggerFactory.getLogger(TemplateService.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
@@ -74,8 +76,15 @@ public class TemplateService implements ClusterStateListener {
             @Override
             protected StoredScriptSource lookupStoredScript(ClusterState clusterState,
                     String cacheKey) {
-                ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
-                if (scriptMetadata == null) {
+                if (clusterState == null) {
+                    return null;
+                }
+                MetaData metaData = clusterState.metaData();
+                if (metaData == null) {
+                    return null;
+                }
+                ScriptMetaData scriptMetaData = clusterState.metaData().custom(ScriptMetaData.TYPE);
+                if (scriptMetaData == null) {
                     return null;
                 }
 
@@ -96,7 +105,7 @@ public class TemplateService implements ClusterStateListener {
                             + "] use only <id>");
                 }
 
-                return scriptMetadata.getStoredScript(id, "mustache");
+                return scriptMetaData.getStoredScript(id, backend.getExtension());
             }
 
             @Override
@@ -141,14 +150,22 @@ public class TemplateService implements ClusterStateListener {
         };
     }
 
-    public BytesReference render(String idOrCode, ScriptType scriptType,
-            ScriptContext scriptContext, Map<String, Object> scriptParams) {
-        BytesReference b = (BytesReference) backend
-                .executable(compiler.getScript(idOrCode, scriptType, scriptContext), scriptParams)
-                .run();
-        ESLoggerFactory.getLogger(TemplateService.class).warn("ASDFASDF rendered [{}]",
-                b.utf8ToString());
-        return b;
+    /**
+     * Lookup and/or compile a template.
+     *
+     * @param idOrCode template to look up and/or compile
+     * @param type whether to compile ({link ScriptType#INLINE}), lookup from cluster state
+     *        ({@link ScriptType#STORED}), or lookup from disk ({@link ScriptType#FILE})
+     * @param context context in which the template is being run
+     * @return the template
+     */
+    public Function<Map<String, Object>, BytesReference> template(String idOrCode,
+            ScriptType type, ScriptContext context) {
+        CompiledScript compiled = compiler.getScript(idOrCode, type, context);
+        return params -> {
+            ExecutableScript executable = backend.executable(compiled, params);
+            return (BytesReference) executable.run();
+        };
     }
 
     /**

@@ -499,6 +499,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return scriptService;
     }
 
+    /**
+     * The {@link TemplateService} to use for this index.
+     */
+    public TemplateService getTemplateService() {
+        return null;
+    }
+
     List<IndexingOperationListener> getIndexOperationListeners() { // pkg private for testing
         return indexingOperationListeners;
     }

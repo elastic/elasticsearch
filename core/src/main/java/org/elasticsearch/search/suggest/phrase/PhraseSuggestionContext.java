@@ -22,9 +22,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
@@ -54,7 +53,7 @@ class PhraseSuggestionContext extends SuggestionContext {
     private boolean requireUnigram = DEFAULT_REQUIRE_UNIGRAM;
     private BytesRef preTag;
     private BytesRef postTag;
-    private Function<Map<String, Object>, ExecutableScript>  collateQueryScript;
+    private Function<Map<String, Object>, BytesReference> collateQuery;
     private boolean prune = DEFAULT_COLLATE_PRUNE;
     private List<DirectCandidateGenerator> generators = new ArrayList<>();
     private Map<String, Object> collateScriptParams = new HashMap<>(1);
@@ -194,12 +193,12 @@ class PhraseSuggestionContext extends SuggestionContext {
         return postTag;
     }
 
-    Function<Map<String, Object>, ExecutableScript> getCollateQueryScript() {
-        return collateQueryScript;
+    Function<Map<String, Object>, BytesReference> getCollateQuery() {
+        return collateQuery;
     }
 
-    void setCollateQueryScript( Function<Map<String, Object>, ExecutableScript>  collateQueryScript) {
-        this.collateQueryScript = collateQueryScript;
+    void setCollateQuery(Function<Map<String, Object>, BytesReference> collateQuery) {
+        this.collateQuery = collateQuery;
     }
 
     Map<String, Object> getCollateScriptParams() {

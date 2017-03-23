@@ -356,13 +356,14 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /**
-     * Returns a lazily created {@link ExecutableScript} that is compiled immediately but can be pulled later once all
-     * parameters are available.
+     * Returns {@link Function} representing a script that is compiled immediately but can be pulled
+     * later once all parameters are available.
      */
-    public final Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(Script script, ScriptContext context) {
+    public final Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(
+            Script script, ScriptContext context) {
         failIfFrozen();
         CompiledScript executable = scriptService.compile(script, context);
-        return (p) ->  scriptService.executable(executable, p);
+        return (p) -> scriptService.executable(executable, p);
     }
 
     /**

@@ -22,7 +22,6 @@ package org.elasticsearch.search.suggest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.ReduceSearchPhaseException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -34,8 +33,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.TemplateService;
+import org.elasticsearch.script.TemplateService.Backend;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder;
 import org.elasticsearch.search.suggest.phrase.Laplace;
@@ -1112,12 +1112,12 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
     public static class DummyTemplatePlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngineService getScriptEngineService(Settings settings) {
+        public Backend getTemplateBackend() {
             return new DummyTemplateScriptEngine();
         }
     }
 
-    public static class DummyTemplateScriptEngine implements ScriptEngineService {
+    public static class DummyTemplateScriptEngine implements TemplateService.Backend {
 
         // The collate query setter is hard coded to use mustache, so lets lie in this test about the script plugin,
         // which makes the collate code thinks mustache is evaluating the query.

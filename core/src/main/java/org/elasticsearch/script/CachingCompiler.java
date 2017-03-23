@@ -101,7 +101,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
                 cacheExpire);
         this.cache = cacheBuilder.removalListener(new CacheRemovalListener()).build();
 
-        // add file watcher for file scripts
+        // add file watcher for file scripts and templates
         scriptsDirectory = env.scriptsFile();
         if (logger.isTraceEnabled()) {
             logger.trace("Using scripts directory [{}] ", scriptsDirectory);
@@ -198,7 +198,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
                 // TODO: remove this try-catch when all script engines have good exceptions!
                 throw good; // its already good
             } catch (Exception exception) {
-                throw new GeneralScriptException("Failed to compile " + cacheKey, exception);
+                throw new GeneralScriptException("Failed to compile [" + cacheKey + "]", exception);
             }
             scriptMetrics.onCompilation();
             cache.put(cacheKey, compiledScript);
@@ -211,7 +211,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
 
         if (source == null) {
             throw new ResourceNotFoundException(
-                    "unable to find script [" + cacheKey + "] in cluster state");
+                    "unable to find " + type + " [" + cacheKey + "] in cluster state");
         }
         return cacheKeyFromClusterState(source);
     }

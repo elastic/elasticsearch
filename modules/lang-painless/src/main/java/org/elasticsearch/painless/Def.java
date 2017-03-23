@@ -284,7 +284,8 @@ public final class Def {
                  if (signature.charAt(0) == 'S') {
                      // the implementation is strongly typed, now that we know the interface type,
                      // we have everything.
-                     filter = lookupReferenceInternal(lookup,
+                     filter = lookupReferenceInternal(definition,
+                                                      lookup,
                                                       interfaceType,
                                                       type,
                                                       call,
@@ -322,21 +323,23 @@ public final class Def {
       * This is just like LambdaMetaFactory, only with a dynamic type. The interface type is known,
       * so we simply need to lookup the matching implementation method based on receiver type.
       */
-     static MethodHandle lookupReference(Definition definition, Lookup lookup, String interfaceClass, 
-                                         Class<?> receiverClass, String name) throws Throwable {
-         Definition.Type interfaceType = Definition.getType(interfaceClass);
+    static MethodHandle lookupReference(Definition definition, Lookup lookup, String interfaceClass,
+            Class<?> receiverClass, String name) throws Throwable {
+         Definition.Type interfaceType = definition.getType(interfaceClass);
          Method interfaceMethod = interfaceType.struct.getFunctionalMethod();
          if (interfaceMethod == null) {
              throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
          }
          int arity = interfaceMethod.arguments.size();
          Method implMethod = lookupMethodInternal(definition, receiverClass, name, arity);
-         return lookupReferenceInternal(lookup, interfaceType, implMethod.owner.name, implMethod.name, receiverClass);
+        return lookupReferenceInternal(definition, lookup, interfaceType, implMethod.owner.name,
+                implMethod.name, receiverClass);
      }
      
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
-     private static MethodHandle lookupReferenceInternal(Lookup lookup, Definition.Type clazz, String type,
-                                                         String call, Class<?>... captures) throws Throwable {
+    private static MethodHandle lookupReferenceInternal(Definition definition, Lookup lookup,
+            Definition.Type clazz, String type, String call, Class<?>... captures)
+            throws Throwable {
          final FunctionRef ref;
          if ("this".equals(type)) {
              // user written method
@@ -364,7 +367,7 @@ public final class Def {
              ref = new FunctionRef(clazz, interfaceMethod, handle, captures.length);
          } else {
              // whitelist lookup
-             ref = new FunctionRef(clazz, type, call, captures.length);
+             ref = new FunctionRef(definition, clazz, type, call, captures.length);
          }
          final CallSite callSite;
          if (ref.needsBridges()) {

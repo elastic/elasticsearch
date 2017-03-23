@@ -63,7 +63,7 @@ public final class ENewArray extends AExpression {
         final Type type;
 
         try {
-            type = Definition.getType(this.type);
+            type = locals.getDefinition().getType(this.type);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }

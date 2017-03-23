@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Globals;
@@ -149,11 +150,11 @@ public final class SSource extends AStatement {
         throw new IllegalStateException("Illegal tree structure.");
     }
 
-    public void analyze() {
+    public void analyze(Definition definition) {
         Map<MethodKey, Method> methods = new HashMap<>();
 
         for (SFunction function : functions) {
-            function.generateSignature();
+            function.generateSignature(definition);
 
             MethodKey key = new MethodKey(function.name, function.parameters.size());
 
@@ -162,7 +163,7 @@ public final class SSource extends AStatement {
             }
         }
 
-        analyze(Locals.newProgramScope(methods.values()));
+        analyze(Locals.newProgramScope(definition, methods.values()));
     }
 
     @Override

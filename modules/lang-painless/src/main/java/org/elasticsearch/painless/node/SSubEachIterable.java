@@ -26,7 +26,6 @@ import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
@@ -72,7 +71,8 @@ final class SSubEachIterable extends AStatement {
     void analyze(Locals locals) {
         // We must store the iterator as a variable for securing a slot on the stack, and
         // also add the location offset to make the name unique in case of nested for each loops.
-        iterator = locals.addVariable(location, Definition.getType("Iterator"), "#itr" + location.getOffset(), true);
+        iterator = locals.addVariable(location, locals.getDefinition().getType("Iterator"),
+                "#itr" + location.getOffset(), true);
 
         if (expression.actual.sort == Sort.DEF) {
             method = null;
@@ -95,8 +95,8 @@ final class SSubEachIterable extends AStatement {
         expression.write(writer, globals);
 
         if (method == null) {
-            Type itr = Definition.getType("Iterator");
-            org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(itr.type, Definition.DEF_TYPE.type);
+            org.objectweb.asm.Type methodType = org.objectweb.asm.Type
+                    .getMethodType(Definition.ITERATOR_TYPE.type, Definition.DEF_TYPE.type);
             writer.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
         } else {
             method.write(writer);

@@ -65,7 +65,7 @@ public final class EMapInit extends AExpression {
         }
 
         try {
-            actual = Definition.getType("HashMap");
+            actual = locals.getDefinition().getType("HashMap"); // NOCOMMIT move to Definition.java
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }

@@ -59,7 +59,7 @@ public final class EListInit extends AExpression {
         }
 
         try {
-            actual = Definition.getType("ArrayList");
+            actual = locals.getDefinition().getType("ArrayList"); // NOCOMMIT move me to Definition.java
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }

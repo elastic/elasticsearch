@@ -66,35 +66,36 @@ public final class Definition {
                       "joda.time.txt"));
 
     /**
-     * Singleton instance of the whitelist. This will be removed in the future so we can support context specific whitelists.
+     * Whitelist that is "built in" to Painless and required by all scripts.
      */
-    public static final Definition INSTANCE = new Definition();
+    public static final Definition INSTANCE = new Definition(); // NOCOMMIT rename me to builtin or something
 
     /** Some native types as constants: */
-    public static final Type VOID_TYPE = getType("void");
-    public static final Type BOOLEAN_TYPE = getType("boolean");
-    public static final Type BOOLEAN_OBJ_TYPE = getType("Boolean");
-    public static final Type BYTE_TYPE = getType("byte");
-    public static final Type BYTE_OBJ_TYPE = getType("Byte");
-    public static final Type SHORT_TYPE = getType("short");
-    public static final Type SHORT_OBJ_TYPE = getType("Short");
-    public static final Type INT_TYPE = getType("int");
-    public static final Type INT_OBJ_TYPE = getType("Integer");
-    public static final Type LONG_TYPE = getType("long");
-    public static final Type LONG_OBJ_TYPE = getType("Long");
-    public static final Type FLOAT_TYPE = getType("float");
-    public static final Type FLOAT_OBJ_TYPE = getType("Float");
-    public static final Type DOUBLE_TYPE = getType("double");
-    public static final Type DOUBLE_OBJ_TYPE = getType("Double");
-    public static final Type CHAR_TYPE = getType("char");
-    public static final Type CHAR_OBJ_TYPE = getType("Character");
-    public static final Type OBJECT_TYPE = getType("Object");
-    public static final Type DEF_TYPE = getType("def");
-    public static final Type NUMBER_TYPE = getType("Number");
-    public static final Type STRING_TYPE = getType("String");
-    public static final Type EXCEPTION_TYPE = getType("Exception");
-    public static final Type PATTERN_TYPE = getType("Pattern");
-    public static final Type MATCHER_TYPE = getType("Matcher");
+    public static final Type VOID_TYPE = INSTANCE.getType("void");
+    public static final Type BOOLEAN_TYPE = INSTANCE.getType("boolean");
+    public static final Type BOOLEAN_OBJ_TYPE = INSTANCE.getType("Boolean");
+    public static final Type BYTE_TYPE = INSTANCE.getType("byte");
+    public static final Type BYTE_OBJ_TYPE = INSTANCE.getType("Byte");
+    public static final Type SHORT_TYPE = INSTANCE.getType("short");
+    public static final Type SHORT_OBJ_TYPE = INSTANCE.getType("Short");
+    public static final Type INT_TYPE = INSTANCE.getType("int");
+    public static final Type INT_OBJ_TYPE = INSTANCE.getType("Integer");
+    public static final Type LONG_TYPE = INSTANCE.getType("long");
+    public static final Type LONG_OBJ_TYPE = INSTANCE.getType("Long");
+    public static final Type FLOAT_TYPE = INSTANCE.getType("float");
+    public static final Type FLOAT_OBJ_TYPE = INSTANCE.getType("Float");
+    public static final Type DOUBLE_TYPE = INSTANCE.getType("double");
+    public static final Type DOUBLE_OBJ_TYPE = INSTANCE.getType("Double");
+    public static final Type CHAR_TYPE = INSTANCE.getType("char");
+    public static final Type CHAR_OBJ_TYPE = INSTANCE.getType("Character");
+    public static final Type OBJECT_TYPE = INSTANCE.getType("Object");
+    public static final Type DEF_TYPE = INSTANCE.getType("def");
+    public static final Type NUMBER_TYPE = INSTANCE.getType("Number");
+    public static final Type STRING_TYPE = INSTANCE.getType("String");
+    public static final Type EXCEPTION_TYPE = INSTANCE.getType("Exception");
+    public static final Type PATTERN_TYPE = INSTANCE.getType("Pattern");
+    public static final Type MATCHER_TYPE = INSTANCE.getType("Matcher");
+    public static final Type ITERATOR_TYPE = INSTANCE.getType("Iterator");
 
     public enum Sort {
         VOID(       void.class      , Void.class      , null          , 0 , true  , false , false , false ),
@@ -490,19 +491,8 @@ public final class Definition {
         return INSTANCE.structsMap.containsKey(name);
     }
 
-    /** Returns whether or not a type exists without an exception. */
-    public static boolean isType(final String name) {
-        try {
-            INSTANCE.getTypeInternal(name);
-
-            return true;
-        } catch (IllegalArgumentException exception) {
-            return false;
-        }
-    }
-
     /** Gets the type given by its name */
-    public static Type getType(final String name) {
+    public Type getType(final String name) {
         return INSTANCE.getTypeInternal(name);
     }
 

@@ -106,7 +106,7 @@ final class Compiler {
         SSource root = Walker.buildPainlessTree(scriptInterface, name, source, settings, definition,
                 null);
 
-        root.analyze();
+        root.analyze(definition);
         root.write();
 
         try {
@@ -140,7 +140,7 @@ final class Compiler {
         SSource root = Walker.buildPainlessTree(scriptInterface, name, source, settings, definition,
                 debugStream);
 
-        root.analyze();
+        root.analyze(definition);
         root.write();
 
         return root.getBytes();

@@ -60,7 +60,7 @@ public final class Locals {
      */
     public static Locals newLambdaScope(Locals programScope, Type returnType, List<Parameter> parameters,
                                         int captureCount, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, returnType, KEYWORDS);
+        Locals locals = new Locals(programScope, programScope.definition, returnType, KEYWORDS);
         for (int i = 0; i < parameters.size(); i++) {
             Parameter parameter = parameters.get(i);
             // TODO: allow non-captures to be r/w:
@@ -79,7 +79,7 @@ public final class Locals {
 
     /** Creates a new function scope inside the current scope */
     public static Locals newFunctionScope(Locals programScope, Type returnType, List<Parameter> parameters, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, returnType, KEYWORDS);
+        Locals locals = new Locals(programScope, programScope.definition, returnType, KEYWORDS);
         for (Parameter parameter : parameters) {
             locals.addVariable(parameter.location, parameter.type, parameter.name, false);
         }
@@ -92,9 +92,10 @@ public final class Locals {
 
     /** Creates a new main method scope */
     public static Locals newMainMethodScope(ScriptInterface scriptInterface, Locals programScope, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, scriptInterface.getExecuteMethodReturnType(), KEYWORDS);
+        Locals locals = new Locals(programScope, programScope.definition,
+                scriptInterface.getExecuteMethodReturnType(), KEYWORDS);
         // This reference. Internal use only.
-        locals.defineVariable(null, Definition.getType("Object"), THIS, true);
+        locals.defineVariable(null, programScope.definition.getType("Object"), THIS, true);
 
         // Method arguments
         for (MethodArgument arg : scriptInterface.getExecuteArguments()) {
@@ -109,8 +110,8 @@ public final class Locals {
     }
 
     /** Creates a new program scope: the list of methods. It is the parent for all methods */
-    public static Locals newProgramScope(Collection<Method> methods) {
-        Locals locals = new Locals(null, null, null);
+    public static Locals newProgramScope(Definition definition, Collection<Method> methods) {
+        Locals locals = new Locals(null, definition, null, null);
         for (Method method : methods) {
             locals.addMethod(method);
         }
@@ -178,8 +179,17 @@ public final class Locals {
         return locals;
     }
 
+    /** Whitelist against which this script is being compiled. */
+    public Definition getDefinition() {
+        return definition;
+    }
+
     ///// private impl
 
+    /**
+     * Whitelist against which this script is compiled.
+     */
+    private final Definition definition;
     // parent scope
     private final Locals parent;
     // return type of this scope
@@ -197,14 +207,15 @@ public final class Locals {
      * Create a new Locals
      */
     private Locals(Locals parent) {
-        this(parent, parent.returnType, parent.keywords);
+        this(parent, parent.definition, parent.returnType, parent.keywords);
     }
 
     /**
      * Create a new Locals with specified return type
      */
-    private Locals(Locals parent, Type returnType, Set<String> keywords) {
+    private Locals(Locals parent, Definition definition, Type returnType, Set<String> keywords) {
         this.parent = parent;
+        this.definition = definition;
         this.returnType = returnType;
         this.keywords = keywords;
         if (parent == null) {

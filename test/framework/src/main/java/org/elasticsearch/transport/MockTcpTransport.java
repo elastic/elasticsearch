@@ -243,14 +243,17 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
 
     @Override
     protected void sendMessage(MockChannel mockChannel, BytesReference reference, Runnable sendListener) throws IOException {
-        synchronized (mockChannel) {
-            final Socket socket = mockChannel.activeChannel;
-            OutputStream outputStream = new BufferedOutputStream(socket.getOutputStream());
-            reference.writeTo(outputStream);
-            outputStream.flush();
-        }
-        if (sendListener != null) {
-            sendListener.run();
+        try {
+            synchronized (mockChannel) {
+                final Socket socket = mockChannel.activeChannel;
+                OutputStream outputStream = new BufferedOutputStream(socket.getOutputStream());
+                reference.writeTo(outputStream);
+                outputStream.flush();
+            }
+        } finally {
+            if (sendListener != null) {
+                sendListener.run();
+            }
         }
     }
 

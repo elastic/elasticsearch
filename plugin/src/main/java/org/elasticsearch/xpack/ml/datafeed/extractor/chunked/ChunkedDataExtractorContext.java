@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
 import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.util.List;
@@ -21,10 +22,10 @@ class ChunkedDataExtractorContext {
     final int scrollSize;
     final long start;
     final long end;
-    final Long chunkSpan;
+    final TimeValue chunkSpan;
 
     ChunkedDataExtractorContext(String jobId, String timeField, List<String> indexes, List<String> types,
-                                QueryBuilder query, int scrollSize, long start, long end, @Nullable Long chunkSpan) {
+                                QueryBuilder query, int scrollSize, long start, long end, @Nullable TimeValue chunkSpan) {
         this.jobId = Objects.requireNonNull(jobId);
         this.timeField = Objects.requireNonNull(timeField);
         this.indexes = indexes.toArray(new String[indexes.size()]);

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
@@ -29,11 +30,11 @@ public class ChunkingConfigTests extends AbstractSerializingTestCase<ChunkingCon
     }
 
     public void testConstructorGivenAutoAndTimeSpan() {
-        expectThrows(IllegalArgumentException.class, () ->new ChunkingConfig(ChunkingConfig.Mode.AUTO, 1000L));
+        expectThrows(IllegalArgumentException.class, () ->new ChunkingConfig(ChunkingConfig.Mode.AUTO, TimeValue.timeValueMillis(1000)));
     }
 
     public void testConstructorGivenOffAndTimeSpan() {
-        expectThrows(IllegalArgumentException.class, () ->new ChunkingConfig(ChunkingConfig.Mode.OFF, 1000L));
+        expectThrows(IllegalArgumentException.class, () ->new ChunkingConfig(ChunkingConfig.Mode.OFF, TimeValue.timeValueMillis(1000)));
     }
 
     public void testConstructorGivenManualAndNoTimeSpan() {
@@ -42,18 +43,15 @@ public class ChunkingConfigTests extends AbstractSerializingTestCase<ChunkingCon
 
     public void testIsEnabled() {
         assertThat(ChunkingConfig.newAuto().isEnabled(), is(true));
-        assertThat(ChunkingConfig.newManual(1000).isEnabled(), is(true));
+        assertThat(ChunkingConfig.newManual(TimeValue.timeValueMillis(1000)).isEnabled(), is(true));
         assertThat(ChunkingConfig.newOff().isEnabled(), is(false));
     }
 
     public static ChunkingConfig createRandomizedChunk() {
         ChunkingConfig.Mode mode = randomFrom(ChunkingConfig.Mode.values());
-        Long timeSpan = null;
+        TimeValue timeSpan = null;
         if (mode == ChunkingConfig.Mode.MANUAL) {
-            timeSpan = randomNonNegativeLong();
-            if (timeSpan == 0L) {
-                timeSpan = 1L;
-            }
+            timeSpan = TimeValue.parseTimeValue(randomPositiveTimeValue(), "test");
         }
         return new ChunkingConfig(mode, timeSpan);
      }

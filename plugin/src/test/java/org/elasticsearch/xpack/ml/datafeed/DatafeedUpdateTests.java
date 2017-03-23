@@ -129,7 +129,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         update.setScriptFields(Arrays.asList(new SearchSourceBuilder.ScriptField("a", new Script("b"), false)));
         update.setScrollSize(8000);
         update.setSource(true);
-        update.setChunkingConfig(ChunkingConfig.newManual(3600L));
+        update.setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)));
 
         DatafeedConfig updatedDatafeed = update.build().apply(datafeed);
 
@@ -144,7 +144,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                 equalTo(Arrays.asList(new SearchSourceBuilder.ScriptField("a", new Script("b"), false))));
         assertThat(updatedDatafeed.getScrollSize(), equalTo(8000));
         assertThat(updatedDatafeed.isSource(), is(true));
-        assertThat(updatedDatafeed.getChunkingConfig(), equalTo(ChunkingConfig.newManual(3600L)));
+        assertThat(updatedDatafeed.getChunkingConfig(), equalTo(ChunkingConfig.newManual(TimeValue.timeValueHours(1))));
     }
 
     public void testApply_givenAggregations() {

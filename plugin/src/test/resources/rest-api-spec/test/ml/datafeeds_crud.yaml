@@ -271,11 +271,11 @@ setup:
             "job_id":"job-1",
             "indexes":["index-foo"],
             "types":["type-bar"],
-            "chunking_config": {"mode":"manual","time_span": 3600}
+            "chunking_config": {"mode":"manual","time_span": "1h"}
           }
   - match: { datafeed_id: "test-datafeed-1" }
   - match: { chunking_config.mode: "manual" }
-  - match: { chunking_config.time_span: 3600 }
+  - match: { chunking_config.time_span: "1h" }
 
 ---
 "Test delete datafeed":

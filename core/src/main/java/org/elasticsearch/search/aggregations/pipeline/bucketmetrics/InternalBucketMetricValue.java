@@ -97,9 +97,9 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         boolean hasValue = !Double.isInfinite(value);
-        builder.field(CommonFields.VALUE, hasValue ? value : null);
+        builder.field(CommonFields.VALUE.getPreferredName(), hasValue ? value : null);
         if (hasValue && format != DocValueFormat.RAW) {
-            builder.field(CommonFields.VALUE_AS_STRING, format.format(value));
+            builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value));
         }
         builder.startArray("keys");
         for (String key : keys) {

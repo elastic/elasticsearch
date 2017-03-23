@@ -104,7 +104,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         maxScriptSizeInBytes = ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.get(settings);
         this.scriptMetrics = scriptMetrics;
         this.scriptPermits = new ScriptPermits(settings, scriptSettings, scriptContextRegistry);
-        this.compiler = new CachingCompiler<CacheKey>(settings, scriptSettings, env, resourceWatcherService, scriptMetrics) {
+        this.compiler = new CachingCompiler<CacheKey>(settings, scriptSettings, env, resourceWatcherService, scriptMetrics, "script") {
             @Override
             protected CacheKey cacheKeyForFile(String baseName, String extension) {
                 if (extension.equals("mustache")) {
@@ -388,11 +388,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         @Override
         public String toString() {
-            String result = "[lang=" + lang + ", id=" + idOrCode;
+            String result = "lang=" + lang + ", id=" + idOrCode;
             if (options != null) {
                 result += ", options " + options; 
             }
-            return result + "]";
+            return result;
         }
     }
 }

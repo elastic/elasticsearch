@@ -76,13 +76,16 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
 
     private final ScriptMetrics scriptMetrics;
 
+    private final String type;
+
     private volatile ClusterState clusterState;
 
     public CachingCompiler(Settings settings, ScriptSettings scriptSettings, Environment env,
-            ResourceWatcherService resourceWatcherService, ScriptMetrics scriptMetrics)
+            ResourceWatcherService resourceWatcherService, ScriptMetrics scriptMetrics, String type)
             throws IOException {
         int cacheMaxSize = ScriptService.SCRIPT_CACHE_SIZE_SETTING.get(settings);
         this.scriptMetrics = scriptMetrics;
+        this.type = type;
 
         CacheBuilder<CacheKeyT, CompiledScript> cacheBuilder = CacheBuilder.builder();
         if (cacheMaxSize >= 0) {
@@ -149,8 +152,6 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
 
     public final CompiledScript getScript(CacheKeyT cacheKey, ScriptType scriptType,
             ScriptContext scriptContext) {
-        ESLoggerFactory.getLogger(QueryRewriteContext.class).warn("ASDFASDF get {} {}", cacheKey,
-                scriptType);
         Objects.requireNonNull(cacheKey);
 
         // First resolve stored scripts so so we have accurate parameters for checkCanExecuteScript
@@ -165,10 +166,9 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
         if (scriptType == ScriptType.FILE) {
             CompiledScript compiled = fileScripts.get(cacheKey);
             if (compiled == null) {
-                throw new IllegalArgumentException("unable to find file script " + cacheKey);
+                throw new IllegalArgumentException("unable to find file " + type
+                        + " [" + cacheKey + "]");
             }
-            ESLoggerFactory.getLogger(QueryRewriteContext.class).warn("ASDFASDF got file {}",
-                    compiled);
             return compiled;
         }
 

@@ -149,8 +149,9 @@
         body: {  "id" : "1", "params" : { "my_value" : "value1_foo", "my_size" : 1 } }
   - match: { hits.total: 1 }
 
+---
+"Missing file template":
   - do:
-      catch: /unable.to.find.file.script.\[simple1\].using.lang.\[mustache\]/
+      catch: /unable.to.find.file.template.\[missing\]/
       search_template:
-        body: { "file" : "simple1"}
-
+        body: { "file" : "missing"}

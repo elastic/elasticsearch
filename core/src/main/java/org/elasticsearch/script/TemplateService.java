@@ -55,12 +55,12 @@ public class TemplateService implements ClusterStateListener {
         this.backend = backend;
         this.scriptPermits = new ScriptPermits(settings, scriptSettings, scriptContextRegistry);
         this.compiler = new CachingCompiler<String>(settings, scriptSettings, env,
-                resourceWatcherService, scriptMetrics) {
+                resourceWatcherService, scriptMetrics, "template") {
             @Override
             protected String cacheKeyForFile(String baseName, String extension) {
                 if (false == backend.getType().equals(extension)) {
                     /* For backwards compatibility templates are in the scripts directory and we
-                     * must ignore all other templates. */
+                     * must ignore everything but templates. */
                     return null;
                 }
                 return baseName;
@@ -88,15 +88,13 @@ public class TemplateService implements ClusterStateListener {
                 if (path.length == 3) {
                     id = path[2];
 
-                    deprecationLogger
-                            .deprecated("use of </lang/id> [" + cacheKey + "] for looking up"
-                                    + " stored scripts/templates has been deprecated, use only"
-                                    + " <id> [" + id + "] instead");
-                } else
-                    if (path.length != 1) {
-                        throw new IllegalArgumentException(
-                                "illegal stored script format [" + id + "] use only <id>");
-                    }
+                    deprecationLogger.deprecated("use of </lang/id> [{}] for looking up stored "
+                            + "scripts/templates has been deprecated, use only <id> [{}] instead",
+                            cacheKey, id);
+                } else if (path.length != 1) {
+                    throw new IllegalArgumentException( "illegal stored script format [" + id
+                            + "] use only <id>");
+                }
 
                 return scriptMetadata.getStoredScript(id, "mustache");
             }
@@ -136,7 +134,7 @@ public class TemplateService implements ClusterStateListener {
 
             @Override
             protected CompiledScript compileFileScript(String cacheKey, String body, Path file) {
-                Object compiled = backend.compile(file.getFileName().toString(), cacheKey,
+                Object compiled = backend.compile(file.getFileName().toString(), body,
                         emptyMap());
                 return new CompiledScript(ScriptType.FILE, body, backend.getType(), compiled);
             }

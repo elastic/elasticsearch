@@ -61,6 +61,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(0, responseBody.get("invalid_date_count"));
         assertEquals(0, responseBody.get("missing_field_count"));
         assertEquals(0, responseBody.get("out_of_order_timestamp_count"));
+        assertEquals(1, responseBody.get("bucket_count"));
         assertEquals(1403481600000L, responseBody.get("earliest_record_timestamp"));
         assertEquals(1403481700000L, responseBody.get("latest_record_timestamp"));
 
@@ -85,6 +86,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(0, dataCountsDoc.get("invalid_date_count"));
         assertEquals(0, dataCountsDoc.get("missing_field_count"));
         assertEquals(0, dataCountsDoc.get("out_of_order_timestamp_count"));
+        assertEquals(1, dataCountsDoc.get("bucket_count"));
         assertEquals(1403481600000L, dataCountsDoc.get("earliest_record_timestamp"));
         assertEquals(1403481700000L, dataCountsDoc.get("latest_record_timestamp"));
 
@@ -155,6 +157,107 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
 
         response = client().performRequest("delete", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId);
         assertEquals(200, response.getStatusLine().getStatusCode());
+
+        response = client().performRequest("delete", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+    }
+
+    public void testMiniFarequoteReopen() throws Exception {
+        String jobId = "foo1_again";
+        createFarequoteJob(jobId);
+
+        Response response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        assertEquals(Collections.singletonMap("opened", true), responseEntityToMap(response));
+        assertBusy(this::assertSameClusterStateOnAllNodes);
+
+        String postData =
+                "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n" +
+                "{\"airline\":\"JZA\",\"responsetime\":\"990.4628\",\"sourcetype\":\"farequote\",\"time\":\"1403481700\"}\n" +
+                "{\"airline\":\"JBU\",\"responsetime\":\"877.5927\",\"sourcetype\":\"farequote\",\"time\":\"1403481800\"}\n" +
+                "{\"airline\":\"KLM\",\"responsetime\":\"1355.4812\",\"sourcetype\":\"farequote\",\"time\":\"1403481900\"}\n" +
+                "{\"airline\":\"NKS\",\"responsetime\":\"9991.3981\",\"sourcetype\":\"farequote\",\"time\":\"1403482000\"}";
+        response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data",
+                Collections.emptyMap(),
+                new StringEntity(postData, randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))));
+        assertEquals(202, response.getStatusLine().getStatusCode());
+        Map<String, Object> responseBody = responseEntityToMap(response);
+        assertEquals(5, responseBody.get("processed_record_count"));
+        assertEquals(10, responseBody.get("processed_field_count"));
+        assertEquals(446, responseBody.get("input_bytes"));
+        assertEquals(15, responseBody.get("input_field_count"));
+        assertEquals(0, responseBody.get("invalid_date_count"));
+        assertEquals(0, responseBody.get("missing_field_count"));
+        assertEquals(0, responseBody.get("out_of_order_timestamp_count"));
+        assertEquals(1, responseBody.get("bucket_count"));
+        assertEquals(1403481600000L, responseBody.get("earliest_record_timestamp"));
+        assertEquals(1403482000000L, responseBody.get("latest_record_timestamp"));
+
+        response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_flush");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        assertEquals(Collections.singletonMap("flushed", true), responseEntityToMap(response));
+
+        response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_close",
+                Collections.singletonMap("timeout", "20s"));
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        assertEquals(Collections.singletonMap("closed", true), responseEntityToMap(response));
+
+        response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        
+        response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open",
+                Collections.singletonMap("timeout", "20s"));
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        assertEquals(Collections.singletonMap("opened", true), responseEntityToMap(response));
+        assertBusy(this::assertSameClusterStateOnAllNodes);
+        
+        // feed some more data points
+        postData =
+                "{\"airline\":\"AAL\",\"responsetime\":\"136.2361\",\"sourcetype\":\"farequote\",\"time\":\"1407081600\"}\n" +
+                "{\"airline\":\"VRD\",\"responsetime\":\"282.9847\",\"sourcetype\":\"farequote\",\"time\":\"1407081700\"}\n" +
+                "{\"airline\":\"JAL\",\"responsetime\":\"493.0338\",\"sourcetype\":\"farequote\",\"time\":\"1407081800\"}\n" +
+                "{\"airline\":\"UAL\",\"responsetime\":\"8.4275\",\"sourcetype\":\"farequote\",\"time\":\"1407081900\"}\n" +
+                "{\"airline\":\"FFT\",\"responsetime\":\"221.8693\",\"sourcetype\":\"farequote\",\"time\":\"1407082000\"}";
+        response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_data",
+                Collections.emptyMap(),
+                new StringEntity(postData, randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))));
+        assertEquals(202, response.getStatusLine().getStatusCode());
+        responseBody = responseEntityToMap(response);
+        assertEquals(5, responseBody.get("processed_record_count"));
+        assertEquals(10, responseBody.get("processed_field_count"));
+        assertEquals(442, responseBody.get("input_bytes"));
+        assertEquals(15, responseBody.get("input_field_count"));
+        assertEquals(0, responseBody.get("invalid_date_count"));
+        assertEquals(0, responseBody.get("missing_field_count"));
+        assertEquals(0, responseBody.get("out_of_order_timestamp_count"));
+        assertEquals(1, responseBody.get("bucket_count"));
+        
+        // unintuitive: should return the earliest record timestamp of this feed???
+        assertEquals(null, responseBody.get("earliest_record_timestamp"));
+        assertEquals(1407082000000L, responseBody.get("latest_record_timestamp"));
+        
+        response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_close",
+                Collections.singletonMap("timeout", "20s"));
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        assertEquals(Collections.singletonMap("closed", true), responseEntityToMap(response));
+
+        // counts should be summed up
+        response = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        
+        @SuppressWarnings("unchecked")
+        Map<String, Object> dataCountsDoc = (Map<String, Object>)
+                ((Map)((List) responseEntityToMap(response).get("jobs")).get(0)).get("data_counts");
+        assertEquals(10, dataCountsDoc.get("processed_record_count"));
+        assertEquals(20, dataCountsDoc.get("processed_field_count"));
+        assertEquals(888, dataCountsDoc.get("input_bytes"));
+        assertEquals(30, dataCountsDoc.get("input_field_count"));
+        assertEquals(0, dataCountsDoc.get("invalid_date_count"));
+        assertEquals(0, dataCountsDoc.get("missing_field_count"));
+        assertEquals(0, dataCountsDoc.get("out_of_order_timestamp_count"));
+        assertEquals(2, dataCountsDoc.get("bucket_count"));
+        assertEquals(1403481600000L, dataCountsDoc.get("earliest_record_timestamp"));
+        assertEquals(1407082000000L, dataCountsDoc.get("latest_record_timestamp"));
 
         response = client().performRequest("delete", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
         assertEquals(200, response.getStatusLine().getStatusCode());

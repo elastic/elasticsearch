@@ -9,7 +9,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
-import org.elasticsearch.xpack.ml.job.process.DataStreamDiagnostics;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 
 import java.io.IOException;
@@ -41,7 +40,6 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
 
     private final Logger logger;
     private final DateTransformer dateTransformer;
-    private final DataStreamDiagnostics diagnostics;
     private long latencySeconds;
 
     protected Map<String, Integer> inFieldIndexes;
@@ -60,7 +58,6 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         this.analysisConfig = Objects.requireNonNull(analysisConfig);
         this.dataCountsReporter = Objects.requireNonNull(dataCountsReporter);
         this.logger = Objects.requireNonNull(logger);
-        this.diagnostics = new DataStreamDiagnostics(this.dataCountsReporter, this.analysisConfig, this.logger);
         this.latencySeconds = analysisConfig.getLatency().seconds();
 
         Date date = dataCountsReporter.getLatestRecordTime();
@@ -158,11 +155,8 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         latestEpochMs = Math.max(latestEpochMs, epochMs);
         latestEpochMsThisUpload = latestEpochMs;
 
-        // check record in diagnostics
-        diagnostics.checkRecord(epochMs);
-        
         autodetectProcess.writeRecord(record);
-        dataCountsReporter.reportRecordWritten(numberOfFieldsRead, latestEpochMs);
+        dataCountsReporter.reportRecordWritten(numberOfFieldsRead, epochMs);
 
         return true;
     }

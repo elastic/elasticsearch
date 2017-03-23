@@ -442,6 +442,14 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         this.latestRecordTimeStamp = latestRecordTimeStamp;
     }
 
+    public void updateLatestRecordTimeStamp(Date latestRecordTimeStamp) {
+        if (latestRecordTimeStamp != null &&
+                (this.latestRecordTimeStamp == null ||
+                latestRecordTimeStamp.after(this.latestRecordTimeStamp))) {
+            this.latestRecordTimeStamp = latestRecordTimeStamp;
+        }
+    }
+
     /**
      * The wall clock time the latest record was seen.
      *
@@ -468,7 +476,14 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
         this.latestEmptyBucketTimeStamp = latestEmptyBucketTimeStamp;
     }
     
-    
+    public void updateLatestEmptyBucketTimeStamp(Date latestEmptyBucketTimeStamp) {
+        if (latestEmptyBucketTimeStamp != null &&
+                (this.latestEmptyBucketTimeStamp == null ||
+                latestEmptyBucketTimeStamp.after(this.latestEmptyBucketTimeStamp))) {
+            this.latestEmptyBucketTimeStamp = latestEmptyBucketTimeStamp;
+        }
+    }
+
     /**
      * The time of the latest sparse bucket seen.
      *
@@ -480,6 +495,14 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
 
     public void setLatestSparseBucketTimeStamp(Date latestSparseBucketTimeStamp) {
         this.latestSparseBucketTimeStamp = latestSparseBucketTimeStamp;
+    }
+
+    public void updateLatestSparseBucketTimeStamp(Date latestSparseBucketTimeStamp) {
+        if (latestSparseBucketTimeStamp != null &&
+                (this.latestSparseBucketTimeStamp == null ||
+                latestSparseBucketTimeStamp.after(this.latestSparseBucketTimeStamp))) {
+            this.latestSparseBucketTimeStamp = latestSparseBucketTimeStamp;
+        }
     }
     
     @Override

@@ -256,7 +256,7 @@ public class AutodetectProcessManager extends AbstractComponent {
         Job job = jobManager.getJobOrThrowIfUnknown(jobId);
         // A TP with no queue, so that we fail immediately if there are no threads available
         ExecutorService executorService = threadPool.executor(MachineLearning.AUTODETECT_PROCESS_THREAD_POOL_NAME);
-        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, job.getId(), dataCounts,
+        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, job, dataCounts,
                 jobDataCountsPersister)) {
             ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobProvider, new JobRenormalizedResultsPersister(settings, client),
                     normalizerFactory);

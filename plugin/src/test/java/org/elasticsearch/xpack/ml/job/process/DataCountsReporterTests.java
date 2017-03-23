@@ -6,9 +6,13 @@
 package org.elasticsearch.xpack.ml.job.process;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.Detector;
+import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.junit.Before;
@@ -16,6 +20,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Date;
 
 import static org.mockito.Matchers.any;
@@ -26,20 +31,31 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class DataCountsReporterTests extends ESTestCase {
-    private static final String JOB_ID = "SR";
     private static final int MAX_PERCENT_DATE_PARSE_ERRORS = 40;
     private static final int MAX_PERCENT_OUT_OF_ORDER_ERRORS = 30;
-
+    
+    private Job job;
     private JobDataCountsPersister jobDataCountsPersister;
     private ThreadPool threadPool;
     private Settings settings;
-
+    
     @Before
     public void setUpMocks() {
         settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(DataCountsReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING.getKey(), MAX_PERCENT_DATE_PARSE_ERRORS)
                 .put(DataCountsReporter.ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING.getKey(), MAX_PERCENT_OUT_OF_ORDER_ERRORS)
                 .build();
+        
+        AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "field").build()));
+        acBuilder.setBucketSpan(TimeValue.timeValueSeconds(300));
+        acBuilder.setLatency(TimeValue.ZERO);
+        acBuilder.setDetectors(Arrays.asList(new Detector.Builder("metric", "field").build()));
+
+        Job.Builder builder = new Job.Builder("sr");
+        builder.setAnalysisConfig(acBuilder);
+        builder.setCreateTime(new Date());
+        job = builder.build();
+        
         jobDataCountsPersister = Mockito.mock(JobDataCountsPersister.class);
         threadPool = Mockito.mock(ThreadPool.class);
 
@@ -56,7 +72,7 @@ public class DataCountsReporterTests extends ESTestCase {
     }
 
     public void testSettingAcceptablePercentages() throws IOException {
-        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, JOB_ID, new DataCounts(JOB_ID),
+        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, job, new DataCounts(job.getId()),
                 jobDataCountsPersister)) {
             assertEquals(dataCountsReporter.getAcceptablePercentDateParseErrors(), MAX_PERCENT_DATE_PARSE_ERRORS);
             assertEquals(dataCountsReporter.getAcceptablePercentOutOfOrderErrors(), MAX_PERCENT_OUT_OF_ORDER_ERRORS);
@@ -64,7 +80,7 @@ public class DataCountsReporterTests extends ESTestCase {
     }
 
     public void testSimpleConstructor() throws Exception {
-        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, JOB_ID, new DataCounts(JOB_ID),
+        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, job, new DataCounts(job.getId()),
                 jobDataCountsPersister)) {
             DataCounts stats = dataCountsReporter.incrementalStats();
             assertNotNull(stats);
@@ -77,7 +93,7 @@ public class DataCountsReporterTests extends ESTestCase {
                 new Date(), new Date(), new Date(), new Date(), new Date());
 
         try (DataCountsReporter dataCountsReporter =
-                new DataCountsReporter(threadPool, settings, JOB_ID, counts, jobDataCountsPersister)) {
+                new DataCountsReporter(threadPool, settings, job, counts, jobDataCountsPersister)) {
             DataCounts stats = dataCountsReporter.incrementalStats();
             assertNotNull(stats);
             assertAllCountFieldsEqualZero(stats);
@@ -95,7 +111,7 @@ public class DataCountsReporterTests extends ESTestCase {
     }
 
     public void testResetIncrementalCounts() throws Exception {
-        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, JOB_ID, new DataCounts(JOB_ID),
+        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, job, new DataCounts(job.getId()),
                 jobDataCountsPersister)) {
             DataCounts stats = dataCountsReporter.incrementalStats();
             assertNotNull(stats);
@@ -117,11 +133,33 @@ public class DataCountsReporterTests extends ESTestCase {
             stats = dataCountsReporter.incrementalStats();
             assertNotNull(stats);
             assertAllCountFieldsEqualZero(stats);
+
+            // write some more data
+            dataCountsReporter.reportRecordWritten(5, 302000);
+            dataCountsReporter.reportRecordWritten(5, 302000);
+            assertEquals(2, dataCountsReporter.incrementalStats().getInputRecordCount());
+            assertEquals(10, dataCountsReporter.incrementalStats().getInputFieldCount());
+            assertEquals(2, dataCountsReporter.incrementalStats().getProcessedRecordCount());
+            assertEquals(6, dataCountsReporter.incrementalStats().getProcessedFieldCount());
+            assertEquals(302000, dataCountsReporter.incrementalStats().getLatestRecordTimeStamp().getTime());
+
+            // check total stats
+            assertEquals(4, dataCountsReporter.runningTotalStats().getInputRecordCount());
+            assertEquals(20, dataCountsReporter.runningTotalStats().getInputFieldCount());
+            assertEquals(4, dataCountsReporter.runningTotalStats().getProcessedRecordCount());
+            assertEquals(12, dataCountsReporter.runningTotalStats().getProcessedFieldCount());
+            assertEquals(302000, dataCountsReporter.runningTotalStats().getLatestRecordTimeStamp().getTime());
+
+            // send 'flush' signal
+            dataCountsReporter.finishReporting();
+            assertEquals(2, dataCountsReporter.runningTotalStats().getBucketCount());
+            assertEquals(0, dataCountsReporter.runningTotalStats().getEmptyBucketCount());
+            assertEquals(0, dataCountsReporter.runningTotalStats().getSparseBucketCount());
         }
     }
 
     public void testReportLatestTimeIncrementalStats() throws IOException {
-        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, JOB_ID, new DataCounts(JOB_ID),
+        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, job, new DataCounts(job.getId()),
                 jobDataCountsPersister)) {
             dataCountsReporter.startNewIncrementalCount();
             dataCountsReporter.reportLatestTimeIncrementalStats(5001L);
@@ -130,7 +168,7 @@ public class DataCountsReporterTests extends ESTestCase {
     }
 
     public void testReportRecordsWritten() {
-        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, JOB_ID, new DataCounts(JOB_ID),
+        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, job, new DataCounts(job.getId()),
                 jobDataCountsPersister)) {
             dataCountsReporter.setAnalysedFieldsPerRecord(3);
 
@@ -248,12 +286,12 @@ public class DataCountsReporterTests extends ESTestCase {
     }
 
     public void testFinishReporting() {
-        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, JOB_ID, new DataCounts(JOB_ID),
+        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, job, new DataCounts(job.getId()),
                  jobDataCountsPersister)) {
 
             dataCountsReporter.setAnalysedFieldsPerRecord(3);
             Date now = new Date();
-            DataCounts dc = new DataCounts(JOB_ID, 2L, 5L, 0L, 10L, 0L, 1L, 0L, 0L, 0L, 0L, new Date(2000), new Date(3000), 
+            DataCounts dc = new DataCounts(job.getId(), 2L, 5L, 0L, 10L, 0L, 1L, 0L, 0L, 0L, 1L, new Date(2000), new Date(3000), 
                     now, (Date) null, (Date) null);
             dataCountsReporter.reportRecordWritten(5, 2000);
             dataCountsReporter.reportRecordWritten(5, 3000);
@@ -267,7 +305,7 @@ public class DataCountsReporterTests extends ESTestCase {
                     dataCountsReporter.runningTotalStats().getLastDataTimeStamp());
 
             dc.setLastDataTimeStamp(dataCountsReporter.incrementalStats().getLastDataTimeStamp());
-            Mockito.verify(jobDataCountsPersister, Mockito.times(1)).persistDataCounts(eq("SR"), eq(dc), any());
+            Mockito.verify(jobDataCountsPersister, Mockito.times(1)).persistDataCounts(eq("sr"), eq(dc), any());
             assertEquals(dc, dataCountsReporter.incrementalStats());
         }
     }
@@ -289,7 +327,7 @@ public class DataCountsReporterTests extends ESTestCase {
             }
         });
 
-        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(mockThreadPool, settings, JOB_ID, new DataCounts(JOB_ID),
+        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(mockThreadPool, settings, job, new DataCounts(job.getId()),
                 jobDataCountsPersister)) {
 
             dataCountsReporter.setAnalysedFieldsPerRecord(3);
@@ -297,10 +335,10 @@ public class DataCountsReporterTests extends ESTestCase {
             dataCountsReporter.reportRecordWritten(5, 2000);
             dataCountsReporter.reportRecordWritten(5, 3000);
 
-            Mockito.verify(jobDataCountsPersister, Mockito.times(0)).persistDataCounts(eq("SR"), any(), any());
+            Mockito.verify(jobDataCountsPersister, Mockito.times(0)).persistDataCounts(eq("sr"), any(), any());
             argumentCaptor.getValue().run();
             dataCountsReporter.reportRecordWritten(5, 4000);
-            Mockito.verify(jobDataCountsPersister, Mockito.times(1)).persistDataCounts(eq("SR"), any(), any());
+            Mockito.verify(jobDataCountsPersister, Mockito.times(1)).persistDataCounts(eq("sr"), any(), any());
         }
     }
 

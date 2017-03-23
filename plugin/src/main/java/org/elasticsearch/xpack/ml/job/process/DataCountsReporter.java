@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 
 import java.io.Closeable;
@@ -58,7 +59,7 @@ public class DataCountsReporter extends AbstractComponent implements Closeable {
 
     private static final TimeValue PERSIST_INTERVAL = TimeValue.timeValueMillis(10_000L);
 
-    private final String jobId;
+    private final Job job;
     private final JobDataCountsPersister dataCountsPersister;
 
     private final DataCounts totalRecordStats;
@@ -78,16 +79,19 @@ public class DataCountsReporter extends AbstractComponent implements Closeable {
     private volatile boolean persistDataCountsOnNextRecord;
     private final ThreadPool.Cancellable persistDataCountsDatafeedAction;
 
-    public DataCountsReporter(ThreadPool threadPool, Settings settings, String jobId, DataCounts counts,
-                          JobDataCountsPersister dataCountsPersister) {
+    private DataStreamDiagnostics diagnostics;
+
+    public DataCountsReporter(ThreadPool threadPool, Settings settings, Job job, DataCounts counts,
+            JobDataCountsPersister dataCountsPersister) {
 
         super(settings);
 
-        this.jobId = jobId;
+        this.job = job;
         this.dataCountsPersister = dataCountsPersister;
 
         totalRecordStats = counts;
-        incrementalRecordStats = new DataCounts(jobId);
+        incrementalRecordStats = new DataCounts(job.getId());
+        diagnostics = new DataStreamDiagnostics(job);
 
         acceptablePercentDateParseErrors = ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING.get(settings);
         acceptablePercentOutOfOrderErrors = ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING.get(settings);
@@ -105,7 +109,7 @@ public class DataCountsReporter extends AbstractComponent implements Closeable {
      * @param inputFieldCount Number of fields in the record.
      *                        Note this is not the number of processed fields (by field etc)
      *                        but the actual number of fields in the record
-     * @param recordTimeMs    The time of the latest record written
+     * @param recordTimeMs    The time of the record written
      *                        in milliseconds from the epoch.
      */
     public void reportRecordWritten(long inputFieldCount, long recordTimeMs) {
@@ -132,10 +136,14 @@ public class DataCountsReporter extends AbstractComponent implements Closeable {
         }
 
         if (persistDataCountsOnNextRecord) {
+            retrieveDiagnosticsIntermediateResults();
+            
             DataCounts copy = new DataCounts(runningTotalStats());
-            dataCountsPersister.persistDataCounts(jobId, copy, new LoggingActionListener());
+            dataCountsPersister.persistDataCounts(job.getId(), copy, new LoggingActionListener());
             persistDataCountsOnNextRecord = false;
         }
+        
+        diagnostics.checkRecord(recordTimeMs);
     }
 
     /**
@@ -191,43 +199,6 @@ public class DataCountsReporter extends AbstractComponent implements Closeable {
         incrementalRecordStats.incrementInputFieldCount(inputFieldCount);
     }
 
-    public void reportEmptyBucket(long recordTimeMs ){
-        Date recordDate = new Date(recordTimeMs);
-        
-        totalRecordStats.incrementEmptyBucketCount(1);
-        totalRecordStats.setLatestEmptyBucketTimeStamp(recordDate);
-        incrementalRecordStats.incrementEmptyBucketCount(1);
-        incrementalRecordStats.setLatestEmptyBucketTimeStamp(recordDate);       
-    }
-    
-    public void reportEmptyBuckets(long additional, long lastRecordTimeMs ){
-        Date recordDate = new Date(lastRecordTimeMs);
-        
-        totalRecordStats.incrementEmptyBucketCount(additional);
-        totalRecordStats.setLatestEmptyBucketTimeStamp(recordDate);
-        incrementalRecordStats.incrementEmptyBucketCount(additional);
-        incrementalRecordStats.setLatestEmptyBucketTimeStamp(recordDate);       
-    }
-    
-    public void reportSparseBucket(long recordTimeMs){
-        Date recordDate = new Date(recordTimeMs);
-        
-        totalRecordStats.incrementSparseBucketCount(1);
-        totalRecordStats.setLatestSparseBucketTimeStamp(recordDate);
-        incrementalRecordStats.incrementSparseBucketCount(1);
-        incrementalRecordStats.setLatestSparseBucketTimeStamp(recordDate);
-    }
-    
-    public void reportBucket(){
-        totalRecordStats.incrementBucketCount(1);
-        incrementalRecordStats.incrementBucketCount(1);
-    }
-    
-    public void reportBuckets(long additional){
-        totalRecordStats.incrementBucketCount(additional);
-        incrementalRecordStats.incrementBucketCount(additional);
-    }
-    
     /**
      * Total records seen = records written to the Engine (processed record
      * count) + date parse error records count + out of order record count.
@@ -253,19 +224,19 @@ public class DataCountsReporter extends AbstractComponent implements Closeable {
     public long getOutOfOrderRecordCount() {
         return totalRecordStats.getOutOfOrderTimeStampCount();
     }
-    
+
     public long getEmptyBucketCount() {
         return totalRecordStats.getEmptyBucketCount();
     }
-    
+
     public long getSparseBucketCount() {
         return totalRecordStats.getSparseBucketCount();
     }
-    
+
     public long getBucketCount() {
         return totalRecordStats.getBucketCount();
     }
-    
+
     public long getBytesRead() {
         return totalRecordStats.getInputBytes();
     }
@@ -273,11 +244,11 @@ public class DataCountsReporter extends AbstractComponent implements Closeable {
     public Date getLatestRecordTime() {
         return totalRecordStats.getLatestRecordTimeStamp();
     }
-    
+
     public Date getLatestEmptyBucketTime() {
         return totalRecordStats.getLatestEmptyBucketTimeStamp();
     }
-    
+
     public Date getLatestSparseBucketTime() {
         return totalRecordStats.getLatestSparseBucketTimeStamp();
     }
@@ -315,7 +286,9 @@ public class DataCountsReporter extends AbstractComponent implements Closeable {
         Date now = new Date();
         incrementalRecordStats.setLastDataTimeStamp(now);
         totalRecordStats.setLastDataTimeStamp(now);
-        dataCountsPersister.persistDataCounts(jobId, runningTotalStats(), new LoggingActionListener());
+        diagnostics.flush();
+        retrieveDiagnosticsIntermediateResults();
+        dataCountsPersister.persistDataCounts(job.getId(), runningTotalStats(), new LoggingActionListener());
     }
 
     /**
@@ -329,7 +302,7 @@ public class DataCountsReporter extends AbstractComponent implements Closeable {
         }
 
         String status = String.format(Locale.ROOT,
-                "[%s] %d records written to autodetect; missingFieldCount=%d, invalidDateCount=%d, outOfOrderCount=%d", jobId,
+                "[%s] %d records written to autodetect; missingFieldCount=%d, invalidDateCount=%d, outOfOrderCount=%d", job.getId(),
                 getProcessedRecordCount(), getMissingFieldErrorCount(), getDateParseErrorsCount(), getOutOfOrderRecordCount());
 
         logger.info(status);
@@ -386,7 +359,9 @@ public class DataCountsReporter extends AbstractComponent implements Closeable {
     }
 
     public void startNewIncrementalCount() {
-        incrementalRecordStats = new DataCounts(jobId);
+        incrementalRecordStats = new DataCounts(job.getId());
+        retrieveDiagnosticsIntermediateResults();
+        diagnostics.resetCounts();
     }
 
     public DataCounts incrementalStats() {
@@ -404,18 +379,34 @@ public class DataCountsReporter extends AbstractComponent implements Closeable {
         persistDataCountsDatafeedAction.cancel();
     }
 
+    private void retrieveDiagnosticsIntermediateResults() {
+        totalRecordStats.incrementBucketCount(diagnostics.getEmptyBucketCount());
+        totalRecordStats.incrementBucketCount(diagnostics.getBucketCount());
+        totalRecordStats.incrementSparseBucketCount(diagnostics.getSparseBucketCount());
+        totalRecordStats.updateLatestEmptyBucketTimeStamp(diagnostics.getLatestEmptyBucketTime());
+        totalRecordStats.updateLatestSparseBucketTimeStamp(diagnostics.getLatestSparseBucketTime());
+
+        incrementalRecordStats.incrementEmptyBucketCount(diagnostics.getEmptyBucketCount());
+        incrementalRecordStats.incrementBucketCount(diagnostics.getBucketCount());
+        incrementalRecordStats.incrementSparseBucketCount(diagnostics.getSparseBucketCount());
+        incrementalRecordStats.updateLatestEmptyBucketTimeStamp(diagnostics.getLatestEmptyBucketTime());
+        incrementalRecordStats.updateLatestSparseBucketTimeStamp(diagnostics.getLatestSparseBucketTime());
+
+        diagnostics.resetCounts();
+    }
+
     /**
      * Log success/error
      */
     private class LoggingActionListener implements ActionListener<Boolean> {
         @Override
         public void onResponse(Boolean aBoolean) {
-            logger.trace("[{}] Persisted DataCounts", jobId);
+            logger.trace("[{}] Persisted DataCounts", job.getId());
         }
 
         @Override
         public void onFailure(Exception e) {
-            logger.debug(new ParameterizedMessage("[{}] Error persisting DataCounts stats", jobId), e);
+            logger.debug(new ParameterizedMessage("[{}] Error persisting DataCounts stats", job.getId()), e);
         }
     }
 }

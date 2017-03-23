@@ -47,7 +47,7 @@ import static java.util.Collections.singletonList;
  * Tests {@link Object#toString} implementations on all extensions of {@link ANode}.
  */
 public class NodeToStringTests extends ESTestCase {
-    private final Definition definition = Definition.INSTANCE;
+    private final Definition definition = Definition.BUILTINS;
 
     public void testEAssignment() {
         assertToString(

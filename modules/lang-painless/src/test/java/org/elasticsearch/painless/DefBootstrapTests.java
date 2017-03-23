@@ -30,7 +30,7 @@ import java.util.HashMap;
 import org.elasticsearch.test.ESTestCase;
 
 public class DefBootstrapTests extends ESTestCase {
-    private final Definition definition = Definition.INSTANCE;
+    private final Definition definition = Definition.BUILTINS;
     
     /** calls toString() on integers, twice */
     public void testOneType() throws Throwable {

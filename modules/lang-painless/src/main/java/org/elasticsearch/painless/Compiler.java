@@ -100,8 +100,8 @@ final class Compiler {
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
-        Definition definition = Definition.INSTANCE;
-        ScriptInterface scriptInterface = new ScriptInterface(Definition.INSTANCE, iface);
+        Definition definition = Definition.BUILTINS;
+        ScriptInterface scriptInterface = new ScriptInterface(definition, iface);
 
         SSource root = Walker.buildPainlessTree(scriptInterface, name, source, settings, definition,
                 null);
@@ -134,7 +134,7 @@ final class Compiler {
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
-        Definition definition = Definition.INSTANCE;
+        Definition definition = Definition.BUILTINS;
         ScriptInterface scriptInterface = new ScriptInterface(definition, iface);
 
         SSource root = Walker.buildPainlessTree(scriptInterface, name, source, settings, definition,

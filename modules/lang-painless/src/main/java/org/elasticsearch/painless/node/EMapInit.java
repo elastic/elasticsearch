@@ -64,11 +64,7 @@ public final class EMapInit extends AExpression {
             throw createError(new IllegalArgumentException("Must read from map initializer."));
         }
 
-        try {
-            actual = locals.getDefinition().getType("HashMap"); // NOCOMMIT move to Definition.java
-        } catch (IllegalArgumentException exception) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        }
+        actual = Definition.HASH_MAP_TYPE;
 
         constructor = actual.struct.constructors.get(new MethodKey("<init>", 0));
 

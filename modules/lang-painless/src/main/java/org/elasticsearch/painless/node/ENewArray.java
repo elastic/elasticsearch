@@ -71,13 +71,14 @@ public final class ENewArray extends AExpression {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            expression.expected = initialize ? Definition.getType(type.struct, 0) : Definition.INT_TYPE;
+            expression.expected = initialize ? locals.getDefinition().getType(type.struct, 0)
+                    : Definition.INT_TYPE;
             expression.internal = true;
             expression.analyze(locals);
             arguments.set(argument, expression.cast(locals));
         }
 
-        actual = Definition.getType(type.struct, initialize ? 1 : arguments.size());
+        actual = locals.getDefinition().getType(type.struct, initialize ? 1 : arguments.size());
     }
 
     @Override
@@ -86,7 +87,7 @@ public final class ENewArray extends AExpression {
 
         if (initialize) {
             writer.push(arguments.size());
-            writer.newArray(Definition.getType(actual.struct, 0).type);
+            writer.newArray(actual.struct.type);
 
             for (int index = 0; index < arguments.size(); ++index) {
                 AExpression argument = arguments.get(index);
@@ -94,7 +95,7 @@ public final class ENewArray extends AExpression {
                 writer.dup();
                 writer.push(index);
                 argument.write(writer, globals);
-                writer.arrayStore(Definition.getType(actual.struct, 0).type);
+                writer.arrayStore(actual.struct.type);
             }
         } else {
             for (AExpression argument : arguments) {
@@ -104,7 +105,7 @@ public final class ENewArray extends AExpression {
             if (arguments.size() > 1) {
                 writer.visitMultiANewArrayInsn(actual.type.getDescriptor(), actual.type.getDimensions());
             } else {
-                writer.newArray(Definition.getType(actual.struct, 0).type);
+                writer.newArray(actual.struct.type);
             }
         }
     }

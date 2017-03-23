@@ -188,7 +188,7 @@ public class ScriptInterface {
             }
             struct = runtimeClass.getStruct();
         }
-        return Definition.getType(struct, dimensions);
+        return definition.getType(struct, dimensions);
     }
 
     private static String[] readArgumentNamesConstant(Class<?> iface) {

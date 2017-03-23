@@ -498,7 +498,7 @@ public final class Definition {
     }
 
     /** Creates an array type from the given Struct. */
-    public static Type getType(final Struct struct, final int dimensions) {
+    public Type getType(final Struct struct, final int dimensions) {
         return INSTANCE.getTypeInternal(struct, dimensions);
     }
 

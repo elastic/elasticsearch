@@ -120,8 +120,8 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(CommonFields.KEY, getKeyAsString());
-            builder.field(CommonFields.DOC_COUNT, docCount);
+            builder.field(CommonFields.KEY.getPreferredName(), getKeyAsString());
+            builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;
@@ -208,7 +208,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(CommonFields.BUCKETS);
+        builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (Bucket bucket : buckets) {
             bucket.toXContent(builder, params);
         }

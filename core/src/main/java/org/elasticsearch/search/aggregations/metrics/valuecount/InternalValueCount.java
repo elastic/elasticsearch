@@ -80,7 +80,7 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(CommonFields.VALUE, value);
+        builder.field(CommonFields.VALUE.getPreferredName(), value);
         return builder;
     }
 

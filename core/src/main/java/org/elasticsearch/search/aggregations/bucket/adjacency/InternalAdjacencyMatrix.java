@@ -105,8 +105,8 @@ public class InternalAdjacencyMatrix
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(CommonFields.KEY, key);
-            builder.field(CommonFields.DOC_COUNT, docCount);
+            builder.field(CommonFields.KEY.getPreferredName(), key);
+            builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;
@@ -207,7 +207,7 @@ public class InternalAdjacencyMatrix
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(CommonFields.BUCKETS);
+        builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (InternalBucket bucket : buckets) {
             bucket.toXContent(builder, params);
         }

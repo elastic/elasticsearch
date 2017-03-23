@@ -144,21 +144,21 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                 builder.startObject(key);
             } else {
                 builder.startObject();
-                builder.field(CommonFields.KEY, key);
+                builder.field(CommonFields.KEY.getPreferredName(), key);
             }
             if (!Double.isInfinite(from)) {
-                builder.field(CommonFields.FROM, from);
+                builder.field(CommonFields.FROM.getPreferredName(), from);
                 if (format != DocValueFormat.RAW) {
-                    builder.field(CommonFields.FROM_AS_STRING, format.format(from));
+                    builder.field(CommonFields.FROM_AS_STRING.getPreferredName(), format.format(from));
                 }
             }
             if (!Double.isInfinite(to)) {
-                builder.field(CommonFields.TO, to);
+                builder.field(CommonFields.TO.getPreferredName(), to);
                 if (format != DocValueFormat.RAW) {
-                    builder.field(CommonFields.TO_AS_STRING, format.format(to));
+                    builder.field(CommonFields.TO_AS_STRING.getPreferredName(), format.format(to));
                 }
             }
-            builder.field(CommonFields.DOC_COUNT, docCount);
+            builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;
@@ -305,9 +305,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
-            builder.startObject(CommonFields.BUCKETS);
+            builder.startObject(CommonFields.BUCKETS.getPreferredName());
         } else {
-            builder.startArray(CommonFields.BUCKETS);
+            builder.startArray(CommonFields.BUCKETS.getPreferredName());
         }
         for (B range : ranges) {
             range.toXContent(builder, params);

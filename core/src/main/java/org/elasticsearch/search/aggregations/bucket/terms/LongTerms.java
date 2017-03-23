@@ -84,9 +84,9 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
         @Override
         protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
-            builder.field(CommonFields.KEY, term);
+            builder.field(CommonFields.KEY.getPreferredName(), term);
             if (format != DocValueFormat.RAW) {
-                builder.field(CommonFields.KEY_AS_STRING, format.format(term));
+                builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), format.format(term));
             }
             return builder;
         }

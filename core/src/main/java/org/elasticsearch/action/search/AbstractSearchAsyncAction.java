@@ -122,7 +122,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (successfulOps.get() == 0) { // we have 0 successful results that means we shortcut stuff and return a failure
             if (logger.isDebugEnabled()) {
                 final ShardOperationFailedException[] shardSearchFailures = ExceptionsHelper.groupBy(buildShardFailures());
-                Throwable cause = ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
+                Throwable cause = shardSearchFailures.length == 0 ? null :
+                    ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
                 logger.debug((Supplier<?>) () -> new ParameterizedMessage("All shards failed for phase: [{}]", getName()),
                     cause);
             }

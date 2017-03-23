@@ -97,9 +97,7 @@ public class MlMetadata implements MetaData.Custom {
 
     @Override
     public EnumSet<MetaData.XContentContext> context() {
-        // NORELEASE: Also include SNAPSHOT, but then we need to split the allocations from here and add them
-        // as ClusterState.Custom metadata, because only the job definitions should be stored in snapshots.
-        return MetaData.API_AND_GATEWAY;
+        return MetaData.ALL_CONTEXTS;
     }
 
     @Override

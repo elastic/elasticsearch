@@ -178,7 +178,7 @@ public class CompletionPersistentTaskAction extends Action<CompletionPersistentT
 
         @Override
         protected final void masterOperation(final Request request, ClusterState state, final ActionListener<Response> listener) {
-            persistentTasksClusterService.completeOrRestartPersistentTask(request.taskId, request.exception, new ActionListener<Empty>() {
+            persistentTasksClusterService.completePersistentTask(request.taskId, request.exception, new ActionListener<Empty>() {
                 @Override
                 public void onResponse(Empty empty) {
                     listener.onResponse(newResponse());

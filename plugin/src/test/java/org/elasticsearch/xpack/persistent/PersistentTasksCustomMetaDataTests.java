@@ -212,11 +212,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
                         if (builder.hasTask(lastKnownTask)) {
                             changed = true;
                         }
-                        if (randomBoolean()) {
-                            builder.reassignTask(lastKnownTask, randomAssignment());
-                        } else {
-                            builder.reassignTask(lastKnownTask, (s, request) -> randomAssignment());
-                        }
+                        builder.reassignTask(lastKnownTask, randomAssignment());
                         break;
                     case 2:
                         if (builder.hasTask(lastKnownTask)) {

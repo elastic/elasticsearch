@@ -85,25 +85,20 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
      * @param failure  the reason for restarting the task or null if the task completed successfully
      * @param listener the listener that will be called when task is removed
      */
-    public void completeOrRestartPersistentTask(long id, Exception failure, ActionListener<Empty> listener) {
+    public void completePersistentTask(long id, Exception failure, ActionListener<Empty> listener) {
         final String source;
         if (failure != null) {
-            logger.warn("persistent task " + id + " failed, restarting", failure);
-            source = "restart persistent task";
+            logger.warn("persistent task " + id + " failed", failure);
+            source = "finish persistent task (failed)";
         } else {
-            source = "finish persistent task";
+            source = "finish persistent task (success)";
         }
         clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 PersistentTasksCustomMetaData.Builder tasksInProgress = builder(currentState);
                 if (tasksInProgress.hasTask(id)) {
-                    if (failure != null) {
-                        // If the task failed - we need to restart it on another node, otherwise we just remove it
-                        tasksInProgress.reassignTask(id, (action, request) -> getAssignement(action, currentState, request));
-                    } else {
-                        tasksInProgress.finishTask(id);
-                    }
+                    tasksInProgress.finishTask(id);
                     return update(currentState, tasksInProgress);
                 } else {
                     // we don't send the error message back to the caller becase that would cause an infinite loop of notifications

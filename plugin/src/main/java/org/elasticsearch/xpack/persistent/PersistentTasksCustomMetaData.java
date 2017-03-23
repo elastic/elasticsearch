@@ -159,7 +159,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_5_3_0_UNRELEASED;
+        return Version.V_5_4_0_UNRELEASED;
     }
 
     @Override
@@ -588,8 +588,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         /**
          * Assigns the task to another node  if the task exist and not currently assigned
          * <p>
-         * The operation is only performed if the task is not currently assigned to any nodes. To force assignment use
-         * {@link #reassignTask(long, BiFunction)} instead
+         * The operation is only performed if the task is not currently assigned to any nodes.
          */
         @SuppressWarnings("unchecked")
         public <Request extends PersistentTaskRequest> Builder assignTask(long taskId,
@@ -605,20 +604,6 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             return this;
         }
 
-        /**
-         * Reassigns the task to another node if the task exist
-         */
-        @SuppressWarnings("unchecked")
-        public <Request extends PersistentTaskRequest> Builder reassignTask(long taskId,
-                                                                            BiFunction<String, Request, Assignment> executorNodeFunc) {
-            PersistentTask<Request> taskInProgress = (PersistentTask<Request>) tasks.get(taskId);
-            if (taskInProgress != null) {
-                changed = true;
-                Assignment assignment = executorNodeFunc.apply(taskInProgress.taskName, taskInProgress.request);
-                tasks.put(taskId, new PersistentTask<>(taskInProgress, false, assignment));
-            }
-            return this;
-        }
 
         /**
          * Updates the task status if the task exist

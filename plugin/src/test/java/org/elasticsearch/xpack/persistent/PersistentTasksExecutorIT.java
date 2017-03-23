@@ -63,7 +63,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         }
     }
 
-    public void testPersistentActionRestart() throws Exception {
+    public void testPersistentActionFailure() throws Exception {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         PersistentTaskOperationFuture future = new PersistentTaskOperationFuture();
         persistentTasksService.createPersistentActionTask(TestPersistentTasksExecutor.NAME, new TestRequest("Blah"), future);
@@ -84,22 +84,6 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         // Fail the running task and make sure it restarts properly
         assertThat(new TestTasksRequestBuilder(client()).setOperation("fail").setTaskId(firstRunningTask.getTaskId())
                 .get().getTasks().size(), equalTo(1));
-
-        assertBusy(() -> {
-            // Wait for the task to restart
-            List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get()
-                    .getTasks();
-            logger.info("Found {} tasks", tasks.size());
-            assertThat(tasks.size(), equalTo(1));
-            // Make sure that restarted task is different
-            assertThat(tasks.get(0).getTaskId(), not(equalTo(firstRunningTask.getTaskId())));
-        });
-
-        logger.info("Removing persistent task with id {}", firstRunningTask.getId());
-        // Remove the persistent task
-        PersistentTaskOperationFuture removeFuture = new PersistentTaskOperationFuture();
-        persistentTasksService.removeTask(taskId, removeFuture);
-        assertEquals(removeFuture.get(), (Long) taskId);
 
         logger.info("Waiting for persistent task with id {} to disappear", firstRunningTask.getId());
         assertBusy(() -> {

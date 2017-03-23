@@ -186,9 +186,7 @@ public final class Locals {
 
     ///// private impl
 
-    /**
-     * Whitelist against which this script is compiled.
-     */
+    /** Whitelist against which thhis script is being compiled. */
     private final Definition definition;
     // parent scope
     private final Locals parent;

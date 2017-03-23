@@ -149,6 +149,22 @@ public class SearchHitTests extends ESTestCase {
         assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
     }
 
+    /**
+     * When e.g. with "stored_fields": "_none_", only "_index" and "_score" are returned.
+     */
+    public void testFromXContentWithoutTypeAndId() throws IOException {
+        String hit = "{\"_index\": \"my_index\", \"_score\": 1}";
+        SearchHit parsed;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, hit)) {
+            parser.nextToken(); // jump to first START_OBJECT
+            parsed = SearchHit.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+        assertEquals("my_index", parsed.getIndex());
+        assertEquals(1, parsed.getScore(), Float.MIN_VALUE);
+    }
+
     public void testToXContent() throws IOException {
         SearchHit searchHit = new SearchHit(1, "id1", new Text("type"), Collections.emptyMap());
         searchHit.score(1.5f);

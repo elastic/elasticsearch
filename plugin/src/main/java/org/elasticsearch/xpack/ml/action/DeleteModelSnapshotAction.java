@@ -168,9 +168,6 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
                         ModelSnapshot deleteCandidate = deleteCandidates.get(0);
 
                         // Verify the snapshot is not being used
-                        //
-                        // NORELEASE: technically, this could be stale and refuse a delete, but I think that's acceptable
-                        // since it is non-destructive
                         QueryPage<Job> job = jobManager.getJob(request.getJobId(), clusterService.state());
                         if (job.count() > 0) {
                             String currentModelInUse = job.results().get(0).getModelSnapshotId();
@@ -186,6 +183,8 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
                         deleter.commit(new ActionListener<BulkResponse>() {
                             @Override
                             public void onResponse(BulkResponse bulkResponse) {
+                                auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_DELETED,
+                                        deleteCandidate.getDescription()));
                                 // We don't care about the bulk response, just that it succeeded
                                 listener.onResponse(new DeleteModelSnapshotAction.Response(true));
                             }
@@ -196,8 +195,6 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
                             }
                         });
 
-                        auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_DELETED,
-                                deleteCandidate.getDescription()));
                     }, listener::onFailure);
         }
     }

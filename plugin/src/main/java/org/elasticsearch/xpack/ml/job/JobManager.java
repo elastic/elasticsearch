@@ -248,7 +248,12 @@ public class JobManager extends AbstractComponent {
 
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        updateJobProcessNotifier.submitJobUpdate(jobUpdate);
+                        PersistentTasksCustomMetaData persistentTasks =
+                                newState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+                        JobState jobState = MlMetadata.getJobState(jobId, persistentTasks);
+                        if (jobState == JobState.OPENED) {
+                            updateJobProcessNotifier.submitJobUpdate(jobUpdate);
+                        }
                     }
                 });
     }

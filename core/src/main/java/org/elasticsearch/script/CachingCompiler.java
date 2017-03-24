@@ -313,7 +313,6 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
 
             CacheKeyT cacheKey = cacheKeyForFile(scriptNameExt.v1(), scriptNameExt.v2());
             if (cacheKey == null) {
-                logger.warn("No script engine found for [{}]", scriptNameExt.v2());
                 return;
             }
             try {

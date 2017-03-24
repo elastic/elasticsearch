@@ -16,8 +16,11 @@ fetch the milliseconds since epoch if you need it.
 ==== Scripts and Templates are separate things now
 
 Internally we've split scripts and templates apart. This shouldn't matter over
-the REST interface except during the rolling upgrade from 5.x to 6.0. During
-that upgrade requests to REST APIs for templates aren't going to work.
+the REST interface except for two things:
+* During the rolling upgrade from 5.x to 6.0 the REST APIs for templates aren't
+going to work properly most of the time. Don't use them.
+* You can no longer PUT/GET/DELETE templates using the script API and you can
+no longer PUT/GET/DELETE scripts using the template API.
 
 Transport client users will need to use some new actions in the lang-mustache
 module to work with templates:

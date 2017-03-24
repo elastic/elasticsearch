@@ -195,6 +195,7 @@ final class BootstrapChecks {
         checks.add(new SystemCallFilterCheck(BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings)));
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
+        checks.add(new EarlyAccessCheck());
         checks.add(new G1GCCheck());
         return Collections.unmodifiableList(checks);
     }
@@ -573,6 +574,36 @@ final class BootstrapChecks {
                     " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError",
                 onOutOfMemoryError(),
                 BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey());
+        }
+
+    }
+
+    static class EarlyAccessCheck implements BootstrapCheck {
+
+        @Override
+        public boolean check() {
+            if ("Oracle Corporation".equals(jvmVendor())) {
+                final String javaVersion = javaVersion();
+                return javaVersion.endsWith("-ea");
+            } else {
+                return false;
+            }
+        }
+
+        String jvmVendor() {
+            return Constants.JVM_VENDOR;
+        }
+
+        String javaVersion() {
+            return Constants.JAVA_VERSION;
+        }
+
+        @Override
+        public String errorMessage() {
+            return String.format(
+                    Locale.ROOT,
+                    "Java version [%s] is an early-access build, only use release builds",
+                    javaVersion());
         }
 
     }

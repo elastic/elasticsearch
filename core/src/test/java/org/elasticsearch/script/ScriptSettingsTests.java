@@ -25,29 +25,32 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ScriptSettingsTests extends ESTestCase {
-
     public void testSettingsAreProperlyPropogated() {
-        ScriptEngineRegistry scriptEngineRegistry =
-            new ScriptEngineRegistry(Collections.singletonList(new CustomScriptEngineService()));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(
+                singletonList(new CustomScriptEngineService()));
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(emptyList());
         TemplateService.Backend templateBackend = mock(TemplateService.Backend.class);
         when(templateBackend.getType()).thenReturn("test_template_backend");
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, templateBackend, scriptContextRegistry);
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, templateBackend,
+                scriptContextRegistry);
         boolean enabled = randomBoolean();
         Settings s = Settings.builder().put("script.inline", enabled).build();
-        for (Iterator<Setting<Boolean>> iter = scriptSettings.getScriptLanguageSettings().iterator(); iter.hasNext();) {
+        for (Iterator<Setting<Boolean>> iter = scriptSettings.getScriptLanguageSettings()
+                .iterator(); iter.hasNext();) {
             Setting<Boolean> setting = iter.next();
             if (setting.getKey().endsWith(".inline")) {
-                assertThat("inline settings should have propagated", setting.get(s), equalTo(enabled));
+                assertThat("inline settings should have propagated", setting.get(s),
+                        equalTo(enabled));
                 assertThat(setting.getDefaultRaw(s), equalTo(Boolean.toString(enabled)));
             }
         }
@@ -73,12 +76,14 @@ public class ScriptSettingsTests extends ESTestCase {
         }
 
         @Override
-        public ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
+        public ExecutableScript executable(CompiledScript compiledScript,
+                @Nullable Map<String, Object> vars) {
             return null;
         }
 
         @Override
-        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup,
+                @Nullable Map<String, Object> vars) {
             return null;
         }
 

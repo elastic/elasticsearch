@@ -79,7 +79,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
 
     private volatile ClusterState clusterState;
 
-    public CachingCompiler(Settings settings, ScriptSettings scriptSettings, Environment env,
+    public CachingCompiler(Settings settings, Environment env,
             ResourceWatcherService resourceWatcherService, ScriptMetrics scriptMetrics, String type)
             throws IOException {
         int cacheMaxSize = ScriptService.SCRIPT_CACHE_SIZE_SETTING.get(settings);
@@ -143,9 +143,9 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
             ScriptType scriptType);
 
     /**
-     * Check if a script can be executed.
+     * Check if a script (or template) can be executed in a particular context.
      */
-    protected abstract void checkCanExecuteScript(CacheKeyT cacheKey, ScriptType scriptType,
+    protected abstract void checkContextPermissions(CacheKeyT cacheKey, ScriptType scriptType,
             ScriptContext scriptContext);
 
     /**
@@ -185,7 +185,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
         }
 
         // Validate that we can execute the script
-        checkCanExecuteScript(cacheKey, scriptType, scriptContext);
+        checkContextPermissions(cacheKey, scriptType, scriptContext);
 
         // Lookup file scripts from the map we maintain by watching the directory
         if (scriptType == ScriptType.FILE) {

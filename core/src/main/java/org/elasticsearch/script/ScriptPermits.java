@@ -100,7 +100,7 @@ public class ScriptPermits {
         }
     }
 
-    public boolean canExecuteScript(String lang, ScriptType scriptType,
+    public boolean checkContextPermissions(String lang, ScriptType scriptType,
             ScriptContext scriptContext) {
         assert lang != null;
         if (scriptContextRegistry.isSupportedContext(scriptContext) == false) {

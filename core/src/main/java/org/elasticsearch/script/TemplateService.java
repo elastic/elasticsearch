@@ -56,8 +56,8 @@ public class TemplateService implements ClusterStateListener {
 
         this.backend = backend;
         this.scriptPermits = new ScriptPermits(settings, scriptSettings, scriptContextRegistry);
-        this.compiler = new CachingCompiler<String>(settings, scriptSettings, env,
-                resourceWatcherService, scriptMetrics, "template") {
+        this.compiler = new CachingCompiler<String>(settings, env, resourceWatcherService,
+                scriptMetrics, "template") {
             @Override
             protected String cacheKeyForFile(String baseName, String extension) {
                 if (false == backend.getType().equals(extension)) {
@@ -111,7 +111,7 @@ public class TemplateService implements ClusterStateListener {
             @Override
             protected boolean areAnyScriptContextsEnabled(String cacheKey, ScriptType scriptType) {
                 for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
-                    if (scriptPermits.canExecuteScript(backend.getType(), scriptType,
+                    if (scriptPermits.checkContextPermissions(backend.getType(), scriptType,
                             scriptContext)) {
                         return true;
                     }
@@ -120,13 +120,12 @@ public class TemplateService implements ClusterStateListener {
             }
 
             @Override
-            protected void checkCanExecuteScript(String cacheKey, ScriptType scriptType,
+            protected void checkContextPermissions(String cacheKey, ScriptType scriptType,
                     ScriptContext scriptContext) {
-                if (scriptPermits.canExecuteScript(backend.getType(), scriptType,
+                if (scriptPermits.checkContextPermissions(backend.getType(), scriptType,
                         scriptContext) == false) {
-                    throw new IllegalStateException("scripts of type [" + scriptType + "],"
-                            + " operation [" + scriptContext.getKey() + "] and lang ["
-                            + backend.getType() + "] are disabled");
+                    throw new IllegalStateException("templates of [" + scriptType + "],"
+                            + " operation [" + scriptContext.getKey() + "] are disabled");
                 }
             }
 

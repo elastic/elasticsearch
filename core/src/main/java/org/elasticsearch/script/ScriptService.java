@@ -105,7 +105,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         maxScriptSizeInBytes = ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.get(settings);
         this.scriptMetrics = scriptMetrics;
         this.scriptPermits = new ScriptPermits(settings, scriptSettings, scriptContextRegistry);
-        this.compiler = new CachingCompiler<CacheKey>(settings, scriptSettings, env, resourceWatcherService, scriptMetrics, "script") {
+        this.compiler = new CachingCompiler<CacheKey>(settings, env, resourceWatcherService, scriptMetrics, "script") {
             @Override
             protected CacheKey cacheKeyForFile(String baseName, String extension) {
                 if (extension.equals("mustache")) {
@@ -169,7 +169,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             @Override
             protected boolean areAnyScriptContextsEnabled(CacheKey cacheKey, ScriptType scriptType) {
                 for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
-                    if (scriptPermits.canExecuteScript(cacheKey.lang, scriptType, scriptContext)) {
+                    if (scriptPermits.checkContextPermissions(cacheKey.lang, scriptType, scriptContext)) {
                         return true;
                     }
                 }
@@ -177,7 +177,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             }
 
             @Override
-            protected void checkCanExecuteScript(CacheKey cacheKey, ScriptType scriptType, ScriptContext scriptContext) {
+            protected void checkContextPermissions(CacheKey cacheKey, ScriptType scriptType, ScriptContext scriptContext) {
                 if (isLangSupported(cacheKey.lang) == false) {
                     throw new IllegalArgumentException("script_lang not supported [" + cacheKey.lang + "]");
                 }
@@ -189,7 +189,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     throw new UnsupportedOperationException("scripts of type [" + scriptType + "]," +
                         " operation [" + scriptContext.getKey() + "] and lang [" + cacheKey.lang + "] are not supported");
                 }
-                if (scriptPermits.canExecuteScript(cacheKey.lang, scriptType, scriptContext) == false) {
+                if (scriptPermits.checkContextPermissions(cacheKey.lang, scriptType, scriptContext) == false) {
                     throw new IllegalStateException("scripts of type [" + scriptType + "]," +
                             " operation [" + scriptContext.getKey() + "] and lang [" + cacheKey.lang + "] are disabled");
                 }

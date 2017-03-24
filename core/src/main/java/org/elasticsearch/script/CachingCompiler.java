@@ -41,7 +41,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -122,8 +121,16 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
      * type is not supported.
      */
     protected abstract CacheKeyT cacheKeyForFile(String baseName, String extension);
+
+    /**
+     * Build the cache key for a script (or template) stored in the cluster state.
+     */
     protected abstract CacheKeyT cacheKeyFromClusterState(StoredScriptSource scriptMetadata);
 
+    /**
+     * Lookup a stored script (or template) from the cluster state, returning null if it is not
+     * found.
+     */
     protected abstract StoredScriptSource lookupStoredScript(ClusterState clusterState,
             CacheKeyT cacheKey);
 
@@ -131,7 +138,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
      * Are any script contexts enabled for the given {@code cacheKey} and {@code scriptType}? Used
      * to reject compilation if all script contexts are disabled and produce a nice error message
      * earlier rather than later.
-     */ // NOCOMMIT make sure we have tests for cases where we use this (files, cluster state, ?)
+     */
     protected abstract boolean areAnyScriptContextsEnabled(CacheKeyT cacheKey,
             ScriptType scriptType);
 
@@ -146,8 +153,26 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
      */
     protected abstract void checkCompilationLimit();
 
-    // NOCOMMIT document
+    /**
+     * Compile an inline or stored script (or template), throwing an
+     * {@link IllegalArgumentException} if there is a problem.
+     *
+     * @param scriptType whether the script is inline or stored
+     * @param cacheKey the identifier in the cache. Note that this must contain the script's
+     *        (or template's) source.
+     * @return the script (or template) compiled
+     */
     protected abstract CompiledScript compile(ScriptType scriptType, CacheKeyT cacheKey);
+
+    /**
+     * Compile a file script (or template), throwing an {@link IllegalArgumentException} if there is
+     * a problem.
+     *
+     * @param cacheKey identifier in the cache as built by {@link #cacheKeyForFile(String, String)}
+     * @param body body of the file
+     * @param file path to the file for passing to the compiler in case it wants it
+     * @return the script (or template) compiled
+     */
     protected abstract CompiledScript compileFileScript(CacheKeyT cacheKey, String body, Path file);
 
     public final CompiledScript getScript(CacheKeyT cacheKey, ScriptType scriptType,

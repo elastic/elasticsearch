@@ -503,7 +503,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * The {@link TemplateService} to use for this index.
      */
     public TemplateService getTemplateService() {
-        return null;
+        return templateService;
     }
 
     List<IndexingOperationListener> getIndexOperationListeners() { // pkg private for testing

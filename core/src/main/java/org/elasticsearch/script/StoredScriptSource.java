@@ -49,7 +49,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * {@link StoredScriptSource} represents user-defined parameters for a script
+ * {@link StoredScriptSource} represents user-defined parameters for a script (or template)
  * saved in the {@link ClusterState}.
  */
 public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> implements Writeable, ToXContent {

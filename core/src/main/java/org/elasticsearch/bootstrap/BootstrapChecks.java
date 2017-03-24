@@ -578,6 +578,9 @@ final class BootstrapChecks {
 
     }
 
+    /**
+     * Bootstrap check for early-access builds from OpenJDK.
+     */
     static class EarlyAccessCheck implements BootstrapCheck {
 
         @Override

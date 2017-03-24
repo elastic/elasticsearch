@@ -107,7 +107,7 @@ public class JobProvider {
             AnomalyRecord.FUNCTION.getPreferredName()
     );
 
-    private static final int RECORDS_SIZE_PARAM = 500;
+    private static final int RECORDS_SIZE_PARAM = 10000;
 
     private final Client client;
     private final Settings settings;
@@ -492,7 +492,12 @@ public class JobProvider {
     /**
      * Expand a bucket with its records
      */
-    // TODO (norelease): Use scroll search instead of multiple searches with increasing from
+    // TODO: Ensure all records are included in expanded bucket (see x-pack-elasticsearch#833)
+    // This now gets the first 10K records for a bucket. The rate of records per bucket
+    // is controlled by parameter in the c++ process and its default value is 500. Users may
+    // change that. If they change it they could arguably also change the soft limit for the
+    // search size. However, ideally we should change this to use async scroll if the total
+    // records is more than 10K.
     public void expandBucket(String jobId, boolean includeInterim, Bucket bucket, String partitionFieldValue, int from,
                              Consumer<Integer> consumer, Consumer<Exception> errorHandler, Client client) {
         Consumer<QueryPage<AnomalyRecord>> h = page -> {
@@ -500,12 +505,7 @@ public class JobProvider {
             if (partitionFieldValue != null) {
                 bucket.setAnomalyScore(bucket.partitionAnomalyScore(partitionFieldValue));
             }
-            if (page.count() > from + RECORDS_SIZE_PARAM) {
-                expandBucket(jobId, includeInterim, bucket, partitionFieldValue, from + RECORDS_SIZE_PARAM, consumer, errorHandler,
-                        client);
-            } else {
-                consumer.accept(bucket.getRecords().size());
-            }
+            consumer.accept(bucket.getRecords().size());
         };
         bucketRecords(jobId, bucket, from, RECORDS_SIZE_PARAM, includeInterim, AnomalyRecord.PROBABILITY.getPreferredName(),
                 false, partitionFieldValue, h, errorHandler, client);

@@ -291,7 +291,7 @@ public class JobProviderTests extends ESTestCase {
         source.add(map);
 
         QueryBuilder[] queryBuilderHolder = new QueryBuilder[1];
-        SearchResponse response = createSearchResponse(true, source);
+        SearchResponse response = createSearchResponse(source);
         int from = 0;
         int size = 10;
         Client client = getMockedClient(queryBuilder -> {queryBuilderHolder[0] = queryBuilder;}, response);
@@ -324,7 +324,7 @@ public class JobProviderTests extends ESTestCase {
         source.add(map);
 
         QueryBuilder[] queryBuilderHolder = new QueryBuilder[1];
-        SearchResponse response = createSearchResponse(true, source);
+        SearchResponse response = createSearchResponse(source);
         int from = 99;
         int size = 17;
 
@@ -358,7 +358,7 @@ public class JobProviderTests extends ESTestCase {
         source.add(map);
 
         QueryBuilder[] queryBuilderHolder = new QueryBuilder[1];
-        SearchResponse response = createSearchResponse(true, source);
+        SearchResponse response = createSearchResponse(source);
         int from = 99;
         int size = 17;
 
@@ -388,7 +388,7 @@ public class JobProviderTests extends ESTestCase {
         Long timestamp = 98765432123456789L;
         List<Map<String, Object>> source = new ArrayList<>();
 
-        SearchResponse response = createSearchResponse(false, source);
+        SearchResponse response = createSearchResponse(source);
 
         Client client = getMockedClient(queryBuilder -> {}, response);
         JobProvider provider = createProvider(client);
@@ -412,7 +412,7 @@ public class JobProviderTests extends ESTestCase {
         map.put("bucket_span", 22);
         source.add(map);
 
-        SearchResponse response = createSearchResponse(true, source);
+        SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(queryBuilder -> {}, response);
         JobProvider provider = createProvider(client);
 
@@ -440,7 +440,7 @@ public class JobProviderTests extends ESTestCase {
         map.put("is_interim", true);
         source.add(map);
 
-        SearchResponse response = createSearchResponse(true, source);
+        SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(queryBuilder -> {}, response);
         JobProvider provider = createProvider(client);
 
@@ -479,7 +479,7 @@ public class JobProviderTests extends ESTestCase {
         int from = 14;
         int size = 2;
         String sortfield = "minefield";
-        SearchResponse response = createSearchResponse(true, source);
+        SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(qb -> {}, response);
         JobProvider provider = createProvider(client);
 
@@ -529,7 +529,7 @@ public class JobProviderTests extends ESTestCase {
         int from = 14;
         int size = 2;
         String sortfield = "minefield";
-        SearchResponse response = createSearchResponse(true, source);
+        SearchResponse response = createSearchResponse(source);
 
         Client client = getMockedClient(qb -> {}, response);
         JobProvider provider = createProvider(client);
@@ -586,7 +586,7 @@ public class JobProviderTests extends ESTestCase {
         int from = 14;
         int size = 2;
         String sortfield = "minefield";
-        SearchResponse response = createSearchResponse(true, source);
+        SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(qb -> {}, response);
         JobProvider provider = createProvider(client);
 
@@ -624,7 +624,7 @@ public class JobProviderTests extends ESTestCase {
             source.add(recordMap);
         }
 
-        SearchResponse response = createSearchResponse(true, source);
+        SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(qb -> {}, response);
         JobProvider provider = createProvider(client);
 
@@ -633,39 +633,6 @@ public class JobProviderTests extends ESTestCase {
                 client);
         int records = holder[0];
         assertEquals(400L, records);
-    }
-
-    public void testexpandBucket_WithManyRecords()
-            throws InterruptedException, ExecutionException, IOException {
-        String jobId = "TestJobIdentification";
-        Date now = new Date();
-        Bucket bucket = new Bucket("foo", now, 22);
-
-        List<Map<String, Object>> source = new ArrayList<>();
-        for (int i = 0; i < 600; i++) {
-            Map<String, Object> recordMap = new HashMap<>();
-            recordMap.put("job_id", "foo");
-            recordMap.put("typical", 22.4 + i);
-            recordMap.put("actual", 33.3 + i);
-            recordMap.put("timestamp", now.getTime());
-            recordMap.put("function", "irritable");
-            recordMap.put("bucket_span", 22);
-            recordMap.put("sequence_num", i + 1);
-            source.add(recordMap);
-        }
-
-        SearchResponse response = createSearchResponse(true, source);
-        Client client = getMockedClient(qb -> {}, response);
-        JobProvider provider = createProvider(client);
-
-        Integer[] holder = new Integer[1];
-        provider.expandBucket(jobId, false, bucket, null, 0, records -> holder[0] = records, RuntimeException::new,
-                client);
-        int records = holder[0];
-
-        // This is not realistic, but is an artifact of the fact that the mock
-        // query returns all the records, not a subset
-        assertEquals(1200L, records);
     }
 
     public void testCategoryDefinitions()
@@ -681,7 +648,7 @@ public class JobProviderTests extends ESTestCase {
 
         source.add(map);
 
-        SearchResponse response = createSearchResponse(true, source);
+        SearchResponse response = createSearchResponse(source);
         int from = 0;
         int size = 10;
         Client client = getMockedClient(q -> {}, response);
@@ -707,7 +674,7 @@ public class JobProviderTests extends ESTestCase {
         source.put("category_id", categoryId);
         source.put("terms", terms);
 
-        SearchResponse response = createSearchResponse(true, Collections.singletonList(source));
+        SearchResponse response = createSearchResponse(Collections.singletonList(source));
         Client client = getMockedClient(q -> {}, response);
         JobProvider provider = createProvider(client);
         @SuppressWarnings({"unchecked", "rawtypes"})
@@ -750,7 +717,7 @@ public class JobProviderTests extends ESTestCase {
         int from = 4;
         int size = 3;
         QueryBuilder[] qbHolder = new QueryBuilder[1];
-        SearchResponse response = createSearchResponse(true, source);
+        SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(q -> qbHolder[0] = q, response);
         JobProvider provider = createProvider(client);
 
@@ -812,7 +779,7 @@ public class JobProviderTests extends ESTestCase {
         int from = 4;
         int size = 3;
         QueryBuilder[] qbHolder = new QueryBuilder[1];
-        SearchResponse response = createSearchResponse(true, source);
+        SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(q -> qbHolder[0] = q, response);
         JobProvider provider = createProvider(client);
 
@@ -867,7 +834,7 @@ public class JobProviderTests extends ESTestCase {
 
         int from = 4;
         int size = 3;
-        SearchResponse response = createSearchResponse(true, source);
+        SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(qb -> {}, response);
         JobProvider provider = createProvider(client);
 
@@ -918,7 +885,7 @@ public class JobProviderTests extends ESTestCase {
         int from = 4;
         int size = 3;
         QueryBuilder[] qbHolder = new QueryBuilder[1];
-        SearchResponse response = createSearchResponse(true, source);
+        SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(qb -> qbHolder[0] = qb, response);
         JobProvider provider = createProvider(client);
 
@@ -1060,7 +1027,8 @@ public class JobProviderTests extends ESTestCase {
         return getResponse;
     }
 
-    private static SearchResponse createSearchResponse(boolean exists, List<Map<String, Object>> source) throws IOException {
+    private static SearchResponse createSearchResponse(List<Map<String, Object>> source)
+            throws IOException {
         SearchResponse response = mock(SearchResponse.class);
         List<SearchHit> list = new ArrayList<>();
 

@@ -36,10 +36,14 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeoutException;
+
+import static org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction.Response.DatafeedStats;
+import static org.elasticsearch.xpack.ml.action.GetJobsStatsAction.Response.JobStats;
 
 public class MachineLearningFeatureSet implements XPackFeatureSet {
 
@@ -214,8 +218,8 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                 Map<JobState, StatsAccumulator> modelSizeStatsByState = new HashMap<>();
 
                 Map<String, Job> jobs = mlMetadata.getJobs();
-                for (GetJobsStatsAction.Response.JobStats jobStats
-                        : response.getResponse().results()) {
+                List<JobStats> jobsStats = response.getResponse().results();
+                for (JobStats jobStats : jobsStats) {
                     ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
                     int detectorsCount = jobs.get(jobStats.getJobId()).getAnalysisConfig()
                             .getDetectors().size();
@@ -255,8 +259,8 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
             private void addDatafeedsUsage(GetDatafeedsStatsAction.Response response) {
                 Map<DatafeedState, Counter> datafeedCountByState = new HashMap<>();
 
-                for (GetDatafeedsStatsAction.Response.DatafeedStats datafeedStats
-                        : response.getResponse().results()) {
+                List<DatafeedStats> datafeedsStats = response.getResponse().results();
+                for (DatafeedStats datafeedStats : datafeedsStats) {
                     datafeedCountByState.computeIfAbsent(datafeedStats.getDatafeedState(),
                             ds -> Counter.newCounter()).addAndGet(1);
                 }

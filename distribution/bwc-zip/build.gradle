@@ -45,7 +45,7 @@ task findUpstream(type: LoggedExec) {
   doLast {
     project.ext.upstreamExists = false
     output.toString('UTF-8').eachLine {
-      if (it.contains("remote \"upstream\"")) {
+      if (it.contains("upstream")) {
         project.ext.upstreamExists = true
       }
     }

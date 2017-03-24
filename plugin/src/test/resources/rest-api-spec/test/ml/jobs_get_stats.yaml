@@ -85,7 +85,7 @@ setup:
   - is_true: jobs.0.node.name
   - is_true: jobs.0.node.transport_address
   - match: { jobs.0.node.attributes.max_running_jobs: "10"}
-  - gte:   { jobs.0.open_time: "0s"}
+  - is_true: jobs.0.open_time
 
 ---
 "Test get job stats for closed job":
@@ -134,7 +134,7 @@ setup:
   - match: { jobs.0.data_counts.processed_record_count: 0 }
   - match: { jobs.0.model_size_stats.model_bytes : 0 }
   - match: { jobs.0.state: opened }
-  - gte:   { jobs.0.open_time: "0s"}
+  - is_true: jobs.0.open_time
 
 ---
 "Test get all job stats explicitly":

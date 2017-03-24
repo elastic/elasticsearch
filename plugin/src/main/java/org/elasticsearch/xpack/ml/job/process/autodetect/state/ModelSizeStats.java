@@ -266,7 +266,6 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
                 && Objects.equals(this.jobId, that.jobId);
     }
 
-    // NORELEASE This will not be needed once we are able to parse ModelSizeStats all at once.
     public static class Builder {
 
         private final String jobId;

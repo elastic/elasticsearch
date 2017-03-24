@@ -122,7 +122,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     private final String jobId;
     private final String description;
-    // NORELEASE: Use Jodatime instead
+    // TODO: Use java.time for the Dates here: x-pack-elasticsearch#829
     private final Date createTime;
     private final Date finishedTime;
     private final Date lastDataTime;

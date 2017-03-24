@@ -6,15 +6,12 @@
 package org.elasticsearch.xpack.ml.utils;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 
-// NORELEASE: add cause exceptions!
 public class ExceptionsHelper {
 
     public static ResourceNotFoundException missingJobException(String jobId) {
@@ -39,10 +36,6 @@ public class ExceptionsHelper {
 
     public static ElasticsearchStatusException conflictStatusException(String msg) {
         return new ElasticsearchStatusException(msg, RestStatus.CONFLICT);
-    }
-
-    public static ElasticsearchParseException parseException(ParseField parseField, Throwable cause) {
-        throw new ElasticsearchParseException("Failed to parse [" + parseField.getPreferredName() + "]", cause);
     }
 
     /**

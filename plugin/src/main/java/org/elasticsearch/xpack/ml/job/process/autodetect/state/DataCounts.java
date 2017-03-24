@@ -153,7 +153,7 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
     private long emptyBucketCount;
     private long sparseBucketCount;
     private long bucketCount;
-    // NORELEASE: Use Jodatime instead
+    // TODO: Use java.time for the Dates here: x-pack-elasticsearch#829
     private Date earliestRecordTimeStamp;
     private Date latestRecordTimeStamp;
     private Date lastDataTimeStamp;

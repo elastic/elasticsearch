@@ -293,7 +293,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         xContentBuilder.endObject();
 
         xContentBuilder.startObject("data_description");
-        xContentBuilder.field("format", "JSON");
+        xContentBuilder.field("format", "xcontent");
         xContentBuilder.field("time_field", "time");
         xContentBuilder.field("time_format", "epoch");
         xContentBuilder.endObject();

@@ -25,6 +25,7 @@ import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.Hit;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.settings.Settings;
 
 public class UpdateByQueryMetadataTests
         extends AbstractAsyncBulkByScrollActionMetadataTestCase<UpdateByQueryRequest, BulkByScrollResponse> {
@@ -47,7 +48,8 @@ public class UpdateByQueryMetadataTests
     private class TestAction extends TransportUpdateByQueryAction.AsyncIndexBySearchAction {
         TestAction() {
             super(UpdateByQueryMetadataTests.this.task, UpdateByQueryMetadataTests.this.logger, null,
-                    UpdateByQueryMetadataTests.this.threadPool, request(), null, null, listener());
+                    UpdateByQueryMetadataTests.this.threadPool, request(), null, null, listener(),
+                Settings.EMPTY);
         }
 
         @Override

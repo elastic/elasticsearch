@@ -136,27 +136,29 @@ public class ScriptModule {
     private static class TemplatesUnsupportedBackend implements TemplateService.Backend {
         @Override
         public String getType() {
-            throw new UnsupportedOperationException("templates are unsupported");
+            throw new UnsupportedOperationException("no template backend installed");
         }
 
         @Override
         public String getExtension() {
-            throw new UnsupportedOperationException("templates are unsupported");
+            throw new UnsupportedOperationException("no template backend installed");
         }
 
         @Override
         public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
-            throw new UnsupportedOperationException("templates are unsupported");
+            throw new UnsupportedOperationException("no template backend installed");
         }
 
         @Override
-        public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
-            throw new UnsupportedOperationException("templates are unsupported");
+        public ExecutableScript executable(CompiledScript compiledScript,
+                Map<String, Object> vars) {
+            throw new UnsupportedOperationException("no template backend installed");
         }
 
         @Override
-        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
-            throw new UnsupportedOperationException("templates are unsupported");
+        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup,
+                Map<String, Object> vars) {
+            throw new UnsupportedOperationException("no template backend installed");
         }
 
         @Override

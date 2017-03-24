@@ -395,10 +395,12 @@ public class Node implements Closeable {
                 threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays, scriptModule.getScriptService(),
                 scriptModule.getTemplateService(), client, metaStateService);
 
-            Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
-                .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
-                                                 scriptModule.getScriptService(), xContentRegistry).stream())
-                .collect(Collectors.toList());
+            Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class)
+                    .stream()
+                    .flatMap(p -> p.createComponents(client, clusterService, threadPool,
+                            resourceWatcherService, scriptModule.getScriptService(),
+                            scriptModule.getTemplateService(), xContentRegistry).stream())
+                    .collect(Collectors.toList());
             Collection<UnaryOperator<Map<String, MetaData.Custom>>> customMetaDataUpgraders =
                 pluginsService.filterPlugins(Plugin.class).stream()
                 .map(Plugin::getCustomMetaDataUpgrader)

@@ -41,6 +41,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -102,10 +103,13 @@ public abstract class Plugin implements Closeable {
      * @param threadPool A service to allow retrieving an executor to run an async action
      * @param resourceWatcherService A service to watch for changes to node local files
      * @param scriptService A service to allow running scripts on the local node
+     * @param templateService A service to render templates on the local node
+     * @param xContentRegistry Registry of named XContent parsers
      */
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry) {
+    public Collection<Object> createComponents(Client client, ClusterService clusterService,
+            ThreadPool threadPool, ResourceWatcherService resourceWatcherService,
+            ScriptService scriptService, TemplateService templateService,
+            NamedXContentRegistry xContentRegistry) {
         return Collections.emptyList();
     }
 

@@ -113,7 +113,7 @@ subprojects {
     "org.elasticsearch.test:framework:${version}": ':test:framework',
     "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:integ-test-zip',
     // TODO: don't use a hardcoded version here, introspect it from Version.java
-    "org.elasticsearch.distribution.zip:elasticsearch:5.3.0-SNAPSHOT": ':distribution:bwc-zip',
+    "org.elasticsearch.distribution.zip:elasticsearch:5.4.0-SNAPSHOT": ':distribution:bwc-zip',
     "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',
     "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:tar',
     "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:rpm',

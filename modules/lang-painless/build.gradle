@@ -36,6 +36,7 @@ dependencyLicenses {
 // regeneration logic, comes in via ant right now
 // don't port it to gradle, it works fine.
 
+/*
 configurations {
   regenerate
 }
@@ -44,8 +45,10 @@ dependencies {
   regenerate 'org.antlr:antlr4:4.5.1-1'
 }
 
+// TODO: this is causing a resolve at configurationt time. we really should not be using ant anymore
 ant.references['regenerate.classpath'] = new Path(ant.project, configurations.regenerate.asPath)
 ant.importBuild 'ant.xml'
+*/
 
 integTestCluster {
   setting 'script.max_compilations_per_minute', '1000'

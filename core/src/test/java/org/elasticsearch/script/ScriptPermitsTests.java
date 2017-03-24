@@ -151,7 +151,7 @@ public class ScriptPermitsTests extends ESTestCase {
         }
     }
 
-    private static class MockTemplateBackend implements TemplateService.Backend {
+    static class MockTemplateBackend implements TemplateService.Backend {
         @Override
         public String getType() {
             return "mock_template";

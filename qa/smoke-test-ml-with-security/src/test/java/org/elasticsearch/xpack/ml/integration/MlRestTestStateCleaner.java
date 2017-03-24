@@ -84,11 +84,18 @@ public class MlRestTestStateCleaner {
                     logger.error("Got status code " + statusCode + " when closing job " + jobId);
                 }
             } catch (Exception e) {
-                if (e.getMessage().contains("cannot close job, expected job state [opened], but got [closed]")
-                        || e.getMessage().contains("cannot close job, expected job state [opened], but got [closing]")) {
+                if (e.getMessage().contains("expected job state [opened], but got [closed]")
+                        || e.getMessage().contains("expected job state [opened], but got [closing]")) {
                     logger.debug("job [" + jobId + "] has already been closed", e);
                 } else {
-                    logger.warn("failed to close job [" + jobId + "]", e);
+                    logger.warn("failed to close job [" + jobId + "]. Forcing closed.", e);
+
+                    try {
+                        adminClient.performRequest("POST", "/_xpack/ml/anomaly_detectors/" + jobId + "/_close?force=true");
+                        throw new RuntimeException("Had to resort to force-closing job, something went wrong?");
+                    } catch (Exception e2) {
+                        throw new RuntimeException("Force-closing job [" + jobId + "] failed.", e2);
+                    }
                 }
             }
             int statusCode = adminClient.performRequest("DELETE", "/_xpack/ml/anomaly_detectors/" + jobId).getStatusLine().getStatusCode();

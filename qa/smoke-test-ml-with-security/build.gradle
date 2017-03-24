@@ -20,6 +20,11 @@ integTest {
 // know whether to expect an authorization exception or a validation exception
 integTestRunner {
   systemProperty 'tests.rest.blacklist', [
+    // TODO - review
+    'ml/jobs_crud/Test close job',
+    'ml/jobs_crud/Test force close job',
+    'ml/start_stop_datafeed/Test force stop datafeed',
+    // Non-temporary
     'ml/datafeeds_crud/Test delete datafeed with missing id',
     'ml/datafeeds_crud/Test put datafeed referring to missing job_id',
     'ml/datafeeds_crud/Test put datafeed with invalid query',

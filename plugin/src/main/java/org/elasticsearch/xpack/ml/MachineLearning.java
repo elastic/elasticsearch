@@ -330,6 +330,11 @@ public class MachineLearning implements ActionPlugin {
 
     public Collection<Module> nodeModules() {
         List<Module> modules = new ArrayList<>();
+
+        if (transportClientMode) {
+            return modules;
+        }
+
         modules.add(b -> {
             XPackPlugin.bindFeatureSet(b, MachineLearningFeatureSet.class);
         });

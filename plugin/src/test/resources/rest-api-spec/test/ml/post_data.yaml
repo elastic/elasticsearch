@@ -38,8 +38,13 @@ setup:
 
 ---
 "Test POST data job api, flush, close and verify DataCounts doc":
+  - skip:
+      features: ["headers"]
 
   - do:
+      #set the header so we won't randomize it
+      headers:
+        Content-Type: application/json
       xpack.ml.post_data:
         job_id: farequote
         body:

@@ -30,65 +30,55 @@ import org.elasticsearch.gradle.LoggedExec
 apply plugin: 'distribution'
 
 // TODO: generate this, by introspecting Version.java for last previous minor
-String BWC_VERSION = "5.3.0-SNAPSHOT"
+String BWC_VERSION = "5.4.0-SNAPSHOT"
 
-// cleanup any previous worktree refs which may have been removed by clean task
-task pruneWorktree(type: LoggedExec) {
-  commandLine = ['git', 'worktree', 'prune']
+String checkoutDir = "${buildDir}/bwc/checkout-5.x"
+task createClone(type: LoggedExec) {
+  onlyIf { new File(checkoutDir).exists() == false }
+  commandLine = ['git', 'clone', rootDir, checkoutDir]
 }
 
-String worktreeDir = "${buildDir}/bwc/checkout-5.x"
-task createWorktree(type: LoggedExec) {
-  dependsOn pruneWorktree
-  onlyIf { new File(worktreeDir).exists() == false }
-  commandLine = ['git', 'worktree', 'add', '--detach', worktreeDir, '5.x']
-}
-
-task findRemote(type: LoggedExec) {
+task findUpstream(type: LoggedExec) {
+  dependsOn createClone
+  workingDir = checkoutDir
   commandLine = ['git', 'remote', '-v']
   doLast {
+    project.ext.upstreamExists = false
     output.toString('UTF-8').eachLine {
-      if (it.contains("elastic/elasticsearch.git (fetch)")) {
-        project.ext.gitRemote = it.split('\\t')[0]
+      if (it.contains("remote \"upstream\"")) {
+        project.ext.upstreamExists = true
       }
     }
-  } 
+  }
 }
 
-task updateWorktree(type: LoggedExec) {
-  dependsOn createWorktree, findRemote
-  commandLine = ['git', 'pull', "${-> project.ext.gitRemote}", '5.x']
-  workingDir = worktreeDir
+task addUpstream(type: LoggedExec) {
+  dependsOn findUpstream
+  onlyIf { project.ext.upstreamExists == false }
+  workingDir = checkoutDir
+  commandLine = ['git', 'remote', 'add', 'upstream', 'https://github.com/elastic/elasticsearch.git']
 }
 
-File bwcZip = file("${worktreeDir}/distribution/zip/build/distributions/elasticsearch-${BWC_VERSION}.zip")
+task fetchLatest(type: LoggedExec) {
+  dependsOn addUpstream
+  workingDir = checkoutDir
+  commandLine = ['git', 'fetch', 'upstream', '5.x']
+}
+
+task checkoutBwcBranch(type: LoggedExec) {
+  dependsOn fetchLatest
+  workingDir = checkoutDir
+  commandLine = ['git', 'checkout', 'upstream/5.x']
+}
+
+File bwcZip = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${BWC_VERSION}.zip")
 task buildBwcVersion(type: LoggedExec) {
-  dependsOn updateWorktree
+  dependsOn checkoutBwcBranch
+  workingDir = checkoutDir
   commandLine = ['gradle', ':distribution:zip:assemble']
-  workingDir = worktreeDir
 }
 
 artifacts {
   'default' file: bwcZip, name: 'elasticsearch', type: 'zip', builtBy: buildBwcVersion
-}
-
-gradle.taskGraph.whenReady {
-  if (it.hasTask(createWorktree)) {
-    ByteArrayOutputStream output = new ByteArrayOutputStream()
-    exec {
-      commandLine = ['git', '--version']
-      standardOutput = output
-    }
-    String versionOutput = output.toString('UTF-8')
-    Matcher version = versionOutput =~ /git version ((\d+)\.(\d+)\.\d+)/
-    if (version.find() == false) {
-      throw new GradleException("Could not parse git version from [${versionOutput}]")
-    }
-    int major = version.group(2).toInteger()
-    int minor = version.group(3).toInteger()
-    if (major < 2 || major == 2 && minor < 5) {
-      throw new GradleException("Git version 2.5 or greater needed for worktree by bwc-zip, found ${version.group(1)}")
-    }
-  }  
 }
 

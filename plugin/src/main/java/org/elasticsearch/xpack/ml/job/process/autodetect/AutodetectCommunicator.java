@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
@@ -79,7 +80,8 @@ public class AutodetectCommunicator implements Closeable {
                 dataCountsReporter, xContentRegistry);
     }
 
-    public DataCounts writeToJob(InputStream inputStream, DataLoadParams params) throws IOException {
+    public DataCounts writeToJob(InputStream inputStream, XContentType xContentType,
+            DataLoadParams params) throws IOException {
         return checkAndRun(() -> Messages.getMessage(Messages.JOB_DATA_CONCURRENT_USE_UPLOAD, job.getId()), () -> {
             if (params.isResettingBuckets()) {
                 autodetectProcess.writeResetBucketsControlMessage(params);
@@ -87,7 +89,7 @@ public class AutodetectCommunicator implements Closeable {
             CountingInputStream countingStream = new CountingInputStream(inputStream, dataCountsReporter);
 
             DataToProcessWriter autoDetectWriter = createProcessWriter(params.getDataDescription());
-            DataCounts results = autoDetectWriter.write(countingStream);
+                    DataCounts results = autoDetectWriter.write(countingStream, xContentType);
             autoDetectWriter.flush();
             return results;
         }, false);

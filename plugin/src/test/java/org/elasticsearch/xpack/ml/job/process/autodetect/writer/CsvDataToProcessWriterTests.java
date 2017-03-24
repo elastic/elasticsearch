@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.DataDescription.DataFormat;
 import org.elasticsearch.xpack.ml.job.config.Detector;
-import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
@@ -79,7 +79,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         CsvDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        writer.write(inputStream);
+        writer.write(inputStream, null);
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
 
         List<String[]> expectedRecords = new ArrayList<>();
@@ -101,7 +101,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         CsvDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        writer.write(inputStream);
+        writer.write(inputStream, null);
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
 
         List<String[]> expectedRecords = new ArrayList<>();
@@ -125,7 +125,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         when(dataCountsReporter.getLatestRecordTime()).thenReturn(new Date(5000L));
         CsvDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        writer.write(inputStream);
+        writer.write(inputStream, null);
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
 
         List<String[]> expectedRecords = new ArrayList<>();
@@ -155,7 +155,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         CsvDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        writer.write(inputStream);
+        writer.write(inputStream, null);
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
 
         List<String[]> expectedRecords = new ArrayList<>();
@@ -188,7 +188,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         InputStream inputStream = createInputStream(input.toString());
         CsvDataToProcessWriter writer = createWriter();
         writer.writeHeader();
-        writer.write(inputStream);
+        writer.write(inputStream, null);
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();
 
         List<String[]> expectedRecords = new ArrayList<>();
@@ -220,7 +220,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         CsvDataToProcessWriter writer = createWriter();
         writer.writeHeader();
 
-        DataCounts counts = writer.write(inputStream);
+        DataCounts counts = writer.write(inputStream, null);
         assertEquals(0L, counts.getInputBytes());
         assertEquals(0L, counts.getInputRecordCount());
     }
@@ -238,7 +238,8 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         CsvDataToProcessWriter writer = createWriter();
         writer.writeHeader();
 
-        SuperCsvException e = ESTestCase.expectThrows(SuperCsvException.class, () -> writer.write(inputStream));
+        SuperCsvException e = ESTestCase.expectThrows(SuperCsvException.class,
+                () -> writer.write(inputStream, null));
         // Expected line numbers are 2 and 10001, but SuperCSV may print the
         // numbers using a different locale's digit characters
         assertTrue(e.getMessage(), e.getMessage().matches(

@@ -10,7 +10,7 @@ setup:
                 "detectors" :[{"function":"count"}]
             },
             "data_description" : {
-                "format":"JSON",
+                "format":"xcontent",
                 "time_field":"time",
                 "time_format":"epoch"
             }

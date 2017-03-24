@@ -11,7 +11,7 @@ setup:
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "format":"JSON",
+                "format":"xcontent",
                 "time_field":"time",
                 "time_format":"epoch"
             }
@@ -28,7 +28,7 @@ setup:
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "format":"JSON"
+                "format":"xcontent"
             }
           }
 
@@ -38,22 +38,24 @@ setup:
 
 ---
 "Test POST data job api, flush, close and verify DataCounts doc":
-  - skip:
-      features: ["headers"]
 
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       xpack.ml.post_data:
         job_id: farequote
-        body: >
-          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
-          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
+        body:
+          - airline: AAL
+            responsetime: 132.2046
+            sourcetype: farequote
+            time: 1403481600
+          - airline: JZA
+            responsetime: 990.4628
+            sourcetype: farequote
+            time: 1403481700
 
   - match: { processed_record_count: 2 }
   - match: { processed_field_count: 4}
-  - match: { input_bytes: 178 }
+  - gte: { input_bytes: 170 }
+  - lte: { input_bytes: 180 }
   - match: { input_field_count: 6 }
   - match: { invalid_date_count: 0 }
   - match: { missing_field_count: 0 }
@@ -84,7 +86,8 @@ setup:
 
   - match: { _source.processed_record_count: 2 }
   - match: { _source.processed_field_count: 4}
-  - match: { _source.input_bytes: 178 }
+  - gte: { _source.input_bytes: 170 }
+  - lte: { _source.input_bytes: 180 }
   - match: { _source.input_field_count: 6 }
   - match: { _source.invalid_date_count: 0 }
   - match: { _source.missing_field_count: 0 }
@@ -111,41 +114,50 @@ setup:
 
 ---
 "Test POST data with invalid parameters":
-  - skip:
-      features: ["headers"]
 
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       catch: missing
       xpack.ml.post_data:
         job_id: not_a_job
-        body: {}
+        body:
+          - airline: AAL
+            responsetime: 132.2046
+            sourcetype: farequote
+            time: 1403481600
+          - airline: JZA
+            responsetime: 990.4628
+            sourcetype: farequote
+            time: 1403481700
 
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       catch: /parse_exception/
       xpack.ml.post_data:
         job_id: farequote
         reset_start: not_a_date
-        body:  >
-          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
-          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481600"}
+        body:
+          - airline: AAL
+            responsetime: 132.2046
+            sourcetype: farequote
+            time: 1403481600
+          - airline: JZA
+            responsetime: 990.4628
+            sourcetype: farequote
+            time: 1403481700
 
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       catch: /parse_exception/
       xpack.ml.post_data:
         job_id: farequote
         reset_end: end_not_a_date
-        body:  >
-          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
-          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481600"}
+        body:
+          - airline: AAL
+            responsetime: 132.2046
+            sourcetype: farequote
+            time: 1403481600
+          - airline: JZA
+            responsetime: 990.4628
+            sourcetype: farequote
+            time: 1403481700
 
 ---
 "Test Flush data with invalid parameters":
@@ -186,30 +198,27 @@ setup:
 
 ---
 "Test flushing, posting and closing a closed job":
-  - skip:
-      features: ["headers"]
 
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       catch: /status_exception/
       xpack.ml.flush_job:
         job_id: closed_job
 
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       catch: /status_exception/
       xpack.ml.close_job:
         job_id: closed_job
 
   - do:
-      #set the header so we won't randomize it
-      headers:
-        Content-Type: application/json
       catch: /status_exception/
       xpack.ml.post_data:
         job_id: closed_job
-        body: {}
+        body:
+          - airline: AAL
+            responsetime: 132.2046
+            sourcetype: farequote
+            time: 1403481600
+          - airline: JZA
+            responsetime: 990.4628
+            sourcetype: farequote
+            time: 1403481700

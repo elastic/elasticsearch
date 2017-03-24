@@ -33,7 +33,7 @@ public final class DataToProcessWriterFactory {
             AnalysisConfig analysisConfig, DataCountsReporter dataCountsReporter,
             NamedXContentRegistry xContentRegistry) {
         switch (dataDescription.getFormat()) {
-        case JSON:
+        case XCONTENT:
             return new JsonDataToProcessWriter(includeControlField, autodetectProcess,
                     dataDescription, analysisConfig, dataCountsReporter, xContentRegistry);
         case DELIMITED:

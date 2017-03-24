@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.config.DataDescription.DataFormat;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 public class PostDataActionRequestTests extends AbstractStreamableTestCase<PostDataAction.Request> {
@@ -16,6 +20,14 @@ public class PostDataActionRequestTests extends AbstractStreamableTestCase<PostD
         }
         if (randomBoolean()) {
             request.setResetEnd(randomAsciiOfLengthBetween(1, 20));
+        }
+        if (randomBoolean()) {
+            request.setDataDescription(new DataDescription(randomFrom(DataFormat.values()),
+                    randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20),
+                    randomAsciiOfLength(1).charAt(0), randomAsciiOfLength(1).charAt(0)));
+        }
+        if (randomBoolean()) {
+            request.setContent(new BytesArray(new byte[0]), randomFrom(XContentType.values()));
         }
         return request;
     }

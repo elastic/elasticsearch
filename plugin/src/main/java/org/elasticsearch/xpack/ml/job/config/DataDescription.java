@@ -40,7 +40,7 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
      * Enum of the acceptable data formats.
      */
     public enum DataFormat implements Writeable {
-        JSON,
+        XCONTENT,
         DELIMITED;
 
         /**
@@ -175,7 +175,7 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (dataFormat != DataFormat.JSON) {
+        if (dataFormat != DataFormat.XCONTENT) {
             builder.field(FORMAT_FIELD.getPreferredName(), dataFormat);
         }
         builder.field(TIME_FIELD_NAME_FIELD.getPreferredName(), timeFieldName);
@@ -192,7 +192,7 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
 
     /**
      * The format of the data to be processed.
-     * Defaults to {@link DataDescription.DataFormat#JSON}
+     * Defaults to {@link DataDescription.DataFormat#XCONTENT}
      *
      * @return The data format
      */
@@ -252,7 +252,7 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
      * @return True if the data should be transformed.
      */
     public boolean transform() {
-        return dataFormat == DataFormat.JSON || isTransformTime();
+        return dataFormat == DataFormat.XCONTENT || isTransformTime();
     }
 
     /**
@@ -315,7 +315,7 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
 
     public static class Builder {
 
-        private DataFormat dataFormat = DataFormat.JSON;
+        private DataFormat dataFormat = DataFormat.XCONTENT;
         private String timeFieldName = DEFAULT_TIME_FIELD;
         private String timeFormat = EPOCH_MS;
         private Character fieldDelimiter;

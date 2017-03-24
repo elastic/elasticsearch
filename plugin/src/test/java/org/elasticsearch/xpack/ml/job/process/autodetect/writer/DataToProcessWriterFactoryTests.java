@@ -20,7 +20,7 @@ import static org.mockito.Mockito.mock;
 public class DataToProcessWriterFactoryTests extends ESTestCase {
     public void testCreate_GivenDataFormatIsJson() {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataFormat.JSON);
+        dataDescription.setFormat(DataFormat.XCONTENT);
 
         assertTrue(createWriter(dataDescription.build()) instanceof JsonDataToProcessWriter);
     }

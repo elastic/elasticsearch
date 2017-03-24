@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -135,6 +136,7 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
         private String resetStart = "";
         private String resetEnd = "";
         private DataDescription dataDescription;
+        private XContentType xContentType;
         private BytesReference content;
 
         Request() {
@@ -170,8 +172,13 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
 
         public BytesReference getContent() { return content; }
 
-        public void setContent(BytesReference content) {
+        public XContentType getXContentType() {
+            return xContentType;
+        }
+
+        public void setContent(BytesReference content, XContentType xContentType) {
             this.content = content;
+            this.xContentType = xContentType;
         }
 
         @Override
@@ -181,6 +188,9 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
             resetEnd = in.readOptionalString();
             dataDescription = in.readOptionalWriteable(DataDescription::new);
             content = in.readBytesReference();
+            if (in.readBoolean()) {
+                xContentType = XContentType.readFrom(in);
+            }
         }
 
         @Override
@@ -190,12 +200,17 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
             out.writeOptionalString(resetEnd);
             out.writeOptionalWriteable(dataDescription);
             out.writeBytesReference(content);
+            boolean hasXContentType = xContentType != null;
+            out.writeBoolean(hasXContentType);
+            if (hasXContentType) {
+                xContentType.writeTo(out);
+            }
         }
 
         @Override
         public int hashCode() {
             // content stream not included
-            return Objects.hash(jobId, resetStart, resetEnd, dataDescription);
+            return Objects.hash(jobId, resetStart, resetEnd, dataDescription, xContentType);
         }
 
         @Override
@@ -212,7 +227,8 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
             return Objects.equals(jobId, other.jobId) &&
                     Objects.equals(resetStart, other.resetStart) &&
                     Objects.equals(resetEnd, other.resetEnd) &&
-                    Objects.equals(dataDescription, other.dataDescription);
+                    Objects.equals(dataDescription, other.dataDescription) &&
+                    Objects.equals(xContentType, other.xContentType);
         }
     }
 
@@ -239,7 +255,8 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
             TimeRange timeRange = TimeRange.builder().startTime(request.getResetStart()).endTime(request.getResetEnd()).build();
             DataLoadParams params = new DataLoadParams(timeRange, Optional.ofNullable(request.getDataDescription()));
             try {
-                DataCounts dataCounts = processManager.processData(request.getJobId(), request.content.streamInput(), params);
+                DataCounts dataCounts = processManager.processData(request.getJobId(),
+                        request.content.streamInput(), request.getXContentType(), params);
                 listener.onResponse(new Response(dataCounts));
             } catch (Exception e) {
                 listener.onFailure(e);

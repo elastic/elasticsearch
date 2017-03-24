@@ -25,7 +25,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
 
     public void testDefault() {
         DataDescription dataDescription = new DataDescription.Builder().build();
-        assertThat(dataDescription.getFormat(), equalTo(DataFormat.JSON));
+        assertThat(dataDescription.getFormat(), equalTo(DataFormat.XCONTENT));
         assertThat(dataDescription.getTimeField(), equalTo("time"));
         assertThat(dataDescription.getTimeFormat(), equalTo("epoch_ms"));
         assertThat(dataDescription.getFieldDelimiter(), is(nullValue()));
@@ -102,7 +102,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
 
     public void testEquals_GivenDifferentDateFormat() {
         DataDescription.Builder description1 = new DataDescription.Builder();
-        description1.setFormat(DataFormat.JSON);
+        description1.setFormat(DataFormat.XCONTENT);
         description1.setQuoteCharacter('"');
         description1.setTimeField("timestamp");
         description1.setTimeFormat("epoch");
@@ -121,14 +121,14 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
 
     public void testEquals_GivenDifferentQuoteCharacter() {
         DataDescription.Builder description1 = new DataDescription.Builder();
-        description1.setFormat(DataFormat.JSON);
+        description1.setFormat(DataFormat.XCONTENT);
         description1.setQuoteCharacter('"');
         description1.setTimeField("timestamp");
         description1.setTimeFormat("epoch");
         description1.setFieldDelimiter(',');
 
         DataDescription.Builder description2 = new DataDescription.Builder();
-        description2.setFormat(DataFormat.JSON);
+        description2.setFormat(DataFormat.XCONTENT);
         description2.setQuoteCharacter('\'');
         description2.setTimeField("timestamp");
         description2.setTimeFormat("epoch");
@@ -140,14 +140,14 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
 
     public void testEquals_GivenDifferentTimeField() {
         DataDescription.Builder description1 = new DataDescription.Builder();
-        description1.setFormat(DataFormat.JSON);
+        description1.setFormat(DataFormat.XCONTENT);
         description1.setQuoteCharacter('"');
         description1.setTimeField("timestamp");
         description1.setTimeFormat("epoch");
         description1.setFieldDelimiter(',');
 
         DataDescription.Builder description2 = new DataDescription.Builder();
-        description2.setFormat(DataFormat.JSON);
+        description2.setFormat(DataFormat.XCONTENT);
         description2.setQuoteCharacter('"');
         description2.setTimeField("time");
         description2.setTimeFormat("epoch");
@@ -159,14 +159,14 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
 
     public void testEquals_GivenDifferentTimeFormat() {
         DataDescription.Builder description1 = new DataDescription.Builder();
-        description1.setFormat(DataFormat.JSON);
+        description1.setFormat(DataFormat.XCONTENT);
         description1.setQuoteCharacter('"');
         description1.setTimeField("timestamp");
         description1.setTimeFormat("epoch");
         description1.setFieldDelimiter(',');
 
         DataDescription.Builder description2 = new DataDescription.Builder();
-        description2.setFormat(DataFormat.JSON);
+        description2.setFormat(DataFormat.XCONTENT);
         description2.setQuoteCharacter('"');
         description2.setTimeField("timestamp");
         description2.setTimeFormat("epoch_ms");
@@ -178,14 +178,14 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
 
     public void testEquals_GivenDifferentFieldDelimiter() {
         DataDescription.Builder description1 = new DataDescription.Builder();
-        description1.setFormat(DataFormat.JSON);
+        description1.setFormat(DataFormat.XCONTENT);
         description1.setQuoteCharacter('"');
         description1.setTimeField("timestamp");
         description1.setTimeFormat("epoch");
         description1.setFieldDelimiter(',');
 
         DataDescription.Builder description2 = new DataDescription.Builder();
-        description2.setFormat(DataFormat.JSON);
+        description2.setFormat(DataFormat.XCONTENT);
         description2.setQuoteCharacter('"');
         description2.setTimeField("timestamp");
         description2.setTimeFormat("epoch");

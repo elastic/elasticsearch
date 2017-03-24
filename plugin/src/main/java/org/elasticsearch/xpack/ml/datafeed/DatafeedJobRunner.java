@@ -244,7 +244,7 @@ public class DatafeedJobRunner extends AbstractComponent {
 
     private static DataDescription buildDataDescription(Job job) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.JSON);
+        dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         if (job.getDataDescription() != null) {
             dataDescription.setTimeField(job.getDataDescription().getTimeField());
         }

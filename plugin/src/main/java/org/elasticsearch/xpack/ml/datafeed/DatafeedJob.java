@@ -10,6 +10,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
@@ -155,7 +156,7 @@ class DatafeedJob {
             if (extractedData.isPresent()) {
                 DataCounts counts;
                 try (InputStream in = extractedData.get()) {
-                    counts = postData(in);
+                    counts = postData(in, XContentType.JSON);
                 } catch (Exception e) {
                     if (e instanceof InterruptedException) {
                         Thread.currentThread().interrupt();
@@ -189,12 +190,13 @@ class DatafeedJob {
         client.execute(FlushJobAction.INSTANCE, flushRequest).actionGet();
     }
 
-    private DataCounts postData(InputStream inputStream) throws IOException {
+    private DataCounts postData(InputStream inputStream, XContentType xContentType)
+            throws IOException {
         PostDataAction.Request request = new PostDataAction.Request(jobId);
         request.setDataDescription(dataDescription);
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         Streams.copy(inputStream, outputStream);
-        request.setContent(new BytesArray(outputStream.toByteArray()));
+        request.setContent(new BytesArray(outputStream.toByteArray()), xContentType);
         PostDataAction.Response response = client.execute(PostDataAction.INSTANCE, request).actionGet();
         return response.getDataCounts();
     }

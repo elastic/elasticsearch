@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
@@ -47,6 +49,7 @@ public class DatafeedJobTests extends ESTestCase {
     private ArgumentCaptor<FlushJobAction.Request> flushJobRequests;
 
     private long currentTime;
+    private XContentType xContentType;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -57,19 +60,22 @@ public class DatafeedJobTests extends ESTestCase {
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
         client = mock(Client.class);
         dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.JSON);
+        dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         ActionFuture<PostDataAction.Response> jobDataFuture = mock(ActionFuture.class);
         flushJobFuture = mock(ActionFuture.class);
         currentTime = 0;
+        xContentType = XContentType.JSON;
 
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
-        InputStream inputStream = new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8));
+        byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
+        InputStream inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
         DataCounts dataCounts = new DataCounts("_job_id", 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0), 
                 new Date(0), new Date(0), new Date(0));
 
         PostDataAction.Request expectedRequest = new PostDataAction.Request("_job_id");
         expectedRequest.setDataDescription(dataDescription.build());
+        expectedRequest.setContent(new BytesArray(contentBytes), xContentType);
         when(client.execute(same(PostDataAction.INSTANCE), eq(expectedRequest))).thenReturn(jobDataFuture);
         when(jobDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
 

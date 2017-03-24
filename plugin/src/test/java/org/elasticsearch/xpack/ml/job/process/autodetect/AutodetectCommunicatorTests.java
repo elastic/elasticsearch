@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
@@ -49,7 +50,8 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1").endTime("2").build(), Optional.empty());
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class))) {
-            communicator.writeToJob(new ByteArrayInputStream(new byte[0]), params);
+            communicator.writeToJob(new ByteArrayInputStream(new byte[0]),
+                    randomFrom(XContentType.values()), params);
             Mockito.verify(process).writeResetBucketsControlMessage(params);
         }
     }
@@ -159,13 +161,15 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         when(in.read(any(byte[].class), anyInt(), anyInt())).thenReturn(-1);
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class));
+        XContentType xContentType = randomFrom(XContentType.values());
 
         communicator.inUse.set(new CountDownLatch(1));
         expectThrows(ElasticsearchStatusException.class,
-                () -> communicator.writeToJob(in, mock(DataLoadParams.class)));
+                () -> communicator.writeToJob(in, xContentType, mock(DataLoadParams.class)));
 
         communicator.inUse.set(null);
-        communicator.writeToJob(in, new DataLoadParams(TimeRange.builder().build(), Optional.empty()));
+        communicator.writeToJob(in, xContentType,
+                new DataLoadParams(TimeRange.builder().build(), Optional.empty()));
     }
 
     public void testFlushInUse() throws IOException {

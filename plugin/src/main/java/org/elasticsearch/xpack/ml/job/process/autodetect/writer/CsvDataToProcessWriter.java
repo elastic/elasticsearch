@@ -7,11 +7,12 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
@@ -65,7 +66,7 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
      * header a exception is thrown
      */
     @Override
-    public DataCounts write(InputStream inputStream) throws IOException {
+    public DataCounts write(InputStream inputStream, XContentType xContentType) throws IOException {
         CsvPreference csvPref = new CsvPreference.Builder(
                 dataDescription.getQuoteCharacter(),
                 dataDescription.getFieldDelimiter(),

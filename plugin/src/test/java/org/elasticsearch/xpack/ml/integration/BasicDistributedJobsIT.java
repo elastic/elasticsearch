@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
@@ -325,7 +326,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         postDataRequest.setContent(new BytesArray(
             "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n" +
             "{\"airline\":\"JZA\",\"responsetime\":\"990.4628\",\"sourcetype\":\"farequote\",\"time\":\"1403481700\"}"
-        ));
+        ), XContentType.JSON);
         PostDataAction.Response response = client().execute(PostDataAction.INSTANCE, postDataRequest).actionGet();
         assertEquals(2, response.getDataCounts().getProcessedRecordCount());
 

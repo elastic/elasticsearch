@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -135,16 +136,18 @@ public class AutodetectProcessManager extends AbstractComponent {
      *
      * @param jobId  the jobId
      * @param input  Data input stream
+     * @param xContentType  the {@link XContentType} of the input
      * @param params Data processing parameters
      * @return Count of records, fields, bytes, etc written
      */
-    public DataCounts processData(String jobId, InputStream input, DataLoadParams params) {
+    public DataCounts processData(String jobId, InputStream input, XContentType xContentType,
+            DataLoadParams params) {
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
         if (communicator == null) {
             throw new IllegalStateException("[" + jobId + "] Cannot process data: no active autodetect process for job");
         }
         try {
-            return communicator.writeToJob(input, params);
+            return communicator.writeToJob(input, xContentType, params);
             // TODO check for errors from autodetect
         } catch (IOException e) {
             String msg = String.format(Locale.ROOT, "Exception writing to process for job %s", jobId);

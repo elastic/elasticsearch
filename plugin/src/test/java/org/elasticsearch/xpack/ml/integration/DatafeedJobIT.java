@@ -488,7 +488,8 @@ public class DatafeedJobIT extends ESRestTestCase {
         String job = "{\n" + "    \"description\":\"Analysis of response time by airline\",\n"
                 + "    \"analysis_config\" : {\n" + "        \"bucket_span\":\"1h\",\n"
                 + "        \"detectors\" :[{\"function\":\"mean\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]\n"
-                + "    },\n" + "    \"data_description\" : {\n" + "        \"format\":\"JSON\",\n"
+                + "    },\n" + "    \"data_description\" : {\n"
+                + "        \"format\":\"xcontent\",\n"
                 + "        \"time_field\":\"time stamp\",\n" + "        \"time_format\":\"yyyy-MM-dd'T'HH:mm:ssX\"\n" + "    }\n"
                 + "}";
         return client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + id,

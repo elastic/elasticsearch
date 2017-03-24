@@ -24,7 +24,8 @@
     },
     "body": {
       "description" : "The data to process",
-      "required" : true
+      "required" : true,
+      "serialize" : "bulk"
     }
   }
 }

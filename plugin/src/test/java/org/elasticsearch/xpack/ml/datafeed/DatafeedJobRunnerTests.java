@@ -15,9 +15,11 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,10 +42,10 @@ import org.elasticsearch.xpack.ml.job.persistence.MockClientBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.persistent.PersistentTasksService;
-import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.xpack.persistent.PersistentTasksService;
+import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -63,9 +65,9 @@ import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.createJobTask
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -183,7 +185,9 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         DataExtractor dataExtractor = mock(DataExtractor.class);
         when(dataExtractorFactory.newExtractor(0L, 60000L)).thenReturn(dataExtractor);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
-        InputStream in = new ByteArrayInputStream("".getBytes(Charset.forName("utf-8")));
+        byte[] contentBytes = "".getBytes(Charset.forName("utf-8"));
+        XContentType xContentType = XContentType.JSON;
+        InputStream in = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.next()).thenReturn(Optional.of(in));
         DataCounts dataCounts = new DataCounts("job_id", 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 new Date(0), new Date(0), new Date(0), new Date(0), new Date(0));
@@ -194,16 +198,19 @@ public class DatafeedJobRunnerTests extends ESTestCase {
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
-        verify(client).execute(same(PostDataAction.INSTANCE), eq(createExpectedPostDataRequest("job_id")));
+        verify(client).execute(same(PostDataAction.INSTANCE),
+                eq(createExpectedPostDataRequest("job_id", contentBytes, xContentType)));
         verify(client).execute(same(FlushJobAction.INSTANCE), any());
     }
 
-    private static PostDataAction.Request createExpectedPostDataRequest(String jobId) {
+    private static PostDataAction.Request createExpectedPostDataRequest(String jobId,
+            byte[] contentBytes, XContentType xContentType) {
         DataDescription.Builder expectedDataDescription = new DataDescription.Builder();
         expectedDataDescription.setTimeFormat("epoch_ms");
-        expectedDataDescription.setFormat(DataDescription.DataFormat.JSON);
+        expectedDataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         PostDataAction.Request expectedPostDataRequest = new PostDataAction.Request(jobId);
         expectedPostDataRequest.setDataDescription(expectedDataDescription.build());
+        expectedPostDataRequest.setContent(new BytesArray(contentBytes), xContentType);
         return expectedPostDataRequest;
     }
 
@@ -265,7 +272,9 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         DataExtractor dataExtractor = mock(DataExtractor.class);
         when(dataExtractorFactory.newExtractor(0L, 60000L)).thenReturn(dataExtractor);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
-        InputStream in = new ByteArrayInputStream("".getBytes(Charset.forName("utf-8")));
+        byte[] contentBytes = "".getBytes(Charset.forName("utf-8"));
+        InputStream in = new ByteArrayInputStream(contentBytes);
+        XContentType xContentType = XContentType.JSON;
         when(dataExtractor.next()).thenReturn(Optional.of(in));
         DataCounts dataCounts = new DataCounts("job_id", 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 new Date(0), new Date(0), new Date(0), new Date(0), new Date(0));
@@ -282,7 +291,8 @@ public class DatafeedJobRunnerTests extends ESTestCase {
             task.stop("test");
             verify(handler).accept(null);
         } else {
-            verify(client).execute(same(PostDataAction.INSTANCE), eq(createExpectedPostDataRequest("job_id")));
+            verify(client).execute(same(PostDataAction.INSTANCE),
+                    eq(createExpectedPostDataRequest("job_id", contentBytes, xContentType)));
             verify(client).execute(same(FlushJobAction.INSTANCE), any());
             verify(threadPool, times(1)).schedule(eq(new TimeValue(480100)), eq(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME), any());
         }

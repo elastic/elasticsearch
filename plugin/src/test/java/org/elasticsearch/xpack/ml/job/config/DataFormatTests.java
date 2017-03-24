@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
-import java.io.IOException;
-
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.config.DataDescription.DataFormat;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -23,23 +23,23 @@ public class DataFormatTests extends ESTestCase {
         assertEquals(DataFormat.DELIMITED, DataFormat.forString("delimited"));
         assertEquals(DataFormat.DELIMITED, DataFormat.forString("DELIMITED"));
 
-        assertEquals(DataFormat.JSON, DataFormat.forString("json"));
-        assertEquals(DataFormat.JSON, DataFormat.forString("JSON"));
+        assertEquals(DataFormat.XCONTENT, DataFormat.forString("xcontent"));
+        assertEquals(DataFormat.XCONTENT, DataFormat.forString("XCONTENT"));
     }
 
     public void testToString() {
         assertEquals("delimited", DataFormat.DELIMITED.toString());
-        assertEquals("json", DataFormat.JSON.toString());
+        assertEquals("xcontent", DataFormat.XCONTENT.toString());
     }
 
     public void testValidOrdinals() {
-        assertThat(DataFormat.JSON.ordinal(), equalTo(0));
+        assertThat(DataFormat.XCONTENT.ordinal(), equalTo(0));
         assertThat(DataFormat.DELIMITED.ordinal(), equalTo(1));
     }
 
     public void testwriteTo() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            DataFormat.JSON.writeTo(out);
+            DataFormat.XCONTENT.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(0));
             }
@@ -57,7 +57,7 @@ public class DataFormatTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(0);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DataFormat.readFromStream(in), equalTo(DataFormat.JSON));
+                assertThat(DataFormat.readFromStream(in), equalTo(DataFormat.XCONTENT));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {

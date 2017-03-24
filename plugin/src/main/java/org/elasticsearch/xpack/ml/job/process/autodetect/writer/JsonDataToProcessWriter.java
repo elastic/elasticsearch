@@ -52,10 +52,10 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
      * timeField is missing from the JOSN inputIndex an exception is thrown
      */
     @Override
-    public DataCounts write(InputStream inputStream) throws IOException {
+    public DataCounts write(InputStream inputStream, XContentType xContentType) throws IOException {
         dataCountsReporter.startNewIncrementalCount();
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+        try (XContentParser parser = XContentFactory.xContent(xContentType)
                 .createParser(xContentRegistry, inputStream)) {
             writeJson(parser);
 
@@ -78,7 +78,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
         // We never expect to get the control field
         boolean[] gotFields = new boolean[analysisFields.size()];
 
-        SimpleJsonRecordReader recordReader = new SimpleJsonRecordReader(parser, inFieldIndexes,
+        XContentRecordReader recordReader = new XContentRecordReader(parser, inFieldIndexes,
                 LOGGER);
         long inputFieldCount = recordReader.read(input, gotFields);
         while (inputFieldCount >= 0) {

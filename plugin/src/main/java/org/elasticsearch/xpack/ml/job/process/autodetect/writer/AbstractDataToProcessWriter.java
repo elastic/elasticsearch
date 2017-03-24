@@ -76,11 +76,11 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     }
 
     /**
-     * Set up the field index mappings.
-     * This must be called before {@linkplain DataToProcessWriter#write(java.io.InputStream)}.
+     * Set up the field index mappings. This must be called before
+     * {@linkplain DataToProcessWriter#write(java.io.InputStream, org.elasticsearch.common.xcontent.XContentType)}.
      * <p>
-     * Finds the required input indexes in the <code>header</code>
-     * and sets the mappings to the corresponding output indexes.
+     * Finds the required input indexes in the <code>header</code> and sets the
+     * mappings to the corresponding output indexes.
      */
     void buildFieldIndexMapping(String[] header) throws IOException {
         Collection<String> inputFields = inputFields();

@@ -18,7 +18,7 @@ import java.util.Deque;
 import java.util.Map;
 import java.util.Objects;
 
-class SimpleJsonRecordReader {
+class XContentRecordReader {
     static final int PARSE_ERRORS_LIMIT = 100;
 
     protected final XContentParser parser;
@@ -40,28 +40,30 @@ class SimpleJsonRecordReader {
      * @param logger
      *            logger
      */
-    SimpleJsonRecordReader(XContentParser parser, Map<String, Integer> fieldMap, Logger logger) {
+    XContentRecordReader(XContentParser parser, Map<String, Integer> fieldMap, Logger logger) {
         this.parser = Objects.requireNonNull(parser);
         this.fieldMap = Objects.requireNonNull(fieldMap);
         this.logger = Objects.requireNonNull(logger);
     }
 
     /**
-     * Read the JSON object and write to the record array.
-     * Nested objects are flattened with the field names separated by
-     * a '.'.
-     * e.g. for a record with a nested 'tags' object:
-     * "{"name":"my.test.metric1","tags":{"tag1":"blah","tag2":"boo"},"time":1350824400,"value":12345.678}"
-     * use 'tags.tag1' to reference the tag1 field in the nested object
+     * Read the JSON object and write to the record array. Nested objects are
+     * flattened with the field names separated by a '.'. e.g. for a record with
+     * a nested 'tags' object:
+     * "{"name":"my.test.metric1","tags":{"tag1":"blah","tag2":"boo"},
+     * "time":1350824400,"value":12345.678}" use 'tags.tag1' to reference the
+     * tag1 field in the nested object
      * <p>
      * Array fields in the JSON are ignored
      *
-     * @param record    Read fields are written to this array. This array is first filled with empty
-     *                  strings and will never contain a <code>null</code>
-     * @param gotFields boolean array each element is true if that field
-     *                  was read
+     * @param record
+     *            Read fields are written to this array. This array is first
+     *            filled with empty strings and will never contain a
+     *            <code>null</code>
+     * @param gotFields
+     *            boolean array each element is true if that field was read
      * @return The number of fields in the JSON doc or -1 if nothing was read
-     * because the end of the stream was reached
+     *         because the end of the stream was reached
      */
     public long read(String[] record, boolean[] gotFields) throws IOException {
         initArrays(record, gotFields);

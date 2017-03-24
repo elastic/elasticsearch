@@ -137,7 +137,7 @@ cluster:admin/ml/datafeeds/start
 cluster:admin/ml/job/open
 cluster:admin/ml/job/update
 indices:internal/data/write/mldeletebyquery
-internal:admin/ml/job/update/process
+cluster:internal/ml/job/update/process
 cluster:admin/ml/delete_expired_data
 cluster:admin/persistent/create
 cluster:admin/persistent/start

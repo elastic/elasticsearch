@@ -585,12 +585,7 @@ final class BootstrapChecks {
 
         @Override
         public boolean check() {
-            if ("Oracle Corporation".equals(jvmVendor())) {
-                final String javaVersion = javaVersion();
-                return javaVersion.endsWith("-ea");
-            } else {
-                return false;
-            }
+            return "Oracle Corporation".equals(jvmVendor()) && javaVersion().endsWith("-ea");
         }
 
         String jvmVendor() {

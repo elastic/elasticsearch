@@ -14,6 +14,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
+import org.elasticsearch.xpack.ml.action.CloseJobAction.Request;
 import org.elasticsearch.xpack.ml.job.config.Job;
 
 import java.io.IOException;
@@ -28,9 +29,13 @@ public class RestCloseJobAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        CloseJobAction.Request request = new CloseJobAction.Request(restRequest.param(Job.ID.getPreferredName()));
-        if (restRequest.hasParam("timeout")) {
-            request.setTimeout(TimeValue.parseTimeValue(restRequest.param("timeout"), "timeout"));
+        Request request = new Request(restRequest.param(Job.ID.getPreferredName()));
+        if (restRequest.hasParam(Request.TIMEOUT.getPreferredName())) {
+            request.setTimeout(TimeValue.parseTimeValue(
+                    restRequest.param(Request.TIMEOUT.getPreferredName()), Request.TIMEOUT.getPreferredName()));
+        }
+        if (restRequest.hasParam(Request.FORCE.getPreferredName())) {
+            request.setForce(restRequest.paramAsBoolean(Request.FORCE.getPreferredName(), false));
         }
         return channel -> client.execute(CloseJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

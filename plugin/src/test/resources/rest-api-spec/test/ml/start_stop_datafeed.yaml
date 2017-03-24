@@ -58,6 +58,41 @@ setup:
   - match: { datafeeds.0.state: stopped }
 
 ---
+"Test force stop datafeed":
+  - do:
+      xpack.ml.open_job:
+        job_id: "datafeed-job"
+  - do:
+      xpack.ml.start_datafeed:
+        "datafeed_id": "datafeed-1"
+        "start": 0
+  - do:
+      xpack.ml.get_datafeed_stats:
+        datafeed_id: "datafeed-1"
+  - match: { datafeeds.0.state: started }
+
+  - do:
+      cluster.state:
+        metric: [ metadata ]
+        filter_path: metadata.persistent_tasks.**.DatafeedState
+  - match: {metadata.persistent_tasks.tasks.0.status.DatafeedState.state: started}
+
+  - do:
+      xpack.ml.stop_datafeed:
+        "datafeed_id": "datafeed-1"
+        force: true
+  - do:
+      xpack.ml.get_datafeed_stats:
+        datafeed_id: "datafeed-1"
+  - match: { datafeeds.0.state: stopped }
+
+  - do:
+      cluster.state:
+        metric: [ metadata ]
+        filter_path: metadata.persistent_tasks.**.DatafeedState
+  - is_false: metadata.persistent_tasks.tasks.0.status.DatafeedState
+
+---
 "Test start datafeed given start is now":
   - do:
       xpack.ml.open_job:

@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,6 +59,7 @@ public class StopDatafeedAction
     public static final StopDatafeedAction INSTANCE = new StopDatafeedAction();
     public static final String NAME = "cluster:admin/ml/datafeeds/stop";
     public static final ParseField TIMEOUT = new ParseField("timeout");
+    public static final ParseField FORCE = new ParseField("force");
 
     private StopDatafeedAction() {
         super(NAME);
@@ -80,6 +83,7 @@ public class StopDatafeedAction
             PARSER.declareString((request, datafeedId) -> request.datafeedId = datafeedId, DatafeedConfig.ID);
             PARSER.declareString((request, val) ->
                     request.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+            PARSER.declareBoolean(Request::setForce, FORCE);
         }
 
         public static Request fromXContent(XContentParser parser) {
@@ -95,6 +99,7 @@ public class StopDatafeedAction
         }
 
         private String datafeedId;
+        private boolean force = false;
 
         public Request(String jobId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(jobId, DatafeedConfig.ID.getPreferredName());
@@ -107,6 +112,14 @@ public class StopDatafeedAction
 
         public String getDatafeedId() {
             return datafeedId;
+        }
+
+        public boolean isForce() {
+            return force;
+        }
+
+        public void setForce(boolean force) {
+            this.force = force;
         }
 
         @Override
@@ -124,12 +137,14 @@ public class StopDatafeedAction
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             datafeedId = in.readString();
+            force = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(datafeedId);
+            out.writeBoolean(force);
         }
 
         @Override
@@ -158,7 +173,8 @@ public class StopDatafeedAction
             }
             Request other = (Request) obj;
             return Objects.equals(datafeedId, other.datafeedId) &&
-                    Objects.equals(getTimeout(), other.getTimeout());
+                    Objects.equals(getTimeout(), other.getTimeout()) &&
+                    Objects.equals(force, other.force);
         }
     }
 
@@ -204,25 +220,41 @@ public class StopDatafeedAction
 
     public static class TransportAction extends TransportTasksAction<StartDatafeedAction.DatafeedTask, Request, Response, Response> {
 
+        private final Client client;
+
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ClusterService clusterService) {
+                               ClusterService clusterService, Client client) {
             super(settings, StopDatafeedAction.NAME, threadPool, clusterService, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new, Response::new, MachineLearning.THREAD_POOL_NAME);
+            this.client = client;
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             ClusterState state = clusterService.state();
             MetaData metaData = state.metaData();
-            MlMetadata mlMetadata = metaData.custom(MlMetadata.TYPE);
             PersistentTasksCustomMetaData tasks = metaData.custom(PersistentTasksCustomMetaData.TYPE);
-            String nodeId = validateAndReturnNodeId(request.getDatafeedId(), mlMetadata, tasks);
-            request.setNodes(nodeId);
-            ActionListener<Response> finalListener =
-                    ActionListener.wrap(r ->  waitForDatafeedStopped(request, r, listener), listener::onFailure);
-            super.doExecute(task, request, finalListener);
+
+            if (request.force) {
+                PersistentTask<?> datafeedTask = MlMetadata.getDatafeedTask(request.getDatafeedId(), tasks);
+                if (datafeedTask != null) {
+                    forceStopTask(client, datafeedTask.getId(), listener);
+                } else {
+                    String msg = "Requested datafeed [" + request.getDatafeedId() + "] be force-stopped, but " +
+                            "datafeed's task could not be found.";
+                    logger.warn(msg);
+                    listener.onFailure(new RuntimeException(msg));
+                }
+            } else {
+                MlMetadata mlMetadata = metaData.custom(MlMetadata.TYPE);
+                String nodeId = validateAndReturnNodeId(request.getDatafeedId(), mlMetadata, tasks);
+                request.setNodes(nodeId);
+                ActionListener<Response> finalListener =
+                        ActionListener.wrap(r -> waitForDatafeedStopped(request, r, listener), listener::onFailure);
+                super.doExecute(task, request, finalListener);
+            }
         }
 
         // Wait for datafeed to be marked as stopped in cluster state, which means the datafeed persistent task has been removed
@@ -237,6 +269,15 @@ public class StopDatafeedAction
                     listener.onResponse(response);
                 }
             });
+        }
+
+        private void forceStopTask(Client client, long taskId, ActionListener<Response> listener) {
+            RemovePersistentTaskAction.Request request = new RemovePersistentTaskAction.Request(taskId);
+
+            client.execute(RemovePersistentTaskAction.INSTANCE, request,
+                    ActionListener.wrap(
+                            response -> listener.onResponse(new Response(response.isAcknowledged())),
+                            listener::onFailure));
         }
 
         @Override

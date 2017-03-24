@@ -46,6 +46,10 @@ public class RestStopDatafeedAction extends BaseRestHandler {
                         StopDatafeedAction.TIMEOUT.getPreferredName(), TimeValue.timeValueSeconds(20));
                 jobDatafeedRequest.setTimeout(openTimeout);
             }
+            if (restRequest.hasParam(StopDatafeedAction.FORCE.getPreferredName())) {
+                jobDatafeedRequest.setForce(
+                        restRequest.paramAsBoolean(StopDatafeedAction.FORCE.getPreferredName(), false));
+            }
         }
         return channel -> client.execute(StopDatafeedAction.INSTANCE, jobDatafeedRequest, new RestBuilderListener<Response>(channel) {
 

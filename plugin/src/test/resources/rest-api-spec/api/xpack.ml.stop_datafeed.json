@@ -13,6 +13,13 @@
           "type": "string",
           "required": true,
           "description": "The ID of the datafeed to stop"
+        }
+      },
+      "params": {
+        "force": {
+          "type": "boolean",
+          "required": false,
+          "description": "True if the datafeed should be forcefully stopped."
         },
         "timeout": {
           "type": "time",

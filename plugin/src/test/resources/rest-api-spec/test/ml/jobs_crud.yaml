@@ -295,3 +295,123 @@
       catch: /Cannot delete job \[datafeed-job\] while datafeed \[test-datafeed-1\] refers to it/
       xpack.ml.delete_job:
         job_id: datafeed-job
+---
+"Test close job":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: farequote
+        body:  >
+          {
+            "job_id":"farequote",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":"1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - match: { job_id: "farequote" }
+
+  - do:
+      xpack.ml.open_job:
+        job_id: farequote
+
+  - do:
+      #set the header so we won't randomize it
+      headers:
+        Content-Type: application/json
+      xpack.ml.post_data:
+        job_id: farequote
+        body: >
+          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
+
+
+  - do:
+      xpack.ml.flush_job:
+        job_id: farequote
+  - match: { flushed: true }
+
+  - do:
+      cluster.state:
+        metric: [ metadata ]
+        filter_path: metadata.persistent_tasks
+  - match: {metadata.persistent_tasks.tasks.0.status.JobState.state: opened}
+
+  - do:
+      xpack.ml.close_job:
+        job_id: farequote
+  - match: { closed: true }
+
+  - do:
+      cluster.state:
+        metric: [ metadata ]
+        filter_path: metadata.persistent_tasks
+  - match:
+      metadata.persistent_tasks.tasks: []
+
+---
+"Test force close job":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: farequote
+        body:  >
+          {
+            "job_id":"farequote",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":"1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - match: { job_id: "farequote" }
+
+  - do:
+      xpack.ml.open_job:
+        job_id: farequote
+
+  - do:
+      #set the header so we won't randomize it
+      headers:
+        Content-Type: application/json
+      xpack.ml.post_data:
+        job_id: farequote
+        body: >
+          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
+
+
+  - do:
+      xpack.ml.flush_job:
+        job_id: farequote
+  - match: { flushed: true }
+
+  - do:
+      cluster.state:
+        metric: [ metadata ]
+        filter_path: metadata.persistent_tasks
+  - match: {metadata.persistent_tasks.tasks.0.status.JobState.state: opened}
+
+  - do:
+      xpack.ml.close_job:
+        job_id: farequote
+        force: true
+  - match: { closed: true }
+
+  - do:
+      cluster.state:
+        metric: [ metadata ]
+        filter_path: metadata.persistent_tasks
+  - match:
+      metadata.persistent_tasks.tasks: []

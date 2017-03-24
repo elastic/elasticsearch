@@ -9,6 +9,13 @@
           "type": "string",
           "required": true,
           "description": "The name of the job to close"
+        }
+      },
+      "params": {
+        "force": {
+          "type": "boolean",
+          "required": false,
+          "description": "True if the job should be forcefully closed"
         },
         "timeout": {
           "type": "time",

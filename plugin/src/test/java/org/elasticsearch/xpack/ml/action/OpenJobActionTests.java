@@ -311,9 +311,6 @@ public class OpenJobActionTests extends ESTestCase {
         indices.add(AnomalyDetectorsIndex.jobStateIndexName());
         indices.add(AnomalyDetectorsIndex.ML_META_INDEX);
         indices.add(Auditor.NOTIFICATIONS_INDEX);
-
-        // norelease: randomizing this throws an NPE in the test due to verifyIndicesExistAndPrimaryShardsAreActive()
-        // returning false. Needs fixing, deferring to a followup PR
         indices.add(AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT);
         for (String indexName : indices) {
             IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);

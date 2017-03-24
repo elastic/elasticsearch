@@ -62,8 +62,11 @@ import java.util.function.Consumer;
 
 public class AutodetectProcessManager extends AbstractComponent {
 
-    // TODO (norelease) default needs to be reconsidered
-    // Cannot be dynamic because the thread pool that is sized to match cannot be resized
+    // TODO: Ideally this setting shouldn't need to exist
+    // We should be able from the job config to estimate the memory/cpu a job needs to have,
+    // and if we know that then we can prior to assigning a job to a node fail based on the
+    // available resources on that node: https://github.com/elastic/x-pack-elasticsearch/issues/546
+    // Note: on small instances on cloud, this setting will be set to: 1
     public static final Setting<Integer> MAX_RUNNING_JOBS_PER_NODE =
             Setting.intSetting("max_running_jobs", 10, 1, 512, Setting.Property.NodeScope);
 

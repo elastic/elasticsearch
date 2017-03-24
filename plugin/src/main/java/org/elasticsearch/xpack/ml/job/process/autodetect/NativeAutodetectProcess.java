@@ -49,9 +49,9 @@ class NativeAutodetectProcess implements AutodetectProcess {
     private final ZonedDateTime startTime;
     private final int numberOfAnalysisFields;
     private final List<Path> filesToDelete;
-    private Future<?> logTailFuture;
-    private Future<?> stateProcessorFuture;
-    private AutodetectResultsParser resultsParser;
+    private volatile Future<?> logTailFuture;
+    private volatile Future<?> stateProcessorFuture;
+    private final AutodetectResultsParser resultsParser;
 
     NativeAutodetectProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
                             int numberOfAnalysisFields, List<Path> filesToDelete, AutodetectResultsParser resultsParser) {

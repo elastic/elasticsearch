@@ -22,17 +22,17 @@ package org.elasticsearch.script.mustache.stored;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class GetStoredSearchTemplateRequestBuilder extends MasterNodeReadOperationRequestBuilder<
-        GetStoredSearchTemplateRequest,
-        GetStoredSearchTemplateResponse,
-        GetStoredSearchTemplateRequestBuilder> {
+public class GetStoredTemplateRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+        GetStoredTemplateRequest,
+        GetStoredTemplateResponse,
+        GetStoredTemplateRequestBuilder> {
 
-    public GetStoredSearchTemplateRequestBuilder(ElasticsearchClient client,
-            GetStoredSearchTemplateAction action) {
-        super(client, action, new GetStoredSearchTemplateRequest());
+    public GetStoredTemplateRequestBuilder(ElasticsearchClient client,
+            GetStoredTemplateAction action) {
+        super(client, action, new GetStoredTemplateRequest());
     }
 
-    public GetStoredSearchTemplateRequestBuilder setId(String id) {
+    public GetStoredTemplateRequestBuilder setId(String id) {
         request.id(id);
         return this;
     }

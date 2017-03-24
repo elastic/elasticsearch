@@ -19,30 +19,29 @@
 
 package org.elasticsearch.script.mustache.stored;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
-import java.io.IOException;
+public class DeleteStoredTemplateAction extends Action<
+        DeleteStoredTemplateRequest,
+        DeleteStoredTemplateResponse,
+        DeleteStoredTemplateRequestBuilder> {
 
-public class DeleteStoredSearchTemplateResponse extends AcknowledgedResponse {
+    public static final DeleteStoredTemplateAction INSTANCE =
+            new DeleteStoredTemplateAction();
+    public static final String NAME = "cluster:admin/search/template/delete";
 
-    DeleteStoredSearchTemplateResponse() {
-    }
-
-    public DeleteStoredSearchTemplateResponse(boolean acknowledged) {
-        super(acknowledged);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        readAcknowledged(in);
+    private DeleteStoredTemplateAction() {
+        super(NAME);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        writeAcknowledged(out);
+    public DeleteStoredTemplateResponse newResponse() {
+        return new DeleteStoredTemplateResponse();
+    }
+
+    @Override
+    public DeleteStoredTemplateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new DeleteStoredTemplateRequestBuilder(client, this);
     }
 }

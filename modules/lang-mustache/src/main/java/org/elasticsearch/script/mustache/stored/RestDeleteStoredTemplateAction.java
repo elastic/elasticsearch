@@ -29,9 +29,9 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
-public class RestDeleteStoredSearchTemplateAction extends BaseRestHandler {
+public class RestDeleteStoredTemplateAction extends BaseRestHandler {
 
-    public RestDeleteStoredSearchTemplateAction(Settings settings, RestController controller) {
+    public RestDeleteStoredTemplateAction(Settings settings, RestController controller) {
         super(settings);
 
         controller.registerHandler(DELETE, "/_search/template/{id}", this);
@@ -42,8 +42,8 @@ public class RestDeleteStoredSearchTemplateAction extends BaseRestHandler {
             throws IOException {
         String id = request.param("id");
 
-        DeleteStoredSearchTemplateRequest deleteRequest = new DeleteStoredSearchTemplateRequest(id);
-        return channel -> client.execute(DeleteStoredSearchTemplateAction.INSTANCE, deleteRequest,
+        DeleteStoredTemplateRequest deleteRequest = new DeleteStoredTemplateRequest(id);
+        return channel -> client.execute(DeleteStoredTemplateAction.INSTANCE, deleteRequest,
                 new AcknowledgedRestListener<>(channel));
     }
 }

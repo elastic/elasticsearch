@@ -36,13 +36,13 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestGetStoredSearchTemplateAction extends BaseRestHandler {
+public class RestGetStoredTemplateAction extends BaseRestHandler {
 
     public static final ParseField _ID_PARSE_FIELD = new ParseField("_id");
 
     public static final ParseField FOUND_PARSE_FIELD = new ParseField("found");
 
-    public RestGetStoredSearchTemplateAction(Settings settings, RestController controller) {
+    public RestGetStoredTemplateAction(Settings settings, RestController controller) {
         super(settings);
 
         controller.registerHandler(GET, "/_search/template/{id}", this);
@@ -53,12 +53,12 @@ public class RestGetStoredSearchTemplateAction extends BaseRestHandler {
             throws IOException {
         String id = request.param("id");
 
-        GetStoredSearchTemplateRequest getRequest = new GetStoredSearchTemplateRequest(id);
+        GetStoredTemplateRequest getRequest = new GetStoredTemplateRequest(id);
 
-        return channel -> client.execute(GetStoredSearchTemplateAction.INSTANCE, getRequest,
-                new RestBuilderListener<GetStoredSearchTemplateResponse>(channel) {
+        return channel -> client.execute(GetStoredTemplateAction.INSTANCE, getRequest,
+                new RestBuilderListener<GetStoredTemplateResponse>(channel) {
                     @Override
-                    public RestResponse buildResponse(GetStoredSearchTemplateResponse response,
+                    public RestResponse buildResponse(GetStoredTemplateResponse response,
                             XContentBuilder builder) throws Exception {
                         builder.startObject();
                         builder.field("_id", id);

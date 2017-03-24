@@ -19,29 +19,21 @@
 
 package org.elasticsearch.script.mustache.stored;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
+import org.elasticsearch.client.ElasticsearchClient;
 
-import java.io.IOException;
+public class DeleteStoredTemplateRequestBuilder extends AcknowledgedRequestBuilder<
+        DeleteStoredTemplateRequest,
+        DeleteStoredTemplateResponse,
+        DeleteStoredTemplateRequestBuilder> {
 
-public class PutStoredSearchTemplateResponse extends AcknowledgedResponse {
-    PutStoredSearchTemplateResponse() {
+    public DeleteStoredTemplateRequestBuilder(ElasticsearchClient client,
+            DeleteStoredTemplateAction action) {
+        super(client, action, new DeleteStoredTemplateRequest());
     }
 
-    public PutStoredSearchTemplateResponse(boolean acknowledged) {
-        super(acknowledged);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        readAcknowledged(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        writeAcknowledged(out);
+    public DeleteStoredTemplateRequestBuilder setId(String id) {
+        request.id(id);
+        return this;
     }
 }

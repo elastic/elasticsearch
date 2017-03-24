@@ -21,19 +21,28 @@ package org.elasticsearch.script.mustache.stored;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 
-public class DeleteStoredSearchTemplateRequestBuilder extends AcknowledgedRequestBuilder<
-        DeleteStoredSearchTemplateRequest,
-        DeleteStoredSearchTemplateResponse,
-        DeleteStoredSearchTemplateRequestBuilder> {
+public class PutStoredTemplateRequestBuilder extends AcknowledgedRequestBuilder<
+            PutStoredTemplateRequest,
+            PutStoredTemplateResponse,
+            PutStoredTemplateRequestBuilder> {
 
-    public DeleteStoredSearchTemplateRequestBuilder(ElasticsearchClient client,
-            DeleteStoredSearchTemplateAction action) {
-        super(client, action, new DeleteStoredSearchTemplateRequest());
+    public PutStoredTemplateRequestBuilder(ElasticsearchClient client,
+            PutStoredTemplateAction action) {
+        super(client, action, new PutStoredTemplateRequest());
     }
 
-    public DeleteStoredSearchTemplateRequestBuilder setId(String id) {
+    public PutStoredTemplateRequestBuilder setId(String id) {
         request.id(id);
         return this;
     }
+
+    public PutStoredTemplateRequestBuilder setContent(BytesReference content,
+            XContentType xContentType) {
+        request.content(content, xContentType);
+        return this;
+    }
+
 }

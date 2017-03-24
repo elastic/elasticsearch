@@ -21,42 +21,27 @@ package org.elasticsearch.script.mustache.stored;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class PutStoredSearchTemplateRequest extends AcknowledgedRequest<
-        PutStoredSearchTemplateRequest> {
+public class DeleteStoredTemplateRequest extends AcknowledgedRequest<
+        DeleteStoredTemplateRequest> {
+
     private String id;
-    private BytesReference content;
-    private XContentType xContentType;
 
-    public PutStoredSearchTemplateRequest() {
+    DeleteStoredTemplateRequest() {
     }
 
-    public PutStoredSearchTemplateRequest(String id, BytesReference content,
-            XContentType xContentType) {
+    public DeleteStoredTemplateRequest(String id) {
         this.id = id;
-        this.content = content;
-        this.xContentType = Objects.requireNonNull(xContentType);
     }
 
-    public PutStoredSearchTemplateRequest id(String id) {
+    public DeleteStoredTemplateRequest id(String id) {
         this.id = id;
-        return this;
-    }
-
-    public PutStoredSearchTemplateRequest content(BytesReference content,
-            XContentType xContentType) {
-        this.content = content;
-        this.xContentType = xContentType;
         return this;
     }
 
@@ -73,11 +58,6 @@ public class PutStoredSearchTemplateRequest extends AcknowledgedRequest<
                         "id cannot contain '#' for stored search template", validationException);
             }
 
-        if (content == null) {
-            validationException = addValidationError("must specify code for stored search template",
-                    validationException);
-        }
-
         return validationException;
     }
 
@@ -85,40 +65,22 @@ public class PutStoredSearchTemplateRequest extends AcknowledgedRequest<
         return id;
     }
 
-    public BytesReference content() {
-        return content;
-    }
-
-    public XContentType xContentType() {
-        return xContentType;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        id = in.readOptionalString();
-        content = in.readBytesReference();
-        xContentType = XContentType.readFrom(in);
+
+        id = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalString(id);
-        out.writeBytesReference(content);
-        xContentType.writeTo(out);
+
+        out.writeString(id);
     }
 
     @Override
     public String toString() {
-        String source = "_na_";
-
-        try {
-            source = XContentHelper.convertToJson(content, false, xContentType);
-        } catch (Exception e) {
-            // ignore
-        }
-
-        return "put search template {id [" + id + "], content [" + source + "]}";
+        return "delete stored script {id [" + id + "]}";
     }
 }

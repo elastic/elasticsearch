@@ -31,9 +31,9 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-public class RestPutStoredSearchTemplateAction extends BaseRestHandler {
+public class RestPutStoredTemplateAction extends BaseRestHandler {
 
-    public RestPutStoredSearchTemplateAction(Settings settings, RestController controller) {
+    public RestPutStoredTemplateAction(Settings settings, RestController controller) {
         super(settings);
 
         controller.registerHandler(POST, "/_search/template/{id}", this);
@@ -46,9 +46,9 @@ public class RestPutStoredSearchTemplateAction extends BaseRestHandler {
         String id = request.param("id");
         BytesReference content = request.content();
 
-        PutStoredSearchTemplateRequest put = new PutStoredSearchTemplateRequest(id, content,
+        PutStoredTemplateRequest put = new PutStoredTemplateRequest(id, content,
                 request.getXContentType());
-        return channel -> client.execute(PutStoredSearchTemplateAction.INSTANCE, put,
+        return channel -> client.execute(PutStoredTemplateAction.INSTANCE, put,
                 new AcknowledgedRestListener<>(channel));
     }
 }

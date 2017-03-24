@@ -22,27 +22,27 @@ package org.elasticsearch.script.mustache.stored;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class GetStoredSearchTemplateAction extends Action<
-        GetStoredSearchTemplateRequest,
-        GetStoredSearchTemplateResponse,
-        GetStoredSearchTemplateRequestBuilder> {
+public class GetStoredTemplateAction extends Action<
+        GetStoredTemplateRequest,
+        GetStoredTemplateResponse,
+        GetStoredTemplateRequestBuilder> {
 
-    public static final GetStoredSearchTemplateAction INSTANCE =
-            new GetStoredSearchTemplateAction();
+    public static final GetStoredTemplateAction INSTANCE =
+            new GetStoredTemplateAction();
     public static final String NAME = "cluster:admin/search/template/get";
 
-    private GetStoredSearchTemplateAction() {
+    private GetStoredTemplateAction() {
         super(NAME);
     }
 
     @Override
-    public GetStoredSearchTemplateResponse newResponse() {
-        return new GetStoredSearchTemplateResponse();
+    public GetStoredTemplateResponse newResponse() {
+        return new GetStoredTemplateResponse();
     }
 
     @Override
-    public GetStoredSearchTemplateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new GetStoredSearchTemplateRequestBuilder(client, this);
+    public GetStoredTemplateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new GetStoredTemplateRequestBuilder(client, this);
     }
 
 }

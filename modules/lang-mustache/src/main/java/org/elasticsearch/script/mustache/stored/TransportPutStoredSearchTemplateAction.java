@@ -40,7 +40,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportPutStoredSearchTemplateAction extends TransportMasterNodeAction<
-        PutStoredSearchTemplateRequest, PutStoredSearchTemplateResponse> {
+        PutStoredTemplateRequest, PutStoredTemplateResponse> {
 
     private final TemplateService templateService;
     private final int maxScriptSizeInBytes;
@@ -50,9 +50,9 @@ public class TransportPutStoredSearchTemplateAction extends TransportMasterNodeA
             TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
             TemplateService templateService) {
-        super(settings, PutStoredSearchTemplateAction.NAME, transportService, clusterService,
+        super(settings, PutStoredTemplateAction.NAME, transportService, clusterService,
                 threadPool, actionFilters, indexNameExpressionResolver,
-                PutStoredSearchTemplateRequest::new);
+                PutStoredTemplateRequest::new);
         this.templateService = templateService;
         maxScriptSizeInBytes = ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.get(settings);
     }
@@ -63,13 +63,13 @@ public class TransportPutStoredSearchTemplateAction extends TransportMasterNodeA
     }
 
     @Override
-    protected PutStoredSearchTemplateResponse newResponse() {
-        return new PutStoredSearchTemplateResponse();
+    protected PutStoredTemplateResponse newResponse() {
+        return new PutStoredTemplateResponse();
     }
 
     @Override
-    protected void masterOperation(PutStoredSearchTemplateRequest request, ClusterState state,
-            ActionListener<PutStoredSearchTemplateResponse> listener) throws Exception {
+    protected void masterOperation(PutStoredTemplateRequest request, ClusterState state,
+            ActionListener<PutStoredTemplateResponse> listener) throws Exception {
         if (request.content().length() > maxScriptSizeInBytes) {
             throw new IllegalArgumentException("exceeded max allowed stored script size in bytes ["
                     + maxScriptSizeInBytes + "] with size [" + request.content().length()
@@ -88,12 +88,12 @@ public class TransportPutStoredSearchTemplateAction extends TransportMasterNodeA
         }
 
         clusterService.submitStateUpdateTask("put-search-template-" + request.id(),
-                new AckedClusterStateUpdateTask<PutStoredSearchTemplateResponse>(request,
+                new AckedClusterStateUpdateTask<PutStoredTemplateResponse>(request,
                         listener) {
 
                     @Override
-                    protected PutStoredSearchTemplateResponse newResponse(boolean acknowledged) {
-                        return new PutStoredSearchTemplateResponse(acknowledged);
+                    protected PutStoredTemplateResponse newResponse(boolean acknowledged) {
+                        return new PutStoredTemplateResponse(acknowledged);
                     }
 
                     @Override
@@ -109,7 +109,7 @@ public class TransportPutStoredSearchTemplateAction extends TransportMasterNodeA
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutStoredSearchTemplateRequest request,
+    protected ClusterBlockException checkBlock(PutStoredTemplateRequest request,
             ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }

@@ -20,28 +20,43 @@
 package org.elasticsearch.script.mustache.stored;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetStoredSearchTemplateRequest extends MasterNodeReadRequest<
-        GetStoredSearchTemplateRequest> {
+public class PutStoredTemplateRequest extends AcknowledgedRequest<
+        PutStoredTemplateRequest> {
+    private String id;
+    private BytesReference content;
+    private XContentType xContentType;
 
-    protected String id;
-
-    GetStoredSearchTemplateRequest() {
+    public PutStoredTemplateRequest() {
     }
 
-    public GetStoredSearchTemplateRequest(String id) {
+    public PutStoredTemplateRequest(String id, BytesReference content,
+            XContentType xContentType) {
         this.id = id;
+        this.content = content;
+        this.xContentType = Objects.requireNonNull(xContentType);
     }
 
-    public GetStoredSearchTemplateRequest id(String id) {
+    public PutStoredTemplateRequest id(String id) {
         this.id = id;
+        return this;
+    }
+
+    public PutStoredTemplateRequest content(BytesReference content,
+            XContentType xContentType) {
+        this.content = content;
+        this.xContentType = xContentType;
         return this;
     }
 
@@ -58,6 +73,11 @@ public class GetStoredSearchTemplateRequest extends MasterNodeReadRequest<
                         "id cannot contain '#' for stored search template", validationException);
             }
 
+        if (content == null) {
+            validationException = addValidationError("must specify code for stored search template",
+                    validationException);
+        }
+
         return validationException;
     }
 
@@ -65,20 +85,40 @@ public class GetStoredSearchTemplateRequest extends MasterNodeReadRequest<
         return id;
     }
 
+    public BytesReference content() {
+        return content;
+    }
+
+    public XContentType xContentType() {
+        return xContentType;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        id = in.readString();
+        id = in.readOptionalString();
+        content = in.readBytesReference();
+        xContentType = XContentType.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(id);
+        out.writeOptionalString(id);
+        out.writeBytesReference(content);
+        xContentType.writeTo(out);
     }
 
     @Override
     public String toString() {
-        return "get stored search template [" + id + "]";
+        String source = "_na_";
+
+        try {
+            source = XContentHelper.convertToJson(content, false, xContentType);
+        } catch (Exception e) {
+            // ignore
+        }
+
+        return "put search template {id [" + id + "], content [" + source + "]}";
     }
 }

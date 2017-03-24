@@ -36,19 +36,19 @@ import org.elasticsearch.script.TemplateService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportDeleteStoredSearchTemplateAction extends TransportMasterNodeAction<
-        DeleteStoredSearchTemplateRequest, DeleteStoredSearchTemplateResponse> {
+public class TransportDeleteStoredTemplateAction extends TransportMasterNodeAction<
+        DeleteStoredTemplateRequest, DeleteStoredTemplateResponse> {
 
     private final TemplateService templateService;
 
     @Inject
-    public TransportDeleteStoredSearchTemplateAction(Settings settings,
+    public TransportDeleteStoredTemplateAction(Settings settings,
             TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
             TemplateService templateService) {
-        super(settings, DeleteStoredSearchTemplateAction.NAME, transportService, clusterService,
+        super(settings, DeleteStoredTemplateAction.NAME, transportService, clusterService,
                 threadPool, actionFilters, indexNameExpressionResolver,
-                DeleteStoredSearchTemplateRequest::new);
+                DeleteStoredTemplateRequest::new);
         this.templateService = templateService;
     }
 
@@ -58,19 +58,19 @@ public class TransportDeleteStoredSearchTemplateAction extends TransportMasterNo
     }
 
     @Override
-    protected DeleteStoredSearchTemplateResponse newResponse() {
-        return new DeleteStoredSearchTemplateResponse();
+    protected DeleteStoredTemplateResponse newResponse() {
+        return new DeleteStoredTemplateResponse();
     }
 
     @Override
-    protected void masterOperation(DeleteStoredSearchTemplateRequest request, ClusterState state,
-            ActionListener<DeleteStoredSearchTemplateResponse> listener) throws Exception {
+    protected void masterOperation(DeleteStoredTemplateRequest request, ClusterState state,
+            ActionListener<DeleteStoredTemplateResponse> listener) throws Exception {
         clusterService.submitStateUpdateTask("delete-search-template-" + request.id(),
-                new AckedClusterStateUpdateTask<DeleteStoredSearchTemplateResponse>(request,
+                new AckedClusterStateUpdateTask<DeleteStoredTemplateResponse>(request,
                         listener) {
                     @Override
-                    protected DeleteStoredSearchTemplateResponse newResponse(boolean acknowledged) {
-                        return new DeleteStoredSearchTemplateResponse(acknowledged);
+                    protected DeleteStoredTemplateResponse newResponse(boolean acknowledged) {
+                        return new DeleteStoredTemplateResponse(acknowledged);
                     }
 
                     @Override
@@ -86,7 +86,7 @@ public class TransportDeleteStoredSearchTemplateAction extends TransportMasterNo
     }
 
     @Override
-    protected ClusterBlockException checkBlock(DeleteStoredSearchTemplateRequest request,
+    protected ClusterBlockException checkBlock(DeleteStoredTemplateRequest request,
             ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }

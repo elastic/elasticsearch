@@ -20,7 +20,7 @@
 package org.elasticsearch.script.mustache.stored;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,19 +28,19 @@ import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class DeleteStoredSearchTemplateRequest extends AcknowledgedRequest<
-        DeleteStoredSearchTemplateRequest> {
+public class GetStoredTemplateRequest extends MasterNodeReadRequest<
+        GetStoredTemplateRequest> {
 
-    private String id;
+    protected String id;
 
-    DeleteStoredSearchTemplateRequest() {
+    GetStoredTemplateRequest() {
     }
 
-    public DeleteStoredSearchTemplateRequest(String id) {
+    public GetStoredTemplateRequest(String id) {
         this.id = id;
     }
 
-    public DeleteStoredSearchTemplateRequest id(String id) {
+    public GetStoredTemplateRequest id(String id) {
         this.id = id;
         return this;
     }
@@ -68,19 +68,17 @@ public class DeleteStoredSearchTemplateRequest extends AcknowledgedRequest<
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-
         id = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-
         out.writeString(id);
     }
 
     @Override
     public String toString() {
-        return "delete stored script {id [" + id + "]}";
+        return "get stored search template [" + id + "]";
     }
 }

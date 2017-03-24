@@ -34,19 +34,19 @@ import org.elasticsearch.script.TemplateService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportGetStoredSearchTemplateAction extends TransportMasterNodeReadAction<
-        GetStoredSearchTemplateRequest, GetStoredSearchTemplateResponse> {
+public class TransportGetStoredTemplateAction extends TransportMasterNodeReadAction<
+        GetStoredTemplateRequest, GetStoredTemplateResponse> {
 
     private final TemplateService templateService;
 
     @Inject
-    public TransportGetStoredSearchTemplateAction(Settings settings,
+    public TransportGetStoredTemplateAction(Settings settings,
             TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
             TemplateService templateService) {
-        super(settings, GetStoredSearchTemplateAction.NAME, transportService, clusterService,
+        super(settings, GetStoredTemplateAction.NAME, transportService, clusterService,
                 threadPool, actionFilters, indexNameExpressionResolver,
-                GetStoredSearchTemplateRequest::new);
+                GetStoredTemplateRequest::new);
         this.templateService = templateService;
     }
 
@@ -56,17 +56,17 @@ public class TransportGetStoredSearchTemplateAction extends TransportMasterNodeR
     }
 
     @Override
-    protected GetStoredSearchTemplateResponse newResponse() {
-        return new GetStoredSearchTemplateResponse();
+    protected GetStoredTemplateResponse newResponse() {
+        return new GetStoredTemplateResponse();
     }
 
     @Override
-    protected void masterOperation(GetStoredSearchTemplateRequest request, ClusterState state,
-            ActionListener<GetStoredSearchTemplateResponse> listener) throws Exception {
+    protected void masterOperation(GetStoredTemplateRequest request, ClusterState state,
+            ActionListener<GetStoredTemplateResponse> listener) throws Exception {
         ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);
 
         if (scriptMetadata != null) {
-            listener.onResponse(new GetStoredSearchTemplateResponse(scriptMetadata
+            listener.onResponse(new GetStoredTemplateResponse(scriptMetadata
                     .getStoredScript(request.id(), templateService.getTemplateLanguage())));
         } else {
             listener.onResponse(null);
@@ -74,7 +74,7 @@ public class TransportGetStoredSearchTemplateAction extends TransportMasterNodeR
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetStoredSearchTemplateRequest request,
+    protected ClusterBlockException checkBlock(GetStoredTemplateRequest request,
             ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }

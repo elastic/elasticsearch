@@ -22,6 +22,7 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.concurrent.TimeUnit;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -300,7 +301,8 @@ public class DataCountsReporterTests extends ESTestCase {
 
             long lastReportedTimeMs = dataCountsReporter.incrementalStats().getLastDataTimeStamp().getTime();
             // check last data time is equal to now give or take a second
-            assertTrue(lastReportedTimeMs >= now.getTime() && lastReportedTimeMs <= now.getTime() +1);
+            assertTrue(lastReportedTimeMs >= now.getTime()
+                    && lastReportedTimeMs <= now.getTime() + TimeUnit.SECONDS.toMillis(1));
             assertEquals(dataCountsReporter.incrementalStats().getLastDataTimeStamp(),
                     dataCountsReporter.runningTotalStats().getLastDataTimeStamp());
 

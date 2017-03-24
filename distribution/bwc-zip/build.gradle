@@ -62,7 +62,7 @@ task addUpstream(type: LoggedExec) {
 task fetchLatest(type: LoggedExec) {
   dependsOn addUpstream
   workingDir = checkoutDir
-  commandLine = ['git', 'fetch', 'upstream', '5.x']
+  commandLine = ['git', 'fetch', 'upstream']
 }
 
 task checkoutBwcBranch(type: LoggedExec) {

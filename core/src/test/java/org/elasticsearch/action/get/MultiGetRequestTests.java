@@ -20,7 +20,6 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -30,7 +29,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasToString;
 
 public class MultiGetRequestTests extends ESTestCase {
 

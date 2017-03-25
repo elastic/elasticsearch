@@ -44,6 +44,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 
 public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetRequest.Item>, CompositeIndicesRequest, RealtimeRequest {
 
@@ -327,6 +328,13 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
                     parseDocuments(parser, this.items, defaultIndex, defaultType, defaultFields, defaultFetchSource, defaultRouting, allowExplicitIndex);
                 } else if ("ids".equals(currentFieldName)) {
                     parseIds(parser, this.items, defaultIndex, defaultType, defaultFields, defaultFetchSource, defaultRouting);
+                } else {
+                    final String message = String.format(
+                            Locale.ROOT,
+                            "Unknown key [%s] for a %s, expected [docs] or [ids]",
+                            currentFieldName,
+                            token);
+                    throw new ParsingException(parser.getTokenLocation(), message);
                 }
             }
         }

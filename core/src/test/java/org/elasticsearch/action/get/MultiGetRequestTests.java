@@ -19,12 +19,51 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
+
 public class MultiGetRequestTests extends ESTestCase {
+
+    public void testAddWithInvalidKey() throws IOException {
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        {
+            builder.startArray("doc");
+            {
+                builder.startObject();
+                {
+                    builder.field("_type", "type");
+                    builder.field("_id", "1");
+                }
+                builder.endObject();
+            }
+            builder.endArray();
+        }
+        builder.endObject();
+        final XContentParser parser = createParser(builder);
+        final MultiGetRequest mgr = new MultiGetRequest();
+        final ParsingException e = expectThrows(
+                ParsingException.class,
+                () -> {
+                    final String defaultIndex = randomAsciiOfLength(5);
+                    final String defaultType = randomAsciiOfLength(3);
+                    final FetchSourceContext fetchSource = FetchSourceContext.FETCH_SOURCE;
+                    mgr.add(defaultIndex, defaultType, null, fetchSource, null, parser, true);
+                });
+        assertThat(
+                e.toString(),
+                containsString("Unknown key [doc] for a START_ARRAY, expected [docs] or [ids]"));
+    }
 
     public void testAddWithInvalidSourceValueIsRejected() throws Exception {
         String sourceValue = randomFrom("on", "off", "0", "1");

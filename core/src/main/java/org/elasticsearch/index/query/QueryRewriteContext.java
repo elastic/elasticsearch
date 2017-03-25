@@ -105,9 +105,10 @@ public class QueryRewriteContext {
         return nowInMillis.getAsLong();
     }
 
-    public BytesReference getTemplateBytes(Script template) { // TODO remove this and use getTemplateService directly
+    public BytesReference getTemplateBytes(Script template) {
         return templateService
-                .template(template.getIdOrCode(), template.getType(), ScriptContext.Standard.SEARCH)
+                .template(template.getIdOrCode(), template.getType(),
+                        ScriptContext.Standard.SEARCH, null)
                 .apply(template.getParams());
     }
 

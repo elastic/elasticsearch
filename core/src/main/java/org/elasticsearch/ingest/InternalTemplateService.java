@@ -40,7 +40,7 @@ public class InternalTemplateService implements TemplateService {
         int mustacheEnd = template.indexOf("}}");
         if (mustacheStart != -1 && mustacheEnd != -1 && mustacheStart < mustacheEnd) {
             Function<Map<String, Object>, BytesReference> compiled = templateService.template(
-                    template, ScriptType.INLINE, ScriptContext.Standard.INGEST);
+                    template, ScriptType.INLINE, ScriptContext.Standard.INGEST, null);
             return new Template() {
                 @Override
                 public String execute(Map<String, Object> model) {

@@ -630,7 +630,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         if (this.collateQuery != null) {
             suggestionContext.setCollateQuery(
                     context.getTemplateService().template(collateQuery.getIdOrCode(),
-                            collateQuery.getType(), ScriptContext.Standard.SEARCH));
+                            collateQuery.getType(), ScriptContext.Standard.SEARCH, null));
             if (this.collateParams != null) {
                 suggestionContext.setCollateScriptParams(this.collateParams);
             }

@@ -39,9 +39,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Map;
-import java.util.function.Function;
-
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.script.ScriptContext.Standard.SEARCH;
 
@@ -66,11 +63,10 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     protected void doExecute(SearchTemplateRequest request, ActionListener<SearchTemplateResponse> listener) {
         final SearchTemplateResponse response = new SearchTemplateResponse();
         try {
-            Function<Map<String, Object>, BytesReference> template =
-                    templateService.template(request.getScript(), request.getScriptType(), SEARCH);
-            Map<String, Object> params =
-                    request.getScriptParams() == null ? emptyMap() : request.getScriptParams();
-            BytesReference source = template.apply(params);
+            BytesReference source = templateService
+                    .template(request.getScript(), request.getScriptType(), SEARCH, null)
+                    .apply(request.getScriptParams() == null ?
+                            emptyMap() : request.getScriptParams());
             response.setSource(source);
 
             if (request.isSimulate()) {

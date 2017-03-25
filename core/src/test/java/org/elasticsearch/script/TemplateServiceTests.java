@@ -102,13 +102,13 @@ public class TemplateServiceTests extends ESTestCase {
         resourceWatcherService.notifyNow();
 
         assertEquals(new BytesArray(body), templateService.template("test", ScriptType.FILE,
-                ScriptContext.Standard.SEARCH).apply(emptyMap()));
+                ScriptContext.Standard.SEARCH, null).apply(emptyMap()));
 
         Files.delete(testFileWithExt);
         resourceWatcherService.notifyNow();
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> templateService
-                .template("test", ScriptType.FILE, ScriptContext.Standard.SEARCH));
+                .template("test", ScriptType.FILE, ScriptContext.Standard.SEARCH, null));
         assertEquals("unable to find file template [test]", e.getMessage());
     }
 
@@ -126,8 +126,9 @@ public class TemplateServiceTests extends ESTestCase {
         templateService.clusterChanged(
                 new ClusterChangedEvent("test", newState, ClusterState.EMPTY_STATE));
 
-        assertEquals(new BytesArray(body), templateService.template("test", ScriptType.STORED,
-                ScriptContext.Standard.SEARCH).apply(emptyMap()));
+        assertEquals(new BytesArray(body), templateService
+                .template("test", ScriptType.STORED, ScriptContext.Standard.SEARCH, null)
+                .apply(emptyMap()));
 
         ClusterState oldState = newState;
         newState = ClusterState.builder(oldState)
@@ -138,15 +139,16 @@ public class TemplateServiceTests extends ESTestCase {
         templateService.clusterChanged(new ClusterChangedEvent("test", newState, oldState));
 
         Exception e = expectThrows(ResourceNotFoundException.class, () -> templateService
-                .template("test", ScriptType.STORED, ScriptContext.Standard.SEARCH));
+                .template("test", ScriptType.STORED, ScriptContext.Standard.SEARCH, null));
         assertEquals("unable to find template [test] in cluster state", e.getMessage());
     }
 
     public void testInlineTemplates() throws IOException {
         String body = "{\"test\":\"test\"}";
 
-        assertEquals(new BytesArray(body), templateService.template(body, ScriptType.INLINE,
-                ScriptContext.Standard.SEARCH).apply(emptyMap()));
+        assertEquals(new BytesArray(body), templateService
+                .template(body, ScriptType.INLINE, ScriptContext.Standard.SEARCH, null)
+                .apply(emptyMap()));
     }
 
     /**

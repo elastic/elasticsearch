@@ -123,7 +123,8 @@ public class TemplateService implements ClusterStateListener {
             }
 
             @Override
-            protected boolean areAnyScriptContextsEnabled(CacheKey cacheKey, ScriptType scriptType) {
+            protected boolean areAnyScriptContextsEnabled(
+                    CacheKey cacheKey, ScriptType scriptType) {
                 for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
                     if (scriptPermits.checkContextPermissions(backend.getType(), scriptType,
                             scriptContext)) {

@@ -104,3 +104,111 @@ There are two distance calculation modes: `arc` (the default), and `plane`. The 
     }
 }
 --------------------------------------------------
+
+==== Keyed Response
+
+Setting the `keyed` flag to `true` will associate a unique string key with each bucket and return the ranges as a hash rather than an array:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs": {
+        "accidents_near_empire_state": {
+            "geo_distance": {
+                "field": "coords",
+                "unit": "km",
+                "origin" : { "lat" : 40.7484, "lon" : -73.9857 },
+                "ranges": [
+                    { "to": 3 },
+                    { "from" : 3, "to" : 8 },
+                    { "from" : 8 }
+                ],
+                "keyed": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "accidents_near_empire_state": {
+            "buckets": {
+                "*-3.0": {
+                    "from": 0,
+                    "to": 3,
+                    "doc_count": 102090
+                },
+                "3.0-8.0": {
+                    "from": 3,
+                    "to": 8,
+                    "doc_count": 170287
+                },
+                "8.0-*": {
+                    "from": 8,
+                    "doc_count": 526590
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+It is also possible to customize the key for each range:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs": {
+        "accidents_near_empire_state": {
+            "geo_distance": {
+                "field": "coords",
+                "unit": "km",
+                "origin" : { "lat" : 40.7484, "lon" : -73.9857 },
+                "ranges": [
+                    { "key": "very-close", "to": 3 },
+                    { "key": "close", "from" : 3, "to" : 8 },
+                    { "key": "far", "from" : 8 }
+                ],
+                "keyed": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "accidents_near_empire_state": {
+            "buckets": {
+                "very-close": {
+                    "from": 0,
+                    "to": 3,
+                    "doc_count": 102090
+                },
+                "close": {
+                    "from": 3,
+                    "to": 8,
+                    "doc_count": 170287
+                },
+                "far": {
+                    "from": 8,
+                    "doc_count": 526590
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------

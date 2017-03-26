@@ -153,3 +153,91 @@ POST /sales/_search?size=0
 
 <1> This date will be converted to `2016-02-15T00:00:00.000+01:00`.
 <2> `now/d` will be rounded to the beginning of the day in the CET time zone.
+
+==== Keyed Response
+
+Setting the `keyed` flag to `true` will associate a unique string key with each bucket and return the ranges as a hash rather than an array:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "nyc_recent_accidents": {
+            "date_range": {
+                "field": "@timestamp",
+                "format": "MM-yyy",
+                "ranges": [
+                    { "from": "now-10M/d", "to": "now" }
+                ],
+                "keyed": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "nyc_recent_accidents": {
+            "buckets": {
+                "05-2016-03-2017": {
+                    "from": 1464307200000,
+                    "from_as_string": "05-2016",
+                    "to": 1490604059606,
+                    "to_as_string": "03-2017",
+                    "doc_count": 185436
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+It is also possible to customize the key for each range:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "nyc_recent_accidents": {
+            "date_range": {
+                "field": "@timestamp",
+                "format": "MM-yyy",
+                "ranges": [
+                    { "from": "now-10M/d", "to": "now" }
+                ],
+                "keyed": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "nyc_recent_accidents": {
+            "buckets": {
+                "last-10M": {
+                    "from": 1464307200000,
+                    "from_as_string": "05-2016",
+                    "to": 1490604059606,
+                    "to_as_string": "03-2017",
+                    "doc_count": 185436
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------

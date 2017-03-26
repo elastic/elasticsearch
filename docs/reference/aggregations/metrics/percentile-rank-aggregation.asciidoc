@@ -58,6 +58,52 @@ The response will look like this:
 From this information you can determine you are hitting the 99% load time target but not quite
 hitting the 95% load time target
 
+==== Keyed Response
+
+By default the `keyed` flag is set to `true` associates a unique string key with each bucket and returns the ranges as a hash rather than an array. Setting the `keyed` flag to `false` will disable this behavior:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs": {
+        "accident_hour_outlier": {
+            "percentile_ranks": {
+                "field": "hour_of_day",
+                "values" : [15, 20, 22],
+                "keyed": false
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "accident_hour_outlier": {
+            "values": [
+                {
+                    "key": 15,
+                    "value": 59.80540497209334
+                },
+                {
+                    "key": 20,
+                    "value": 90.38133124528507
+                },
+                {
+                    "key": 22,
+                    "value": 97.28720731656692
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
 
 ==== Script
 

@@ -86,7 +86,52 @@ must be a value between 0-100 inclusive):
 --------------------------------------------------
 <1> Use the `percents` parameter to specify particular percentiles to calculate
 
+==== Keyed Response
 
+By default the `keyed` flag is set to `true` associates a unique string key with each bucket and returns the ranges as a hash rather than an array. Setting the `keyed` flag to `false` will disable this behavior:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs": {
+        "accident_hour_outlier": {
+            "percentiles": {
+                "field": "hour_of_day",
+                "percents" : [80, 85, 95],
+                "keyed": false
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "accident_hour_outlier": {
+            "values": [
+                {
+                    "key": 80,
+                    "value": 18
+                },
+                {
+                    "key": 85,
+                    "value": 19
+                },
+                {
+                    "key": 95,
+                    "value": 22
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
 
 ==== Script
 

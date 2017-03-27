@@ -152,6 +152,6 @@
 ---
 "Missing file template":
   - do:
-      catch: /unable.to.find.file.template.\[missing\]/
+      catch: /unable.to.find.file.template.\[id=missing, contentType=text/plain\]/
       search_template:
         body: { "file" : "missing"}

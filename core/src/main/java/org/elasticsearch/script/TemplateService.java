@@ -50,7 +50,7 @@ public class TemplateService implements ClusterStateListener {
      */
     public interface Backend extends ScriptEngineService {} // TODO customize this for templates
 
-    private static final String DEFAULT_CONTENT_TYPE = "text/plain";
+    private static final String DEFAULT_CONTENT_TYPE = "application/json";
     private static final Logger logger = ESLoggerFactory.getLogger(TemplateService.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     private final Backend backend;

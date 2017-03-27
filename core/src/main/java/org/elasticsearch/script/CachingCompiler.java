@@ -102,9 +102,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
 
         // add file watcher for file scripts and templates
         scriptsDirectory = env.scriptsFile();
-        if (logger.isTraceEnabled()) {
-            logger.trace("Using scripts directory [{}] ", scriptsDirectory);
-        }
+        logger.trace("Using scripts directory [{}] ", scriptsDirectory);
         FileWatcher fileWatcher = new FileWatcher(scriptsDirectory);
         fileWatcher.addListener(new DirectoryChangesListener());
         if (ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.get(settings)) {
@@ -213,9 +211,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
             }
 
             try {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("compiling [{}]", cacheKey);
-                }
+                logger.trace("compiling [{}]", cacheKey);
                 // Check whether too many compilations have happened
                 checkCompilationLimit();
                 compiledScript = compile(scriptType, cacheKey);
@@ -274,10 +270,8 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
     private class CacheRemovalListener implements RemovalListener<CacheKeyT, CompiledScript> {
         @Override
         public void onRemoval(RemovalNotification<CacheKeyT, CompiledScript> notification) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("removed {} from cache, reason: {}", notification.getValue(),
-                        notification.getRemovalReason());
-            }
+            logger.debug("removed {} from cache, reason: {}", notification.getValue(),
+                    notification.getRemovalReason());
             scriptMetrics.onCacheEviction();
         }
     }
@@ -307,9 +301,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
                 logger.debug("Skipped script with invalid extension : [{}]", file);
                 return;
             }
-            if (logger.isTraceEnabled()) {
-                logger.trace("Loading script file : [{}]", file);
-            }
+            logger.trace("Loading script file : [{}]", file);
 
             CacheKeyT cacheKey = cacheKeyForFile(scriptNameExt.v1(), scriptNameExt.v2());
             if (cacheKey == null) {

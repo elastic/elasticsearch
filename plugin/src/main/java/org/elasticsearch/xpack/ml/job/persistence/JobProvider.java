@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -17,12 +18,13 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.MultiGetItemResponse;
-import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -61,6 +63,7 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder.BucketsQuery;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
@@ -74,6 +77,7 @@ import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.Result;
+import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.security.support.Exceptions;
 
 import java.io.IOException;
@@ -82,13 +86,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -239,6 +241,98 @@ public class JobProvider {
                 DataCounts.PARSER, () -> new DataCounts(jobId));
     }
 
+    public void getAutodetectParams(Job job, Consumer<AutodetectParams> consumer, Consumer<Exception> errorHandler) {
+        AutodetectParams.Builder paramsBuilder = new AutodetectParams.Builder(job.getId());
+
+        String jobId = job.getId();
+        String resultsIndex = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        String stateIndex = AnomalyDetectorsIndex.jobStateIndexName();
+        MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
+                .add(createDocIdSearch(resultsIndex, DataCounts.TYPE.getPreferredName(), DataCounts.documentId(jobId)))
+                .add(createDocIdSearch(resultsIndex, Result.TYPE.getPreferredName(), ModelSizeStats.documentId(jobId)))
+                .add(createDocIdSearch(resultsIndex, ModelSnapshot.TYPE.getPreferredName(),
+                        ModelSnapshot.documentId(jobId, job.getModelSnapshotId())))
+                .add(createDocIdSearch(stateIndex, Quantiles.TYPE.getPreferredName(), Quantiles.documentId(jobId)));
+
+        for (String filterId : job.getAnalysisConfig().extractReferencedFilters()) {
+            msearch.add(createDocIdSearch(ML_META_INDEX, MlFilter.TYPE.getPreferredName(), filterId));
+        }
+
+        msearch.execute(ActionListener.wrap(
+                response -> {
+                    for (MultiSearchResponse.Item itemResponse : response.getResponses()) {
+                        if (itemResponse.isFailure()) {
+                            if (itemResponse.getFailure() instanceof IndexNotFoundException == false) {
+                                throw itemResponse.getFailure();
+                            } else {
+                                // Ignore IndexNotFoundException; AutodetectParamsBuilder has defaults for new jobs
+                            }
+                        } else {
+                            SearchResponse searchResponse = itemResponse.getResponse();
+                            ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
+                            int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
+                            if (shardFailures != null && shardFailures.length > 0) {
+                                LOGGER.error("[{}] Search request returned shard failures: {}", jobId,
+                                        Arrays.toString(shardFailures));
+                                errorHandler.accept(new ElasticsearchException(
+                                        ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
+                            } else if (unavailableShards > 0) {
+                                errorHandler.accept(new ElasticsearchException("[" + jobId
+                                        + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
+                            } else {
+                                SearchHit[] hits = searchResponse.getHits().getHits();
+                                if (hits.length == 1) {
+                                    parseAutodetectParamSearchHit(paramsBuilder, hits[0], errorHandler);
+                                } else if (hits.length > 1) {
+                                    errorHandler.accept(new IllegalStateException("Got ["
+                                            + hits.length + "] even though search size was 1"));
+                                }
+                            }
+                        }
+                    }
+                    consumer.accept(paramsBuilder.build());
+                },
+                errorHandler
+        ));
+    }
+
+    private SearchRequestBuilder createDocIdSearch(String index, String type, String id) {
+        return client.prepareSearch(index).setSize(1)
+                .setQuery(QueryBuilders.idsQuery(type).addIds(id))
+                .setRouting(id);
+    }
+
+    private void parseAutodetectParamSearchHit(AutodetectParams.Builder paramsBuilder,
+                                               SearchHit hit, Consumer<Exception> errorHandler) {
+        String type = hit.getType();
+        if (DataCounts.TYPE.getPreferredName().equals(type)) {
+            paramsBuilder.setDataCounts(parseSearchHit(hit, DataCounts.PARSER, errorHandler));
+        } else if (Result.TYPE.getPreferredName().equals(type)) {
+            ModelSizeStats.Builder modelSizeStats = parseSearchHit(hit, ModelSizeStats.PARSER, errorHandler);
+            paramsBuilder.setModelSizeStats(modelSizeStats == null ? null : modelSizeStats.build());
+        } else if (ModelSnapshot.TYPE.getPreferredName().equals(type)) {
+            ModelSnapshot.Builder modelSnapshot = parseSearchHit(hit, ModelSnapshot.PARSER, errorHandler);
+            paramsBuilder.setModelSnapshot(modelSnapshot == null ? null : modelSnapshot.build());
+        } else if (Quantiles.TYPE.getPreferredName().equals(type)) {
+            paramsBuilder.setQuantiles(parseSearchHit(hit, Quantiles.PARSER, errorHandler));
+        } else if (MlFilter.TYPE.getPreferredName().equals(type)) {
+            paramsBuilder.addFilter(parseSearchHit(hit, MlFilter.PARSER, errorHandler));
+        } else {
+            errorHandler.accept(new IllegalStateException("Unexpected type [" + type + "]"));
+        }
+    }
+
+    private <T, U> T parseSearchHit(SearchHit hit, BiFunction<XContentParser, U, T> objectParser,
+                                    Consumer<Exception> errorHandler) {
+        BytesReference source = hit.getSourceRef();
+        try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
+            return objectParser.apply(parser, null);
+        } catch (IOException e) {
+            errorHandler.accept(new ElasticsearchParseException("failed to parse " + hit.getType(), e));
+            return null;
+        }
+    }
+
     private <T, U> void get(String indexName, String type, String id, Consumer<T> handler, Consumer<Exception> errorHandler,
                             BiFunction<XContentParser, U, T> objectParser, Supplier<T> notFoundSupplier) {
         GetRequest getRequest = new GetRequest(indexName, type, id);
@@ -262,44 +356,6 @@ public class JobProvider {
                         handler.accept(notFoundSupplier.get());
                     }
                 }));
-    }
-
-    private <T, U> void mget(String indexName, String type, Set<String> ids, Consumer<Set<T>> handler, Consumer<Exception> errorHandler,
-                             BiFunction<XContentParser, U, T> objectParser) {
-        if (ids.isEmpty()) {
-            handler.accept(Collections.emptySet());
-            return;
-        }
-
-        MultiGetRequest multiGetRequest = new MultiGetRequest();
-        for (String id : ids) {
-            multiGetRequest.add(indexName, type, id);
-        }
-        client.multiGet(multiGetRequest, ActionListener.wrap(
-                mresponse -> {
-                    Set<T> objects = new HashSet<>();
-                    for (MultiGetItemResponse item : mresponse) {
-                        GetResponse response = item.getResponse();
-                        if (response.isExists()) {
-                            BytesReference source = response.getSourceAsBytesRef();
-                            try (XContentParser parser = XContentFactory.xContent(source)
-                                    .createParser(NamedXContentRegistry.EMPTY, source)) {
-                                objects.add(objectParser.apply(parser, null));
-                            } catch (IOException e) {
-                                throw new ElasticsearchParseException("failed to parse " + type, e);
-                            }
-                        }
-                    }
-                    handler.accept(objects);
-                },
-                e -> {
-                    if (e instanceof IndexNotFoundException == false) {
-                        errorHandler.accept(e);
-                    } else {
-                        handler.accept(new HashSet<>());
-                    }
-                })
-        );
     }
 
     public static IndicesOptions addIgnoreUnavailable(IndicesOptions indicesOptions) {
@@ -752,19 +808,6 @@ public class JobProvider {
     }
 
     /**
-     * Get the persisted quantiles state for the job
-     */
-    public void getQuantiles(String jobId, Consumer<Quantiles> handler, Consumer<Exception> errorHandler) {
-        String indexName = AnomalyDetectorsIndex.jobStateIndexName();
-        String quantilesId = Quantiles.documentId(jobId);
-        LOGGER.trace("ES API CALL: get ID {} type {} from index {}", quantilesId, Quantiles.TYPE.getPreferredName(), indexName);
-        get(indexName, Quantiles.TYPE.getPreferredName(), quantilesId, handler, errorHandler, Quantiles.PARSER, () -> {
-            LOGGER.info("There are currently no quantiles for job " + jobId);
-            return null;
-        });
-    }
-
-    /**
      * Get a job's model snapshot by its id
      */
     public void getModelSnapshot(String jobId, @Nullable String modelSnapshotId, Consumer<ModelSnapshot> handler,
@@ -980,17 +1023,8 @@ public class JobProvider {
                 handler, errorHandler, (parser, context) -> ModelSizeStats.PARSER.apply(parser, null).build(),
                 () -> {
                     LOGGER.trace("No memory usage details for job with id {}", jobId);
-                    return null;
+                    return new ModelSizeStats.Builder(jobId).build();
                 });
-    }
-
-    /**
-     * Retrieves the filter with the given {@code filterId} from the datastore.
-     *
-     * @param ids the id of the requested filter
-     */
-    public void getFilters(Consumer<Set<MlFilter>> handler, Consumer<Exception> errorHandler, Set<String> ids) {
-        mget(ML_META_INDEX, MlFilter.TYPE.getPreferredName(), ids, handler, errorHandler, MlFilter.PARSER);
     }
 
     /**

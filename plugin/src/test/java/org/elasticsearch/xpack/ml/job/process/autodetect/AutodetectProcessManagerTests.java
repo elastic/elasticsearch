@@ -28,10 +28,12 @@ import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
@@ -82,6 +84,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private NormalizerFactory normalizerFactory;
 
     private DataCounts dataCounts = new DataCounts("foo");
+    private ModelSizeStats modelSizeStats = new ModelSizeStats.Builder("foo").build();
     private ModelSnapshot modelSnapshot = new ModelSnapshot.Builder("foo").build();
     private Quantiles quantiles = new Quantiles("foo", new Date(), "state");
     private Set<MlFilter> filters = new HashSet<>();
@@ -98,28 +101,10 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(jobManager.getJobOrThrowIfUnknown("foo")).thenReturn(createJobDetails("foo"));
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            Consumer<DataCounts> handler = (Consumer<DataCounts>) invocationOnMock.getArguments()[1];
-            handler.accept(dataCounts);
+            Consumer<AutodetectParams> handler = (Consumer<AutodetectParams>) invocationOnMock.getArguments()[1];
+            handler.accept(buildAutodetectParams());
             return null;
-        }).when(jobProvider).dataCounts(any(), any(), any());
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            Consumer<ModelSnapshot> handler = (Consumer<ModelSnapshot>) invocationOnMock.getArguments()[2];
-            handler.accept(modelSnapshot);
-            return null;
-        }).when(jobProvider).getModelSnapshot(anyString(), anyString(), any(), any());
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            Consumer<Quantiles> handler = (Consumer<Quantiles>) invocationOnMock.getArguments()[1];
-            handler.accept(quantiles);
-            return null;
-        }).when(jobProvider).getQuantiles(any(), any(), any());
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            Consumer<Set<MlFilter>> handler = (Consumer<Set<MlFilter>>) invocationOnMock.getArguments()[0];
-            handler.accept(filters);
-            return null;
-        }).when(jobProvider).getFilters(any(), any(), any());
+        }).when(jobProvider).getAutodetectParams(any(), any(), any());
     }
 
     public void testOpenJob() {
@@ -137,14 +122,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
     public void testOpenJob_exceedMaxNumJobs() {
         when(jobManager.getJobOrThrowIfUnknown("foo")).thenReturn(createJobDetails("foo"));
-        doAnswer(invocationOnMock -> {
-            String jobId = (String) invocationOnMock.getArguments()[0];
-            @SuppressWarnings("unchecked")
-            Consumer<DataCounts> handler = (Consumer<DataCounts>) invocationOnMock.getArguments()[1];
-            handler.accept(new DataCounts(jobId));
-            return null;
-        }).when(jobProvider).dataCounts(any(), any(), any());
-
         when(jobManager.getJobOrThrowIfUnknown("bar")).thenReturn(createJobDetails("bar"));
         when(jobManager.getJobOrThrowIfUnknown("baz")).thenReturn(createJobDetails("baz"));
         when(jobManager.getJobOrThrowIfUnknown("foobar")).thenReturn(createJobDetails("foobar"));
@@ -170,11 +147,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder("foo").build();
         Quantiles quantiles = new Quantiles("foo", new Date(), "state");
         Set<MlFilter> filters = new HashSet<>();
-        doAnswer(invocationOnMock -> {
-            AutodetectProcessManager.MultiConsumer consumer = (AutodetectProcessManager.MultiConsumer) invocationOnMock.getArguments()[1];
-            consumer.accept(dataCounts, modelSnapshot, quantiles, filters);
-            return null;
-        }).when(manager).gatherRequiredInformation(any(), any(), any());
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             CheckedConsumer<Exception, IOException> consumer = (CheckedConsumer<Exception, IOException>) invocationOnMock.getArguments()[2];
@@ -323,13 +295,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(threadPool.executor(anyString())).thenReturn(executorService);
         when(threadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(mock(ThreadPool.Cancellable.class));
         when(jobManager.getJobOrThrowIfUnknown("my_id")).thenReturn(createJobDetails("my_id"));
-        doAnswer(invocationOnMock -> {
-            String jobId = (String) invocationOnMock.getArguments()[0];
-            @SuppressWarnings("unchecked")
-            Consumer<DataCounts> handler = (Consumer<DataCounts>) invocationOnMock.getArguments()[1];
-            handler.accept(new DataCounts(jobId));
-            return null;
-        }).when(jobProvider).dataCounts(eq("my_id"), any(), any());
         PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         AutodetectProcessFactory autodetectProcessFactory = (j, modelSnapshot, quantiles, filters, i, e) -> autodetectProcess;
@@ -339,8 +304,18 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 new NamedXContentRegistry(Collections.emptyList()));
 
         expectThrows(EsRejectedExecutionException.class,
-                () -> manager.create("my_id", 1L, dataCounts, modelSnapshot, quantiles, filters, false, e -> {}));
+                () -> manager.create("my_id", 1L, buildAutodetectParams(), false, e -> {}));
         verify(autodetectProcess, times(1)).close();
+    }
+
+    private AutodetectParams buildAutodetectParams() {
+        return new AutodetectParams.Builder("foo")
+                .setDataCounts(dataCounts)
+                .setModelSizeStats(modelSizeStats)
+                .setModelSnapshot(modelSnapshot)
+                .setQuantiles(quantiles)
+                .setFilters(filters)
+                .build();
     }
 
     private AutodetectProcessManager createManager(AutodetectCommunicator communicator) {
@@ -359,8 +334,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 autodetectProcessFactory, normalizerFactory, persistentTasksService,
                 new NamedXContentRegistry(Collections.emptyList()));
         manager = spy(manager);
-        doReturn(communicator).when(manager)
-                .create(any(), anyLong(), eq(dataCounts), eq(modelSnapshot), eq(quantiles), eq(filters), anyBoolean(), any());
+        doReturn(communicator).when(manager).create(any(), anyLong(), eq(buildAutodetectParams()), anyBoolean(), any());
         return manager;
     }
 

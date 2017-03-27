@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
-import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
@@ -32,12 +31,11 @@ import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersiste
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ScoresUpdater;
@@ -54,7 +52,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -211,7 +208,8 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     public void openJob(String jobId, long taskId, boolean ignoreDowntime, Consumer<Exception> handler) {
-        gatherRequiredInformation(jobId, (dataCounts, modelSnapshot, quantiles, filters) -> {
+        Job job = jobManager.getJobOrThrowIfUnknown(jobId);
+        jobProvider.getAutodetectParams(job, params -> {
             // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
             threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AbstractRunnable() {
                 @Override
@@ -223,7 +221,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                 protected void doRun() throws Exception {
                     try {
                         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.computeIfAbsent(jobId, id ->
-                                create(id, taskId, dataCounts, modelSnapshot, quantiles, filters, ignoreDowntime, handler));
+                                create(id, taskId, params, ignoreDowntime, handler));
                         communicator.writeJobInputHeader();
                         setJobState(taskId, jobId, JobState.OPENED);
                     } catch (Exception e1) {
@@ -243,48 +241,37 @@ public class AutodetectProcessManager extends AbstractComponent {
         });
     }
 
-    // TODO: add a method on JobProvider that fetches all required info via 1 msearch call, so that we have a single lambda
-    // instead of 4 nested lambdas.
-    void gatherRequiredInformation(String jobId, MultiConsumer handler, Consumer<Exception> errorHandler) {
-        Job job = jobManager.getJobOrThrowIfUnknown(jobId);
-        jobProvider.dataCounts(jobId, dataCounts -> {
-            jobProvider.getModelSnapshot(jobId, job.getModelSnapshotId(), modelSnapshot -> {
-                jobProvider.getQuantiles(jobId, quantiles -> {
-                    Set<String> ids = job.getAnalysisConfig().extractReferencedFilters();
-                    jobProvider.getFilters(filterDocument -> handler.accept(dataCounts, modelSnapshot, quantiles, filterDocument),
-                            errorHandler, ids);
-                }, errorHandler);
-            }, errorHandler);
-        }, errorHandler);
-    }
-
-    interface MultiConsumer {
-
-        void accept(DataCounts dataCounts, ModelSnapshot modelSnapshot, Quantiles quantiles, Set<MlFilter> filters);
-
-    }
-
-    AutodetectCommunicator create(String jobId, long taskId, DataCounts dataCounts, ModelSnapshot modelSnapshot, Quantiles quantiles,
-                                  Set<MlFilter> filters, boolean ignoreDowntime, Consumer<Exception> handler) {
+    AutodetectCommunicator create(String jobId, long taskId, AutodetectParams autodetectParams,
+                                  boolean ignoreDowntime, Consumer<Exception> handler) {
         if (autoDetectCommunicatorByJob.size() == maxAllowedRunningJobs) {
             throw new ElasticsearchStatusException("max running job capacity [" + maxAllowedRunningJobs + "] reached",
                     RestStatus.TOO_MANY_REQUESTS);
         }
 
+        if (autodetectParams.dataCounts().getProcessedRecordCount() > 0) {
+            if (autodetectParams.modelSnapshot() == null) {
+                logger.error("[{}] No model snapshot could be found for a job with processed records", jobId);
+            }
+            if (autodetectParams.quantiles() == null) {
+                logger.error("[{}] No quantiles could be found for a job with processed records", jobId);
+            }
+        }
+
         Job job = jobManager.getJobOrThrowIfUnknown(jobId);
         // A TP with no queue, so that we fail immediately if there are no threads available
         ExecutorService executorService = threadPool.executor(MachineLearning.AUTODETECT_PROCESS_THREAD_POOL_NAME);
-        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, job, dataCounts,
-                jobDataCountsPersister)) {
+        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, job,
+                autodetectParams.dataCounts(), jobDataCountsPersister)) {
             ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobProvider, new JobRenormalizedResultsPersister(settings, client),
                     normalizerFactory);
             Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdater,
                     threadPool.executor(MachineLearning.THREAD_POOL_NAME), job.getAnalysisConfig().getUsePerPartitionNormalization());
 
-            AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, modelSnapshot, quantiles, filters,
-                    ignoreDowntime, executorService);
+            AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams.modelSnapshot(),
+                    autodetectParams.quantiles(), autodetectParams.filters(), ignoreDowntime, executorService);
             boolean usePerPartitionNormalization = job.getAnalysisConfig().getUsePerPartitionNormalization();
-            AutoDetectResultProcessor processor = new AutoDetectResultProcessor(client, jobId, renormalizer, jobResultsPersister);
+            AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
+                    client, jobId, renormalizer, jobResultsPersister, autodetectParams.modelSizeStats());
             try {
                 executorService.submit(() -> processor.process(process, usePerPartitionNormalization));
             } catch (EsRejectedExecutionException e) {

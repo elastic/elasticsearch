@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.job.config.JobTests;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
@@ -77,7 +78,8 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
         jobProvider = new JobProvider(client(), builder.build());
         capturedUpdateModelSnapshotOnJobRequests = new ArrayList<>();
-        resultProcessor = new AutoDetectResultProcessor(client(), JOB_ID, renormalizer, jobResultsPersister) {
+        resultProcessor = new AutoDetectResultProcessor(client(), JOB_ID, renormalizer, jobResultsPersister,
+                new ModelSizeStats.Builder(JOB_ID).build()) {
             @Override
             protected void updateModelSnapshotIdOnJob(ModelSnapshot modelSnapshot) {
                 capturedUpdateModelSnapshotOnJobRequests.add(modelSnapshot);
@@ -490,12 +492,13 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         }
         return resultHolder.get();
     }
+
     private Optional<Quantiles> getQuantiles() throws Exception {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<Optional<Quantiles>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        jobProvider.getQuantiles(JOB_ID, q -> {
-            resultHolder.set(Optional.ofNullable(q));
+        jobProvider.getAutodetectParams(JobTests.buildJobBuilder(JOB_ID).build(),params -> {
+            resultHolder.set(Optional.ofNullable(params.quantiles()));
             latch.countDown();
         }, e -> {
             errorHolder.set(e);

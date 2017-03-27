@@ -44,12 +44,10 @@ import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.Influe
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelState;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
-import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.mockito.ArgumentCaptor;
 
@@ -80,52 +78,6 @@ import static org.mockito.Mockito.when;
 public class JobProviderTests extends ESTestCase {
     private static final String CLUSTER_NAME = "myCluster";
     private static final String JOB_ID = "foo";
-
-    public void testGetQuantiles_GivenNoQuantilesForJob() throws Exception {
-        GetResponse getResponse = createGetResponse(false, null);
-
-        Client client = getMockedClient(getResponse);
-        JobProvider provider = createProvider(client);
-
-        Quantiles[] holder = new Quantiles[1];
-        provider.getQuantiles(JOB_ID, quantiles -> holder[0] = quantiles, RuntimeException::new);
-        Quantiles quantiles = holder[0];
-        assertNull(quantiles);
-    }
-
-    public void testGetQuantiles_GivenQuantilesHaveNonEmptyState() throws Exception {
-        Map<String, Object> source = new HashMap<>();
-        source.put(Job.ID.getPreferredName(), "foo");
-        source.put(Quantiles.TIMESTAMP.getPreferredName(), 0L);
-        source.put(Quantiles.QUANTILE_STATE.getPreferredName(), "state");
-        GetResponse getResponse = createGetResponse(true, source);
-
-        Client client = getMockedClient(getResponse);
-        JobProvider provider = createProvider(client);
-
-        Quantiles[] holder = new Quantiles[1];
-        provider.getQuantiles(JOB_ID, quantiles -> holder[0] = quantiles, RuntimeException::new);
-        Quantiles quantiles = holder[0];
-        assertNotNull(quantiles);
-        assertEquals("state", quantiles.getQuantileState());
-    }
-
-    public void testGetQuantiles_GivenQuantilesHaveEmptyState() throws Exception {
-        Map<String, Object> source = new HashMap<>();
-        source.put(Job.ID.getPreferredName(), "foo");
-        source.put(Quantiles.TIMESTAMP.getPreferredName(), new Date(0L).getTime());
-        source.put(Quantiles.QUANTILE_STATE.getPreferredName(), "");
-        GetResponse getResponse = createGetResponse(true, source);
-
-        Client client = getMockedClient(getResponse);
-        JobProvider provider = createProvider(client);
-
-        Quantiles[] holder = new Quantiles[1];
-        provider.getQuantiles(JOB_ID, quantiles -> holder[0] = quantiles, RuntimeException::new);
-        Quantiles quantiles = holder[0];
-        assertNotNull(quantiles);
-        assertEquals("", quantiles.getQuantileState());
-    }
 
     @SuppressWarnings("unchecked")
     public void testCreateJobResultsIndex() {

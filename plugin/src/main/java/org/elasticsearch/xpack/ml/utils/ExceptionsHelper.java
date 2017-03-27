@@ -9,7 +9,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 
 public class ExceptionsHelper {
@@ -36,6 +38,20 @@ public class ExceptionsHelper {
 
     public static ElasticsearchStatusException conflictStatusException(String msg) {
         return new ElasticsearchStatusException(msg, RestStatus.CONFLICT);
+    }
+
+    /**
+     * Creates an error message that explains there are shard failures, displays info
+     * for the first failure (shard/reason) and kindly asks to see more info in the logs
+     */
+    public static String shardFailuresToErrorMsg(String jobId, ShardSearchFailure[] shardFailures) {
+        if (shardFailures == null || shardFailures.length == 0) {
+            throw new IllegalStateException("Invalid call with null or empty shardFailures");
+        }
+        SearchShardTarget shardTarget = shardFailures[0].shard();
+        return "[" + jobId + "] Search request returned shard failures; first failure: shard ["
+                + (shardTarget == null ? "_na" : shardTarget) + "], reason ["
+                + shardFailures[0].reason() + "]; see logs for more info";
     }
 
     /**

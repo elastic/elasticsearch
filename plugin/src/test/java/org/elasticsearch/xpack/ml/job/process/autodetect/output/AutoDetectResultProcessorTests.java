@@ -57,7 +57,8 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         renormalizer = mock(Renormalizer.class);
         persister = mock(JobResultsPersister.class);
         flushListener = mock(FlushListener.class);
-        processorUnderTest = new AutoDetectResultProcessor(client, JOB_ID, renormalizer, persister, flushListener);
+        processorUnderTest = new AutoDetectResultProcessor(client, JOB_ID, renormalizer, persister,
+                new ModelSizeStats.Builder(JOB_ID).build(), flushListener);
     }
 
     public void testProcess() {

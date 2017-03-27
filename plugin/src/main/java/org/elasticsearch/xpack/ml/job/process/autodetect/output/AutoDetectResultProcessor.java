@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -62,22 +63,24 @@ public class AutoDetectResultProcessor {
     final CountDownLatch completionLatch = new CountDownLatch(1);
     private final FlushListener flushListener;
 
+    /**
+     * New model size stats are read as the process is running
+     */
     private volatile ModelSizeStats latestModelSizeStats;
 
-    public AutoDetectResultProcessor(Client client, String jobId, Renormalizer renormalizer, JobResultsPersister persister) {
-        this(client, jobId, renormalizer, persister, new FlushListener());
+    public AutoDetectResultProcessor(Client client, String jobId, Renormalizer renormalizer, JobResultsPersister persister,
+                                     ModelSizeStats latestModelSizeStats) {
+        this(client, jobId, renormalizer, persister, latestModelSizeStats, new FlushListener());
     }
 
-    AutoDetectResultProcessor(Client client,String jobId, Renormalizer renormalizer, JobResultsPersister persister,
-                              FlushListener flushListener) {
-        this.client = client;
-        this.jobId = jobId;
-        this.renormalizer = renormalizer;
-        this.persister = persister;
-        this.flushListener = flushListener;
-
-        ModelSizeStats.Builder builder = new ModelSizeStats.Builder(jobId);
-        latestModelSizeStats = builder.build();
+    AutoDetectResultProcessor(Client client, String jobId, Renormalizer renormalizer, JobResultsPersister persister,
+                              ModelSizeStats latestModelSizeStats, FlushListener flushListener) {
+        this.client = Objects.requireNonNull(client);
+        this.jobId = Objects.requireNonNull(jobId);
+        this.renormalizer = Objects.requireNonNull(renormalizer);
+        this.persister = Objects.requireNonNull(persister);
+        this.flushListener = Objects.requireNonNull(flushListener);
+        this.latestModelSizeStats = Objects.requireNonNull(latestModelSizeStats);
     }
 
     public void process(AutodetectProcess process, boolean isPerPartitionNormalization) {

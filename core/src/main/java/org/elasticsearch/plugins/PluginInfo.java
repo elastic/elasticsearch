@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
@@ -30,133 +31,215 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Properties;
 
+/**
+ * An in-memory representation of the plugin descriptor.
+ */
 public class PluginInfo implements Writeable, ToXContent {
 
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
-    static final class Fields {
-        static final String NAME = "name";
-        static final String DESCRIPTION = "description";
-        static final String URL = "url";
-        static final String VERSION = "version";
-        static final String CLASSNAME = "classname";
-    }
-
     private final String name;
     private final String description;
     private final String version;
     private final String classname;
+    private final boolean hasNativeController;
 
     /**
-     * Information about plugins
+     * Construct plugin info.
      *
-     * @param name        Its name
-     * @param description Its description
-     * @param version     Version number
+     * @param name                the name of the plugin
+     * @param description         a description of the plugin
+     * @param version             the version of Elasticsearch the plugin is built for
+     * @param classname           the entry point to the plugin
+     * @param hasNativeController whether or not the plugin has a native controller
      */
-    public PluginInfo(String name, String description, String version, String classname) {
+    public PluginInfo(
+            final String name,
+            final String description,
+            final String version,
+            final String classname,
+            final boolean hasNativeController) {
         this.name = name;
         this.description = description;
         this.version = version;
         this.classname = classname;
+        this.hasNativeController = hasNativeController;
     }
 
-    public PluginInfo(StreamInput in) throws IOException {
+    /**
+     * Construct plugin info from a stream.
+     *
+     * @param in the stream
+     * @throws IOException if an I/O exception occurred reading the plugin info from the stream
+     */
+    public PluginInfo(final StreamInput in) throws IOException {
         this.name = in.readString();
         this.description = in.readString();
         this.version = in.readString();
         this.classname = in.readString();
+        if (in.getVersion().after(Version.V_5_4_0_UNRELEASED)) {
+            hasNativeController = in.readBoolean();
+        } else {
+            hasNativeController = false;
+        }
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(description);
         out.writeString(version);
         out.writeString(classname);
+        if (out.getVersion().after(Version.V_5_4_0_UNRELEASED)) {
+            out.writeBoolean(hasNativeController);
+        }
     }
 
     /** reads (and validates) plugin metadata descriptor file */
-    public static PluginInfo readFromProperties(Path dir) throws IOException {
-        Path descriptor = dir.resolve(ES_PLUGIN_PROPERTIES);
-        Properties props = new Properties();
+
+    /**
+     * Reads and validates the plugin descriptor file.
+     *
+     * @param path the path to the root directory for the plugin
+     * @return the plugin info
+     * @throws IOException if an I/O exception occurred reading the plugin descriptor
+     */
+    public static PluginInfo readFromProperties(final Path path) throws IOException {
+        final Path descriptor = path.resolve(ES_PLUGIN_PROPERTIES);
+        final Properties props = new Properties();
         try (InputStream stream = Files.newInputStream(descriptor)) {
             props.load(stream);
         }
-        String name = props.getProperty("name");
+        final String name = props.getProperty("name");
         if (name == null || name.isEmpty()) {
-            throw new IllegalArgumentException("Property [name] is missing in [" + descriptor + "]");
+            throw new IllegalArgumentException(
+                    "property [name] is missing in [" + descriptor + "]");
         }
-        String description = props.getProperty("description");
+        final String description = props.getProperty("description");
         if (description == null) {
-            throw new IllegalArgumentException("Property [description] is missing for plugin [" + name + "]");
+            throw new IllegalArgumentException(
+                    "property [description] is missing for plugin [" + name + "]");
         }
-        String version = props.getProperty("version");
+        final String version = props.getProperty("version");
         if (version == null) {
-            throw new IllegalArgumentException("Property [version] is missing for plugin [" + name + "]");
+            throw new IllegalArgumentException(
+                    "property [version] is missing for plugin [" + name + "]");
         }
 
-        String esVersionString = props.getProperty("elasticsearch.version");
+        final String esVersionString = props.getProperty("elasticsearch.version");
         if (esVersionString == null) {
-            throw new IllegalArgumentException("Property [elasticsearch.version] is missing for plugin [" + name + "]");
+            throw new IllegalArgumentException(
+                    "property [elasticsearch.version] is missing for plugin [" + name + "]");
         }
-        Version esVersion = Version.fromString(esVersionString);
+        final Version esVersion = Version.fromString(esVersionString);
         if (esVersion.equals(Version.CURRENT) == false) {
-            throw new IllegalArgumentException("Plugin [" + name + "] is incompatible with Elasticsearch [" + Version.CURRENT.toString() +
-                    "]. Was designed for version [" + esVersionString + "]");
+            final String message = String.format(
+                    Locale.ROOT,
+                    "plugin [%s] is incompatible with version [%s]; was designed for version [%s]",
+                    name,
+                    Version.CURRENT.toString(),
+                    esVersionString);
+            throw new IllegalArgumentException(message);
         }
-        String javaVersionString = props.getProperty("java.version");
+        final String javaVersionString = props.getProperty("java.version");
         if (javaVersionString == null) {
-            throw new IllegalArgumentException("Property [java.version] is missing for plugin [" + name + "]");
+            throw new IllegalArgumentException(
+                    "property [java.version] is missing for plugin [" + name + "]");
         }
         JarHell.checkVersionFormat(javaVersionString);
         JarHell.checkJavaVersion(name, javaVersionString);
-        String classname = props.getProperty("classname");
+        final String classname = props.getProperty("classname");
         if (classname == null) {
-            throw new IllegalArgumentException("Property [classname] is missing for plugin [" + name + "]");
+            throw new IllegalArgumentException(
+                    "property [classname] is missing for plugin [" + name + "]");
         }
 
-        return new PluginInfo(name, description, version, classname);
+        final String hasNativeControllerValue = props.getProperty("has.native.controller");
+        final boolean hasNativeController;
+        if (hasNativeControllerValue == null) {
+            hasNativeController = false;
+        } else {
+            switch (hasNativeControllerValue) {
+                case "true":
+                    hasNativeController = true;
+                    break;
+                case "false":
+                    hasNativeController = false;
+                    break;
+                default:
+                    final String message = String.format(
+                            Locale.ROOT,
+                            "property [%s] must be [%s], [%s], or unspecified but was [%s]",
+                            "has_native_controller",
+                            "true",
+                            "false",
+                            hasNativeControllerValue);
+                    throw new IllegalArgumentException(message);
+            }
+        }
+
+        return new PluginInfo(name, description, version, classname, hasNativeController);
     }
 
     /**
-     * @return Plugin's name
+     * The name of the plugin.
+     *
+     * @return the plugin name
      */
     public String getName() {
         return name;
     }
 
     /**
-     * @return Plugin's description if any
+     * The description of the plugin.
+     *
+     * @return the plugin description
      */
     public String getDescription() {
         return description;
     }
 
     /**
-     * @return plugin's classname
+     * The entry point to the plugin.
+     *
+     * @return the entry point to the plugin
      */
     public String getClassname() {
         return classname;
     }
 
     /**
-     * @return Version number for the plugin
+     * The version of Elasticsearch the plugin was built for.
+     *
+     * @return the version
      */
     public String getVersion() {
         return version;
     }
 
+    /**
+     * Whether or not the plugin has a native controller.
+     *
+     * @return {@code true} if the plugin has a native controller
+     */
+    public boolean hasNativeController() {
+        return hasNativeController;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Fields.NAME, name);
-        builder.field(Fields.VERSION, version);
-        builder.field(Fields.DESCRIPTION, description);
-        builder.field(Fields.CLASSNAME, classname);
+        {
+            builder.field("name", name);
+            builder.field("version", version);
+            builder.field("description", description);
+            builder.field("classname", classname);
+            builder.field("has_native_controller", hasNativeController);
+        }
         builder.endObject();
 
         return builder;
@@ -187,8 +270,9 @@ public class PluginInfo implements Writeable, ToXContent {
                 .append("Name: ").append(name).append("\n")
                 .append("Description: ").append(description).append("\n")
                 .append("Version: ").append(version).append("\n")
+                .append("Native Controller: ").append(hasNativeController).append("\n")
                 .append(" * Classname: ").append(classname);
-
         return information.toString();
     }
+
 }

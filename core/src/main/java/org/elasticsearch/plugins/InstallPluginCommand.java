@@ -455,7 +455,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         // if it exists, confirm or warn the user
         Path policy = pluginRoot.resolve(PluginInfo.ES_PLUGIN_POLICY);
         if (Files.exists(policy)) {
-            PluginSecurity.readPolicy(policy, terminal, env, isBatch);
+            PluginSecurity.readPolicy(info, policy, terminal, env::tmpFile, isBatch);
         }
 
         return info;

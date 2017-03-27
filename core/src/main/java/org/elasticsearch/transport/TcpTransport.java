@@ -1613,12 +1613,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     private final class SendListener implements ActionListener<Channel> {
-
         private final Releasable optionalReleasable;
         private final Runnable transportAdaptorCallback;
 
         private SendListener(Releasable optionalReleasable, Runnable transportAdaptorCallback) {
-
             this.optionalReleasable = optionalReleasable;
             this.transportAdaptorCallback = transportAdaptorCallback;
         }

@@ -83,7 +83,13 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
                 if (input.getExtractKeys() != null) {
                     payloadMap.putAll(XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser));
                 } else {
-                    payloadMap.putAll(parser.mapOrdered());
+                    // special handling if a list is returned, i.e. JSON like [ {},{} ]
+                    XContentParser.Token token = parser.nextToken();
+                    if (token == XContentParser.Token.START_ARRAY) {
+                        payloadMap.put("data", parser.listOrderedMap());
+                    } else {
+                        payloadMap.putAll(parser.mapOrdered());
+                    }
                 }
             } catch (Exception e) {
                 throw new ElasticsearchParseException("could not parse response body [{}] it does not appear to be [{}]", type(), ctx.id(),

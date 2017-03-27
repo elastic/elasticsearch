@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.input.http;
 
 import io.netty.handler.codec.http.HttpHeaders;
-
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +44,7 @@ import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -56,6 +56,8 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -300,6 +302,29 @@ public class HttpInputTests extends ESTestCase {
         assertThat(result.payload().data(), hasKey("_status_code"));
         assertThat(result.payload().data().get("_status_code"), is(200));
     }
+
+    @SuppressWarnings("unchecked")
+    public void testThatArrayJsonResponseIsHandled() throws Exception {
+        Map<String, String[]> headers = Collections.singletonMap("Content-Type", new String[]{"application/json"});
+        HttpResponse response = new HttpResponse(200, "[ { \"foo\":  \"first\" }, {  \"foo\":  \"second\"}]", headers);
+        when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
+
+        HttpRequestTemplate.Builder request = HttpRequestTemplate.builder("localhost", 8080);
+        HttpInput httpInput = InputBuilders.httpInput(request.build()).build();
+        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
+
+        WatchExecutionContext ctx = createWatchExecutionContext();
+        HttpInput.Result result = input.execute(ctx, new Payload.Simple());
+        assertThat(result.statusCode, is(200));
+        assertThat(result.payload().data(), not(hasKey("_value")));
+        assertThat(result.payload().data(), hasKey("data"));
+        assertThat(result.payload().data().get("data"), instanceOf(List.class));
+        List<Map<String, String>> data = (List<Map<String, String>>) result.payload().data().get("data");
+        assertThat(data, hasSize(2));
+        assertThat(data.get(0).get("foo"), is("first"));
+        assertThat(data.get(1).get("foo"), is("second"));
+    }
+
 
     private WatchExecutionContext createWatchExecutionContext() {
         Watch watch = new Watch("test-watch",

@@ -133,7 +133,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 }
                 ScriptEngineService engine = scriptEnginesByExt.get(extension);
                 if (engine == null) {
-                    logger.warn("script file extension not supported [" + extension + "]");
+                    logger.warn("script file extension not supported [{}.{}]", baseName, extension);
                     return null;
                 }
                 return new CacheKey(engine.getType(), baseName, null);
@@ -163,22 +163,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 }
 
                 String id = cacheKey.idOrCode;
-                // search template requests can possibly pass in the entire path instead
-                // of just an id for looking up a stored script, so we parse the path and
-                // check for appropriate errors
                 String[] path = id.split("/");
 
-                if (path.length == 3) {
-                    if (cacheKey.lang != null && cacheKey.lang.equals(path[1]) == false) {
-                        throw new IllegalStateException("conflicting script languages, found [" + path[1]
-                                + "] but expected [" + cacheKey.lang + "]");
-                    }
-
-                    id = path[2];
-
-                    deprecationLogger.deprecated("use of </lang/id> [" + cacheKey.idOrCode + "] for looking up" +
-                        " stored scripts/templates has been deprecated, use only <id> [" + id + "] instead");
-                } else if (path.length != 1) {
+                if (path.length != 1) {
                     throw new IllegalArgumentException("illegal stored script format [" + id + "] use only <id>");
                 }
 

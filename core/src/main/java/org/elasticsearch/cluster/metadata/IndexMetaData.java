@@ -183,7 +183,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
             throw new IllegalArgumentException("es.index.max_number_of_shards must be > 0");
         }
         return Setting.intSetting(SETTING_NUMBER_OF_SHARDS, Math.min(5, maxNumShards), 1, maxNumShards,
-            Property.IndexScope);
+            Property.IndexScope, Property.Mandatory);
     }
 
     public static final String INDEX_SETTING_PREFIX = "index.";
@@ -191,7 +191,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
     public static final Setting<Integer> INDEX_NUMBER_OF_SHARDS_SETTING = buildNumberOfShardsSetting();
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.number_of_replicas";
     public static final Setting<Integer> INDEX_NUMBER_OF_REPLICAS_SETTING =
-        Setting.intSetting(SETTING_NUMBER_OF_REPLICAS, 1, 0, Property.Dynamic, Property.IndexScope);
+        Setting.intSetting(SETTING_NUMBER_OF_REPLICAS, 1, 0, Property.Dynamic, Property.IndexScope, Property.Mandatory);
     public static final String SETTING_SHADOW_REPLICAS = "index.shadow_replicas";
     public static final Setting<Boolean> INDEX_SHADOW_REPLICAS_SETTING =
         Setting.boolSetting(SETTING_SHADOW_REPLICAS, false, Property.IndexScope, Property.Deprecated);

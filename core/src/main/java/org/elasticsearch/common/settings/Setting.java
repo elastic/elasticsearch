@@ -108,7 +108,11 @@ public class Setting<T> extends ToXContentToBytes {
         /**
          * Index scope
          */
-        IndexScope
+        IndexScope,
+        /**
+         * Mandatory settings ie. index.number_of_shards
+         */
+        Mandatory
     }
 
     private final Key key;
@@ -260,6 +264,12 @@ public class Setting<T> extends ToXContentToBytes {
     public boolean isShared() {
         return properties.contains(Property.Shared);
     }
+
+    /**
+     * Returns <code>true</code> if this setting is a mandatory setting or in other words settings without this particular setting are
+     * invalid, otherwise <code>false</code>
+     */
+    public boolean isMandatory() { return properties.contains(Property.Mandatory);}
 
     /**
      * Returns <code>true</code> iff this setting is a group setting. Group settings represent a set of settings rather than a single value.

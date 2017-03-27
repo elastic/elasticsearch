@@ -81,7 +81,12 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         IndexMetaData newMetaData = indexMetaData;
         // we have to run this first otherwise in we try to create IndexSettings
         // with broken settings and fail in checkMappingsCompatibility
-        newMetaData = archiveBrokenIndexSettings(newMetaData);
+        try {
+            newMetaData = archiveBrokenIndexSettings(newMetaData);
+        } catch (Exception ex) {
+            logger.error("{} failed to process index settings: {}", newMetaData.getIndex(), ex.getMessage());
+            throw ex;
+        }
         // only run the check with the upgraded settings!!
         checkMappingsCompatibility(newMetaData);
         return markAsUpgraded(newMetaData);

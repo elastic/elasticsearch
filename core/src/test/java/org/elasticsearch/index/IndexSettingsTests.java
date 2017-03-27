@@ -433,6 +433,18 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals("foo", settings.get("archived.index.unknown"));
         assertEquals(Integer.toString(Version.CURRENT.id), settings.get("index.version.created"));
         assertEquals("2s", settings.get("index.refresh_interval"));
+
+        IllegalStateException failure = expectThrows(IllegalStateException.class, () ->
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
+                Settings.builder()
+                    .put("index.version.created", Version.CURRENT.id) // private setting
+                    .put("index.number_of_shards", Integer.MAX_VALUE)
+                    .put("index.refresh_interval", "2s").build(),
+                e -> { fail("no invalid setting expected but got: " + e);},
+                (e, ex) -> fail("should not have been invoked, no invalid settings")));
+        assertEquals("can't archive mandatory setting [index.number_of_shards]", failure.getMessage());
+        assertEquals("Failed to parse value [2147483647] for setting [index.number_of_shards] must be <= 1024",
+            failure.getCause().getMessage());
     }
 
 }

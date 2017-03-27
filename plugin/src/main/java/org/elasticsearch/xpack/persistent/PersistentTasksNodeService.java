@@ -11,10 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +32,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Objects.requireNonNull;
 
@@ -43,7 +40,7 @@ import static java.util.Objects.requireNonNull;
  * non-transport client nodes in the cluster and monitors cluster state changes to detect started commands.
  */
 public class PersistentTasksNodeService extends AbstractComponent implements ClusterStateListener {
-    private final Map<PersistentTaskId, RunningPersistentTask> runningTasks = new HashMap<>();
+    private final Map<PersistentTaskId, AllocatedPersistentTask> runningTasks = new HashMap<>();
     private final PersistentTasksService persistentTasksService;
     private final PersistentTasksExecutorRegistry persistentTasksExecutorRegistry;
     private final TaskManager taskManager;
@@ -77,14 +74,14 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
                 for (PersistentTask<?> taskInProgress : tasks.tasks()) {
                     if (localNodeId.equals(taskInProgress.getExecutorNode())) {
                         PersistentTaskId persistentTaskId = new PersistentTaskId(taskInProgress.getId(), taskInProgress.getAllocationId());
-                        RunningPersistentTask persistentTask = runningTasks.get(persistentTaskId);
+                        AllocatedPersistentTask persistentTask = runningTasks.get(persistentTaskId);
                         if (persistentTask == null) {
                             // New task - let's start it
                             startTask(taskInProgress);
                         } else {
                             // The task is still running
                             notVisitedTasks.remove(persistentTaskId);
-                            if (persistentTask.getState() == State.FAILED_NOTIFICATION) {
+                            if (persistentTask.getState() == AllocatedPersistentTask.State.FAILED_NOTIFICATION) {
                                 // We tried to notify the master about this task before but the notification failed and
                                 // the master doesn't seem to know about it - retry notification
                                 restartCompletionNotification(persistentTask);
@@ -95,14 +92,14 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
             }
 
             for (PersistentTaskId id : notVisitedTasks) {
-                RunningPersistentTask task = runningTasks.get(id);
-                if (task.getState() == State.NOTIFIED || task.getState() == State.FAILED) {
+                AllocatedPersistentTask task = runningTasks.get(id);
+                if (task.getState() == AllocatedPersistentTask.State.NOTIFIED || task.getState() == AllocatedPersistentTask.State.FAILED) {
                     // Result was sent to the caller and the caller acknowledged acceptance of the result
                     finishTask(id);
-                } else if (task.getState() == State.FAILED_NOTIFICATION) {
+                } else if (task.getState() == AllocatedPersistentTask.State.FAILED_NOTIFICATION) {
                     // We tried to send result to master, but it failed and master doesn't know about this task
                     // this shouldn't really happen, unless this node is severally out of sync with the master
-                    logger.warn("failed to notify master about task {}", task.getId());
+                    logger.warn("failed to notify master about task {}", task.getPersistentTaskId());
                     finishTask(id);
                 } else {
                     // task is running locally, but master doesn't know about it - that means that the persistent task was removed
@@ -117,16 +114,14 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
 
     private <Request extends PersistentTaskRequest> void startTask(PersistentTask<Request> taskInProgress) {
         PersistentTasksExecutor<Request> action = persistentTasksExecutorRegistry.getPersistentTaskExecutorSafe(taskInProgress.getTaskName());
-        NodePersistentTask task = (NodePersistentTask) taskManager.register("persistent", taskInProgress.getTaskName() + "[c]",
+        AllocatedPersistentTask task = (AllocatedPersistentTask) taskManager.register("persistent", taskInProgress.getTaskName() + "[c]",
                 taskInProgress.getRequest());
         boolean processed = false;
         try {
-            RunningPersistentTask runningPersistentTask = new RunningPersistentTask(task, taskInProgress.getId());
-            task.setStatusProvider(runningPersistentTask);
-            task.setPersistentTaskId(taskInProgress.getId());
-            PersistentTaskListener listener = new PersistentTaskListener(runningPersistentTask);
+            task.init(persistentTasksService, taskInProgress.getId());
+            PersistentTaskListener listener = new PersistentTaskListener(task);
             try {
-                runningTasks.put(new PersistentTaskId(taskInProgress.getId(), taskInProgress.getAllocationId()), runningPersistentTask);
+                runningTasks.put(new PersistentTaskId(taskInProgress.getId(), taskInProgress.getAllocationId()), task);
                 nodePersistentTasksExecutor.executeTask(taskInProgress.getRequest(), task, action, listener);
             } catch (Exception e) {
                 // Submit task failure
@@ -142,17 +137,17 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
     }
 
     private void finishTask(PersistentTaskId persistentTaskId) {
-        RunningPersistentTask task = runningTasks.remove(persistentTaskId);
-        if (task != null && task.getTask() != null) {
-            taskManager.unregister(task.getTask());
+        AllocatedPersistentTask task = runningTasks.remove(persistentTaskId);
+        if (task != null) {
+            taskManager.unregister(task);
         }
     }
 
     private void cancelTask(PersistentTaskId persistentTaskId) {
-        RunningPersistentTask task = runningTasks.remove(persistentTaskId);
-        if (task != null && task.getTask() != null) {
+        AllocatedPersistentTask task = runningTasks.remove(persistentTaskId);
+        if (task != null) {
             if (task.markAsCancelled()) {
-                persistentTasksService.sendCancellation(task.getTask().getId(), new PersistentTaskOperationListener() {
+                persistentTasksService.sendCancellation(task.getId(), new PersistentTaskOperationListener() {
                     @Override
                     public void onResponse(long taskId) {
                         logger.trace("Persistent task with id {} was cancelled", taskId);
@@ -162,7 +157,7 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
                     @Override
                     public void onFailure(Exception e) {
                         // There is really nothing we can do in case of failure here
-                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to cancel task {}", task.getId()), e);
+                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to cancel task {}", task.getPersistentTaskId()), e);
                     }
                 });
             }
@@ -170,10 +165,10 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
     }
 
 
-    private void restartCompletionNotification(RunningPersistentTask task) {
-        logger.trace("resending notification for task {}", task.getId());
-        if (task.getState() == State.CANCELLED) {
-            taskManager.unregister(task.getTask());
+    private void restartCompletionNotification(AllocatedPersistentTask task) {
+        logger.trace("resending notification for task {}", task.getPersistentTaskId());
+        if (task.getState() == AllocatedPersistentTask.State.CANCELLED) {
+            taskManager.unregister(task);
         } else {
             if (task.restartCompletionNotification()) {
                 // Need to fork otherwise: java.lang.AssertionError: should not be called by a cluster state applier.
@@ -188,35 +183,35 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
 
                         @Override
                         protected void doRun() throws Exception {
-                            persistentTasksService.sendCompletionNotification(task.getId(), task.getFailure(), listener);
+                            persistentTasksService.sendCompletionNotification(task.getPersistentTaskId(), task.getFailure(), listener);
                         }
                     });
                 } catch (Exception e) {
                     listener.onFailure(e);
                 }
             } else {
-                logger.warn("attempt to resend notification for task {} in the {} state", task.getId(), task.getState());
+                logger.warn("attempt to resend notification for task {} in the {} state", task.getPersistentTaskId(), task.getState());
             }
         }
     }
 
-    private void startCompletionNotification(RunningPersistentTask task, Exception e) {
-        if (task.getState() == State.CANCELLED) {
-            taskManager.unregister(task.getTask());
+    private void startCompletionNotification(AllocatedPersistentTask task, Exception e) {
+        if (task.getState() == AllocatedPersistentTask.State.CANCELLED) {
+            taskManager.unregister(task);
         } else {
-            logger.trace("sending notification for failed task {}", task.getId());
+            logger.trace("sending notification for failed task {}", task.getPersistentTaskId());
             if (task.startNotification(e)) {
-                persistentTasksService.sendCompletionNotification(task.getId(), e, new PublishedResponseListener(task));
+                persistentTasksService.sendCompletionNotification(task.getPersistentTaskId(), e, new PublishedResponseListener(task));
             } else {
-                logger.warn("attempt to send notification for task {} in the {} state", task.getId(), task.getState());
+                logger.warn("attempt to send notification for task {} in the {} state", task.getPersistentTaskId(), task.getState());
             }
         }
     }
 
     private class PersistentTaskListener implements ActionListener<Empty> {
-        private final RunningPersistentTask task;
+        private final AllocatedPersistentTask task;
 
-        PersistentTaskListener(final RunningPersistentTask task) {
+        PersistentTaskListener(final AllocatedPersistentTask task) {
             this.task = task;
         }
 
@@ -227,14 +222,14 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
 
         @Override
         public void onFailure(Exception e) {
-            if (task.getTask().isCancelled()) {
+            if (task.isCancelled()) {
                 // The task was explicitly cancelled - no need to restart it, just log the exception if it's not TaskCancelledException
                 if (e instanceof TaskCancelledException == false) {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage(
                             "cancelled task {} failed with an exception, cancellation reason [{}]",
-                            task.getId(), task.getTask().getReasonCancelled()), e);
+                            task.getPersistentTaskId(), task.getReasonCancelled()), e);
                 }
-                if (CancelTasksRequest.DEFAULT_REASON.equals(task.getTask().getReasonCancelled())) {
+                if (CancelTasksRequest.DEFAULT_REASON.equals(task.getReasonCancelled())) {
                     startCompletionNotification(task, null);
                 } else {
                     startCompletionNotification(task, e);
@@ -246,37 +241,29 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
     }
 
     private class PublishedResponseListener implements PersistentTaskOperationListener {
-        private final RunningPersistentTask task;
+        private final AllocatedPersistentTask task;
 
-        PublishedResponseListener(final RunningPersistentTask task) {
+        PublishedResponseListener(final AllocatedPersistentTask task) {
             this.task = task;
         }
 
 
         @Override
         public void onResponse(long taskId) {
-            logger.trace("notification for task {} was successful", task.getId());
+            logger.trace("notification for task {} was successful", task.getPersistentTaskId());
             if (task.markAsNotified() == false) {
-                logger.warn("attempt to mark task {} in the {} state as NOTIFIED", task.getId(), task.getState());
+                logger.warn("attempt to mark task {} in the {} state as NOTIFIED", task.getPersistentTaskId(), task.getState());
             }
-            taskManager.unregister(task.getTask());
+            taskManager.unregister(task);
         }
 
         @Override
         public void onFailure(Exception e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("notification for task {} failed - retrying", task.getId()), e);
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("notification for task {} failed - retrying", task.getPersistentTaskId()), e);
             if (task.notificationFailed() == false) {
-                logger.warn("attempt to mark restart notification for task {} in the {} state failed", task.getId(), task.getState());
+                logger.warn("attempt to mark restart notification for task {} in the {} state failed", task.getPersistentTaskId(), task.getState());
             }
         }
-    }
-
-    public enum State {
-        STARTED,  // the task is currently running
-        CANCELLED, // the task is cancelled
-        FAILED,     // the task is done running and trying to notify caller
-        FAILED_NOTIFICATION, // the caller notification failed
-        NOTIFIED // the caller was notified, the task can be removed
     }
 
     private static class PersistentTaskId {
@@ -304,80 +291,17 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
         }
     }
 
-    private static class RunningPersistentTask implements Provider<Task.Status> {
-        private final NodePersistentTask task;
-        private final long id;
-        private final AtomicReference<State> state;
-        @Nullable
-        private Exception failure;
-
-        RunningPersistentTask(NodePersistentTask task, long id) {
-            this(task, id, State.STARTED);
-        }
-
-        RunningPersistentTask(NodePersistentTask task, long id, State state) {
-            this.task = task;
-            this.id = id;
-            this.state = new AtomicReference<>(state);
-        }
-
-        public NodePersistentTask getTask() {
-            return task;
-        }
-
-        public long getId() {
-            return id;
-        }
-
-        public State getState() {
-            return state.get();
-        }
-
-        public Exception getFailure() {
-            return failure;
-        }
-
-        public boolean startNotification(Exception failure) {
-            boolean result = state.compareAndSet(State.STARTED, State.FAILED);
-            if (result) {
-                this.failure = failure;
-            }
-            return result;
-        }
-
-        public boolean notificationFailed() {
-            return state.compareAndSet(State.FAILED, State.FAILED_NOTIFICATION);
-        }
-
-        public boolean restartCompletionNotification() {
-            return state.compareAndSet(State.FAILED_NOTIFICATION, State.FAILED);
-        }
-
-        public boolean markAsNotified() {
-            return state.compareAndSet(State.FAILED, State.NOTIFIED);
-        }
-
-        public boolean markAsCancelled() {
-            return state.compareAndSet(State.STARTED, State.CANCELLED);
-        }
-
-        @Override
-        public Task.Status get() {
-            return new Status(state.get());
-        }
-    }
-
     public static class Status implements Task.Status {
         public static final String NAME = "persistent_executor";
 
-        private final State state;
+        private final AllocatedPersistentTask.State state;
 
-        public Status(State state) {
+        public Status(AllocatedPersistentTask.State state) {
             this.state = requireNonNull(state, "State cannot be null");
         }
 
         public Status(StreamInput in) throws IOException {
-            state = State.valueOf(in.readString());
+            state = AllocatedPersistentTask.State.valueOf(in.readString());
         }
 
         @Override
@@ -403,7 +327,7 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
             return Strings.toString(this);
         }
 
-        public State getState() {
+        public AllocatedPersistentTask.State getState() {
             return state;
         }
 

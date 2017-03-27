@@ -56,7 +56,7 @@ import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.persistent.NodePersistentTask;
+import org.elasticsearch.xpack.persistent.AllocatedPersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTaskRequest;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
@@ -292,7 +292,7 @@ public class StartDatafeedAction
         }
     }
 
-    public static class DatafeedTask extends NodePersistentTask {
+    public static class DatafeedTask extends AllocatedPersistentTask {
 
         private final String datafeedId;
         private final long startTime;
@@ -421,9 +421,9 @@ public class StartDatafeedAction
         }
 
         @Override
-        protected void nodeOperation(NodePersistentTask nodePersistentTask, Request request,
+        protected void nodeOperation(AllocatedPersistentTask allocatedPersistentTask, Request request,
                                      ActionListener<TransportResponse.Empty> listener) {
-            DatafeedTask datafeedTask = (DatafeedTask) nodePersistentTask;
+            DatafeedTask datafeedTask = (DatafeedTask) allocatedPersistentTask;
             datafeedTask.datafeedJobRunner = datafeedJobRunner;
             datafeedJobRunner.run(datafeedTask,
                     (error) -> {

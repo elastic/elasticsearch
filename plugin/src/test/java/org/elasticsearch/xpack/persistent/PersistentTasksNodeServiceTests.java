@@ -324,11 +324,11 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
     private class Execution {
         private final PersistentTaskRequest request;
-        private final NodePersistentTask task;
+        private final AllocatedPersistentTask task;
         private final PersistentTasksExecutor<?> holder;
         private final ActionListener<Empty> listener;
 
-        Execution(PersistentTaskRequest request, NodePersistentTask task, PersistentTasksExecutor<?> holder,
+        Execution(PersistentTaskRequest request, AllocatedPersistentTask task, PersistentTasksExecutor<?> holder,
                   ActionListener<Empty> listener) {
             this.request = request;
             this.task = task;
@@ -345,7 +345,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         }
 
         @Override
-        public <Request extends PersistentTaskRequest> void executeTask(Request request, NodePersistentTask task,
+        public <Request extends PersistentTaskRequest> void executeTask(Request request, AllocatedPersistentTask task,
                                                                         PersistentTasksExecutor<Request> action,
                                                                         ActionListener<Empty> listener) {
             executions.add(new Execution(request, task, action, listener));

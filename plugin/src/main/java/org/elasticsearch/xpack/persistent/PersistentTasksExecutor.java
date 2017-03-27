@@ -93,7 +93,7 @@ public abstract class PersistentTasksExecutor<Request extends PersistentTaskRequ
      * The status can be used to store the current progress of the task or provide an insight for the
      * task allocator about the state of the currently running tasks.
      */
-    protected void updatePersistentTaskStatus(NodePersistentTask task, Task.Status status, ActionListener<Empty> listener) {
+    protected void updatePersistentTaskStatus(AllocatedPersistentTask task, Task.Status status, ActionListener<Empty> listener) {
         persistentTasksService.updateStatus(task.getPersistentTaskId(), status,
                 new PersistentTaskOperationListener() {
                     @Override
@@ -115,7 +115,7 @@ public abstract class PersistentTasksExecutor<Request extends PersistentTaskRequ
      * possibly on a different node. If listener.onResponse() is called, the task is considered to be successfully
      * completed and will be removed from the cluster state and not restarted.
      */
-    protected abstract void nodeOperation(NodePersistentTask task, Request request, ActionListener<Empty> listener);
+    protected abstract void nodeOperation(AllocatedPersistentTask task, Request request, ActionListener<Empty> listener);
 
     public String getExecutor() {
         return executor;

@@ -326,7 +326,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
         }
 
         @Override
-        protected void nodeOperation(NodePersistentTask task, TestRequest request, ActionListener<Empty> listener) {
+        protected void nodeOperation(AllocatedPersistentTask task, TestRequest request, ActionListener<Empty> listener) {
             logger.info("started node operation for the task {}", task);
             try {
                 TestTask testTask = (TestTask) task;
@@ -409,7 +409,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
     }
 
 
-    public static class TestTask extends NodePersistentTask {
+    public static class TestTask extends AllocatedPersistentTask {
         private volatile String operation;
 
         public TestTask(long id, String type, String action, String description, TaskId parentTask) {

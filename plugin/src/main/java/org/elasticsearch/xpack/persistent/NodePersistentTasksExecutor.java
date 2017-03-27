@@ -21,7 +21,7 @@ public class NodePersistentTasksExecutor {
     }
 
     public <Request extends PersistentTaskRequest> void executeTask(Request request,
-                                                                    NodePersistentTask task,
+                                                                    AllocatedPersistentTask task,
                                                                     PersistentTasksExecutor<Request> action,
                                                                     ActionListener<Empty> listener) {
         threadPool.executor(action.getExecutor()).execute(new AbstractRunnable() {

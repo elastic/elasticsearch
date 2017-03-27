@@ -24,6 +24,7 @@ esplugin {
   name 'x-pack'
   description 'Elasticsearch Expanded Pack Plugin'
   classname 'org.elasticsearch.xpack.XPackPlugin'
+  hasNativeController true
   licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
   noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
 }

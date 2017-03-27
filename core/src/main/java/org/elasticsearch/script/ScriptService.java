@@ -167,7 +167,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             }
 
             @Override
-            protected boolean areAnyScriptContextsEnabled(CacheKey cacheKey, ScriptType scriptType) {
+            protected boolean anyScriptContextsEnabled(CacheKey cacheKey, ScriptType scriptType) {
                 for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
                     if (scriptPermits.checkContextPermissions(cacheKey.lang, scriptType, scriptContext)) {
                         return true;

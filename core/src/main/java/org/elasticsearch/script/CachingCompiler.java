@@ -137,7 +137,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
      * to reject compilation if all script contexts are disabled and produce a nice error message
      * earlier rather than later.
      */
-    protected abstract boolean areAnyScriptContextsEnabled(CacheKeyT cacheKey,
+    protected abstract boolean anyScriptContextsEnabled(CacheKeyT cacheKey,
             ScriptType scriptType);
 
     /**
@@ -243,7 +243,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
     public final void checkCompileBeforeStore(StoredScriptSource source) {
         CacheKeyT cacheKey = cacheKeyFromClusterState(source);
         try {
-            if (areAnyScriptContextsEnabled(cacheKey, ScriptType.STORED)) {
+            if (anyScriptContextsEnabled(cacheKey, ScriptType.STORED)) {
                 Object compiled = compile(ScriptType.STORED, cacheKey);
 
                 if (compiled == null) {
@@ -311,7 +311,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
                 /* we don't know yet what the script will be used for, but if all of the operations
                  * for this lang with file scripts are disabled, it makes no sense to even compile
                  * it and cache it. */
-                if (areAnyScriptContextsEnabled(cacheKey, ScriptType.FILE)) {
+                if (anyScriptContextsEnabled(cacheKey, ScriptType.FILE)) {
                     logger.info("compiling script file [{}]", file.toAbsolutePath());
                     try (InputStreamReader reader = new InputStreamReader(
                             Files.newInputStream(file), StandardCharsets.UTF_8)) {

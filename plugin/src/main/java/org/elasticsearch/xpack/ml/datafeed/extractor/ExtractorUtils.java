@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -46,7 +47,7 @@ public final class ExtractorUtils {
         ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
         if (shardFailures != null && shardFailures.length > 0) {
             LOGGER.error("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
-            throw new IOException("[" + jobId + "] Search request returned shard failures; see more info in the logs");
+            throw new IOException(ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures));
         }
         int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
         if (unavailableShards > 0) {

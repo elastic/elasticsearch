@@ -1060,12 +1060,12 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      * sends a message to the given channel, using the given callbacks.
      */
     private void internalSendMessage(Channel targetChannel, BytesReference message, ActionListener<Channel> listener) {
-        ActionListener<Channel> callOnceListener = ActionListener.notifyOnce(listener);
+        ActionListener<Channel> notifyOnceListener = ActionListener.notifyOnce(listener);
         try {
-            sendMessage(targetChannel, message, callOnceListener);
+            sendMessage(targetChannel, message, notifyOnceListener);
         } catch (Exception ex) {
             // call listener to ensure that any resources are released
-            callOnceListener.onFailure(ex);
+            notifyOnceListener.onFailure(ex);
             onException(targetChannel, ex);
         }
     }

@@ -251,19 +251,19 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
                 StopDatafeedAction.Response stopResponse =
                         client.execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request(datafeedId)).get();
                 assertTrue(stopResponse.isStopped());
-            } catch (ExecutionException e) {
-                if (e.getMessage().contains("datafeed already stopped, expected datafeed state [started], but got [stopped]")) {
-                    logger.debug("failed to stop datafeed [" + datafeedId + "], already stopped", e);
+            } catch (ExecutionException e1) {
+                if (e1.getMessage().contains("datafeed already stopped, expected datafeed state [started], but got [stopped]")) {
+                    logger.debug("failed to stop datafeed [" + datafeedId + "], already stopped", e1);
                 } else {
                     try {
                         StopDatafeedAction.Request request = new StopDatafeedAction.Request(datafeedId);
                         request.setForce(true);
                         StopDatafeedAction.Response stopResponse = client.execute(StopDatafeedAction.INSTANCE, request).get();
                         assertTrue(stopResponse.isStopped());
-                        throw new RuntimeException("Had to resort to force-stopping datafeed, something went wrong?");
                     } catch (Exception e2) {
                         throw new RuntimeException("Force-stopping datafeed [" + datafeedId + "] failed.", e2);
                     }
+                    throw new RuntimeException("Had to resort to force-stopping datafeed, something went wrong?", e1);
                 }
             }
             assertBusy(() -> {
@@ -292,10 +292,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
                 CloseJobAction.Response response =
                         client.execute(CloseJobAction.INSTANCE, closeRequest).get();
                 assertTrue(response.isClosed());
-            } catch (Exception e) {
-                if (e.getMessage().contains("expected job state [opened], but got [closed]")
-                        || e.getMessage().contains("expected job state [opened], but got [closing]")) {
-                    logger.debug("job [" + jobId + "] has already been closed", e);
+            } catch (Exception e1) {
+                if (e1.getMessage().contains("expected job state [opened], but got [closed]")
+                        || e1.getMessage().contains("expected job state [opened], but got [closing]")) {
+                    logger.debug("job [" + jobId + "] has already been closed", e1);
                 } else {
                     try {
                         CloseJobAction.Request closeRequest = new CloseJobAction.Request(jobId);
@@ -304,11 +304,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
                         CloseJobAction.Response response =
                                 client.execute(CloseJobAction.INSTANCE, closeRequest).get();
                         assertTrue(response.isClosed());
-                        throw new RuntimeException("Had to resort to force-closing job, something went wrong?");
                     } catch (Exception e2) {
                         throw new RuntimeException("Force-closing datafeed [" + jobId + "] failed.", e2);
                     }
-
+                    throw new RuntimeException("Had to resort to force-closing job, something went wrong?", e1);
                 }
             }
             assertBusy(() -> {

@@ -60,7 +60,35 @@ public class MultiGetRequestTests extends ESTestCase {
                 });
         assertThat(
                 e.toString(),
-                containsString("Unknown key [doc] for a START_ARRAY, expected [docs] or [ids]"));
+                containsString("unknown key [doc] for a START_ARRAY, expected [docs] or [ids]"));
+    }
+
+    public void testUnexpectedField() throws IOException {
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        {
+            builder.startObject("docs");
+            {
+                builder.field("_type", "type");
+                builder.field("_id", "1");
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+        final XContentParser parser = createParser(builder);
+        final MultiGetRequest mgr = new MultiGetRequest();
+        final ParsingException e = expectThrows(
+                ParsingException.class,
+                () -> {
+                    final String defaultIndex = randomAsciiOfLength(5);
+                    final String defaultType = randomAsciiOfLength(3);
+                    final FetchSourceContext fetchSource = FetchSourceContext.FETCH_SOURCE;
+                    mgr.add(defaultIndex, defaultType, null, fetchSource, null, parser, true);
+                });
+        assertThat(
+                e.toString(),
+                containsString(
+                        "unexpected token [START_OBJECT], expected [FIELD_NAME] or [START_ARRAY]"));
     }
 
     public void testAddWithInvalidSourceValueIsRejected() throws Exception {

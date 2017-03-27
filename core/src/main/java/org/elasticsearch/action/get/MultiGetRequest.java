@@ -320,6 +320,14 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
             boolean allowExplicitIndex) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
+        if ((token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "unexpected token [%s], expected [%s]",
+                    token,
+                    XContentParser.Token.START_OBJECT);
+            throw new ParsingException(parser.getTokenLocation(), message);
+        }
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -331,11 +339,19 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
                 } else {
                     final String message = String.format(
                             Locale.ROOT,
-                            "Unknown key [%s] for a %s, expected [docs] or [ids]",
+                            "unknown key [%s] for a %s, expected [docs] or [ids]",
                             currentFieldName,
                             token);
                     throw new ParsingException(parser.getTokenLocation(), message);
                 }
+            } else {
+                final String message = String.format(
+                        Locale.ROOT,
+                        "unexpected token [%s], expected [%s] or [%s]",
+                        token,
+                        XContentParser.Token.FIELD_NAME,
+                        XContentParser.Token.START_ARRAY);
+                throw new ParsingException(parser.getTokenLocation(), message);
             }
         }
         return this;

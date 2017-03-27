@@ -39,30 +39,42 @@ grant {
   // JAAS is used by Hadoop for authentication purposes
   // The Hadoop Login JAAS module modifies a Subject's private credentials and principals
   // The Hadoop RPC Layer must be able to read these credentials, and initiate Kerberos connections
+
+  // org.apache.hadoop.security.UserGroupInformation.getCurrentUser()
   permission javax.security.auth.AuthPermission "getSubject";
+
+  // org.apache.hadoop.security.UserGroupInformation.doAs()
   permission javax.security.auth.AuthPermission "doAs";
-  permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
-  permission javax.security.auth.AuthPermission "modifyPublicCredentials";
-  permission javax.security.auth.AuthPermission "modifyPrincipals";
+
+  // org.apache.hadoop.security.UserGroupInformation.getCredentialsInternal()
   permission javax.security.auth.PrivateCredentialPermission "org.apache.hadoop.security.Credentials * \"*\"", "read";
+
+  // Hadoop depends on the Kerberos login module for kerberos authentication
+  // com.sun.security.auth.module.Krb5LoginModule.login()
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.security.krb5";
+
+  // com.sun.security.auth.module.Krb5LoginModule.commit()
+  permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
+  permission javax.security.auth.AuthPermission "modifyPrincipals";
+  permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KeyTab * \"*\"", "read";
   permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KerberosTicket * \"*\"", "read";
-  permission javax.security.auth.kerberos.ServicePermission "*", "initiate";
 
   // Hadoop depends on OS level user information for simple authentication
   // Unix: UnixLoginModule: com.sun.security.auth.module.UnixSystem.UnixSystem init
   permission java.lang.RuntimePermission "loadLibrary.jaas_unix";
   // Windows: NTLoginModule: com.sun.security.auth.module.NTSystem.loadNative
   permission java.lang.RuntimePermission "loadLibrary.jaas_nt";
-
-  // com.sun.security.auth.module.Krb5LoginModule.login()
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.security.krb5";
-
-  // hdfs client opens socket connections for to access repository
-  permission java.net.SocketPermission "*", "connect";
+  permission javax.security.auth.AuthPermission "modifyPublicCredentials";
 
   // org.apache.hadoop.security.SaslRpcServer.init()
   permission java.security.SecurityPermission "putProviderProperty.SaslPlainServer";
 
   // org.apache.hadoop.security.SaslPlainServer.SecurityProvider.SecurityProvider init
   permission java.security.SecurityPermission "insertProvider.SaslPlainServer";
+
+  // org.apache.hadoop.security.SaslRpcClient.getServerPrincipal -> KerberosPrincipal init
+  permission javax.security.auth.kerberos.ServicePermission "*", "initiate";
+
+  // hdfs client opens socket connections for to access repository
+  permission java.net.SocketPermission "*", "connect";
 };

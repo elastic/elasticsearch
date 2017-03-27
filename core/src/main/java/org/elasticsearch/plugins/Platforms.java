@@ -24,6 +24,9 @@ import org.apache.lucene.util.Constants;
 import java.nio.file.Path;
 import java.util.Locale;
 
+/**
+ * Encapsulates platform-dependent methods for handling native components of plugins.
+ */
 public class Platforms {
 
     private static final String PROGRAM_NAME = Constants.WINDOWS ? "controller.exe" : "controller";
@@ -33,7 +36,7 @@ public class Platforms {
     private Platforms() {}
 
     /**
-     * Make the full path to the program to be spawned.
+     * The path to the native controller for a plugin with native components.
      */
     public static Path nativeControllerPath(Path plugin) {
         return plugin

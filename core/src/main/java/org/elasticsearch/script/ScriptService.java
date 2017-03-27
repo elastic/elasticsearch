@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -47,6 +48,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -286,6 +288,10 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         compiler.clusterChanged(event);
     }
 
+    /**
+     * Fetch a stored script from a cluster state.
+     */
+    @Nullable
     public final StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
         ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);
 
@@ -296,6 +302,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
     }
 
+    /**
+     * Put a stored script in the cluster state.
+     */
     public void putStoredScript(ClusterService clusterService, PutStoredScriptRequest request,
             ActionListener<PutStoredScriptResponse> listener) {
         if (request.content().length() > maxScriptSizeInBytes) {
@@ -329,6 +338,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             });
     }
 
+    /**
+     * Delete a stored script from the cluster state.
+     */
     public void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request,
             ActionListener<DeleteStoredScriptResponse> listener) {
         if (request.lang() != null && isLangSupported(request.lang()) == false) {
@@ -358,7 +370,19 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         final String idOrCode;
         final Map<String, String> options;
 
-        private CacheKey(String lang, String idOrCode, Map<String, String> options) {
+        /**
+         * Build the cache key.
+         *
+         * @param lang language of the script
+         * @param idOrCode id of the script or code for the script. For file based scripts this is
+         *        always the id, for inline scripts this is always the code. For stored scripts this
+         *        should be built as the id and then use
+         *        {@link CachingCompiler#lookupStoredScript(ScriptMetaData, Object)} to replace the
+         *        id with the source.
+         * @param options map of options used during script compilation. {@code null} is translated
+         *        to {@link Collections#emptyMap()} on construction for ease of use.
+         */
+        private CacheKey(String lang, String idOrCode, @Nullable Map<String, String> options) {
             this.lang = lang;
             this.idOrCode = idOrCode;
             this.options = options == null ? emptyMap() : options;

@@ -277,6 +277,9 @@ public class XContentFactory {
     @Deprecated
     public static XContent xContent(BytesReference bytes) {
         XContentType type = xContentType(bytes);
+        if (type == null) {
+            throw new ElasticsearchParseException("Failed to derive xcontent");
+        }
         return xContent(type);
     }
 

@@ -470,6 +470,29 @@ public class MlJobIT extends ESRestTestCase {
                 client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
     }
 
+    public void testDeleteJobAfterMissingAlias() throws Exception {
+        String jobId = "foo";
+        String aliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        String indexName = AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT;
+        createFarequoteJob(jobId);
+
+        Response response = client().performRequest("get", "_cat/aliases");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        String responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString(aliasName));
+
+        // Manually delete the alias so that we can test that deletion proceeds
+        // normally anyway
+        response = client().performRequest("delete", indexName + "/_alias/" + aliasName);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        // check alias was deleted
+        expectThrows(ResponseException.class, () -> client().performRequest("get", "_cat/aliases"));
+
+        response = client().performRequest("delete", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+    }
+
     public void testMultiIndexDelete() throws Exception {
         String jobId = "foo";
         String indexName = AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT;

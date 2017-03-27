@@ -161,9 +161,6 @@ Logging::
 Mapping::
 * Improve error message for ipv6 on legacy ip fields {pull}23136[#23136] (issue: {issue}23126[#23126])
 
-NOT CLASSIFIED::
-* Backport gradle changes made in #22371 {pull}22445[#22445] (issue: {issue}22371[#22371])
-
 Network::
 * Keep the pipeline handler queue small initially {pull}23335[#23335]
 
@@ -252,9 +249,6 @@ Mapping::
 * Fix MapperService StackOverflowError {pull}23605[#23605] (issue: {issue}23604[#23604])
 * Range types causing `GetFieldMappingsIndexRequest` to fail due to `NullPointerException` in `RangeFieldMapper.doXContentBody` when `include_defaults=true` is on the query string {pull}22925[#22925]
 * Disallow introducing illegal object mappings (double '..') {pull}22891[#22891] (issue: {issue}22794[#22794])
-
-NOT CLASSIFIED::
-* Properly clean up thread context after tests {pull}23441[#23441]
 
 Network::
 * Respect promises on pipelined responses {pull}23317[#23317] (issues: {issue}23310[#23310], {issue}23322[#23322])

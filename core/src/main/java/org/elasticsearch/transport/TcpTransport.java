@@ -27,6 +27,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
@@ -100,7 +101,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -297,14 +297,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 DiscoveryNode node = entry.getKey();
                 NodeChannels channels = entry.getValue();
                 for (Channel channel : channels.getChannels()) {
-                    internalSendMessage(channel, pingHeader, new ActionListener<Channel>() {
+                    internalSendMessage(channel, pingHeader, new NotifyOnceListener<Channel>() {
                         @Override
-                        public void onResponse(Channel channel) {
+                        public void innerOnResponse(Channel channel) {
                             successfulPings.inc();
                         }
 
                         @Override
-                        public void onFailure(Exception e) {
+                        public void innerOnFailure(Exception e) {
                             if (isOpen(channel)) {
                                 logger.debug(
                                     (Supplier<?>) () -> new ParameterizedMessage("[{}] failed to send ping transport message", node), e);
@@ -948,9 +948,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         } else if (e instanceof TcpTransport.HttpOnTransportException) {
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (isOpen(channel)) {
-                final ActionListener<Channel> closeChannel = new ActionListener<Channel>() {
+                final NotifyOnceListener<Channel> closeChannel = new NotifyOnceListener<Channel>() {
                     @Override
-                    public void onResponse(Channel channel) {
+                    public void innerOnResponse(Channel channel) {
                         try {
                             closeChannels(Collections.singletonList(channel));
                         } catch (IOException e1) {
@@ -959,7 +959,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     }
 
                     @Override
-                    public void onFailure(Exception e) {
+                    public void innerOnFailure(Exception e) {
                         try {
                             closeChannels(Collections.singletonList(channel));
                         } catch (IOException e1) {
@@ -1059,13 +1059,12 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     /**
      * sends a message to the given channel, using the given callbacks.
      */
-    private void internalSendMessage(Channel targetChannel, BytesReference message, ActionListener<Channel> listener) {
-        ActionListener<Channel> notifyOnceListener = ActionListener.notifyOnce(listener);
+    private void internalSendMessage(Channel targetChannel, BytesReference message, NotifyOnceListener<Channel> listener) {
         try {
-            sendMessage(targetChannel, message, notifyOnceListener);
+            sendMessage(targetChannel, message, listener);
         } catch (Exception ex) {
             // call listener to ensure that any resources are released
-            notifyOnceListener.onFailure(ex);
+            listener.onFailure(ex);
             onException(targetChannel, ex);
         }
     }
@@ -1612,7 +1611,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
     }
 
-    private final class SendListener implements ActionListener<Channel> {
+    private final class SendListener extends NotifyOnceListener<Channel> {
         private final Releasable optionalReleasable;
         private final Runnable transportAdaptorCallback;
 
@@ -1622,12 +1621,12 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
 
         @Override
-        public void onResponse(Channel channel) {
+        public void innerOnResponse(Channel channel) {
             Releasables.close(optionalReleasable, transportAdaptorCallback::run);
         }
 
         @Override
-        public void onFailure(Exception e) {
+        public void innerOnFailure(Exception e) {
             onResponse(null);
         }
     }

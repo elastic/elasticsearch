@@ -71,33 +71,6 @@ public interface ActionListener<Response> {
     }
 
     /**
-     * Creates a listener that delegates a response (or failure) and to the listener provided. However,
-     * this listener will only allow the delegate to be notified once.
-     *
-     * @param actionListener the listener that will be notified
-     * @param <Response> the type of the response
-     * @return a listener that listens for responses
-     */
-    static <Response> ActionListener<Response> notifyOnce(ActionListener<Response> actionListener) {
-        AtomicBoolean hasBeenCalled = new AtomicBoolean(false);
-        return new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                if (hasBeenCalled.compareAndSet(false, true)) {
-                    actionListener.onResponse(response);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (hasBeenCalled.compareAndSet(false, true)) {
-                    actionListener.onFailure(e);
-                }
-            }
-        };
-    }
-
-    /**
      * Notifies every given listener with the response passed to {@link #onResponse(Object)}. If a listener itself throws an exception
      * the exception is forwarded to {@link #onFailure(Exception)}. If in turn {@link #onFailure(Exception)} fails all remaining
      * listeners will be processed and the caught exception will be re-thrown.

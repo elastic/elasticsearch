@@ -329,7 +329,6 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                             // No reason to pollute the settings, we didn't really upgrade anything
                             metaDataBuilder.put(IndexMetaData.builder(indexMetaData)
                                             .settings(Settings.builder().put(indexMetaData.getSettings())
-                                                            .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE, entry.getValue().v2())
                                                             .put(IndexMetaData.SETTING_VERSION_UPGRADED, entry.getValue().v1())
                                             )
                             );

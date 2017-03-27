@@ -38,7 +38,6 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.logging.Loggers;
@@ -112,45 +111,44 @@ public final class HdfsRepository extends BlobStoreRepository {
     }
 
     // create hadoop filecontext
-    @SuppressForbidden(reason = "lesser of two evils (the other being a bunch of JNI/classloader nightmares)")
     private static FileContext createContext(URI uri, Settings repositorySettings)  {
-        Configuration cfg = new Configuration(repositorySettings.getAsBoolean("load_defaults", true));
-        cfg.setClassLoader(HdfsRepository.class.getClassLoader());
-        cfg.reloadConfiguration();
+        Configuration hadoopConfiguration = new Configuration(repositorySettings.getAsBoolean("load_defaults", true));
+        hadoopConfiguration.setClassLoader(HdfsRepository.class.getClassLoader());
+        hadoopConfiguration.reloadConfiguration();
 
         Map<String, String> map = repositorySettings.getByPrefix("conf.").getAsMap();
         for (Entry<String, String> entry : map.entrySet()) {
-            cfg.set(entry.getKey(), entry.getValue());
+            hadoopConfiguration.set(entry.getKey(), entry.getValue());
         }
 
         // Create a hadoop user
-        UserGroupInformation ugi = login(cfg, repositorySettings);
+        UserGroupInformation ugi = login(hadoopConfiguration, repositorySettings);
 
         // Disable FS cache
-        cfg.setBoolean("fs.hdfs.impl.disable.cache", true);
+        hadoopConfiguration.setBoolean("fs.hdfs.impl.disable.cache", true);
 
         // Create the filecontext with our user information
         return ugi.doAs((PrivilegedAction<FileContext>) () -> {
             try {
-                AbstractFileSystem fs = AbstractFileSystem.get(uri, cfg);
-                return FileContext.getFileContext(fs, cfg);
+                AbstractFileSystem fs = AbstractFileSystem.get(uri, hadoopConfiguration);
+                return FileContext.getFileContext(fs, hadoopConfiguration);
             } catch (UnsupportedFileSystemException e) {
                 throw new RuntimeException(e);
             }
         });
     }
 
-    private static UserGroupInformation login(Configuration configuration, Settings settings) {
+    private static UserGroupInformation login(Configuration hadoopConfiguration, Settings repositorySettings) {
         // Validate the authentication method:
-        AuthenticationMethod authMethod = SecurityUtil.getAuthenticationMethod(configuration);
+        AuthenticationMethod authMethod = SecurityUtil.getAuthenticationMethod(hadoopConfiguration);
         if (authMethod.equals(AuthenticationMethod.SIMPLE) == false
-            || authMethod.equals(AuthenticationMethod.KERBEROS) == false) {
+            && authMethod.equals(AuthenticationMethod.KERBEROS) == false) {
             throw new RuntimeException("Unsupported authorization mode ["+authMethod+"]");
         }
 
         // Check if the user added keytab settings:
-        String kerberosPrincipal = settings.get(CONF_SECURITY_PRINCIPAL);
-        String kerberosKeytab = settings.get(CONF_SECURITY_KEYTAB);
+        String kerberosPrincipal = repositorySettings.get(CONF_SECURITY_PRINCIPAL);
+        String kerberosKeytab = repositorySettings.get(CONF_SECURITY_KEYTAB);
         if (kerberosPrincipal == null && kerberosKeytab != null) {
             throw new RuntimeException("Invalid settings: If [" + CONF_SECURITY_KEYTAB + "] is set [" +
                 CONF_SECURITY_PRINCIPAL + "] must be set also.");
@@ -162,26 +160,26 @@ public final class HdfsRepository extends BlobStoreRepository {
 
         // Check to see if the authentication method is compatible
         if (kerberosPrincipal != null && authMethod.equals(AuthenticationMethod.SIMPLE)) {
-            LOGGER.warn("Hadoop authentication method is set to [{}], but Kerberos information is " +
-                "specified. Continuing with [{}] authentication.",
-                AuthenticationMethod.SIMPLE, AuthenticationMethod.KERBEROS);
-            SecurityUtil.setAuthenticationMethod(AuthenticationMethod.KERBEROS, configuration);
+            LOGGER.warn("Hadoop authentication method is set to [SIMPLE], but Kerberos information is " +
+                "specified. Continuing with [KERBEROS] authentication.");
+            SecurityUtil.setAuthenticationMethod(AuthenticationMethod.KERBEROS, hadoopConfiguration);
         } else if (kerberosPrincipal == null && authMethod.equals(AuthenticationMethod.KERBEROS)) {
             throw new RuntimeException("HDFS Repository does not support [KERBEROS] authentication without " +
-                "a valid Kerberos principal and keytab. Please specify them in the repository request with [" +
+                "a valid Kerberos principal and keytab. Please specify them in the repository settings with [" +
                 CONF_SECURITY_PRINCIPAL + "] and [" + CONF_SECURITY_KEYTAB + "].");
         }
 
         // Now we can initialize the UGI with the configuration.
-        UserGroupInformation.setConfiguration(configuration);
+        UserGroupInformation.setConfiguration(hadoopConfiguration);
 
         // Debugging
         LOGGER.debug("Hadoop security enabled: [{}]", UserGroupInformation.isSecurityEnabled());
-        LOGGER.debug("Using Hadoop authentication method: [{}]", SecurityUtil.getAuthenticationMethod(configuration));
+        LOGGER.debug("Using Hadoop authentication method: [{}]", SecurityUtil.getAuthenticationMethod(hadoopConfiguration));
 
         // UserGroupInformation (UGI) instance is just a Hadoop specific wrapper around a Java Subject
         try {
             if (UserGroupInformation.isSecurityEnabled()) {
+                LOGGER.debug("Using kerberos principal [{}] and keytab located at [{}]", kerberosPrincipal, kerberosKeytab);
                 UserGroupInformation.loginUserFromKeytab(kerberosPrincipal, kerberosKeytab);
             }
             return UserGroupInformation.getCurrentUser();

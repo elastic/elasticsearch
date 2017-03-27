@@ -7,9 +7,6 @@ Also see <<breaking-changes-5.3>>.
 [float]
 === Breaking changes
 
-Geo::
-* Reduce GeoDistance Insanity {pull}19846[#19846]
-
 Query DSL::
 * Fix name of `enabled_position_increments` {pull}22895[#22895]
 

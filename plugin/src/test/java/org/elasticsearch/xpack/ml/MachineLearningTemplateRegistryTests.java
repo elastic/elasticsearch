@@ -39,14 +39,14 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.net.InetAddress;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
 import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex.ML_META_INDEX;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -156,7 +156,7 @@ public class MachineLearningTemplateRegistryTests extends ESTestCase {
                 new MachineLearningTemplateRegistry(createSettings(), clusterService, client, threadPool);
         Settings settings = templateRegistry.mlResultsIndexSettings().build();
 
-        assertEquals("1", settings.get("index.number_of_shards"));
+        assertThat(settings.get("index.number_of_shards"), is(nullValue()));
         assertEquals("0-2", settings.get("index.auto_expand_replicas"));
         assertEquals("async", settings.get("index.translog.durability"));
         assertEquals("true", settings.get("index.mapper.dynamic"));
@@ -167,11 +167,11 @@ public class MachineLearningTemplateRegistryTests extends ESTestCase {
     public void testMlAuditIndexSettings() {
         MachineLearningTemplateRegistry templateRegistry =
                 new MachineLearningTemplateRegistry(createSettings(), clusterService, client, threadPool);
-        Settings settings = templateRegistry.mlResultsIndexSettings().build();
+        Settings settings = templateRegistry.mlNotificationIndexSettings().build();
 
+        assertEquals(4, settings.size());
         assertEquals("1", settings.get("index.number_of_shards"));
         assertEquals("0-2", settings.get("index.auto_expand_replicas"));
-        assertEquals("async", settings.get("index.translog.durability"));
         assertEquals("true", settings.get("index.mapper.dynamic"));
         assertEquals("2s", settings.get("index.unassigned.node_left.delayed_timeout"));
     }
@@ -181,7 +181,7 @@ public class MachineLearningTemplateRegistryTests extends ESTestCase {
                 new MachineLearningTemplateRegistry(createSettings(), clusterService, client, threadPool);
         Settings settings = templateRegistry.mlResultsIndexSettings().build();
 
-        assertEquals("1", settings.get("index.number_of_shards"));
+        assertThat(settings.get("index.number_of_shards"), is(nullValue()));
         assertEquals("0-2", settings.get("index.auto_expand_replicas"));
         assertEquals("async", settings.get("index.translog.durability"));
         assertEquals("2s", settings.get("index.unassigned.node_left.delayed_timeout"));

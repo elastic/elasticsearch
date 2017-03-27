@@ -274,9 +274,6 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
      */
     Settings.Builder mlResultsIndexSettings() {
         return Settings.builder()
-                // Our indexes are small and one shard puts the
-                // least possible burden on Elasticsearch
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-2")
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
                 // Sacrifice durability for performance: in the event of power
@@ -315,9 +312,6 @@ public class MachineLearningTemplateRegistry  extends AbstractComponent implemen
     Settings.Builder mlStateIndexSettings() {
         // TODO review these settings
         return Settings.builder()
-                // Our indexes are small and one shard puts the
-                // least possible burden on Elasticsearch
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-2")
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
                 // Sacrifice durability for performance: in the event of power

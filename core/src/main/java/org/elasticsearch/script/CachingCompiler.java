@@ -27,6 +27,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
@@ -289,7 +290,9 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
             }
 
             String ext = scriptPath.toString().substring(extIndex + 1);
-            if (ext.isEmpty()) {
+            if (Strings.hasText(ext) == false) {
+                /* Files without extensions or with degenerate extensions like " " are not scripts
+                 * or templates so we silently skip them rather than try to compile them. */
                 return null;
             }
 

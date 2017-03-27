@@ -175,7 +175,9 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
 
     public final CompiledScript getScript(CacheKeyT cacheKey, ScriptType scriptType,
             ScriptContext scriptContext) {
-        Objects.requireNonNull(cacheKey);
+        Objects.requireNonNull(cacheKey, "cacheKey is required");
+        Objects.requireNonNull(scriptType, "scriptType is required");
+        Objects.requireNonNull(scriptContext, "scriptContext is required");
 
         // First resolve stored scripts so so we have accurate parameters for checkCanExecuteScript
         if (scriptType == ScriptType.STORED) {

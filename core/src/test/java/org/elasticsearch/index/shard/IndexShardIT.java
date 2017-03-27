@@ -363,49 +363,104 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertEquals(0, shard.getEngine().getTranslog().totalOperations());
     }
 
-    public void testStressMaybeFlush() throws Exception {
+    public void testMaybeRollTranslogGeneration() throws Exception {
+        final int generationThreshold = randomIntBetween(1, 512);
+        final Settings settings =
+                Settings
+                        .builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.translog.generation_threshold_size", generationThreshold + "b")
+                        .put()
+                        .build();
+        createIndex("test", settings);
+        ensureGreen("test");
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService test = indicesService.indexService(resolveIndex("test"));
+        final IndexShard shard = test.getShardOrNull(0);
+        int rolls = 0;
+        final Translog translog = shard.getEngine().getTranslog();
+        final long generation = translog.currentFileGeneration();
+        for (int i = 0; i < randomIntBetween(32, 128); i++) {
+            assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
+            final ParsedDocument doc = testParsedDocument(
+                    "1",
+                    "test",
+                    null,
+                    SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                    new ParseContext.Document(),
+                    new BytesArray(new byte[]{1}), XContentType.JSON, null);
+            final Engine.Index index = new Engine.Index(new Term("_uid", doc.uid()), doc);
+            final Engine.IndexResult result = shard.index(index);
+            final Translog.Location location = result.getTranslogLocation();
+            shard.afterWriteOperation();
+            if (location.translogLocation + location.size > generationThreshold) {
+                // wait until the roll completes
+                assertBusy(() -> assertFalse(shard.shouldRollTranslogGeneration()));
+                rolls++;
+                assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
+            }
+        }
+    }
+
+    public void testStressMaybeFlushOrRollTranslogGeneration() throws Exception {
         createIndex("test");
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
         final IndexShard shard = test.getShardOrNull(0);
         assertFalse(shard.shouldFlush());
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(
-            IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-            new ByteSizeValue(117/* size of the operation + header&footer*/, ByteSizeUnit.BYTES)).build()).get();
-        client().prepareIndex("test", "test", "0").setSource("{}", XContentType.JSON)
-            .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
+        final String key;
+        final boolean flush = randomBoolean();
+        if (flush) {
+            key = "index.translog.flush_threshold_size";
+        } else {
+            key = "index.translog.generation_threshold_size";
+        }
+        // size of the operation plus header and footer
+        final Settings settings = Settings.builder().put(key, "117b").build();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
+        client().prepareIndex("test", "test", "0")
+                .setSource("{}", XContentType.JSON)
+                .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
+                .get();
         assertFalse(shard.shouldFlush());
         final AtomicBoolean running = new AtomicBoolean(true);
         final int numThreads = randomIntBetween(2, 4);
-        Thread[] threads = new Thread[numThreads];
-        CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
+        final Thread[] threads = new Thread[numThreads];
+        final CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
         for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        barrier.await();
-                    } catch (InterruptedException | BrokenBarrierException e) {
-                        throw new RuntimeException(e);
-                    }
-                    while (running.get()) {
-                        shard.maybeFlush();
-                    }
+            threads[i] = new Thread(() -> {
+                try {
+                    barrier.await();
+                } catch (final InterruptedException | BrokenBarrierException e) {
+                    throw new RuntimeException(e);
                 }
-            };
+                while (running.get()) {
+                    shard.afterWriteOperation();
+                }
+            });
             threads[i].start();
         }
         barrier.await();
-        FlushStats flushStats = shard.flushStats();
-        long total = flushStats.getTotal();
-        client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
-        assertBusy(() -> assertEquals(total + 1, shard.flushStats().getTotal()));
+        final Runnable check;
+        if (flush) {
+            final FlushStats flushStats = shard.flushStats();
+            final long total = flushStats.getTotal();
+            client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
+            check = () -> assertEquals(total + 1, shard.flushStats().getTotal());
+        } else {
+            final long generation = shard.getEngine().getTranslog().currentFileGeneration();
+            client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
+            check = () -> assertEquals(
+                    generation + 1,
+                    shard.getEngine().getTranslog().currentFileGeneration());
+        }
+        assertBusy(check);
         running.set(false);
         for (int i = 0; i < threads.length; i++) {
             threads[i].join();
         }
-        assertEquals(total + 1, shard.flushStats().getTotal());
+        check.run();
     }
 
     public void testShardHasMemoryBufferOnTranslogRecover() throws Throwable {

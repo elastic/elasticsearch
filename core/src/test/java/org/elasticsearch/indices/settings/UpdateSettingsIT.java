@@ -93,7 +93,11 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             .admin()
             .indices()
             .prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put("index.refresh_interval", -1).put("index.translog.flush_threshold_size", "1024b"))
+            .setSettings(
+                    Settings.builder()
+                            .put("index.refresh_interval", -1)
+                            .put("index.translog.flush_threshold_size", "1024b")
+                            .put("index.translog.generation_threshold_size", "4096b"))
             .execute()
             .actionGet();
         IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
@@ -103,6 +107,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             if (indexService != null) {
                 assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), -1);
                 assertEquals(indexService.getIndexSettings().getFlushThresholdSize().getBytes(), 1024);
+                assertEquals(indexService.getIndexSettings().getGenerationThresholdSize().getBytes(), 4096);
             }
         }
         client()
@@ -119,6 +124,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             if (indexService != null) {
                 assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), 1000);
                 assertEquals(indexService.getIndexSettings().getFlushThresholdSize().getBytes(), 1024);
+                assertEquals(indexService.getIndexSettings().getGenerationThresholdSize().getBytes(), 4096);
             }
         }
     }

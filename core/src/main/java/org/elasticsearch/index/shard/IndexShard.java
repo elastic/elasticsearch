@@ -771,27 +771,44 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return engine.syncFlush(syncId, expectedCommitId);
     }
 
-    public Engine.CommitId flush(FlushRequest request) throws ElasticsearchException {
-        boolean waitIfOngoing = request.waitIfOngoing();
-        boolean force = request.force();
-        if (logger.isTraceEnabled()) {
-            logger.trace("flush with {}", request);
-        }
-        // we allows flush while recovering, since we allow for operations to happen
-        // while recovering, and we want to keep the translog at bay (up to deletes, which
-        // we don't gc). Yet, we don't use flush internally to clear deletes and flush the indexwriter since
-        // we use #writeIndexingBuffer for this now.
+    /**
+     * Executes the given flush request against the engine.
+     *
+     * @param request the flush request
+     * @return the commit ID
+     */
+    public Engine.CommitId flush(FlushRequest request) {
+        final boolean waitIfOngoing = request.waitIfOngoing();
+        final boolean force = request.force();
+        logger.trace("flush with {}", request);
+        /*
+         * We allow flushes while recovery since we allow operations to happen while recovering and
+         * we want to keep the translog under control (up to deletes, which we do not GC). Yet, we
+         * do not use flush internally to clear deletes and flush the index writer since we use
+         * Engine#writeIndexingBuffer for this now.
+         */
         verifyNotClosed();
-        Engine engine = getEngine();
+        final Engine engine = getEngine();
         if (engine.isRecovering()) {
-            throw new IllegalIndexShardStateException(shardId(), state, "flush is only allowed if the engine is not recovery" +
-                " from translog");
+            throw new IllegalIndexShardStateException(
+                    shardId(),
+                    state,
+                    "flush is only allowed if the engine is not recovery from translog");
         }
-        long time = System.nanoTime();
-        Engine.CommitId commitId = engine.flush(force, waitIfOngoing);
+        final long time = System.nanoTime();
+        final Engine.CommitId commitId = engine.flush(force, waitIfOngoing);
         flushMetric.inc(System.nanoTime() - time);
         return commitId;
+    }
 
+    /**
+     * Rolls the tranlog generation.
+     *
+     * @throws IOException if any file operations on the translog throw an I/O exception
+     */
+    private void rollTranslogGeneration() throws IOException {
+        final Engine engine = getEngine();
+        engine.getTranslog().rollGeneration();
     }
 
     public void forceMerge(ForceMergeRequest forceMerge) throws IOException {
@@ -1256,17 +1273,39 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns <code>true</code> iff this shard needs to be flushed due to too many translog operation or a too large transaction log.
-     * Otherwise <code>false</code>.
+     * Tests whether or not the translog should be flushed. This test is based on the current size
+     * of the translog comparted to the configured flush threshold size.
+     *
+     * @return {@code true} if the translog should be flushed
      */
     boolean shouldFlush() {
-        Engine engine = getEngineOrNull();
+        final Engine engine = getEngineOrNull();
         if (engine != null) {
             try {
-                Translog translog = engine.getTranslog();
-                return translog.sizeInBytes() > indexSettings.getFlushThresholdSize().getBytes();
-            } catch (AlreadyClosedException ex) {
-                // that's fine we are already close - no need to flush
+                final Translog translog = engine.getTranslog();
+                return translog.shouldFlush();
+            } catch (final AlreadyClosedException e) {
+                // we are already closed, no need to flush or roll
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Tests whether or not the translog generation should be rolled to a new generation. This test
+     * is based on the size of the current generation compared to the configured generation
+     * threshold size.
+     *
+     * @return {@code true} if the current generation should be rolled to a new generation
+     */
+    boolean shouldRollTranslogGeneration() {
+        final Engine engine = getEngineOrNull();
+        if (engine != null) {
+            try {
+                final Translog translog = engine.getTranslog();
+                return translog.shouldRollGeneration();
+            } catch (final AlreadyClosedException e) {
+                // we are already closed, no need to flush or roll
             }
         }
         return false;
@@ -1810,28 +1849,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return indexSettings.getTranslogDurability();
     }
 
-    private final AtomicBoolean asyncFlushRunning = new AtomicBoolean();
+    // we can not protect with a lock since we "release" on a different thread
+    private final AtomicBoolean flushOrRollRunning = new AtomicBoolean();
 
     /**
-     * Schedules a flush if needed but won't schedule more than one flush concurrently. The flush will be executed on the
-     * Flush thread-pool asynchronously.
-     *
-     * @return <code>true</code> if a new flush is scheduled otherwise <code>false</code>.
+     * Schedules a flush or translog generation roll if needed but will not schedule more than one
+     * concurrently. The operation will be executed asynchronously on the flush thread pool.
      */
-    public boolean maybeFlush() {
-        if (shouldFlush()) {
-            if (asyncFlushRunning.compareAndSet(false, true)) { // we can't use a lock here since we "release" in a different thread
-                if (shouldFlush() == false) {
-                    // we have to check again since otherwise there is a race when a thread passes
-                    // the first shouldFlush() check next to another thread which flushes fast enough
-                    // to finish before the current thread could flip the asyncFlushRunning flag.
-                    // in that situation we have an extra unexpected flush.
-                    asyncFlushRunning.compareAndSet(true, false);
-                } else {
+    public void afterWriteOperation() {
+        if (shouldFlush() || shouldRollTranslogGeneration()) {
+            if (flushOrRollRunning.compareAndSet(false, true)) {
+                /*
+                 * We have to check again since otherwise there is a race when a thread passes the
+                 * first check next to another thread which performs the operation quickly enough to
+                 * finish before the current thread could flip the flag. In that situation, we have
+                 * an extra operation.
+                 *
+                 * Additionally, a flush implicitly executes a translog generation roll so if we
+                 * execute a flush then we do not need to check if we should roll the translog
+                 * generation.
+                 */
+                if (shouldFlush()) {
                     logger.debug("submitting async flush request");
-                    final AbstractRunnable abstractRunnable = new AbstractRunnable() {
+                    final AbstractRunnable flush = new AbstractRunnable() {
                         @Override
-                        public void onFailure(Exception e) {
+                        public void onFailure(final Exception e) {
                             if (state != IndexShardState.CLOSED) {
                                 logger.warn("failed to flush index", e);
                             }
@@ -1844,16 +1886,38 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                         @Override
                         public void onAfter() {
-                            asyncFlushRunning.compareAndSet(true, false);
-                            maybeFlush(); // fire a flush up again if we have filled up the limits such that shouldFlush() returns true
+                            flushOrRollRunning.compareAndSet(true, false);
+                            afterWriteOperation();
                         }
                     };
-                    threadPool.executor(ThreadPool.Names.FLUSH).execute(abstractRunnable);
-                    return true;
+                    threadPool.executor(ThreadPool.Names.FLUSH).execute(flush);
+                } else if (shouldRollTranslogGeneration()) {
+                    logger.debug("submitting async roll translog generation request");
+                    final AbstractRunnable roll = new AbstractRunnable() {
+                        @Override
+                        public void onFailure(final Exception e) {
+                            if (state != IndexShardState.CLOSED) {
+                                logger.warn("failed to roll translog generation", e);
+                            }
+                        }
+
+                        @Override
+                        protected void doRun() throws Exception {
+                            rollTranslogGeneration();
+                        }
+
+                        @Override
+                        public void onAfter() {
+                            flushOrRollRunning.compareAndSet(true, false);
+                            afterWriteOperation();
+                        }
+                    };
+                    threadPool.executor(ThreadPool.Names.FLUSH).execute(roll);
+                } else {
+                    flushOrRollRunning.compareAndSet(true, false);
                 }
             }
         }
-        return false;
     }
 
     /**

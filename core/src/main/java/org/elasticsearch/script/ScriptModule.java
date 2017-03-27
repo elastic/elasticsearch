@@ -134,6 +134,12 @@ public class ScriptModule {
         scriptService.registerClusterSettingsListeners(clusterSettings);
     }
 
+    /**
+     * Template backend that refuses to compile templates. Useful for starting Elasticsearch without
+     * the {@code lang-mustache} module. Which we do frequently during testing. Technically it'd be
+     * used if you started Elasticsearch without {@code lang-mustache} installed but that isn't a
+     * supported deployment.
+     */
     private static class TemplatesUnsupportedBackend implements TemplateService.Backend {
         @Override
         public String getType() {

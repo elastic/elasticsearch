@@ -45,6 +45,11 @@ import static java.util.Collections.singletonMap;
  * Source of templates (think Mustache or StringTemplate).
  */
 public class TemplateService implements ClusterStateListener {
+    /**
+     * Backend that implements templates. Must be provided by a module. The only tested
+     * implementation of this is the one provided by {@code lang-mustache} and the noop
+     * implementation in {@link ScriptModule}.
+     */
     public interface Backend extends ScriptEngineService {} // TODO customize this for templates
 
     private static final String DEFAULT_CONTENT_TYPE = "text/plain";

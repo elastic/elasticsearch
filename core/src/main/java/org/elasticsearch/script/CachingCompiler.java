@@ -246,18 +246,20 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
         CacheKeyT cacheKey = cacheKeyFromClusterState(source);
         try {
             if (anyScriptContextsEnabled(cacheKey, ScriptType.STORED)) {
-                Object compiled = compile(ScriptType.STORED, cacheKey);
-
-                if (compiled == null) {
-                    throw new IllegalArgumentException("failed to parse/compile");
-                }
+                /* Compile the script to make sure it compiles but through away the result. We'll
+                 * populate the cache if it is ever used. */
+                compile(ScriptType.STORED, cacheKey);
             } else {
-                throw new IllegalArgumentException("cannot be run under any context");
+                throw new IllegalArgumentException(type + " cannot be run under any context");
             }
-        } catch (ScriptException good) {
-            throw good;
+        } catch (ScriptException betterException) {
+            throw betterException;
         } catch (Exception exception) {
-            throw new IllegalArgumentException("failed to parse/compile", exception);
+            /* Catch any less fancy scripting exceptions and send them back to the user with a
+             * little context information. We'd *love* to only ever through ScriptException here but
+             * that requires information not available to all extensions of this class. So we make
+             * do here. */
+            throw new IllegalArgumentException("failed to compile " + type, exception);
         }
     }
 

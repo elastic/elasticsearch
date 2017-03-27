@@ -285,7 +285,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 .get();
         assertHitCount(searchResponse.getResponse(), 1);
         assertWarnings("use of </lang/id> [/mustache/2] for looking up" +
-            " stored scripts/templates has been deprecated, use only <id> [2] instead");
+            " stored templates has been deprecated, use only <id> [2] instead");
 
         Map<String, Object> vars = new HashMap<>();
         vars.put("fieldParam", "bar");

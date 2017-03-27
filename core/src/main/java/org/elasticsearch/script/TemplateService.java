@@ -114,8 +114,8 @@ public class TemplateService implements ClusterStateListener {
                 if (path.length == 3) {
                     id = path[2];
                     deprecationLogger.deprecated("use of </lang/id> [{}] for looking up stored "
-                            + "scripts/templates has been deprecated, use only <id> [{}] instead",
-                            cacheKey, id);
+                            + "templates has been deprecated, use only <id> [{}] instead",
+                            cacheKey.idOrCode, id);
                 } else if (path.length != 1) {
                     throw new IllegalArgumentException( "illegal stored script format [" + id
                             + "] use only <id>");

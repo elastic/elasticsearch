@@ -1856,7 +1856,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Schedules a flush or translog generation roll if needed but will not schedule more than one
      * concurrently. The operation will be executed asynchronously on the flush thread pool.
      */
-    public void maybeFlushOrRollTranslogGeneration() {
+    public void afterWriteOperation() {
         if (shouldFlush() || shouldRollTranslogGeneration()) {
             if (flushOrRollRunning.compareAndSet(false, true)) {
                 /*
@@ -1887,7 +1887,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         @Override
                         public void onAfter() {
                             flushOrRollRunning.compareAndSet(true, false);
-                            maybeFlushOrRollTranslogGeneration();
+                            afterWriteOperation();
                         }
                     };
                     threadPool.executor(ThreadPool.Names.FLUSH).execute(flush);
@@ -1909,7 +1909,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         @Override
                         public void onAfter() {
                             flushOrRollRunning.compareAndSet(true, false);
-                            maybeFlushOrRollTranslogGeneration();
+                            afterWriteOperation();
                         }
                     };
                     threadPool.executor(ThreadPool.Names.FLUSH).execute(roll);

@@ -68,7 +68,6 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -393,7 +392,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             final Engine.Index index = new Engine.Index(new Term("_uid", doc.uid()), doc);
             final Engine.IndexResult result = shard.index(index);
             final Translog.Location location = result.getTranslogLocation();
-            shard.maybeFlushOrRollTranslogGeneration();
+            shard.afterWriteOperation();
             if (location.translogLocation + location.size > generationThreshold) {
                 // wait until the roll completes
                 assertBusy(() -> assertFalse(shard.shouldRollTranslogGeneration()));
@@ -437,7 +436,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                     throw new RuntimeException(e);
                 }
                 while (running.get()) {
-                    shard.maybeFlushOrRollTranslogGeneration();
+                    shard.afterWriteOperation();
                 }
             });
             threads[i].start();

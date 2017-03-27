@@ -302,7 +302,7 @@ public abstract class TransportWriteAction<
              * refresh), or we there are past async operations and we wait for them to return to
              * respond.
              */
-            indexShard.maybeFlushOrRollTranslogGeneration();
+            indexShard.afterWriteOperation();
             // decrement pending by one, if there is nothing else to do we just respond with success
             maybeFinish();
             if (waitUntilRefresh) {

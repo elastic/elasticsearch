@@ -19,7 +19,6 @@
 
 package org.elasticsearch.smoketest;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -29,18 +28,10 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class SmokeTestClientIT extends ESSmokeClientTestCase {
 
-    // needed to avoid the test suite from failing for having no tests
-    // TODO: remove when Netty 4.1.5 is upgraded to Netty 4.1.6 including https://github.com/netty/netty/pull/5778
-    public void testSoThatTestsDoNotFail() {
-
-    }
-
     /**
      * Check that we are connected to a cluster named "elasticsearch".
      */
     public void testSimpleClient() {
-        // TODO: remove when Netty 4.1.5 is upgraded to Netty 4.1.6 including https://github.com/netty/netty/pull/5778
-        assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         Client client = getClient();
 
         // START SNIPPET: java-doc-admin-cluster-health
@@ -55,8 +46,6 @@ public class SmokeTestClientIT extends ESSmokeClientTestCase {
      * Create an index and index some docs
      */
     public void testPutDocument() {
-        // TODO: remove when Netty 4.1.5 is upgraded to Netty 4.1.6 including https://github.com/netty/netty/pull/5778
-        assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         Client client = getClient();
 
         // START SNIPPET: java-doc-index-doc-simple

@@ -374,6 +374,42 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
+==== Fragmenter
+
+Fragmenter can control how text should be broken up in highlight snippets.
+However, this option is applicable only for the Plain Highlighter.
+There are two options:
+
+[horizontal]
+`simple`:: Breaks up text into same sized fragments.
+`span`:: Same as the simple fragmenter, but tries not to break up text between highlighted terms (this is applicable when using phrase like queries). This is the default.
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query" : {
+        "match" : {
+            "body" : {
+                "some text"
+            }
+        }
+    },
+    "highlight": {
+        "fields": {
+            "body": {
+                "fragment_size": 200,
+                "fragmenter" : "simple"
+            }
+        }
+   }
+}
+--------------------------------------------------
+// CONSOLE
+
+If the `number_of_fragments` option is set to `0`,
+`NullFragmenter` is used which does not fragment the text at all.
+This is useful for highlighting the entire content of a document or field.
 
 ==== Highlight query
 

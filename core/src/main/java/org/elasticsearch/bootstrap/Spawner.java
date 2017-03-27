@@ -22,7 +22,7 @@ package org.elasticsearch.bootstrap;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.Plugins;
+import org.elasticsearch.plugins.Platforms;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -73,7 +73,7 @@ final class Spawner implements Closeable {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsFile)) {
             for (final Path plugin : stream) {
                 final PluginInfo info = PluginInfo.readFromProperties(plugin);
-                final Path spawnPath = Plugins.nativeControllerPath(plugin);
+                final Path spawnPath = Platforms.nativeControllerPath(plugin);
                 if (!Files.isRegularFile(spawnPath)) {
                     continue;
                 }

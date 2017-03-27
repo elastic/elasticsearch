@@ -24,13 +24,13 @@ import org.apache.lucene.util.Constants;
 import java.nio.file.Path;
 import java.util.Locale;
 
-public class Plugins {
+public class Platforms {
 
     private static final String PROGRAM_NAME = Constants.WINDOWS ? "controller.exe" : "controller";
     private static final String PLATFORM_NAME =
-            Plugins.platformName(Constants.OS_NAME, Constants.OS_ARCH);
+            Platforms.platformName(Constants.OS_NAME, Constants.OS_ARCH);
 
-    private Plugins() {}
+    private Platforms() {}
 
     /**
      * Make the full path to the program to be spawned.

@@ -25,7 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginTestUtil;
-import org.elasticsearch.plugins.Plugins;
+import org.elasticsearch.plugins.Platforms;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -116,7 +116,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
                 "java.version", "1.8",
                 "classname", "TestPlugin",
                 "has.native.controller", "true");
-        Path controllerProgram = Plugins.nativeControllerPath(plugin);
+        Path controllerProgram = Platforms.nativeControllerPath(plugin);
         createControllerProgram(controllerProgram);
 
         // this plugin will not have a controller daemon
@@ -176,7 +176,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
                 "java.version", "1.8",
                 "classname", "TestPlugin",
                 "has.native.controller", "false");
-        Path controllerProgram = Plugins.nativeControllerPath(plugin);
+        Path controllerProgram = Platforms.nativeControllerPath(plugin);
         createControllerProgram(controllerProgram);
 
         Spawner spawner = new Spawner();

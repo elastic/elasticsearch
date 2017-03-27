@@ -27,7 +27,7 @@ import java.util.Locale;
 public class PluginsTests extends ESTestCase {
 
     public void testMakePlatformName() {
-        final String platformName = Plugins.platformName(Constants.OS_NAME, Constants.OS_ARCH);
+        final String platformName = Platforms.platformName(Constants.OS_NAME, Constants.OS_ARCH);
 
         assertFalse(platformName, platformName.isEmpty());
         assertTrue(platformName, platformName.equals(platformName.toLowerCase(Locale.ROOT)));
@@ -37,13 +37,13 @@ public class PluginsTests extends ESTestCase {
     }
 
     public void testMakeSpecificPlatformNames() {
-        assertEquals("darwin-x86_64", Plugins.platformName("Mac OS X", "x86_64"));
-        assertEquals("linux-x86_64", Plugins.platformName("Linux", "amd64"));
-        assertEquals("linux-x86", Plugins.platformName("Linux", "i386"));
-        assertEquals("windows-x86_64", Plugins.platformName("Windows Server 2008 R2", "amd64"));
-        assertEquals("windows-x86", Plugins.platformName("Windows Server 2008", "x86"));
-        assertEquals("windows-x86_64", Plugins.platformName("Windows 8.1", "amd64"));
-        assertEquals("sunos-x86_64", Plugins.platformName("SunOS", "amd64"));
+        assertEquals("darwin-x86_64", Platforms.platformName("Mac OS X", "x86_64"));
+        assertEquals("linux-x86_64", Platforms.platformName("Linux", "amd64"));
+        assertEquals("linux-x86", Platforms.platformName("Linux", "i386"));
+        assertEquals("windows-x86_64", Platforms.platformName("Windows Server 2008 R2", "amd64"));
+        assertEquals("windows-x86", Platforms.platformName("Windows Server 2008", "x86"));
+        assertEquals("windows-x86_64", Platforms.platformName("Windows 8.1", "amd64"));
+        assertEquals("sunos-x86_64", Platforms.platformName("SunOS", "amd64"));
     }
 
 }

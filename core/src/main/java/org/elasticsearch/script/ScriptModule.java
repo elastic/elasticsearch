@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -91,7 +92,7 @@ public class ScriptModule {
             scriptService = new ScriptService(settings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry,
                     scriptSettings, scriptMetrics);
         } catch (IOException e) {
-            throw new RuntimeException("Couldn't setup ScriptService", e);
+            throw new ElasticsearchException("Couldn't setup ScriptService", e);
         }
 
         if (templateBackend == null) {
@@ -101,7 +102,7 @@ public class ScriptModule {
             templateService = new TemplateService(settings, environment, resourceWatcherService, templateBackend,
                     scriptContextRegistry, scriptSettings, scriptMetrics);
         } catch (IOException e) {
-            throw new RuntimeException("Couldn't setup TemplateService", e);
+            throw new ElasticsearchException("Couldn't setup TemplateService", e);
         }
     }
 

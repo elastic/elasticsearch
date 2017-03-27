@@ -103,8 +103,8 @@ public class TemplateService implements ClusterStateListener {
             @Override
             protected StoredScriptSource lookupStoredScript(ScriptMetaData scriptMetaData,
                     CacheKey cacheKey) {
-                /* This process throws away which is fine because you aren't allowed to specify it
-                 * when using a stored template anyway. */
+                /* This process throws away cacheKey.contentType which is fine because you aren't
+                 * allowed to specify it when using a stored template anyway. */
                 String id = cacheKey.idOrCode;
                 // search template requests can possibly pass in the entire path instead
                 // of just an id for looking up a stored script, so we parse the path and

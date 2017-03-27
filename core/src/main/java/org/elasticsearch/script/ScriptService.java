@@ -109,9 +109,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     + "`script.disable_dynamic: false` with `script.inline: true` and `script.stored: true` in elasticsearch.yml");
         }
 
-        Objects.requireNonNull(scriptEngineRegistry);
+        Objects.requireNonNull(scriptEngineRegistry, "scriptEngineRegistry is required");
         this.scriptEngines = scriptEngineRegistry.getRegisteredLanguages().values();
-        Objects.requireNonNull(scriptContextRegistry);
+        Objects.requireNonNull(scriptContextRegistry, "scriptContextRegistry is required");
 
         Map<String, ScriptEngineService> enginesByLangBuilder = new HashMap<>();
         Map<String, ScriptEngineService> enginesByExtBuilder = new HashMap<>();

@@ -142,6 +142,7 @@ public class ScriptSettings {
         };
         for (Class<? extends ScriptEngineService> c : scriptEngineRegistry.getRegisteredScriptEngineServices()) {
             if (c != NativeScriptEngineService.class) {
+                // native scripts are always enabled, and their settings can not be changed
                 String language = scriptEngineRegistry.getLanguage(c);
                 populate.accept(language, scriptEngineRegistry.getDefaultInlineScriptEnableds().get(language));
             }

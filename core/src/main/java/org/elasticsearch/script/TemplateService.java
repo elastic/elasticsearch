@@ -74,7 +74,7 @@ public class TemplateService implements ClusterStateListener {
             ResourceWatcherService resourceWatcherService, Backend backend,
             ScriptContextRegistry scriptContextRegistry, ScriptSettings scriptSettings,
             ScriptMetrics scriptMetrics) throws IOException {
-        Objects.requireNonNull(scriptContextRegistry);
+        Objects.requireNonNull(scriptContextRegistry, "scriptContextRegistry is required");
 
         this.backend = backend;
         this.scriptPermits = new ScriptPermits(settings, scriptSettings, scriptContextRegistry);
@@ -94,10 +94,8 @@ public class TemplateService implements ClusterStateListener {
             protected CacheKey cacheKeyFromClusterState(StoredScriptSource scriptMetadata) {
                 String contentType = DEFAULT_CONTENT_TYPE;
                 if (scriptMetadata.getOptions() != null) {
-                    contentType = scriptMetadata.getOptions().get(Script.CONTENT_TYPE_OPTION);
-                    if (contentType == null) {
-                        contentType = DEFAULT_CONTENT_TYPE;
-                    }
+                    contentType = scriptMetadata.getOptions()
+                            .getOrDefault(Script.CONTENT_TYPE_OPTION, DEFAULT_CONTENT_TYPE);
                 }
                 return new CacheKey(scriptMetadata.getCode(), contentType);
             }

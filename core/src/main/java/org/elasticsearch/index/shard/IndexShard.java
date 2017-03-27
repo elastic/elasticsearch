@@ -1912,7 +1912,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             maybeFlushOrRollTranslogGeneration();
                         }
                     };
-                    threadPool.executor(ThreadPool.Names.FETCH_SHARD_STARTED).execute(roll);
+                    threadPool.executor(ThreadPool.Names.FLUSH).execute(roll);
                 } else {
                     flushOrRollRunning.compareAndSet(true, false);
                 }

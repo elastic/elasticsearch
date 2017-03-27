@@ -37,60 +37,74 @@ import java.security.UnresolvedPermission;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Supplier;
 
 class PluginSecurity {
 
     /**
      * Reads plugin policy, prints/confirms exceptions
      */
-    static void readPolicy(Path file, Terminal terminal, Environment environment, boolean batch) throws IOException {
-        PermissionCollection permissions = parsePermissions(terminal, file, environment.tmpFile());
+    static void readPolicy(PluginInfo info, Path file, Terminal terminal, Supplier<Path> tmpFile, boolean batch) throws IOException {
+        PermissionCollection permissions = parsePermissions(terminal, file, tmpFile.get());
         List<Permission> requested = Collections.list(permissions.elements());
         if (requested.isEmpty()) {
             terminal.println(Verbosity.VERBOSE, "plugin has a policy file with no additional permissions");
-            return;
-        }
+        } else {
 
-        // sort permissions in a reasonable order
-        Collections.sort(requested, new Comparator<Permission>() {
-            @Override
-            public int compare(Permission o1, Permission o2) {
-                int cmp = o1.getClass().getName().compareTo(o2.getClass().getName());
-                if (cmp == 0) {
-                    String name1 = o1.getName();
-                    String name2 = o2.getName();
-                    if (name1 == null) {
-                        name1 = "";
-                    }
-                    if (name2 == null) {
-                        name2 = "";
-                    }
-                    cmp = name1.compareTo(name2);
+            // sort permissions in a reasonable order
+            Collections.sort(requested, new Comparator<Permission>() {
+                @Override
+                public int compare(Permission o1, Permission o2) {
+                    int cmp = o1.getClass().getName().compareTo(o2.getClass().getName());
                     if (cmp == 0) {
-                        String actions1 = o1.getActions();
-                        String actions2 = o2.getActions();
-                        if (actions1 == null) {
-                            actions1 = "";
+                        String name1 = o1.getName();
+                        String name2 = o2.getName();
+                        if (name1 == null) {
+                            name1 = "";
                         }
-                        if (actions2 == null) {
-                            actions2 = "";
+                        if (name2 == null) {
+                            name2 = "";
                         }
-                        cmp = actions1.compareTo(actions2);
+                        cmp = name1.compareTo(name2);
+                        if (cmp == 0) {
+                            String actions1 = o1.getActions();
+                            String actions2 = o2.getActions();
+                            if (actions1 == null) {
+                                actions1 = "";
+                            }
+                            if (actions2 == null) {
+                                actions2 = "";
+                            }
+                            cmp = actions1.compareTo(actions2);
+                        }
                     }
+                    return cmp;
                 }
-                return cmp;
-            }
-        });
+            });
 
-        terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-        terminal.println(Verbosity.NORMAL, "@     WARNING: plugin requires additional permissions     @");
-        terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-        // print all permissions:
-        for (Permission permission : requested) {
-            terminal.println(Verbosity.NORMAL, "* " + formatPermission(permission));
+            terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            terminal.println(Verbosity.NORMAL, "@     WARNING: plugin requires additional permissions     @");
+            terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            // print all permissions:
+            for (Permission permission : requested) {
+                terminal.println(Verbosity.NORMAL, "* " + formatPermission(permission));
+            }
+            terminal.println(Verbosity.NORMAL, "See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
+            terminal.println(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
+            prompt(terminal, batch);
         }
-        terminal.println(Verbosity.NORMAL, "See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
-        terminal.println(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
+
+        if (info.hasNativeController()) {
+            terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            terminal.println(Verbosity.NORMAL, "@        WARNING: plugin forks a native controller        @");
+            terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            terminal.println(Verbosity.NORMAL, "This plugin launches a native controller that is not subject to the Java");
+            terminal.println(Verbosity.NORMAL, "security manager nor to system call filters.");
+            prompt(terminal, batch);
+        }
+    }
+
+    private static void prompt(final Terminal terminal, final boolean batch) {
         if (!batch) {
             terminal.println(Verbosity.NORMAL, "");
             String text = terminal.readText("Continue with installation? [y/N]");

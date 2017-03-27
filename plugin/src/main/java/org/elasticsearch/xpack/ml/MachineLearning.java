@@ -440,7 +440,6 @@ public class MachineLearning implements ActionPlugin {
         FixedExecutorBuilder ml = new FixedExecutorBuilder(settings, THREAD_POOL_NAME,
                 maxNumberOfJobs * 2, 1000, "xpack.ml.thread_pool");
 
-        // fail quick to run autodetect process / datafeed, so no queues
         // 3 threads: for c++ logging, result processing, state processing
         FixedExecutorBuilder autoDetect = new FixedExecutorBuilder(settings, AUTODETECT_PROCESS_THREAD_POOL_NAME,
                 maxNumberOfJobs * 3, 200, "xpack.ml.autodetect_process_thread_pool");

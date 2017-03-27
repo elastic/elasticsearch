@@ -145,19 +145,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             }
 
             @Override
-            protected StoredScriptSource lookupStoredScript(ClusterState clusterState, CacheKey cacheKey) {
-                if (clusterState == null) {
-                    return null;
-                }
-                MetaData metaData = clusterState.metaData();
-                if (metaData == null) {
-                    return null;
-                }
-                ScriptMetaData scriptMetaData = clusterState.metaData().custom(ScriptMetaData.TYPE);
-                if (scriptMetaData == null) {
-                    return null;
-                }
-                
+            protected StoredScriptSource lookupStoredScript(ScriptMetaData scriptMetaData, CacheKey cacheKey) {
                 if (cacheKey.lang != null && isLangSupported(cacheKey.lang) == false) {
                     throw new IllegalArgumentException("unable to get stored script with unsupported lang [" + cacheKey.lang + "]");
                 }

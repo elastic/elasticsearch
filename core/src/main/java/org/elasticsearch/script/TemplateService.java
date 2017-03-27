@@ -21,9 +21,7 @@ package org.elasticsearch.script;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -105,20 +103,8 @@ public class TemplateService implements ClusterStateListener {
             }
 
             @Override
-            protected StoredScriptSource lookupStoredScript(ClusterState clusterState,
+            protected StoredScriptSource lookupStoredScript(ScriptMetaData scriptMetaData,
                     CacheKey cacheKey) {
-                if (clusterState == null) {
-                    return null;
-                }
-                MetaData metaData = clusterState.metaData();
-                if (metaData == null) {
-                    return null;
-                }
-                ScriptMetaData scriptMetaData = clusterState.metaData().custom(ScriptMetaData.TYPE);
-                if (scriptMetaData == null) {
-                    return null;
-                }
-
                 /* This process throws away which is fine because you aren't allowed to specify it
                  * when using a stored template anyway. */
                 String id = cacheKey.idOrCode;

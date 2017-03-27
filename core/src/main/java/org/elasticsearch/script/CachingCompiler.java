@@ -52,6 +52,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -130,7 +131,7 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
      * Lookup a stored script (or template) from the cluster state, returning null if it is not
      * found.
      */
-    protected abstract StoredScriptSource lookupStoredScript(ClusterState clusterState,
+    protected abstract StoredScriptSource lookupStoredScript(ScriptMetaData scriptMetaData,
             CacheKeyT cacheKey);
 
     /**
@@ -231,13 +232,14 @@ public abstract class CachingCompiler<CacheKeyT> implements ClusterStateListener
     }
 
     private CacheKeyT getScriptFromClusterState(CacheKeyT cacheKey) {
-        StoredScriptSource source = lookupStoredScript(clusterState, cacheKey);
+        StoredScriptSource resolved = Optional.ofNullable(clusterState)
+            .map(ClusterState::metaData)
+            .map(metaData -> (ScriptMetaData) metaData.custom(ScriptMetaData.TYPE))
+            .map(scriptMetaData -> lookupStoredScript(scriptMetaData, cacheKey))
+            .orElseThrow(() -> new ResourceNotFoundException(
+                    "unable to find " + type + " [" + cacheKey + "] in cluster state"));
 
-        if (source == null) {
-            throw new ResourceNotFoundException(
-                    "unable to find " + type + " [" + cacheKey + "] in cluster state");
-        }
-        return cacheKeyFromClusterState(source);
+        return cacheKeyFromClusterState(resolved);
     }
 
     /**

@@ -1,0 +1,8 @@
+[[breaking-changes-5.4]]
+== Breaking changes in 5.4
+
+[[breaking_54_delete_by_query_changes]]
+[float]
+=== Delete By Query API changes
+
+Requests without an explicit query are deprecated and will be invalid in Elasticsearch 6.0.0.

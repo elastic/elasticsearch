@@ -120,9 +120,8 @@ public class MultiSearchActionTookTests extends ESTestCase {
                             TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS),
                             equalTo(multiSearchResponse.getTook().getMillis()));
                 } else {
-                    assertThat(
-                            multiSearchResponse.getTook().getMillis(), 
-                            greaterThanOrEqualTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS)));
+                    assertThat(multiSearchResponse.getTook().getMillis(), greaterThanOrEqualTo(
+                            TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS)));
                 }
             }
 
@@ -133,8 +132,10 @@ public class MultiSearchActionTookTests extends ESTestCase {
         });
     }
 
-    private TransportMultiSearchAction createTransportMultiSearchAction(Clock clock, AtomicLong expected) {
-        Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
+    private TransportMultiSearchAction createTransportMultiSearchAction(Clock clock,
+            AtomicLong expected) {
+        Settings settings = Settings.builder()
+                .put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
         TaskManager taskManager = mock(TaskManager.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
@@ -148,20 +149,25 @@ public class MultiSearchActionTookTests extends ESTestCase {
         };
         ActionFilters actionFilters = new ActionFilters(new HashSet<>());
         ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).build());
+        when(clusterService.state())
+                .thenReturn(ClusterState.builder(new ClusterName("test")).build());
         IndexNameExpressionResolver resolver = new Resolver(Settings.EMPTY);
 
         final int availableProcessors = Runtime.getRuntime().availableProcessors();
         AtomicInteger counter = new AtomicInteger();
-        final List<String> threadPoolNames = Arrays.asList(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME);
+        final List<String> threadPoolNames = Arrays.asList(ThreadPool.Names.GENERIC,
+                ThreadPool.Names.SAME);
         Randomness.shuffle(threadPoolNames);
         final ExecutorService commonExecutor = threadPool.executor(threadPoolNames.get(0));
-        final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
+        final Set<SearchRequest> requests = Collections
+                .newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
 
-        TransportAction<SearchRequest, SearchResponse> searchAction = new TransportAction<SearchRequest, SearchResponse>(
-                Settings.EMPTY, "action", threadPool, actionFilters, resolver, taskManager) {
+        TransportAction<SearchRequest, SearchResponse> searchAction = 
+                new TransportAction<SearchRequest, SearchResponse>(Settings.EMPTY, "action",
+                        threadPool, actionFilters, resolver, taskManager) {
             @Override
-            protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
+            protected void doExecute(SearchRequest request,
+                    ActionListener<SearchResponse> listener) {
                 requests.add(request);
                 commonExecutor.execute(() -> {
                     counter.decrementAndGet();
@@ -178,8 +184,9 @@ public class MultiSearchActionTookTests extends ESTestCase {
                         final AtomicArray<MultiSearchResponse.Item> responses,
                         final AtomicInteger responseCounter, long startTimeInNanos,
                         final ActionListener<MultiSearchResponse> listener) {
-					expected.set(1000000);
-					super.executeSearch(requests, responses, responseCounter, startTimeInNanos, listener);
+                    expected.set(1000000);
+                    super.executeSearch(requests, responses, responseCounter, startTimeInNanos,
+                            listener);
                 }
             };
         } else {
@@ -193,14 +200,15 @@ public class MultiSearchActionTookTests extends ESTestCase {
                         final ActionListener<MultiSearchResponse> listener) {
                     long elapsed = spinForAtLeastNMilliseconds(randomIntBetween(0, 10));
                     expected.set(elapsed);
-                    super.executeSearch(requests, responses, responseCounter, startTimeInNanos, listener);
+                    super.executeSearch(requests, responses, responseCounter, startTimeInNanos,
+                            listener);
                 }
             };
         }
     }
 
     static class Resolver extends IndexNameExpressionResolver {
-    	
+
         Resolver(Settings settings) {
             super(settings);
         }

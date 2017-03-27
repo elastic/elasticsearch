@@ -39,9 +39,11 @@ public class MultiSearchIT extends ESSingleNodeTestCase {
         client().prepareIndex("test", "test", "3").setSource("title", "bar baz bax").get();
         client().admin().indices().prepareRefresh("test").get();
         
-        SearchRequest searchRequestAll = new SearchRequest().indices("test").source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
-        SearchRequest searchRequestBar = new SearchRequest().indices("test").source(new SearchSourceBuilder().query(new MatchQueryBuilder("title", "bar")));
-        
+        SearchRequest searchRequestAll = new SearchRequest().indices("test")
+                .source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
+        SearchRequest searchRequestBar = new SearchRequest().indices("test")
+                .source(new SearchSourceBuilder().query(new MatchQueryBuilder("title", "bar")));
+
         MultiSearchRequest multiSeachRequest = new MultiSearchRequest();
         multiSeachRequest.add(searchRequestAll);
         multiSeachRequest.add(searchRequestBar);
@@ -50,7 +52,8 @@ public class MultiSearchIT extends ESSingleNodeTestCase {
         
         long maxSearchResponseTookTime = 0;
         for (Item response : multiSearchResponse.getResponses()) {
-            maxSearchResponseTookTime = Math.max(maxSearchResponseTookTime, response.getResponse().getTookInMillis());
+            maxSearchResponseTookTime = Math.max(maxSearchResponseTookTime,
+                    response.getResponse().getTookInMillis());
         }
         
         long multiSearchResponseTime = multiSearchResponse.getTookInMillis();

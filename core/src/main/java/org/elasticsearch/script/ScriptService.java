@@ -206,10 +206,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             }
 
             private CompiledScript compile(ScriptType scriptType, CacheKey cacheKey, String body, String fileName) {
-                ScriptEngineService engine = scriptEnginesByLang.get(cacheKey.lang);
-                if (engine == null) {
-                    throw new IllegalArgumentException("script lang not supported [" + cacheKey.lang + "]");
-                }
+                ScriptEngineService engine = getScriptEngineServiceForLang(cacheKey.lang);
                 Object executable = engine.compile(fileName, body, cacheKey.options);
                 return new CompiledScript(scriptType, body, engine.getType(), executable);
             }

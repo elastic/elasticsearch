@@ -20,7 +20,6 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.persistent.PersistentTasksNodeService.State;
 import org.elasticsearch.persistent.PersistentTasksNodeService.Status;
 
 import static org.hamcrest.Matchers.containsString;
@@ -29,7 +28,7 @@ public class PersistentTasksNodeServiceStatusTests extends AbstractWireSerializi
 
     @Override
     protected Status createTestInstance() {
-        return new Status(randomFrom(State.values()));
+        return new Status(randomFrom(AllocatedPersistentTask.State.values()));
     }
 
     @Override

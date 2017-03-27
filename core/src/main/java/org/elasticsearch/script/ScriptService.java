@@ -411,11 +411,12 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         @Override
         public String toString() {
-            String result = "lang=" + lang + ", id=" + idOrCode;
+            StringBuilder result = new StringBuilder("lang=").append(lang);
+            result.append(", id=").append(idOrCode);
             if (false == options.isEmpty()) {
-                result += ", options " + options; 
+                result.append(", options ").append(options);
             }
-            return result;
+            return result.toString();
         }
     }
 }

@@ -71,7 +71,6 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.LongSupplier;
 
 /** Performs shard-level bulk (index, delete or update) operations */
@@ -362,7 +361,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     static boolean shouldExecuteReplicaItem(final BulkItemRequest request, final int index) {
         final BulkItemResponse primaryResponse = request.getPrimaryResponse();
         assert primaryResponse != null : "expected primary response to be set for item [" + index + "] request ["+ request.request() +"]";
-        return request.getPrimaryResponse().getResponse().getResult() != DocWriteResponse.Result.NOOP;
+        return primaryResponse.isFailed() == false && primaryResponse.getResponse().getResult() != DocWriteResponse.Result.NOOP;
     }
 
     @Override
@@ -378,9 +377,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         // execution on primary resulted in a failure
                         // if primary execution generated a sequence no, execute a noop on the replica engine to record it in the translog
                         final BulkItemResponse.Failure failure = item.getPrimaryResponse().getFailure();
-                        operationResult = failure.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO
-                                ? executeNoOpRequestOnReplica(failure, docWriteRequest, replica)
-                                : null;
+                        operationResult = executeFailedSeqNoOnReplica(failure, docWriteRequest, replica);
                     } else {
                         final DocWriteResponse primaryResponse = item.getPrimaryResponse().getResponse();
                         switch (docWriteRequest.opType()) {
@@ -397,20 +394,15 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         }
                         assert operationResult != null : "operation result must never be null when primary response has no failure";
                     }
-                    if (operationResult != null) {
-                        if (operationResult.hasFailure()) {
-                            // check if any transient write operation failures should be bubbled up
-                            Exception failure = operationResult.getFailure();
-                            assert failure instanceof VersionConflictEngineException
-                                    || failure instanceof MapperParsingException
-                                    : "expected any one of [version conflict, mapper parsing, engine closed, index shard closed]" +
-                                    " failures. got " + failure;
-                            if (!TransportActions.isShardNotAvailableException(failure)) {
-                                throw failure;
-                            }
-                        } else {
-                            location = locationToSync(location, operationResult.getTranslogLocation());
+                    if (operationResult.hasFailure()) {
+                        // check if any transient write operation failures should be bubbled up
+                        Exception failure = operationResult.getFailure();
+                        assert failure instanceof MapperParsingException : "expected mapper parsing failures. got " + failure;
+                        if (!TransportActions.isShardNotAvailableException(failure)) {
+                            throw failure;
                         }
+                    } else {
+                        location = locationToSync(location, operationResult.getTranslogLocation());
                     }
                 } catch (Exception e) {
                     // if its not an ignore replica failure, we need to make sure to bubble up the failure
@@ -545,11 +537,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return replica.delete(delete);
     }
 
-    private Engine.NoOpResult executeNoOpRequestOnReplica(BulkItemResponse.Failure primaryFailure, DocWriteRequest docWriteRequest, IndexShard replica) throws IOException {
-        final long version = docWriteRequest.version();
-        final VersionType versionType = docWriteRequest.versionType().versionTypeForReplicationAndRecovery();
+    private Engine.NoOpResult executeFailedSeqNoOnReplica(BulkItemResponse.Failure primaryFailure, DocWriteRequest docWriteRequest, IndexShard replica) throws IOException {
         final Engine.NoOp noOp = replica.prepareNoOpOnReplica(docWriteRequest.type(), docWriteRequest.id(),
-                primaryFailure.getSeqNo(), version, versionType, primaryFailure.getMessage());
+                primaryFailure.getSeqNo(), primaryFailure.getMessage());
         return replica.noOp(noOp);
     }
 

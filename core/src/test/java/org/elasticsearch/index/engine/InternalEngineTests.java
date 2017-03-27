@@ -3675,9 +3675,7 @@ public class InternalEngineTests extends ESTestCase {
                     null,
                     maxSeqNo + 1,
                     primaryTerm,
-                    0,
-                    VersionType.INTERNAL,
-                    randomFrom(PRIMARY, REPLICA, PEER_RECOVERY, LOCAL_TRANSLOG_RECOVERY),
+                        randomFrom(PRIMARY, REPLICA, PEER_RECOVERY, LOCAL_TRANSLOG_RECOVERY),
                     System.nanoTime(),
                     reason));
             assertThat(noOpEngine.seqNoService().getLocalCheckpoint(), equalTo((long) (maxSeqNo + 1)));

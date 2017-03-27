@@ -123,7 +123,7 @@ final class HdfsBlobStore implements BlobStore {
             return AccessController.doPrivileged((PrivilegedExceptionAction<V>)
                     () -> operation.run(fileContext), null, new ReflectPermission("suppressAccessChecks"),
                      new AuthPermission("modifyPrivateCredentials"), new SocketPermission("*", "connect"),
-                     new AuthPermission("doAs"), new ServicePermission("*", "initiate,accept"));
+                     new AuthPermission("doAs"), new ServicePermission("*", "initiate"));
         } catch (PrivilegedActionException pae) {
             throw (IOException) pae.getException();
         }

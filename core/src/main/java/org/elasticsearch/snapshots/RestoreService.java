@@ -103,7 +103,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_UUI
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_UPGRADED;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
@@ -148,7 +147,6 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
         unremovable.add(SETTING_NUMBER_OF_REPLICAS);
         unremovable.add(SETTING_AUTO_EXPAND_REPLICAS);
         unremovable.add(SETTING_VERSION_UPGRADED);
-        unremovable.add(SETTING_VERSION_MINIMUM_COMPATIBLE);
         UNREMOVABLE_SETTINGS = unmodifiableSet(unremovable);
     }
 

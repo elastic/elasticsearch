@@ -54,6 +54,9 @@ import java.util.Objects;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
+/**
+ * Source of scripts that are run in various parts of Elasticsearch.
+ */
 public class ScriptService extends AbstractComponent implements Closeable, ClusterStateListener {
 
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
@@ -78,9 +81,25 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     private final CachingCompiler<CacheKey> compiler;
     private final int maxScriptSizeInBytes;
 
-    public ScriptService(Settings settings, Environment env, ResourceWatcherService resourceWatcherService,
-            ScriptEngineRegistry scriptEngineRegistry, ScriptContextRegistry scriptContextRegistry, ScriptSettings scriptSettings,
-            ScriptMetrics scriptMetrics) throws IOException {
+    /**
+     * Build the service.
+     *
+     * @param settings common settings loaded at node startup
+     * @param env environment in which the node is running. Used to resolve the
+     *        {@code config/scripts} directory that is scanned periodically for scripts.
+     * @param resourceWatcherService Scans the {@code config/scripts} directory.
+     * @param scriptEngineRegistry all {@link ScriptEngineService}s that we support. This delegates
+     *        to those engines to build the actual executable.
+     * @param scriptContextRegistry all {@link ScriptContext}s that we support.
+     * @param scriptSettings settings for scripts
+     * @param scriptMetrics compilation metrics for scripts. This should be shared between
+     *        {@link ScriptService} and {@link TemplateService}
+     * @throws IOException If there is an error scanning the {@code config/scripts} directory.
+     */
+    public ScriptService(Settings settings, Environment env,
+            ResourceWatcherService resourceWatcherService,
+            ScriptEngineRegistry scriptEngineRegistry, ScriptContextRegistry scriptContextRegistry,
+            ScriptSettings scriptSettings, ScriptMetrics scriptMetrics) throws IOException {
         super(settings);
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
             throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with "

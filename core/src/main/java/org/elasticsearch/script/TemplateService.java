@@ -59,6 +59,21 @@ public class TemplateService implements ClusterStateListener {
     private final ScriptPermits scriptPermits;
     private final CachingCompiler<CacheKey> compiler;
 
+    /**
+     * Build the service.
+     *
+     * @param settings common settings loaded at node startup
+     * @param env environment in which the node is running. Used to resolve the
+     *        {@code config/scripts} directory that is scanned periodically for scripts.
+     * @param resourceWatcherService Scans the {@code config/scripts} directory.
+     * @param backend the backend that actually compiles the templates.
+     * @param scriptEngineRegistry all {@link ScriptEngineService}s that we support. This delegates
+     *        to those engines to build the actual executable.
+     * @param scriptSettings settings for scripts
+     * @param scriptMetrics compilation metrics for scripts. This should be shared between
+     *        {@link ScriptService} and {@link TemplateService}
+     * @throws IOException If there is an error scanning the {@code config/scripts} directory.
+     */
     public TemplateService(Settings settings, Environment env,
             ResourceWatcherService resourceWatcherService, Backend backend,
             ScriptContextRegistry scriptContextRegistry, ScriptSettings scriptSettings,

@@ -190,4 +190,17 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[fuzzy] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
+
+    public void testParseFailsWithValueArray() {
+        String query = "{\n" +
+                "  \"fuzzy\" : {\n" +
+                "    \"message1\" : {\n" +
+                "      \"value\" : [ \"one\", \"two\", \"three\"]\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(query));
+        assertEquals("[fuzzy] unexpected token [START_ARRAY] after [value]", e.getMessage());
+    }
 }

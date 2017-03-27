@@ -37,6 +37,7 @@ public class OneMergeHelper {
         if (thread instanceof ConcurrentMergeScheduler.MergeThread) {
             return ((ConcurrentMergeScheduler.MergeThread) thread).rateLimiter.getMBPerSec();
         }
+        assert false: "this is not merge thread";
         return Double.POSITIVE_INFINITY;
     }
 
@@ -52,6 +53,7 @@ public class OneMergeHelper {
             return ((ConcurrentMergeScheduler.MergeThread) thread).rateLimiter
                 .getTotalBytesWritten();
         }
+        assert false: "this is not merge thread";
         return merge.totalBytesSize();
     }
 

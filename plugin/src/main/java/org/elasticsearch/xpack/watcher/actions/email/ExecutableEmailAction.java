@@ -26,9 +26,9 @@ import java.util.Map;
 
 public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
 
-    final EmailService emailService;
-    final TextTemplateEngine templateEngine;
-    final HtmlSanitizer htmlSanitizer;
+    private final EmailService emailService;
+    private final TextTemplateEngine templateEngine;
+    private final HtmlSanitizer htmlSanitizer;
     private final Map<String, EmailAttachmentParser> emailAttachmentParsers;
 
     public ExecutableEmailAction(EmailAction action, Logger logger, EmailService emailService, TextTemplateEngine templateEngine,

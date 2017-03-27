@@ -130,7 +130,7 @@ public class EmailTemplate implements ToXContentObject {
                                                             Map<String, Object> model) throws AddressException {
         List<Email.Address> addresses = new ArrayList<>(templates.length);
         for (TextTemplate template : templates) {
-            addresses.add(new Email.Address(engine.render(template, model)));
+            Email.AddressList.parse(engine.render(template, model)).forEach(addresses::add);
         }
         return new Email.AddressList(addresses);
     }

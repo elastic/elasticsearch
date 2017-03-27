@@ -11,19 +11,22 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.text.TextTemplate;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class EmailTemplateTests extends ESTestCase {
+
     public void testEmailTemplateParserSelfGenerated() throws Exception {
         TextTemplate from = randomFrom(new TextTemplate("from@from.com"), null);
         List<TextTemplate> addresses = new ArrayList<>();
@@ -38,10 +41,7 @@ public class EmailTemplateTests extends ESTestCase {
         TextTemplate priority = new TextTemplate(randomFrom(Email.Priority.values()).name());
 
         TextTemplate subjectTemplate = new TextTemplate("Templated Subject {{foo}}");
-        String subject = "Templated Subject bar";
-
         TextTemplate textBodyTemplate = new TextTemplate("Templated Body {{foo}}");
-        String textBody = "Templated Body bar";
 
         TextTemplate htmlBodyTemplate = new TextTemplate("Templated Html Body <script>nefarious scripting</script>");
         String htmlBody = "Templated Html Body <script>nefarious scripting</script>";
@@ -74,19 +74,7 @@ public class EmailTemplateTests extends ESTestCase {
         HtmlSanitizer htmlSanitizer = mock(HtmlSanitizer.class);
         when(htmlSanitizer.sanitize(htmlBody)).thenReturn(sanitizedHtmlBody);
 
-        TextTemplateEngine templateEngine = mock(TextTemplateEngine.class);
-        when(templateEngine.render(subjectTemplate, model)).thenReturn(subject);
-        when(templateEngine.render(textBodyTemplate, model)).thenReturn(textBody);
-        when(templateEngine.render(htmlBodyTemplate, model)).thenReturn(htmlBody);
-        for (TextTemplate possibleAddress : possibleList) {
-            when(templateEngine.render(possibleAddress, model)).thenReturn(possibleAddress.getTemplate());
-        }
-        if (from != null) {
-            when(templateEngine.render(from, model)).thenReturn(from.getTemplate());
-        }
-        when(templateEngine.render(priority, model)).thenReturn(priority.getTemplate());
-
-        Email.Builder emailBuilder = parsedEmailTemplate.render(templateEngine, model, htmlSanitizer, new HashMap<>());
+        Email.Builder emailBuilder = parsedEmailTemplate.render(new MockTextTemplateEngine(), model, htmlSanitizer, new HashMap<>());
 
         assertThat(emailTemplate.from, equalTo(parsedEmailTemplate.from));
         assertThat(emailTemplate.replyTo, equalTo(parsedEmailTemplate.replyTo));
@@ -100,10 +88,30 @@ public class EmailTemplateTests extends ESTestCase {
 
         emailBuilder.id("_id");
         Email email = emailBuilder.build();
-        assertThat(email.subject, equalTo(subject));
-        assertThat(email.textBody, equalTo(textBody));
+        assertThat(email.subject, equalTo(subjectTemplate.getTemplate()));
+        assertThat(email.textBody, equalTo(textBodyTemplate.getTemplate()));
         assertThat(email.htmlBody, equalTo(sanitizedHtmlBody));
     }
 
+    public void testParsingMultipleEmailAddresses() throws Exception {
+        EmailTemplate template = EmailTemplate.builder()
+                .from("sender@example.org")
+                .to("to1@example.org, to2@example.org")
+                .cc("cc1@example.org, cc2@example.org")
+                .bcc("bcc1@example.org, bcc2@example.org")
+                .textBody("blah")
+                .build();
 
+        Email email = template.render(new MockTextTemplateEngine(), emptyMap(), null, emptyMap()).id("foo").build();
+
+        assertThat(email.to.size(), is(2));
+        assertThat(email.to, containsInAnyOrder(new Email.Address("to1@example.org"),
+                new Email.Address("to2@example.org")));
+        assertThat(email.cc.size(), is(2));
+        assertThat(email.cc, containsInAnyOrder(new Email.Address("cc1@example.org"),
+                new Email.Address("cc2@example.org")));
+        assertThat(email.bcc.size(), is(2));
+        assertThat(email.bcc, containsInAnyOrder(new Email.Address("bcc1@example.org"),
+                new Email.Address("bcc2@example.org")));
+    }
 }

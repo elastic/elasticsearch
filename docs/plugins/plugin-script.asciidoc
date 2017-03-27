@@ -188,7 +188,7 @@ Or on Windows:
 [source,shell]
 ------------------------------------
 set ES_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number"
-bin\elasticsearch-plugin install analysis-icu 
+bin\elasticsearch-plugin install analysis-icu
 ------------------------------------
 
 === Plugins directory

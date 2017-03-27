@@ -72,10 +72,10 @@ task checkoutBwcBranch(type: LoggedExec) {
 }
 
 File bwcZip = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${BWC_VERSION}.zip")
-task buildBwcVersion(type: LoggedExec) {
+task buildBwcVersion(type: GradleBuild) {
   dependsOn checkoutBwcBranch
-  workingDir = checkoutDir
-  commandLine = ['gradle', ':distribution:zip:assemble']
+  dir = checkoutDir
+  tasks = [':distribution:zip:assemble']
 }
 
 artifacts {

@@ -1,0 +1,84 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.regex.Matcher
+import org.elasticsearch.gradle.LoggedExec
+
+/**
+ * This is a dummy project which does a local worktree checkout of the previous
+ * major version's stable branch, and builds a snapshot. This allows backcompat
+ * tests in the next major version to test against the next unreleased minor
+ * version, without relying on snapshots.
+ */
+
+apply plugin: 'distribution'
+
+// TODO: generate this, by introspecting Version.java for last previous minor
+String BWC_VERSION = "5.4.0-SNAPSHOT"
+
+String checkoutDir = "${buildDir}/bwc/checkout-5.x"
+task createClone(type: LoggedExec) {
+  onlyIf { new File(checkoutDir).exists() == false }
+  commandLine = ['git', 'clone', rootDir, checkoutDir]
+}
+
+task findUpstream(type: LoggedExec) {
+  dependsOn createClone
+  workingDir = checkoutDir
+  commandLine = ['git', 'remote', '-v']
+  doLast {
+    project.ext.upstreamExists = false
+    output.toString('UTF-8').eachLine {
+      if (it.contains("upstream")) {
+        project.ext.upstreamExists = true
+      }
+    }
+  }
+}
+
+task addUpstream(type: LoggedExec) {
+  dependsOn findUpstream
+  onlyIf { project.ext.upstreamExists == false }
+  workingDir = checkoutDir
+  commandLine = ['git', 'remote', 'add', 'upstream', 'https://github.com/elastic/elasticsearch.git']
+}
+
+task fetchLatest(type: LoggedExec) {
+  dependsOn addUpstream
+  workingDir = checkoutDir
+  commandLine = ['git', 'fetch', 'upstream']
+}
+
+task checkoutBwcBranch(type: LoggedExec) {
+  dependsOn fetchLatest
+  workingDir = checkoutDir
+  commandLine = ['git', 'checkout', 'upstream/5.x']
+}
+
+File bwcZip = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${BWC_VERSION}.zip")
+task buildBwcVersion(type: GradleBuild) {
+  dependsOn checkoutBwcBranch
+  dir = checkoutDir
+  tasks = [':distribution:zip:assemble']
+}
+
+artifacts {
+  'default' file: bwcZip, name: 'elasticsearch', type: 'zip', builtBy: buildBwcVersion
+}
+

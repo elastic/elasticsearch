@@ -6,8 +6,9 @@ filters through a single unified interface. For example:
 
 [source,js]
 --------------------------------------------------
+PUT /my_index
 {
-    "index" : {
+    "settings": {
         "analysis" : {
             "analyzer" : {
                 "my_analyzer" : {
@@ -25,6 +26,7 @@ filters through a single unified interface. For example:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The `language`/`name` parameter controls the stemmer with the following
 available values (the preferred filters are marked in *bold*):
@@ -177,4 +179,3 @@ http://clef.isti.cnr.it/2003/WN_web/22.pdf[`light_swedish`]
 Turkish::
 
 http://snowball.tartarus.org/algorithms/turkish/stemmer.html[*`turkish`*]
-

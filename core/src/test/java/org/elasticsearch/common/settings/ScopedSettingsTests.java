@@ -439,6 +439,16 @@ public class ScopedSettingsTests extends ESTestCase {
         clusterSettings2.validate(settings);
     }
 
+    public void testDiffSecureSettings() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("some.secure.setting", "secret");
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
+            Collections.singleton(SecureSetting.secureString("some.secure.setting", null, false)));
+
+        Settings diffed = clusterSettings.diff(Settings.EMPTY, settings);
+        assertTrue(diffed.isEmpty());
+    }
 
     public static IndexMetaData newIndexMeta(String name, Settings indexSettings) {
         Settings build = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)

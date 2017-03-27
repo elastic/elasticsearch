@@ -29,7 +29,6 @@ import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -62,7 +61,7 @@ public class GetResponseTests extends ESTestCase {
         assertEquals(expectedGetResponse.getSourceAsString(), parsedGetResponse.getSourceAsString());
     }
 
-    public void testToXContent() throws IOException {
+    public void testToXContent() {
         {
             GetResponse getResponse = new GetResponse(new GetResult("index", "type", "id", 1, true, new BytesArray("{ \"field1\" : " +
                     "\"value1\", \"field2\":\"value2\"}"), Collections.singletonMap("field1", new GetField("field1",
@@ -76,6 +75,14 @@ public class GetResponseTests extends ESTestCase {
             String output = Strings.toString(getResponse);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"found\":false}", output);
         }
+    }
+
+    public void testToString() {
+        GetResponse getResponse = new GetResponse(
+                new GetResult("index", "type", "id", 1, true, new BytesArray("{ \"field1\" : " + "\"value1\", \"field2\":\"value2\"}"),
+                        Collections.singletonMap("field1", new GetField("field1", Collections.singletonList("value1")))));
+        assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"found\":true,\"_source\":{ \"field1\" "
+                + ": \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}", getResponse.toString());
     }
 
     public void testEqualsAndHashcode() {

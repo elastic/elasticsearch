@@ -35,7 +35,12 @@ production mode if it does bind transport to an external interface. Note
 that HTTP can be configured independently of transport via
 <<modules-http,`http.host`>> and <<modules-transport,`transport.host`>>;
 this can be useful for configuring a single instance to be reachable via
-HTTP for testing purposes without triggering production mode.
+HTTP for testing purposes without triggering production mode. If you do
+want to force enforcement of the bootstrap checks independent of the
+binding of the transport protocal, you can set the system property
+`es.enforce.bootstrap.checks` to `true` (this can be useful on a
+single-node production system that does not bind transport to an external
+interface).
 
 === Heap size check
 
@@ -173,6 +178,13 @@ enabled. This check is always enforced. To pass this check do not enable
 use the JVM flag `ExitOnOutOfMemoryError`. While this does not have the
 full capabilities of `OnError` nor `OnOutOfMemoryError`, arbitrary
 forking will not be supported with seccomp enabled.
+
+=== Early-access check
+
+The OpenJDK project provides early-access snapshots of upcoming releases. These
+releases are not suitable for production. The early-access check detects these
+early-access snapshots. To pass this check, you must start Elasticsearch on a
+release build of the JVM.
 
 === G1GC check
 

@@ -117,7 +117,7 @@ For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
 Please follow these formatting guidelines:
 
 * Java indent is 4 spaces
-* Line width is 140 characters
+* Line width is 100 characters
 * The rest is left to Java coding standards
 * Disable “auto-format on save” to prevent unnecessary format changes. This makes reviews much harder as it generates unnecessary formatting changes. If your IDE supports formatting only modified chunks that is fine to do.
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail. Please attempt to tame your IDE so it doesn't make them and please send a PR against this document with instructions for your IDE if it doesn't contain them.

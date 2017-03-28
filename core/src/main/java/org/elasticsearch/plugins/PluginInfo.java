@@ -81,7 +81,7 @@ public class PluginInfo implements Writeable, ToXContent {
         this.description = in.readString();
         this.version = in.readString();
         this.classname = in.readString();
-        if (in.getVersion().after(Version.V_5_4_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
             hasNativeController = in.readBoolean();
         } else {
             hasNativeController = false;
@@ -94,7 +94,7 @@ public class PluginInfo implements Writeable, ToXContent {
         out.writeString(description);
         out.writeString(version);
         out.writeString(classname);
-        if (out.getVersion().after(Version.V_5_4_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
             out.writeBoolean(hasNativeController);
         }
     }

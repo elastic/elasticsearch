@@ -166,8 +166,9 @@ public class ExtendedBounds implements ToXContent, Writeable {
         return new ExtendedBounds(min, max, minAsStr, maxAsStr);
     }
 
-    ExtendedBounds round(Rounding rounding) {
-        return new ExtendedBounds(min != null ? rounding.round(min) : null, max != null ? rounding.round(max) : null);
+    ExtendedBounds round(Rounding rounding, long offset) {
+        return new ExtendedBounds(min != null ? rounding.round(min) + offset : null,
+                max != null ? rounding.round(max) + offset : null);
     }
 
     @Override

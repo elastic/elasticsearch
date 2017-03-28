@@ -398,11 +398,11 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
         // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
         if (bounds != null && lastBucket != null && bounds.getMax() != null && bounds.getMax() > lastBucket.key) {
-            long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
+            long key = nextKey(lastBucket.key).longValue();
             long max = bounds.getMax();
             while (key <= max) {
                 iter.add(new InternalDateHistogram.Bucket(key, 0, keyed, format, reducedEmptySubAggs));
-                key = emptyBucketInfo.rounding.nextRoundingValue(key);
+                key = nextKey(key).longValue();
             }
         }
     }

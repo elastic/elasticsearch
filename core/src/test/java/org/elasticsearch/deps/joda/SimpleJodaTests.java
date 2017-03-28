@@ -315,8 +315,12 @@ public class SimpleJodaTests extends ESTestCase {
     }
 
     public void testForInvalidTimeZoneWithEpochSeconds() {
-        DateTimeZone zone = DateTimeZone.forOffsetHours(1);
-        FormatDateTimeFormatter formatter = new FormatDateTimeFormatter("epoch_seconds", new DateTimeFormatterBuilder().append(new Joda.EpochTimeParser(false)).toFormatter().withZone(zone), Locale.ROOT);
+        DateTimeFormatter dateTimeFormatter = new DateTimeFormatterBuilder()
+            .append(new Joda.EpochTimeParser(false))
+            .toFormatter()
+            .withZone(DateTimeZone.forOffsetHours(1));
+        FormatDateTimeFormatter formatter =
+            new FormatDateTimeFormatter("epoch_seconds", dateTimeFormatter, Locale.ROOT);
         try {
             formatter.parser().parseDateTime("1433144433655");
             fail("Expected IllegalArgumentException");
@@ -326,8 +330,12 @@ public class SimpleJodaTests extends ESTestCase {
     }
 
     public void testForInvalidTimeZoneWithEpochMillis() {
-        DateTimeZone zone = DateTimeZone.forOffsetHours(1);
-        FormatDateTimeFormatter formatter = new FormatDateTimeFormatter("epoch_millis", new DateTimeFormatterBuilder().append(new Joda.EpochTimeParser(true)).toFormatter().withZone(zone), Locale.ROOT);
+        DateTimeFormatter dateTimeFormatter = new DateTimeFormatterBuilder()
+            .append(new Joda.EpochTimeParser(true))
+            .toFormatter()
+            .withZone(DateTimeZone.forOffsetHours(1));
+        FormatDateTimeFormatter formatter =
+            new FormatDateTimeFormatter("epoch_millis", dateTimeFormatter, Locale.ROOT);
         try {
             formatter.parser().parseDateTime("1433144433");
             fail("Expected IllegalArgumentException");

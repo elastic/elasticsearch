@@ -363,7 +363,6 @@ public abstract class Engine implements Closeable {
 
         void setTranslogLocation(Translog.Location translogLocation) {
             if (freeze.get() == null) {
-                assert failure == null : "failure has to be null to set translog location";
                 this.translogLocation = translogLocation;
             } else {
                 throw new IllegalStateException("result is already frozen");

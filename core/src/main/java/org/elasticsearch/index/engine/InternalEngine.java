@@ -614,10 +614,14 @@ public class InternalEngine extends Engine {
                     indexResult = new IndexResult(plan.versionForIndexing, plan.seqNoForIndexing,
                         plan.currentNotFoundOrDeleted);
                 }
-                if (indexResult.hasFailure() == false &&
-                    index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
-                    Translog.Location location =
-                        translog.add(new Translog.Index(index, indexResult));
+                if (index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY
+                        && indexResult.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                    final Translog.Location location;
+                    if (indexResult.hasFailure() == false) {
+                        location = translog.add(new Translog.Index(index, indexResult));
+                    } else {
+                        location = translog.add(new Translog.NoOp(indexResult.getSeqNo(), index.primaryTerm(), indexResult.getFailure().getMessage()));
+                    }
                     indexResult.setTranslogLocation(location);
                 }
                 if (indexResult.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
@@ -900,10 +904,15 @@ public class InternalEngine extends Engine {
                 deleteResult = new DeleteResult(plan.versionOfDeletion, plan.seqNoOfDeletion,
                     plan.currentlyDeleted == false);
             }
-            if (!deleteResult.hasFailure() &&
-                delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
-                Translog.Location location =
-                    translog.add(new Translog.Delete(delete, deleteResult));
+            if (delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY
+                    && deleteResult.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                final Translog.Location location;
+                if (deleteResult.hasFailure() == false) {
+                    location = translog.add(new Translog.Delete(delete, deleteResult));
+                } else {
+                    location = translog.add(new Translog.NoOp(deleteResult.getSeqNo(),
+                            delete.primaryTerm(), deleteResult.getFailure().getMessage()));
+                }
                 deleteResult.setTranslogLocation(location);
             }
             if (deleteResult.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {

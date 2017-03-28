@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.resolver.indices;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.greaterThan;
 
 @ClusterScope(scope = Scope.TEST, numClientNodes = 0)
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/496")
 public class IndicesStatsTests extends MonitoringIntegTestCase {
 
     @Override

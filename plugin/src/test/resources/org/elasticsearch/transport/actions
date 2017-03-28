@@ -21,7 +21,6 @@ cluster:monitor/stats
 cluster:monitor/task
 cluster:monitor/task/get
 cluster:monitor/tasks/lists
-cluster:monitor/xpack/watcher/stats
 indices:admin/aliases
 indices:admin/aliases/exists
 indices:admin/aliases/get
@@ -97,7 +96,6 @@ cluster:admin/xpack/watcher/watch/delete
 cluster:admin/xpack/watcher/watch/execute
 cluster:admin/xpack/watcher/watch/put
 cluster:admin/xpack/watcher/watch/ack
-cluster:admin/xpack/watcher/service
 cluster:admin/xpack/watcher/watch/activate
 cluster:monitor/xpack/watcher/watch/get
 cluster:monitor/xpack/watcher/stats

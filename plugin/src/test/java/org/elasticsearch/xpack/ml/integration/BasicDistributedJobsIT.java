@@ -226,7 +226,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             for (DiscoveryNode node : event.state().nodes()) {
                 Collection<PersistentTask<?>> foundTasks = tasks.findTasks(OpenJobAction.NAME, task -> {
                     return node.getId().equals(task.getExecutorNode()) &&
-                            (task.getStatus() == null || task.getStatus() == JobState.OPENING || task.isCurrentStatus() == false);
+                            (task.getStatus() == null || task.isCurrentStatus() == false);
                 });
                 int count = foundTasks.size();
                 if (count > maxConcurrentJobAllocations) {

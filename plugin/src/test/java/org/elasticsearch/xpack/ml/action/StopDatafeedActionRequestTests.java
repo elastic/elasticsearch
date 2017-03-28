@@ -69,8 +69,7 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
         PersistentTasksCustomMetaData tasks;
         if (randomBoolean()) {
             PersistentTask<?> task = new PersistentTask<PersistentTaskRequest>(1L, StartDatafeedAction.NAME,
-                    new StartDatafeedAction.Request("foo", 0L), new PersistentTasksCustomMetaData.Assignment("node_id", ""));
-            task = new PersistentTask<>(task, DatafeedState.STOPPED);
+                    new StartDatafeedAction.Request("foo2", 0L), new PersistentTasksCustomMetaData.Assignment("node_id", ""));
             tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(1L, task));
         } else {
             tasks = randomBoolean() ? null : new PersistentTasksCustomMetaData(0L, Collections.emptyMap());
@@ -84,7 +83,7 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
                 .build();
         Exception e = expectThrows(ElasticsearchStatusException.class,
                 () -> StopDatafeedAction.validateAndReturnNodeId("foo", mlMetadata1, tasks));
-        assertThat(e.getMessage(), equalTo("datafeed already stopped, expected datafeed state [started], but got [stopped]"));
+        assertThat(e.getMessage(), equalTo("Cannot stop datafeed [foo] because it has already been stopped"));
     }
 
 }

@@ -46,7 +46,7 @@ public class StartDatafeedActionTests extends ESTestCase {
         mlMetadata.putJob(job, false);
         mlMetadata.putDatafeed(createDatafeed("datafeed_id", job.getId(), Collections.singletonList("*")));
 
-        JobState jobState = randomFrom(JobState.FAILED, JobState.CLOSED, JobState.CLOSING, JobState.OPENING);
+        JobState jobState = randomFrom(JobState.FAILED, JobState.CLOSED);
         PersistentTask<OpenJobAction.Request> task = createJobTask(0L, job.getId(), "node_id", jobState);
         PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(0L, task));
 
@@ -116,7 +116,7 @@ public class StartDatafeedActionTests extends ESTestCase {
                 .putJob(job1, false)
                 .build();
         Exception e = expectThrows(ResourceNotFoundException.class,
-                () -> StartDatafeedAction.validate("some-datafeed", mlMetadata1, null, null));
+                () -> StartDatafeedAction.validate("some-datafeed", mlMetadata1, null));
         assertThat(e.getMessage(), equalTo("No datafeed with id [some-datafeed] exists"));
     }
 
@@ -133,8 +133,8 @@ public class StartDatafeedActionTests extends ESTestCase {
                 .putDatafeed(datafeedConfig1)
                 .build();
         Exception e = expectThrows(ElasticsearchStatusException.class,
-                () -> StartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks, null));
-        assertThat(e.getMessage(), equalTo("cannot start datafeed, expected job state [opened], but got [closed]"));
+                () -> StartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks));
+        assertThat(e.getMessage(), equalTo("cannot start datafeed [foo-datafeed] because job [job_id] hasn't been opened"));
     }
 
     public void testValidate_dataFeedAlreadyStarted() {
@@ -143,10 +143,6 @@ public class StartDatafeedActionTests extends ESTestCase {
         MlMetadata mlMetadata1 = new MlMetadata.Builder()
                 .putJob(job1, false)
                 .putDatafeed(datafeedConfig)
-                .build();
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("node_name", "node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                        Collections.emptyMap(), Collections.emptySet(), Version.CURRENT))
                 .build();
 
         PersistentTask<OpenJobAction.Request> jobTask = createJobTask(0L, "job_id", "node_id", JobState.OPENED);
@@ -160,9 +156,8 @@ public class StartDatafeedActionTests extends ESTestCase {
         PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(2L, taskMap);
 
         Exception e = expectThrows(ElasticsearchStatusException.class,
-                () -> StartDatafeedAction.validate("datafeed_id", mlMetadata1, tasks, nodes));
-        assertThat(e.getMessage(), equalTo("datafeed [datafeed_id] already started, expected datafeed state [stopped], " +
-                "but got [started]"));
+                () -> StartDatafeedAction.validate("datafeed_id", mlMetadata1, tasks));
+        assertThat(e.getMessage(), equalTo("cannot start datafeed [datafeed_id] because it has already been started"));
     }
 
     public static StartDatafeedAction.DatafeedTask createDatafeedTask(long id, String type, String action,

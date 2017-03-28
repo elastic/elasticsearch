@@ -37,12 +37,12 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
-import org.elasticsearch.xpack.ml.action.CloseJobService;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.action.DeleteFilterAction;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteModelSnapshotAction;
+import org.elasticsearch.xpack.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.ml.action.GetCategoriesAction;
@@ -324,7 +324,6 @@ public class MachineLearning implements ActionPlugin {
                 persistentTasksExecutorRegistry,
                 new PersistentTasksClusterService(Settings.EMPTY, persistentTasksExecutorRegistry, clusterService),
                 auditor,
-                new CloseJobService(internalClient, threadPool, clusterService),
                 invalidLicenseEnforcer
         );
     }
@@ -406,6 +405,7 @@ public class MachineLearning implements ActionPlugin {
                 new ActionHandler<>(GetRecordsAction.INSTANCE, GetRecordsAction.TransportAction.class),
                 new ActionHandler<>(PostDataAction.INSTANCE, PostDataAction.TransportAction.class),
                 new ActionHandler<>(CloseJobAction.INSTANCE, CloseJobAction.TransportAction.class),
+                new ActionHandler<>(FinalizeJobExecutionAction.INSTANCE, FinalizeJobExecutionAction.TransportAction.class),
                 new ActionHandler<>(FlushJobAction.INSTANCE, FlushJobAction.TransportAction.class),
                 new ActionHandler<>(ValidateDetectorAction.INSTANCE, ValidateDetectorAction.TransportAction.class),
                 new ActionHandler<>(ValidateJobConfigAction.INSTANCE, ValidateJobConfigAction.TransportAction.class),

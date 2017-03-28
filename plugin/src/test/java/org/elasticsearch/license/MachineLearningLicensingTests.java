@@ -382,7 +382,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
                 // expected to because datafeeds is automatically stopped in case of invalid license,
                 // a license error should not be returned
                 Exception e = expectThrows(ElasticsearchStatusException.class, listener::actionGet);
-                assertEquals("datafeed already stopped, expected datafeed state [started], but got [stopped]", e.getMessage());
+                assertEquals("Cannot stop datafeed [foobar] because it has already been stopped", e.getMessage());
             } else {
                 listener.actionGet();
             }
@@ -421,7 +421,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             if (invalidLicense) {
                 // so the license expired then job closes automatically, so an error is expected:
                 Exception e = expectThrows(ElasticsearchStatusException.class, listener::actionGet);
-                assertEquals("cannot close job [foo], expected job state [opened], but got [closed]", e.getMessage());
+                assertEquals("Cannot perform requested action because job [foo] hasn't been opened", e.getMessage());
             } else {
                 listener.actionGet();
             }

@@ -35,11 +35,9 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * This class represents a configured and created Job. The creation time is set
- * to the time the object was constructed, state is set to
- * {@link JobState#OPENING} and the finished time and last data time fields are
- * {@code null} until the job has seen some data or it is finished respectively.
- * If the job was created to read data from a list of files FileUrls will be a
- * non-empty list else the expects data to be streamed to it.
+ * to the time the object was constructed and the finished time and last
+ * data time fields are {@code null} until the job has seen some data or it is
+ * finished respectively.
  */
 public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent {
 

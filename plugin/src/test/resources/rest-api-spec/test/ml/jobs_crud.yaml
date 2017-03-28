@@ -292,7 +292,7 @@
   - match: { datafeed_id: "test-datafeed-1" }
 
   - do:
-      catch: /Cannot delete job \[datafeed-job\] while datafeed \[test-datafeed-1\] refers to it/
+      catch: /Cannot delete job \[datafeed-job\] because datafeed \[test-datafeed-1\] refers to it/
       xpack.ml.delete_job:
         job_id: datafeed-job
 ---

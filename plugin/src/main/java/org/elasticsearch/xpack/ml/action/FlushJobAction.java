@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -255,7 +256,7 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
 
         @Override
         protected void innerTaskOperation(Request request, OpenJobAction.JobTask task,
-                                     ActionListener<FlushJobAction.Response> listener) {
+                                          ActionListener<Response> listener, ClusterState state) {
             InterimResultsParams.Builder paramsBuilder = InterimResultsParams.builder();
             paramsBuilder.calcInterim(request.getCalcInterim());
             if (request.getAdvanceTime() != null) {

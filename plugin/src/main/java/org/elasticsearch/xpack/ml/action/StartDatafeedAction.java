@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -38,7 +37,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -100,7 +98,7 @@ public class StartDatafeedAction
         static {
             PARSER.declareString((request, datafeedId) -> request.datafeedId = datafeedId, DatafeedConfig.ID);
             PARSER.declareString((request, startTime) -> request.startTime = parseDateOrThrow(
-                    startTime, START_TIME, () -> System.currentTimeMillis()), START_TIME);
+                    startTime, START_TIME, System::currentTimeMillis), START_TIME);
             PARSER.declareString(Request::setEndTime, END_TIME);
             PARSER.declareString((request, val) ->
                     request.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
@@ -140,7 +138,7 @@ public class StartDatafeedAction
         }
 
         public Request(String datafeedId, String startTime) {
-            this(datafeedId, parseDateOrThrow(startTime, START_TIME, () -> System.currentTimeMillis()));
+            this(datafeedId, parseDateOrThrow(startTime, START_TIME, System::currentTimeMillis));
         }
 
         public Request(StreamInput in) throws IOException {
@@ -163,7 +161,7 @@ public class StartDatafeedAction
         }
 
         public void setEndTime(String endTime) {
-            setEndTime(parseDateOrThrow(endTime, END_TIME, () -> System.currentTimeMillis()));
+            setEndTime(parseDateOrThrow(endTime, END_TIME, System::currentTimeMillis));
         }
 
         public void setEndTime(Long endTime) {
@@ -413,8 +411,7 @@ public class StartDatafeedAction
             if (licenseState.isMachineLearningAllowed()) {
                 MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
                 PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-                DiscoveryNodes nodes = clusterState.getNodes();
-                StartDatafeedAction.validate(request.getDatafeedId(), mlMetadata, tasks, nodes);
+                StartDatafeedAction.validate(request.getDatafeedId(), mlMetadata, tasks);
             } else {
                 throw LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING);
             }
@@ -462,7 +459,7 @@ public class StartDatafeedAction
 
     }
 
-    static void validate(String datafeedId, MlMetadata mlMetadata, PersistentTasksCustomMetaData tasks, DiscoveryNodes nodes) {
+    static void validate(String datafeedId, MlMetadata mlMetadata, PersistentTasksCustomMetaData tasks) {
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         if (datafeed == null) {
             throw ExceptionsHelper.missingDatafeedException(datafeedId);
@@ -474,18 +471,17 @@ public class StartDatafeedAction
         DatafeedJobValidator.validate(datafeed, job);
         JobState jobState = MlMetadata.getJobState(datafeed.getJobId(), tasks);
         if (jobState != JobState.OPENED) {
-            throw new ElasticsearchStatusException("cannot start datafeed, expected job state [{}], but got [{}]",
-                    RestStatus.CONFLICT, JobState.OPENED, jobState);
+            throw ExceptionsHelper.conflictStatusException("cannot start datafeed [" + datafeedId + "] because job [" + job.getId() +
+                    "] hasn't been opened");
         }
 
-        DatafeedState datafeedState = MlMetadata.getDatafeedState(datafeedId, tasks);
-        if (datafeedState == DatafeedState.STARTED) {
-            throw new ElasticsearchStatusException("datafeed [{}] already started, expected datafeed state [{}], but got [{}]",
-                    RestStatus.CONFLICT, datafeedId, DatafeedState.STOPPED, DatafeedState.STARTED);
+        PersistentTask<?> datafeedTask = MlMetadata.getDatafeedTask(datafeedId, tasks);
+        if (datafeedTask != null) {
+            throw ExceptionsHelper.conflictStatusException("cannot start datafeed [" + datafeedId + "] because it has already been started");
         }
     }
 
-    public static Assignment selectNode(Logger logger, String datafeedId, ClusterState clusterState) {
+    static Assignment selectNode(Logger logger, String datafeedId, ClusterState clusterState) {
         MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
         PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);

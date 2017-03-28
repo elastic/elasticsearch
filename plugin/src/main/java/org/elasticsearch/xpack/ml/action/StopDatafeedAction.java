@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -48,6 +46,7 @@ import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
+import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.List;
@@ -220,7 +219,7 @@ public class StopDatafeedAction
 
     public static class TransportAction extends TransportTasksAction<StartDatafeedAction.DatafeedTask, Request, Response, Response> {
 
-        private final Client client;
+        private final InternalClient client;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
@@ -228,7 +227,7 @@ public class StopDatafeedAction
                                ClusterService clusterService, Client client) {
             super(settings, StopDatafeedAction.NAME, threadPool, clusterService, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new, Response::new, MachineLearning.THREAD_POOL_NAME);
-            this.client = client;
+            this.client = new InternalClient(settings, threadPool, client);
         }
 
         @Override
@@ -240,7 +239,7 @@ public class StopDatafeedAction
             if (request.force) {
                 PersistentTask<?> datafeedTask = MlMetadata.getDatafeedTask(request.getDatafeedId(), tasks);
                 if (datafeedTask != null) {
-                    forceStopTask(client, datafeedTask.getId(), listener);
+                    forceStopTask(datafeedTask.getId(), listener);
                 } else {
                     String msg = "Requested datafeed [" + request.getDatafeedId() + "] be force-stopped, but " +
                             "datafeed's task could not be found.";
@@ -271,7 +270,7 @@ public class StopDatafeedAction
             });
         }
 
-        private void forceStopTask(Client client, long taskId, ActionListener<Response> listener) {
+        private void forceStopTask(long taskId, ActionListener<Response> listener) {
             RemovePersistentTaskAction.Request request = new RemovePersistentTaskAction.Request(taskId);
 
             client.execute(RemovePersistentTaskAction.INSTANCE, request,
@@ -293,7 +292,7 @@ public class StopDatafeedAction
 
         @Override
         protected void taskOperation(Request request, StartDatafeedAction.DatafeedTask task, ActionListener<Response> listener) {
-            task.stop("stop_datafeed_api", request.getTimeout());
+            task.stop("stop_datafeed (api)", request.getTimeout());
             listener.onResponse(new Response(true));
         }
 
@@ -309,9 +308,9 @@ public class StopDatafeedAction
             throw new ResourceNotFoundException(Messages.getMessage(Messages.DATAFEED_NOT_FOUND, datafeedId));
         }
         PersistentTask<?> task = MlMetadata.getDatafeedTask(datafeedId, tasks);
-        if (task == null || task.getStatus() != DatafeedState.STARTED) {
-            throw new ElasticsearchStatusException("datafeed already stopped, expected datafeed state [{}], but got [{}]",
-                    RestStatus.CONFLICT, DatafeedState.STARTED, DatafeedState.STOPPED);
+        if (task == null) {
+            throw ExceptionsHelper.conflictStatusException("Cannot stop datafeed [" + datafeedId +
+                    "] because it has already been stopped");
         }
         return task.getExecutorNode();
     }

@@ -18,7 +18,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -268,6 +267,10 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         @Override
         protected void onCancelled() {
             String reason = getReasonCancelled();
+            closeJob(reason);
+        }
+
+        void closeJob(String reason) {
             autodetectProcessManager.closeJob(jobId, false, reason);
         }
 
@@ -368,7 +371,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                 // simply because there are no ml nodes in the cluster then we fail quickly here:
                 MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
                 PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-                OpenJobAction.validate(request.getJobId(), mlMetadata, tasks, clusterState.nodes());
+                OpenJobAction.validate(request.getJobId(), mlMetadata, tasks);
                 Assignment assignment = selectLeastLoadedMlNode(request.getJobId(), clusterState, maxConcurrentJobAllocations, logger);
                 if (assignment.getExecutorNode() == null) {
                     throw new ElasticsearchStatusException("cannot open job [" + request.getJobId() + "], no suitable nodes found, " +
@@ -383,19 +386,12 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         protected void nodeOperation(AllocatedPersistentTask task, Request request, ActionListener<TransportResponse.Empty> listener) {
             JobTask jobTask = (JobTask) task;
             jobTask.autodetectProcessManager = autodetectProcessManager;
-            autodetectProcessManager.setJobState(task.getPersistentTaskId(), JobState.OPENING, e1 -> {
-                if (e1 != null) {
-                    listener.onFailure(e1);
-                    return;
+            autodetectProcessManager.openJob(request.getJobId(), task.getPersistentTaskId(), request.isIgnoreDowntime(), e2 -> {
+                if (e2 == null) {
+                    listener.onResponse(new TransportResponse.Empty());
+                } else {
+                    listener.onFailure(e2);
                 }
-
-                autodetectProcessManager.openJob(request.getJobId(), task.getPersistentTaskId(), request.isIgnoreDowntime(), e2 -> {
-                    if (e2 == null) {
-                        listener.onResponse(new TransportResponse.Empty());
-                    } else {
-                        listener.onFailure(e2);
-                    }
-                });
             });
         }
 
@@ -431,19 +427,17 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
      * Fail fast before trying to update the job state on master node if the job doesn't exist or its state
      * is not what it should be.
      */
-    static void validate(String jobId, MlMetadata mlMetadata, @Nullable PersistentTasksCustomMetaData tasks, DiscoveryNodes nodes) {
+    static void validate(String jobId, MlMetadata mlMetadata, @Nullable PersistentTasksCustomMetaData tasks) {
         Job job = mlMetadata.getJobs().get(jobId);
         if (job == null) {
             throw ExceptionsHelper.missingJobException(jobId);
         }
         if (job.isDeleted()) {
-            throw new ElasticsearchStatusException("Cannot open job [" + jobId + "] because it has been marked as deleted",
-                    RestStatus.CONFLICT);
+            throw ExceptionsHelper.conflictStatusException("Cannot open job [" + jobId + "] because it has been marked as deleted");
         }
-        JobState jobState = MlMetadata.getJobState(jobId, tasks);
-        if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
-            throw new ElasticsearchStatusException("[" + jobId + "] expected state [" + JobState.CLOSED
-                    + "] or [" + JobState.FAILED + "], but got [" + jobState + "]", RestStatus.CONFLICT);
+        PersistentTasksCustomMetaData.PersistentTask<?> task = MlMetadata.getJobTask(jobId, tasks);
+        if (task != null) {
+            throw ExceptionsHelper.conflictStatusException("Cannot open job [" + jobId + "] because it has already been opened");
         }
     }
 
@@ -481,7 +475,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                     }
                     JobState jobTaskState = (JobState) task.getStatus();
                     return jobTaskState == null || // executor node didn't have the chance to set job status to OPENING
-                            jobTaskState == JobState.OPENING || // executor node is busy starting the cpp process
                             task.isCurrentStatus() == false; // previous executor node failed and
                     // current executor node didn't have the chance to set job status to OPENING
                 }).size();

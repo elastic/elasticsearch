@@ -51,24 +51,20 @@ public class OpenJobActionTests extends ESTestCase {
     public void testValidate() {
         MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         mlBuilder.putJob(buildJobBuilder("job_id").build(), false);
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("_node_name", "_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                        Collections.emptyMap(), Collections.emptySet(), Version.CURRENT))
-                .build();
 
         PersistentTask<OpenJobAction.Request> task =
-                createJobTask(1L, "job_id", "_node_id", randomFrom(JobState.CLOSED, JobState.FAILED));
+                createJobTask(1L, "job_id2", "_node_id", randomFrom(JobState.CLOSED, JobState.FAILED));
         PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(1L, task));
 
-        OpenJobAction.validate("job_id", mlBuilder.build(), tasks, nodes);
-        OpenJobAction.validate("job_id", mlBuilder.build(), new PersistentTasksCustomMetaData(1L, Collections.emptyMap()), nodes);
-        OpenJobAction.validate("job_id", mlBuilder.build(), null, nodes);
+        OpenJobAction.validate("job_id", mlBuilder.build(), tasks);
+        OpenJobAction.validate("job_id", mlBuilder.build(), new PersistentTasksCustomMetaData(1L, Collections.emptyMap()));
+        OpenJobAction.validate("job_id", mlBuilder.build(), null);
     }
 
     public void testValidate_jobMissing() {
         MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         mlBuilder.putJob(buildJobBuilder("job_id1").build(), false);
-        expectThrows(ResourceNotFoundException.class, () -> OpenJobAction.validate("job_id2", mlBuilder.build(), null, null));
+        expectThrows(ResourceNotFoundException.class, () -> OpenJobAction.validate("job_id2", mlBuilder.build(), null));
     }
 
     public void testValidate_jobMarkedAsDeleted() {
@@ -77,33 +73,20 @@ public class OpenJobActionTests extends ESTestCase {
         jobBuilder.setDeleted(true);
         mlBuilder.putJob(jobBuilder.build(), false);
         Exception e = expectThrows(ElasticsearchStatusException.class,
-                () -> OpenJobAction.validate("job_id", mlBuilder.build(), null, null));
+                () -> OpenJobAction.validate("job_id", mlBuilder.build(), null));
         assertEquals("Cannot open job [job_id] because it has been marked as deleted", e.getMessage());
     }
 
     public void testValidate_unexpectedState() {
         MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         mlBuilder.putJob(buildJobBuilder("job_id").build(), false);
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-                .add(new DiscoveryNode("_node_name", "_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                        Collections.emptyMap(), Collections.emptySet(), Version.CURRENT))
-                .build();
 
-        JobState jobState = randomFrom(JobState.OPENING, JobState.OPENED, JobState.CLOSING);
-        PersistentTask<OpenJobAction.Request> task = createJobTask(1L, "job_id", "_node_id", jobState);
+        PersistentTask<OpenJobAction.Request> task = createJobTask(1L, "job_id", "_node_id",  JobState.OPENED);
         PersistentTasksCustomMetaData tasks1 = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(1L, task));
 
         Exception e = expectThrows(ElasticsearchStatusException.class,
-                () -> OpenJobAction.validate("job_id", mlBuilder.build(), tasks1, nodes));
-        assertEquals("[job_id] expected state [closed] or [failed], but got [" + jobState +"]", e.getMessage());
-
-        jobState = randomFrom(JobState.OPENING, JobState.CLOSING);
-        task = createJobTask(1L, "job_id", "_other_node_id", jobState);
-        PersistentTasksCustomMetaData tasks2 = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(1L, task));
-
-        e = expectThrows(ElasticsearchStatusException.class,
-                () -> OpenJobAction.validate("job_id", mlBuilder.build(), tasks2, nodes));
-        assertEquals("[job_id] expected state [closed] or [failed], but got [" + jobState +"]", e.getMessage());
+                () -> OpenJobAction.validate("job_id", mlBuilder.build(), tasks1));
+        assertEquals("Cannot open job [job_id] because it has already been opened", e.getMessage());
     }
 
     public void testSelectLeastLoadedMlNode() {
@@ -208,11 +191,11 @@ public class OpenJobActionTests extends ESTestCase {
                 .build();
 
         Map<Long, PersistentTask<?>> taskMap = new HashMap<>();
-        taskMap.put(0L, createJobTask(0L, "job_id1", "_node_id1", JobState.OPENING));
-        taskMap.put(1L, createJobTask(1L, "job_id2", "_node_id1", JobState.OPENING));
-        taskMap.put(2L, createJobTask(2L, "job_id3", "_node_id2", JobState.OPENING));
-        taskMap.put(3L, createJobTask(3L, "job_id4", "_node_id2", JobState.OPENING));
-        taskMap.put(4L, createJobTask(4L, "job_id5", "_node_id3", JobState.OPENING));
+        taskMap.put(0L, createJobTask(0L, "job_id1", "_node_id1", null));
+        taskMap.put(1L, createJobTask(1L, "job_id2", "_node_id1", null));
+        taskMap.put(2L, createJobTask(2L, "job_id3", "_node_id2", null));
+        taskMap.put(3L, createJobTask(3L, "job_id4", "_node_id2", null));
+        taskMap.put(4L, createJobTask(4L, "job_id5", "_node_id3", null));
         PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(5L, taskMap);
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
@@ -228,7 +211,7 @@ public class OpenJobActionTests extends ESTestCase {
         Assignment result = OpenJobAction.selectLeastLoadedMlNode("job_id6", cs, 2, logger);
         assertEquals("_node_id3", result.getExecutorNode());
 
-        PersistentTask<OpenJobAction.Request> lastTask = createJobTask(5L, "job_id6", "_node_id3", JobState.OPENING);
+        PersistentTask<OpenJobAction.Request> lastTask = createJobTask(5L, "job_id6", "_node_id3", null);
         taskMap.put(5L, lastTask);
         tasks = new PersistentTasksCustomMetaData(6L, taskMap);
 
@@ -275,7 +258,6 @@ public class OpenJobActionTests extends ESTestCase {
         metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
 
-        MlMetadata mlMetadata = cs.metaData().custom(MlMetadata.TYPE);
         String indexToRemove = randomFrom(OpenJobAction.indicesOfInterest(cs, "job_id"));
         if (randomBoolean()) {
             routingTable.remove(indexToRemove);
@@ -299,7 +281,9 @@ public class OpenJobActionTests extends ESTestCase {
     public static PersistentTask<OpenJobAction.Request> createJobTask(long id, String jobId, String nodeId, JobState jobState) {
         PersistentTask<OpenJobAction.Request> task =
                 new PersistentTask<>(id, OpenJobAction.NAME, new OpenJobAction.Request(jobId), new Assignment(nodeId, "test assignment"));
-        task = new PersistentTask<>(task, jobState);
+        if (jobState != null) {
+            task = new PersistentTask<>(task, jobState);
+        }
         return task;
     }
 

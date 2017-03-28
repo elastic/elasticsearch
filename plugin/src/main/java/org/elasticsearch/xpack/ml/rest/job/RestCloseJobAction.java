@@ -31,7 +31,7 @@ public class RestCloseJobAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Request request = new Request(restRequest.param(Job.ID.getPreferredName()));
         if (restRequest.hasParam(Request.TIMEOUT.getPreferredName())) {
-            request.setTimeout(TimeValue.parseTimeValue(
+            request.setCloseTimeout(TimeValue.parseTimeValue(
                     restRequest.param(Request.TIMEOUT.getPreferredName()), Request.TIMEOUT.getPreferredName()));
         }
         if (restRequest.hasParam(Request.FORCE.getPreferredName())) {

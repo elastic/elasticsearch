@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -251,7 +252,7 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
         }
 
         @Override
-        protected void innerTaskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener) {
+        protected void innerTaskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener, ClusterState state) {
             TimeRange timeRange = TimeRange.builder().startTime(request.getResetStart()).endTime(request.getResetEnd()).build();
             DataLoadParams params = new DataLoadParams(timeRange, Optional.ofNullable(request.getDataDescription()));
             try {

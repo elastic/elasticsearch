@@ -353,7 +353,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
          * to a new executor node and the status hasn't been updated then the task status is stale.
          */
         public boolean isCurrentStatus() {
-            return allocationIdOnLastStatusUpdate == allocationId;
+            return allocationIdOnLastStatusUpdate != null && allocationIdOnLastStatusUpdate == allocationId;
         }
 
         @Override

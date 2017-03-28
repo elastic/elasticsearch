@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
@@ -17,7 +16,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
@@ -34,10 +32,9 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
-import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
-import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -80,16 +77,8 @@ public class DatafeedJobRunner extends AbstractComponent {
     public void run(StartDatafeedAction.DatafeedTask task, Consumer<Exception> handler) {
         String datafeedId = task.getDatafeedId();
         ClusterState state = clusterService.state();
-        // CS on master node can be ahead on the node where job and datafeed tasks run,
-        // so check again and fail if in case of unexpected cs. Persist tasks will retry later then.
-        Assignment assignment = StartDatafeedAction.selectNode(logger, datafeedId, state);
-        if (assignment.getExecutorNode() == null) {
-            handler.accept(new ElasticsearchStatusException("cannot start datafeed [{}] yet, local cs [{}], allocation explanation [{}]",
-                    RestStatus.CONFLICT, datafeedId, state.getVersion(), assignment.getExplanation()));
-            return;
-        }
-        logger.info("Attempt to start datafeed based on cluster state version [{}]", state.getVersion());
         MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
+
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         Job job = mlMetadata.getJobs().get(datafeed.getJobId());
         gatherInformation(job.getId(), (buckets, dataCounts) -> {

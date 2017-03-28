@@ -373,7 +373,7 @@ public class DatafeedJobIT extends ESRestTestCase {
                 () -> client().performRequest("delete", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId));
         response = e.getResponse();
         assertThat(response.getStatusLine().getStatusCode(), equalTo(409));
-        assertThat(responseEntityToString(response), containsString("Cannot delete job [" + jobId + "] while datafeed [" + datafeedId
+        assertThat(responseEntityToString(response), containsString("Cannot delete job [" + jobId + "] because datafeed [" + datafeedId
                 + "] refers to it"));
 
         response = client().performRequest("post", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stop");

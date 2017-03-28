@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -20,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -65,8 +63,8 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
         PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
         if (jobTask == null || jobTask.isAssigned() == false) {
-            listener.onFailure( new ElasticsearchStatusException("job [" + jobId + "] state is [" + JobState.CLOSED +
-                    "], but must be [" + JobState.OPENED + "] to perform requested action", RestStatus.CONFLICT));
+            String message = "Cannot perform requested action because job [" + jobId + "] hasn't been opened";
+            listener.onFailure(ExceptionsHelper.conflictStatusException(message));
         } else {
             request.setNodes(jobTask.getExecutorNode());
             super.doExecute(task, request, listener);
@@ -79,15 +77,15 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
         PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
         JobState jobState = MlMetadata.getJobState(request.getJobId(), tasks);
         if (jobState == JobState.OPENED) {
-            innerTaskOperation(request, task, listener);
+            innerTaskOperation(request, task, listener, state);
         } else {
             logger.warn("Unexpected job state based on cluster state version [{}]", state.getVersion());
-            listener.onFailure(new ElasticsearchStatusException("job [" + request.getJobId() + "] state is [" + jobState +
-                    "], but must be [" + JobState.OPENED + "] to perform requested action", RestStatus.CONFLICT));
+            listener.onFailure(ExceptionsHelper.conflictStatusException("Cannot perform requested action because job [" +
+                    request.getJobId() + "] hasn't been opened"));
         }
     }
 
-    protected abstract void innerTaskOperation(Request request, OperationTask task, ActionListener<Response> listener);
+    protected abstract void innerTaskOperation(Request request, OperationTask task, ActionListener<Response> listener, ClusterState state);
 
     @Override
     protected Response newResponse(Request request, List<Response> tasks, List<TaskOperationFailure> taskOperationFailures,

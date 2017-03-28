@@ -26,7 +26,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public enum JobState implements Task.Status {
 
-    CLOSING, CLOSED, OPENING, OPENED, FAILED;
+    CLOSED, OPENED, FAILED;
 
     public static final String NAME = "JobState";
 

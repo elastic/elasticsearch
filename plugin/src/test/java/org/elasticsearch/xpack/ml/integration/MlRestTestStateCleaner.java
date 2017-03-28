@@ -52,7 +52,7 @@ public class MlRestTestStateCleaner {
                     logger.error("Got status code " + statusCode + " when stopping datafeed " + datafeedId);
                 }
             } catch (Exception e) {
-                if (e.getMessage().contains("datafeed already stopped, expected datafeed state [started], but got [stopped]")) {
+                if (e.getMessage().contains("Cannot stop datafeed [" + datafeedId + "] because it has already been stopped")) {
                     logger.debug("failed to stop datafeed [" + datafeedId + "]", e);
                 } else {
                     logger.warn("failed to stop datafeed [" + datafeedId + "]", e);
@@ -84,15 +84,14 @@ public class MlRestTestStateCleaner {
                     logger.error("Got status code " + statusCode + " when closing job " + jobId);
                 }
             } catch (Exception e1) {
-                if (e1.getMessage().contains("expected job state [opened], but got [closed]")
-                        || e1.getMessage().contains("expected job state [opened], but got [closing]")) {
+                if (e1.getMessage().contains("because job [" + jobId + "] hasn't been opened")) {
                     logger.debug("job [" + jobId + "] has already been closed", e1);
                 } else {
-                    logger.warn("failed to close job [" + jobId + "]. Forcing closed.", e1);
+                    logger.warn("failed to close job [" + jobId + "]. Forcing closed", e1);
                     try {
                         adminClient.performRequest("POST", "/_xpack/ml/anomaly_detectors/" + jobId + "/_close?force=true");
                     } catch (Exception e2) {
-                        throw new RuntimeException("Force-closing job [" + jobId + "] failed.", e2);
+                        logger.warn("Force-closing job [" + jobId + "] failed", e2);
                     }
                     throw new RuntimeException("Had to resort to force-closing job, something went wrong?", e1);
                 }

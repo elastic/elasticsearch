@@ -142,3 +142,4 @@ cluster:admin/persistent/start
 cluster:admin/persistent/completion
 cluster:admin/persistent/update_status
 cluster:admin/persistent/remove
+cluster:internal/ml/job/finalize_job_execution

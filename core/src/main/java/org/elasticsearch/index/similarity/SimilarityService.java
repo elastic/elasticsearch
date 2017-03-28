@@ -47,6 +47,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         Map<String, BiFunction<String, Settings, SimilarityProvider>> buildIn = new HashMap<>();
         defaults.put("classic", ClassicSimilarityProvider::new);
         defaults.put("BM25", BM25SimilarityProvider::new);
+        defaults.put("boolean", BooleanSimilarityProvider::new);
         buildIn.put("classic", ClassicSimilarityProvider::new);
         buildIn.put("BM25", BM25SimilarityProvider::new);
         buildIn.put("DFR", DFRSimilarityProvider::new);

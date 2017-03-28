@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.similarity;
 
+import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.DFISimilarity;
 import org.apache.lucene.search.similarities.AfterEffectL;
@@ -64,6 +65,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         SimilarityService similarityService = createIndex("foo").similarityService();
         assertThat(similarityService.getSimilarity("classic").get(), instanceOf(ClassicSimilarity.class));
         assertThat(similarityService.getSimilarity("BM25").get(), instanceOf(BM25Similarity.class));
+        assertThat(similarityService.getSimilarity("boolean").get(), instanceOf(BooleanSimilarity.class));
         assertThat(similarityService.getSimilarity("default"), equalTo(null));
     }
 
@@ -107,6 +109,21 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         assertThat(similarity.getK1(), equalTo(2.0f));
         assertThat(similarity.getB(), equalTo(0.5f));
         assertThat(similarity.getDiscountOverlaps(), equalTo(false));
+    }
+
+    public void testResolveSimilaritiesFromMapping_boolean() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("field1").field("type", "text").field("similarity", "boolean").endObject()
+            .endObject()
+            .endObject().endObject().string();
+
+        IndexService indexService = createIndex("foo", Settings.EMPTY);
+        DocumentMapper documentMapper = indexService.mapperService()
+            .documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
+        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity(),
+            instanceOf(BooleanSimilarityProvider.class));
     }
 
     public void testResolveSimilaritiesFromMapping_DFR() throws IOException {

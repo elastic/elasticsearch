@@ -317,6 +317,36 @@ public class SimpleJodaTests extends ESTestCase {
         }
     }
 
+    public void testForInvalidTimeZoneWithEpochSeconds() {
+        DateTimeFormatter dateTimeFormatter = new DateTimeFormatterBuilder()
+            .append(new Joda.EpochTimeParser(false))
+            .toFormatter()
+            .withZone(DateTimeZone.forOffsetHours(1));
+        FormatDateTimeFormatter formatter =
+            new FormatDateTimeFormatter("epoch_seconds", dateTimeFormatter, Locale.ROOT);
+        try {
+            formatter.parser().parseDateTime("1433144433655");
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("time_zone must be UTC"));
+        }
+    }
+
+    public void testForInvalidTimeZoneWithEpochMillis() {
+        DateTimeFormatter dateTimeFormatter = new DateTimeFormatterBuilder()
+            .append(new Joda.EpochTimeParser(true))
+            .toFormatter()
+            .withZone(DateTimeZone.forOffsetHours(1));
+        FormatDateTimeFormatter formatter =
+            new FormatDateTimeFormatter("epoch_millis", dateTimeFormatter, Locale.ROOT);
+        try {
+            formatter.parser().parseDateTime("1433144433");
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("time_zone must be UTC"));
+        }
+    }
+
     public void testThatEpochParserIsPrinter() {
         FormatDateTimeFormatter formatter = Joda.forPattern("epoch_millis");
         assertThat(formatter.parser().isPrinter(), is(true));

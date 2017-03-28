@@ -200,25 +200,14 @@ public final class ELambda extends AExpression implements ILambda {
                 org.objectweb.asm.Type.getMethodType(ref.samMethodType.toMethodDescriptorString());
             org.objectweb.asm.Type interfaceType =
                 org.objectweb.asm.Type.getMethodType(ref.interfaceMethodType.toMethodDescriptorString());
-            if (ref.needsBridges()) {
-                writer.invokeDynamic(ref.invokedName,
-                                     invokedType,
-                                     LAMBDA_BOOTSTRAP_HANDLE,
-                                     samMethodType,
-                                     ref.implMethodASM,
-                                     samMethodType,
-                                     LambdaMetafactory.FLAG_BRIDGES,
-                                     1,
-                                     interfaceType);
-            } else {
-                writer.invokeDynamic(ref.invokedName,
-                                     invokedType,
-                                     LAMBDA_BOOTSTRAP_HANDLE,
-                                     samMethodType,
-                                     ref.implMethodASM,
-                                     samMethodType,
-                                     0);
-            }
+
+            writer.invokeDynamic(ref.invokedName,
+                                 invokedType,
+                                 LAMBDA_BOOTSTRAP_HANDLE,
+                                 samMethodType,
+                                 name,
+                                 interfaceType
+                                 );
         } else {
             // placeholder
             writer.push((String)null);

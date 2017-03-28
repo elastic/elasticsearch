@@ -82,9 +82,9 @@ public final class WriterConstants {
     public static final Type UTILITY_TYPE = Type.getType(Utility.class);
     public static final Method STRING_TO_CHAR = getAsmMethod(char.class, "StringTochar", String.class);
     public static final Method CHAR_TO_STRING = getAsmMethod(String.class, "charToString", char.class);
-    
+
     public static final Type METHOD_HANDLE_TYPE = Type.getType(MethodHandle.class);
-    
+
     public static final Type AUGMENTATION_TYPE = Type.getType(Augmentation.class);
 
     /**
@@ -100,7 +100,7 @@ public final class WriterConstants {
 
     /** dynamic callsite bootstrap signature */
     static final MethodType DEF_BOOTSTRAP_TYPE =
-        MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, 
+        MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class,
                               int.class, int.class, Object[].class);
     static final Handle DEF_BOOTSTRAP_HANDLE =
         new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(DefBootstrap.class),
@@ -129,8 +129,8 @@ public final class WriterConstants {
             MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class,
                                   MethodType.class, Object[].class);
     public static final Handle LAMBDA_BOOTSTRAP_HANDLE =
-            new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(LambdaMetafactory.class),
-                "altMetafactory", LAMBDA_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
+            new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(LambdaBootstrap.class),
+                "bootstrap", LAMBDA_BOOTSTRAP_TYPE.toMethodDescriptorString(), false);
 
     /** dynamic invokedynamic bootstrap for indy string concats (Java 9+) */
     public static final Handle INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;

@@ -27,11 +27,11 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 
-/** 
- * Reference to a function or lambda. 
+/**
+ * Reference to a function or lambda.
  * <p>
  * Once you have created one of these, you have "everything you need" to call LambdaMetaFactory
- * either statically from bytecode with invokedynamic, or at runtime from Java.  
+ * either statically from bytecode with invokedynamic, or at runtime from Java.
  */
 public class FunctionRef {
     /** Function Object's method name */
@@ -44,17 +44,17 @@ public class FunctionRef {
     public final MethodType samMethodType;
     /** When bridging is required, request this bridge interface */
     public final MethodType interfaceMethodType;
-    
+
     /** ASM "Handle" to the method, for the constant pool */
     public final Handle implMethodASM;
-    
+
     /**
      * Creates a new FunctionRef, which will resolve {@code type::call} from the whitelist.
      * @param expected interface type to implement.
      * @param type the left hand side of a method reference expression
      * @param call the right hand side of a method reference expression
      * @param numCaptures number of captured arguments
-     */    
+     */
     public FunctionRef(Definition.Type expected, String type, String call, int numCaptures) {
         this(expected, expected.struct.getFunctionalMethod(), lookup(expected, type, call, numCaptures > 0), numCaptures);
     }
@@ -65,14 +65,14 @@ public class FunctionRef {
      * @param method functional interface method
      * @param impl implementation method
      * @param numCaptures number of captured arguments
-     */   
+     */
     public FunctionRef(Definition.Type expected, Definition.Method method, Definition.Method impl, int numCaptures) {
         // e.g. compareTo
         invokedName = method.name;
         // e.g. (Object)Comparator
         MethodType implType = impl.getMethodType();
         // only include captured parameters as arguments
-        invokedType = MethodType.methodType(expected.clazz, 
+        invokedType = MethodType.methodType(expected.clazz,
                 implType.dropParameterTypes(numCaptures, implType.parameterCount()));
         // e.g. (Object,Object)int
         interfaceMethodType = method.getMethodType().dropParameterTypes(0, 1);
@@ -102,13 +102,13 @@ public class FunctionRef {
         }
         implMethodASM = new Handle(tag, owner, impl.name, impl.method.getDescriptor(), ownerIsInterface);
         implMethod = impl.handle;
-        
+
         // remove any prepended captured arguments for the 'natural' signature.
         samMethodType = adapt(interfaceMethodType, impl.getMethodType().dropParameterTypes(0, numCaptures));
     }
 
     /**
-     * Creates a new FunctionRef (low level). 
+     * Creates a new FunctionRef (low level).
      * <p>
      * This will <b>not</b> set implMethodASM. It is for runtime use only.
      */
@@ -118,20 +118,20 @@ public class FunctionRef {
         // e.g. (Object)Comparator
         MethodType implType = impl.type();
         // only include captured parameters as arguments
-        invokedType = MethodType.methodType(expected.clazz, 
+        invokedType = MethodType.methodType(expected.clazz,
                 implType.dropParameterTypes(numCaptures, implType.parameterCount()));
         // e.g. (Object,Object)int
         interfaceMethodType = method.getMethodType().dropParameterTypes(0, 1);
 
         implMethod = impl;
-        
+
         implMethodASM = null;
-        
+
         // remove any prepended captured arguments for the 'natural' signature.
         samMethodType = adapt(interfaceMethodType, impl.type().dropParameterTypes(0, numCaptures));
     }
 
-    /** 
+    /**
      * Looks up {@code type::call} from the whitelist, and returns a matching method.
      */
     private static Definition.Method lookup(Definition.Type expected, String type, String call, boolean receiverCaptured) {
@@ -180,20 +180,20 @@ public class FunctionRef {
         // either way, stuff will fail if its wrong :)
         return interfaceMethodType.equals(samMethodType) == false;
     }
-    
-    /** 
+
+    /**
      * If the interface expects a primitive type to be returned, we can't return Object,
-     * But we can set SAM to the wrapper version, and a cast will take place 
+     * But we can set SAM to the wrapper version, and a cast will take place
      */
     private MethodType adapt(MethodType expected, MethodType actual) {
         // add some checks, now that we've set everything up, to deliver exceptions as early as possible.
         if (expected.parameterCount() != actual.parameterCount()) {
-            throw new IllegalArgumentException("Incorrect number of parameters for [" + invokedName + 
+            throw new IllegalArgumentException("Incorrect number of parameters for [" + invokedName +
                                                "] in [" + invokedType.returnType() + "]");
         }
-        if (expected.returnType().isPrimitive() && actual.returnType() == Object.class) {
-            actual = actual.changeReturnType(MethodType.methodType(expected.returnType()).wrap().returnType());
-        }
+        //if (expected.returnType().isPrimitive() && actual.returnType() == Object.class) {
+        //    actual = actual.changeReturnType(MethodType.methodType(expected.returnType()).wrap().returnType());
+        //}
         return actual;
     }
 }

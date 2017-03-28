@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.fieldcaps;
+package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,7 +34,6 @@ public class FieldCapabilitiesRequestTests extends ESTestCase {
             randomFields[i] = randomAsciiOfLengthBetween(5, 10);
         }
         request.fields(randomFields);
-        request.level(randomBoolean() ? "indices" : "cluster");
         return request;
     }
 

@@ -1,7 +1,7 @@
 {
-  "indices.field_caps": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-field-caps.html",
-    "methods": ["GET"],
+  "field_caps": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-field-caps.html",
+    "methods": ["GET", "POST"],
     "url": {
       "path": "/_field_caps",
       "paths": [
@@ -19,12 +19,6 @@
           "type" : "list",
           "description" : "A comma-separated list of field names"
         },
-        "level": {
-          "type" : "enum",
-          "options" : ["indices", "cluster"],
-          "default" : "cluster",
-          "description" : "Return field capabilities per index or aggregated at the cluster level in a single entry named `all`"
-        },
         "ignore_unavailable": {
           "type" : "boolean",
           "description" : "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
@@ -41,6 +35,9 @@
         }
       }
     },
-    "body": null
+    "body": {
+      "description": "Field json objects containing an array of field names",
+      "required": false
+    }
   }
 }

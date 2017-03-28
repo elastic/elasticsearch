@@ -17,31 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.fieldcaps;
+package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldCapabilitiesRequest,
+public class FieldCapabilitiesAction extends Action<FieldCapabilitiesRequest,
     FieldCapabilitiesResponse, FieldCapabilitiesRequestBuilder> {
-    public FieldCapabilitiesRequestBuilder(ElasticsearchClient client, FieldCapabilitiesAction action,
-                                           String... indices) {
-        super(client, action, new FieldCapabilitiesRequest().indices(indices));
+
+    public static final FieldCapabilitiesAction INSTANCE = new FieldCapabilitiesAction();
+    public static final String NAME = "indices:data/read/field_caps";
+
+    private FieldCapabilitiesAction() {
+        super(NAME);
     }
 
-    /**
-     * The list of field names to retrieve.
-     */
-    public FieldCapabilitiesRequestBuilder setFields(String... fields) {
-        request().fields(fields);
-        return this;
+    @Override
+    public FieldCapabilitiesResponse newResponse() {
+        return new FieldCapabilitiesResponse();
     }
 
-    /**
-     * Whether the field capabilities should be expanded per index or merged in a single index named "_all"
-     */
-    public FieldCapabilitiesRequestBuilder setLevel(String level) {
-        request().level(level);
-        return this;
+    @Override
+    public FieldCapabilitiesRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new FieldCapabilitiesRequestBuilder(client, this);
     }
 }

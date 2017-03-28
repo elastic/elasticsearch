@@ -17,22 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action.admin.indices;
+package org.elasticsearch.rest.action;
 
-import org.elasticsearch.action.admin.indices.fieldcaps.FieldCapabilitiesRequest;
-import org.elasticsearch.action.admin.indices.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
 
@@ -50,20 +50,32 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request,
                                               final NodeClient client) throws IOException {
-        final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
+        if (request.hasContentOrSourceParam() && request.hasParam("fields")) {
+            throw new IllegalArgumentException("can't specify a request body and [fields]" +
+                " request parameter, either specify a request body or the" +
+                " [fields] request parameter");
+        }
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest();
-        fieldCapsRequest.fields(fields);
-        fieldCapsRequest.indices(indices);
-        fieldCapsRequest.indicesOptions(IndicesOptions.fromRequest(request, fieldCapsRequest.indicesOptions()));
-        fieldCapsRequest.level(request.param("level", fieldCapsRequest.level()));
-        return channel -> client.admin().indices().fieldCaps(fieldCapsRequest,
+        final FieldCapabilitiesRequest fieldRequest;
+        if (request.hasContentOrSourceParam()) {
+            try (XContentParser parser = request.contentOrSourceParamParser()) {
+                fieldRequest = FieldCapabilitiesRequest.parseFields(parser);
+            }
+        } else {
+            fieldRequest = new FieldCapabilitiesRequest();
+            fieldRequest.fields(Strings.splitStringByCommaToArray(request.param("fields")));
+        }
+        fieldRequest.indices(indices);
+        fieldRequest.indicesOptions(
+            IndicesOptions.fromRequest(request, fieldRequest.indicesOptions())
+        );
+        return channel -> client.fieldCaps(fieldRequest,
             new RestBuilderListener<FieldCapabilitiesResponse>(channel) {
             @Override
             public RestResponse buildResponse(FieldCapabilitiesResponse response,
                                               XContentBuilder builder) throws Exception {
                 RestStatus status = OK;
-                if (response.getFieldsCaps().isEmpty()) {
+                if (response.get().isEmpty()) {
                     status = NOT_FOUND;
                 }
                 builder.startObject();

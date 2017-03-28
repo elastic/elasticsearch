@@ -272,10 +272,10 @@ import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
 import org.elasticsearch.action.explain.ExplainResponse;
-import org.elasticsearch.action.admin.indices.fieldcaps.FieldCapabilitiesAction;
-import org.elasticsearch.action.admin.indices.fieldcaps.FieldCapabilitiesRequest;
-import org.elasticsearch.action.admin.indices.fieldcaps.FieldCapabilitiesRequestBuilder;
-import org.elasticsearch.action.admin.indices.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequestBuilder;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.action.fieldstats.FieldStatsRequest;
 import org.elasticsearch.action.fieldstats.FieldStatsRequestBuilder;
@@ -669,6 +669,21 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public FieldStatsRequestBuilder prepareFieldStats() {
         return new FieldStatsRequestBuilder(this, FieldStatsAction.INSTANCE);
+    }
+
+    @Override
+    public void fieldCaps(FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener) {
+        execute(FieldCapabilitiesAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public ActionFuture<FieldCapabilitiesResponse> fieldCaps(FieldCapabilitiesRequest request) {
+        return execute(FieldCapabilitiesAction.INSTANCE, request);
+    }
+
+    @Override
+    public FieldCapabilitiesRequestBuilder prepareFieldCaps() {
+        return new FieldCapabilitiesRequestBuilder(this, FieldCapabilitiesAction.INSTANCE);
     }
 
     static class Admin implements AdminClient {
@@ -1753,21 +1768,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public void getSettings(GetSettingsRequest request, ActionListener<GetSettingsResponse> listener) {
             execute(GetSettingsAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public void fieldCaps(FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener) {
-            execute(FieldCapabilitiesAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public FieldCapabilitiesRequestBuilder prepareFieldCaps() {
-            return new FieldCapabilitiesRequestBuilder(this, FieldCapabilitiesAction.INSTANCE);
-        }
-
-        @Override
-        public ActionFuture<FieldCapabilitiesResponse> fieldCaps(FieldCapabilitiesRequest request) {
-            return execute(FieldCapabilitiesAction.INSTANCE, request);
         }
     }
 

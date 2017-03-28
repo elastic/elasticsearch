@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.fieldcaps;
+package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,60 +29,58 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Response for {@link FieldCapabilitiesRequest} and {@link FieldCapabilitiesIndexRequest} requests.
+ * Response for {@link FieldCapabilitiesRequest} requests.
  */
 public class FieldCapabilitiesResponse extends ActionResponse implements ToXContent {
-    private Map<String, Map<String, FieldCapabilities>> fieldsCaps;
+    private Map<String, Map<String, FieldCapabilities>> responseMap;
 
-    FieldCapabilitiesResponse(Map<String, Map<String, FieldCapabilities> > fieldsCaps) {
-        this.fieldsCaps = fieldsCaps;
+    FieldCapabilitiesResponse(Map<String, Map<String, FieldCapabilities>> responseMap) {
+        this.responseMap = responseMap;
     }
 
     FieldCapabilitiesResponse() {
     }
 
     /**
-     * Returns the capabilities of each existing requested fields.
-     * The map key is the field name and the value is a map of capabilities for the field,
-     * with one entry per requested index if {@link FieldCapabilitiesRequest#level()} equals to "indices",
-     * or a single entry named `_all` if {@link FieldCapabilitiesRequest#level()} equals to "cluster".
+     * Get the field capabilities map.
      */
-    public Map<String, Map<String, FieldCapabilities> > getFieldsCaps() {
-        return fieldsCaps;
+    public Map<String, Map<String, FieldCapabilities>> get() {
+        return responseMap;
     }
 
     /**
-     * Returns a map of capabilities for the field, with one entry per requested index if
-     * {@link FieldCapabilitiesRequest#level()} equals to "indices", or a single entry named `_all` if
-     * {@link FieldCapabilitiesRequest#level()} equals to "cluster".
+     *
+     * Get the field capabilities per type for the provided {@code field}.
      */
-    public Map<String, FieldCapabilities> getFieldCap(String field) {
-        return fieldsCaps.get(field);
+    public Map<String, FieldCapabilities> getField(String field) {
+        return responseMap.get(field);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        this.fieldsCaps = in.readMap(StreamInput::readString, FieldCapabilitiesResponse::readFieldsCaps);
+        this.responseMap =
+            in.readMap(StreamInput::readString, FieldCapabilitiesResponse::readField);
     }
 
-    static Map<String, FieldCapabilities> readFieldsCaps(StreamInput in) throws IOException {
+    private static Map<String, FieldCapabilities> readField(StreamInput in) throws IOException {
         return in.readMap(StreamInput::readString, FieldCapabilities::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(fieldsCaps, StreamOutput::writeString, FieldCapabilitiesResponse::writeFieldsCaps);
+        out.writeMap(responseMap, StreamOutput::writeString, FieldCapabilitiesResponse::writeField);
     }
 
-    static void writeFieldsCaps(StreamOutput out, Map<String, FieldCapabilities> map) throws IOException {
+    private static void writeField(StreamOutput out,
+                           Map<String, FieldCapabilities> map) throws IOException {
         out.writeMap(map, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("fields", fieldsCaps);
+        builder.field("fields", responseMap);
         return builder;
     }
 
@@ -92,11 +90,12 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         if (o == null || getClass() != o.getClass()) return false;
 
         FieldCapabilitiesResponse that = (FieldCapabilitiesResponse) o;
-        return fieldsCaps.equals(that.fieldsCaps);
+
+        return responseMap.equals(that.responseMap);
     }
 
     @Override
     public int hashCode() {
-        return fieldsCaps.hashCode();
+        return responseMap.hashCode();
     }
 }

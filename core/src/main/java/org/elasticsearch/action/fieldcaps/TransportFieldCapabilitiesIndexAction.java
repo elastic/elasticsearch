@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.fieldcaps;
+package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -43,7 +43,8 @@ import java.util.Map;
 import java.util.Set;
 
 public class TransportFieldCapabilitiesIndexAction
-    extends TransportSingleShardAction<FieldCapabilitiesIndexRequest, FieldCapabilitiesResponse> {
+    extends TransportSingleShardAction<FieldCapabilitiesIndexRequest,
+    FieldCapabilitiesIndexResponse> {
 
     private static final String ACTION_NAME = FieldCapabilitiesAction.NAME + "[index]";
 
@@ -51,12 +52,23 @@ public class TransportFieldCapabilitiesIndexAction
     private final IndicesService indicesService;
 
     @Inject
-    public TransportFieldCapabilitiesIndexAction(Settings settings, ClusterService clusterService,
-                                                 TransportService transportService, IndicesService indicesService,
-                                                 ThreadPool threadPool, ActionFilters actionFilters,
-                                                 IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
-            indexNameExpressionResolver, FieldCapabilitiesIndexRequest::new, ThreadPool.Names.MANAGEMENT);
+    public TransportFieldCapabilitiesIndexAction(Settings settings,
+                                                 ClusterService clusterService,
+                                                 TransportService transportService,
+                                                 IndicesService indicesService,
+                                                 ThreadPool threadPool,
+                                                 ActionFilters actionFilters,
+                                                 IndexNameExpressionResolver
+                                                         indexNameExpressionResolver) {
+        super(settings,
+            ACTION_NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            FieldCapabilitiesIndexRequest::new,
+            ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
     }
@@ -75,29 +87,36 @@ public class TransportFieldCapabilitiesIndexAction
     }
 
     @Override
-    protected FieldCapabilitiesResponse shardOperation(final FieldCapabilitiesIndexRequest request, ShardId shardId) {
-        MapperService mapperService = indicesService.indexService(shardId.getIndex()).mapperService();
+    protected FieldCapabilitiesIndexResponse
+    shardOperation(final FieldCapabilitiesIndexRequest request,
+                   ShardId shardId) {
+        MapperService mapperService =
+            indicesService.indexService(shardId.getIndex()).mapperService();
         Set<String> fieldNames = new HashSet<>();
         for (String field : request.fields()) {
             fieldNames.addAll(mapperService.simpleMatchToIndexNames(field));
         }
-        Map<String, Map<String, FieldCapabilities> > fieldCaps = new HashMap<>();
+        Map<String, FieldCapabilities> responseMap = new HashMap<>();
         for (String field : fieldNames) {
             MappedFieldType ft = mapperService.fullName(field);
-            FieldCapabilities fieldCap =
-                new FieldCapabilities(field, ft.isSearchable(), ft.isAggregatable(), ft.typeName());
-            fieldCaps.put(field, Collections.singletonMap(shardId.getIndex().getName(), fieldCap));
+            FieldCapabilities fieldCap = new FieldCapabilities(field,
+                ft.typeName(),
+                ft.isSearchable(),
+                ft.isAggregatable());
+            responseMap.put(field, fieldCap);
         }
-        return new FieldCapabilitiesResponse(fieldCaps);
+        return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), responseMap);
     }
 
     @Override
-    protected FieldCapabilitiesResponse newResponse() {
-        return new FieldCapabilitiesResponse();
+    protected FieldCapabilitiesIndexResponse newResponse() {
+        return new FieldCapabilitiesIndexResponse();
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, InternalRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_READ, request.concreteIndex());
+    protected ClusterBlockException checkRequestBlock(ClusterState state,
+                                                      InternalRequest request) {
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_READ,
+            request.concreteIndex());
     }
 }

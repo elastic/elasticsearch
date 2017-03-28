@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.fieldcaps;
+package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -31,18 +31,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-import java.util.stream.Collectors;
 
-public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
+public class TransportFieldCapabilitiesAction
+    extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
     private final ClusterService clusterService;
     private final TransportFieldCapabilitiesIndexAction shardAction;
 
@@ -51,7 +47,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                             ClusterService clusterService, ThreadPool threadPool,
                                             TransportFieldCapabilitiesIndexAction shardAction,
                                             ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver) {
+                                            IndexNameExpressionResolver
+                                                    indexNameExpressionResolver) {
         super(settings, FieldCapabilitiesAction.NAME, threadPool, transportService,
             actionFilters, indexNameExpressionResolver, FieldCapabilitiesRequest::new);
         this.clusterService = clusterService;
@@ -62,22 +59,25 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     protected void doExecute(FieldCapabilitiesRequest request,
                              final ActionListener<FieldCapabilitiesResponse> listener) {
         ClusterState clusterState = clusterService.state();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+        String[] concreteIndices =
+            indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         final AtomicInteger indexCounter = new AtomicInteger();
         final AtomicInteger completionCounter = new AtomicInteger(concreteIndices.length);
-        final AtomicReferenceArray<Object> indexResponses = new AtomicReferenceArray<>(concreteIndices.length);
+        final AtomicReferenceArray<Object> indexResponses =
+            new AtomicReferenceArray<>(concreteIndices.length);
         if (concreteIndices.length == 0) {
             listener.onResponse(new FieldCapabilitiesResponse());
         } else {
-            boolean expandPerIndex = "indices".equals(request.level());
             for (final String index : concreteIndices) {
-                FieldCapabilitiesIndexRequest indexRequest = new FieldCapabilitiesIndexRequest(request, index);
-                shardAction.execute(indexRequest, new ActionListener<FieldCapabilitiesResponse> () {
+                FieldCapabilitiesIndexRequest indexRequest =
+                    new FieldCapabilitiesIndexRequest(request, index);
+                shardAction.execute(indexRequest,
+                    new ActionListener<FieldCapabilitiesIndexResponse> () {
                     @Override
-                    public void onResponse(FieldCapabilitiesResponse result) {
+                    public void onResponse(FieldCapabilitiesIndexResponse result) {
                         indexResponses.set(indexCounter.getAndIncrement(), result);
                         if (completionCounter.decrementAndGet() == 0) {
-                            listener.onResponse(merge(expandPerIndex, indexResponses));
+                            listener.onResponse(merge(indexResponses));
                         }
                     }
 
@@ -86,7 +86,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         int index = indexCounter.getAndIncrement();
                         indexResponses.set(index, e);
                         if (completionCounter.decrementAndGet() == 0) {
-                            listener.onResponse(merge(expandPerIndex, indexResponses));
+                            listener.onResponse(merge(indexResponses));
                         }
                     }
                 });
@@ -94,45 +94,43 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    private FieldCapabilitiesResponse merge(boolean expandPerIndex, AtomicReferenceArray<Object> indexResponses) {
-        List<FieldCapabilitiesResponse> validResponses = new ArrayList<> ();
+    private FieldCapabilitiesResponse merge(AtomicReferenceArray<Object> indexResponses) {
+        Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<> ();
         for (int i = 0; i < indexResponses.length(); i++) {
             Object element = indexResponses.get(i);
-            if (element instanceof FieldCapabilitiesResponse) {
-                validResponses.add((FieldCapabilitiesResponse) element);
+            if (element instanceof FieldCapabilitiesIndexResponse == false) {
+                continue;
             }
-        }
-        final Map<String, Map<String, FieldCapabilities>> mergedResponses = new HashMap<>();
-        Set<String> fields = validResponses.stream()
-            .flatMap((r) -> r.getFieldsCaps().keySet().stream()).collect(Collectors.toSet());
-        for (String field : fields) {
-            List<Map.Entry<String, FieldCapabilities> > indexFields = validResponses.stream()
-                .filter((r) -> r.getFieldsCaps().containsKey(field))
-                .flatMap((r) -> r.getFieldsCaps().get(field).entrySet().stream())
-                .collect(Collectors.toList());
-            if (expandPerIndex) {
-                // Adds one entry per index for each field
-                final Map<String, FieldCapabilities> fieldCapMap = new HashMap<>();
-                indexFields.stream()
-                    .forEach((e) -> fieldCapMap.put(e.getKey(), e.getValue()));
-                mergedResponses.put(field, fieldCapMap);
-            } else {
-                // Merge fields from different indices in a single entry named "_all"
-                Set<String> types = new HashSet<>();
-                boolean searchable = false;
-                boolean aggregatable = false;
-                for (Map.Entry<String, FieldCapabilities> indexField : indexFields) {
-                    assert indexField.getValue().getTypes().length == 1;
-                    types.add(indexField.getValue().getTypes()[0]);
-                    searchable |= indexField.getValue().isSearchable();
-                    aggregatable |= indexField.getValue().isAggregatable();
+            FieldCapabilitiesIndexResponse response = (FieldCapabilitiesIndexResponse) element;
+            for (String field : response.get().keySet()) {
+                Map<String, FieldCapabilities.Builder> typeMap = responseMapBuilder.get(field);
+                if (typeMap == null) {
+                    typeMap = new HashMap<> ();
+                    responseMapBuilder.put(field, typeMap);
                 }
-                String[] typesArr = types.toArray(new String[types.size()]);
-                Arrays.sort(typesArr);
-                mergedResponses.put(field,
-                    Collections.singletonMap("_all", new FieldCapabilities(field, searchable, aggregatable, typesArr)));
+                FieldCapabilities fieldCap = response.getField(field);
+                FieldCapabilities.Builder builder = typeMap.get(fieldCap.getType());
+                if (builder == null) {
+                    builder = new FieldCapabilities.Builder(field, fieldCap.getType());
+                    typeMap.put(fieldCap.getType(), builder);
+                }
+                builder.add(response.getIndexName(),
+                    fieldCap.isSearchable(), fieldCap.isAggregatable());
             }
         }
-        return new FieldCapabilitiesResponse(mergedResponses);
+
+        Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
+        for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry :
+            responseMapBuilder.entrySet()) {
+            Map<String, FieldCapabilities> typeMap = new HashMap<>();
+            boolean multi = entry.getValue().size() > 1;
+            for (Map.Entry<String, FieldCapabilities.Builder> fieldEntry :
+                entry.getValue().entrySet()) {
+                typeMap.put(fieldEntry.getKey(), fieldEntry.getValue().build(multi));
+            }
+            responseMap.put(entry.getKey(), typeMap);
+        }
+
+        return new FieldCapabilitiesResponse(responseMap);
     }
 }

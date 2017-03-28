@@ -17,36 +17,61 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.fieldcaps;
+package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-/**
- * Request the capabilities of specific fields.
- */
+import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
+
 public class FieldCapabilitiesRequest extends ActionRequest implements IndicesRequest {
+    public static final ParseField FIELDS_FIELD = new ParseField("fields");
+    public static final String NAME = "field_caps_request";
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
     private String[] fields = Strings.EMPTY_ARRAY;
-    private String level = "cluster";
 
-    public FieldCapabilitiesRequest() {
+    private static ObjectParser<FieldCapabilitiesRequest, Void> PARSER = new ObjectParser<>(NAME);
+
+    static {
+        PARSER.declareStringArray(fromList(String.class, FieldCapabilitiesRequest::fields),
+            FIELDS_FIELD);
+    }
+
+    public FieldCapabilitiesRequest() {}
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        fields = in.readStringArray();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArrayNullable(fields);
+    }
+
+    public static FieldCapabilitiesRequest parseFields(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 
     /**
-     * The list of field names to retrieve.
+     * The list of field names to retrieve
      */
-    public FieldCapabilitiesRequest fields(String[] fields) {
+    public FieldCapabilitiesRequest fields(String... fields) {
         if (fields == null || fields.length == 0) {
             throw new IllegalArgumentException("specified fields can't be null or empty");
         }
@@ -59,17 +84,9 @@ public class FieldCapabilitiesRequest extends ActionRequest implements IndicesRe
     }
 
     /**
-     * Whether the field capabilities should be expanded per index or merged in a single index named "_all"
+     *
+     * The list of indices to lookup
      */
-    public String level() {
-        return level;
-    }
-
-    public FieldCapabilitiesRequest level(String level) {
-        this.level = level;
-        return this;
-    }
-
     public FieldCapabilitiesRequest indices(String[] indices) {
         this.indices = indices;
         return this;
@@ -94,27 +111,10 @@ public class FieldCapabilitiesRequest extends ActionRequest implements IndicesRe
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (fields == null || fields.length == 0) {
-            validationException = ValidateActions.addValidationError("no fields specified", validationException);
-        }
-        if ("cluster".equals(level) == false && "indices".equals(level) == false) {
             validationException =
-                ValidateActions.addValidationError("invalid level option [" + level + "]", validationException);
+                ValidateActions.addValidationError("no fields specified", validationException);
         }
         return validationException;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        fields = in.readStringArray();
-        level = in.readString();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArrayNullable(fields);
-        out.writeString(level);
     }
 
     @Override
@@ -126,8 +126,7 @@ public class FieldCapabilitiesRequest extends ActionRequest implements IndicesRe
 
         if (!Arrays.equals(indices, that.indices)) return false;
         if (!indicesOptions.equals(that.indicesOptions)) return false;
-        if (!Arrays.equals(fields, that.fields)) return false;
-        return level.equals(that.level);
+        return Arrays.equals(fields, that.fields);
     }
 
     @Override
@@ -135,7 +134,6 @@ public class FieldCapabilitiesRequest extends ActionRequest implements IndicesRe
         int result = Arrays.hashCode(indices);
         result = 31 * result + indicesOptions.hashCode();
         result = 31 * result + Arrays.hashCode(fields);
-        result = 31 * result + level.hashCode();
         return result;
     }
 }

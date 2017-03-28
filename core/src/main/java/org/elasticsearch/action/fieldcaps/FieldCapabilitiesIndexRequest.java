@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.fieldcaps;
+package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
@@ -29,7 +29,9 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-public class FieldCapabilitiesIndexRequest extends SingleShardRequest<FieldCapabilitiesIndexRequest> {
+public class FieldCapabilitiesIndexRequest
+    extends SingleShardRequest<FieldCapabilitiesIndexRequest> {
+
     private String[] fields;
 
     FieldCapabilitiesIndexRequest() {}

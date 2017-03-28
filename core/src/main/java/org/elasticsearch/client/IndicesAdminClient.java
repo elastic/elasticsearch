@@ -50,9 +50,9 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRespon
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
-import org.elasticsearch.action.admin.indices.fieldcaps.FieldCapabilitiesRequest;
-import org.elasticsearch.action.admin.indices.fieldcaps.FieldCapabilitiesRequestBuilder;
-import org.elasticsearch.action.admin.indices.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequestBuilder;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -820,21 +820,4 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Swaps the index pointed to by an alias given all provided conditions are satisfied
      */
     void rolloverIndex(RolloverRequest request, ActionListener<RolloverResponse> listener);
-
-    /**
-     * Get fields capabilities merged across one or more indices.
-     */
-    void fieldCaps(FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener);
-
-    /**
-     * Get fields capabilities merged across one or more indices.
-     */
-    FieldCapabilitiesRequestBuilder prepareFieldCaps();
-
-    /**
-     * Get fields capabilities merged across one or more indices.
-     */
-    ActionFuture<FieldCapabilitiesResponse> fieldCaps(FieldCapabilitiesRequest request);
-
-
 }

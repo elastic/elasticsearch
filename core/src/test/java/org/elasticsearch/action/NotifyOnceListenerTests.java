@@ -43,9 +43,9 @@ public class NotifyOnceListenerTests extends ESTestCase {
             }
         };
 
-        listener.innerOnResponse("response");
-        listener.innerOnResponse("wrong-response");
-        listener.innerOnFailure(new RuntimeException());
+        listener.onResponse("response");
+        listener.onResponse("wrong-response");
+        listener.onFailure(new RuntimeException());
 
         assertNull(exception.get());
         assertEquals("response", response.get());

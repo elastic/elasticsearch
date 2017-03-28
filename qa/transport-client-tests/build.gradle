@@ -3,6 +3,7 @@ apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
   testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
+  testCompile project(path: ':x-pack-elasticsearch:transport-client', configuration: 'runtime')
 }
 
 integTestCluster {

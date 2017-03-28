@@ -8,14 +8,15 @@ package org.elasticsearch.xpack;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.license.LicensingClient;
+import org.elasticsearch.license.XPackInfoResponse;
+import org.elasticsearch.xpack.action.XPackInfoAction;
+import org.elasticsearch.xpack.action.XPackInfoRequest;
+import org.elasticsearch.xpack.action.XPackInfoRequestBuilder;
+import org.elasticsearch.xpack.ml.client.MachineLearningClient;
 import org.elasticsearch.xpack.monitoring.client.MonitoringClient;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.action.XPackInfoAction;
-import org.elasticsearch.xpack.action.XPackInfoRequest;
-import org.elasticsearch.xpack.action.XPackInfoRequestBuilder;
-import org.elasticsearch.license.XPackInfoResponse;
 
 import java.util.Collections;
 import java.util.Map;
@@ -31,6 +32,7 @@ public class XPackClient {
     private final MonitoringClient monitoringClient;
     private final SecurityClient securityClient;
     private final WatcherClient watcherClient;
+    private final MachineLearningClient machineLearning;
 
     public XPackClient(Client client) {
         this.client = client;
@@ -38,6 +40,7 @@ public class XPackClient {
         this.monitoringClient = new MonitoringClient(client);
         this.securityClient = new SecurityClient(client);
         this.watcherClient = new WatcherClient(client);
+        this.machineLearning = new MachineLearningClient(client);
     }
 
     public Client es() {
@@ -58,6 +61,10 @@ public class XPackClient {
 
     public WatcherClient watcher() {
         return watcherClient;
+    }
+
+    public MachineLearningClient machineLearning() {
+        return machineLearning;
     }
 
     public XPackClient withHeaders(Map<String, String> headers) {

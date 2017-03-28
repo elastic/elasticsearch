@@ -386,26 +386,112 @@ There are two options:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET twitter/tweet/_search
 {
     "query" : {
-        "match" : {
-            "body" : {
-                "some text"
-            }
-        }
+        "match_phrase": { "message": "number 1" }
     },
-    "highlight": {
-        "fields": {
-            "body": {
-                "fragment_size": 200,
-                "fragmenter" : "simple"
+    "highlight" : {
+        "fields" : {
+            "message" : {
+                "fragment_size" : 15,
+                "number_of_fragments" : 3,
+                "fragmenter": "simple"
             }
         }
-   }
+    }
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "hits": {
+        "total": 1,
+        "max_score": 1.4818809,
+        "hits": [
+            {
+                "_index": "twitter",
+                "_type": "tweet",
+                "_id": "1",
+                "_score": 1.4818809,
+                "_source": {
+                    "user": "test",
+                    "message": "some message with the number 1",
+                    "date": "2009-11-15T14:12:12",
+                    "likes": 1
+                },
+                "highlight": {
+                    "message": [
+                        " with the <em>number</em>",
+                        " <em>1</em>"
+                    ]
+                }
+            }
+        ]
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
+
+[source,js]
+--------------------------------------------------
+GET twitter/tweet/_search
+{
+    "query" : {
+        "match_phrase": { "message": "number 1" }
+    },
+    "highlight" : {
+        "fields" : {
+            "message" : {
+                "fragment_size" : 15,
+                "number_of_fragments" : 3,
+                "fragmenter": "span"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "hits": {
+        "total": 1,
+        "max_score": 1.4818809,
+        "hits": [
+            {
+                "_index": "twitter",
+                "_type": "tweet",
+                "_id": "1",
+                "_score": 1.4818809,
+                "_source": {
+                    "user": "test",
+                    "message": "some message with the number 1",
+                    "date": "2009-11-15T14:12:12",
+                    "likes": 1
+                },
+                "highlight": {
+                    "message": [
+                        "some message with the <em>number</em> <em>1</em>"
+                    ]
+                }
+            }
+        ]
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
 
 If the `number_of_fragments` option is set to `0`,
 `NullFragmenter` is used which does not fragment the text at all.

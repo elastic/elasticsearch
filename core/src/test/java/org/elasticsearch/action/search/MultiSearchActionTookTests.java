@@ -91,31 +91,27 @@ public class MultiSearchActionTookTests extends ESTestCase {
         clusterService.close();
     }
     
-    private enum Clock {
-        CONTROLLED,
-        SYSTEM;
-    }
-
     //Unit conversion using a controller clock
     public void testTookWithControlledClock() throws Exception {
-        runTestTook(Clock.CONTROLLED);
+        runTestTook(true);
     }
 
     //Using {@link System#nanoTime()}
     public void testTookWithRealClock() throws Exception {
-        runTestTook(Clock.SYSTEM);
+        runTestTook(false);
     }
 
-    private void runTestTook(Clock clock) throws Exception {
+    private void runTestTook(boolean controlledClock) throws Exception {
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest().add(new SearchRequest());
         AtomicLong expected = new AtomicLong();
         
-        TransportMultiSearchAction action = createTransportMultiSearchAction(clock, expected);
+        TransportMultiSearchAction action = 
+                createTransportMultiSearchAction(controlledClock, expected);
         
         action.doExecute(multiSearchRequest, new ActionListener<MultiSearchResponse>() {
             @Override
             public void onResponse(MultiSearchResponse multiSearchResponse) {
-                if (clock == Clock.CONTROLLED) {
+                if (controlledClock) {
                     assertThat(
                             TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS),
                             equalTo(multiSearchResponse.getTook().getMillis()));
@@ -132,7 +128,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
         });
     }
 
-    private TransportMultiSearchAction createTransportMultiSearchAction(Clock clock,
+    private TransportMultiSearchAction createTransportMultiSearchAction(boolean controlledClock,
             AtomicLong expected) {
         Settings settings = Settings.builder()
                 .put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
@@ -176,7 +172,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
             }
         };
 
-        if (clock == Clock.CONTROLLED) {
+        if (controlledClock) {
             return new TransportMultiSearchAction(threadPool, actionFilters, transportService,
                     clusterService, searchAction, resolver, availableProcessors, expected::get) {
                 @Override

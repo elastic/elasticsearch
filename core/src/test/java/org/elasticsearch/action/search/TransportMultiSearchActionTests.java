@@ -63,18 +63,15 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
         ThreadPool threadPool = new ThreadPool(settings);
         TaskManager taskManager = mock(TaskManager.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, null, null,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(),
-                        UUIDs.randomBase64UUID()), null) {
+        TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null) {
             @Override
             public TaskManager getTaskManager() {
                 return taskManager;
             }
         };
         ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state())
-                .thenReturn(ClusterState.builder(new ClusterName("test")).build());
+        when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).build());
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(Settings.EMPTY);
 
         // Keep track of the number of concurrent searches started by multi search api,
@@ -83,26 +80,20 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         AtomicInteger counter = new AtomicInteger();
         AtomicReference<AssertionError> errorHolder = new AtomicReference<>();
         // randomize whether or not requests are executed asynchronously
-        final List<String> threadPoolNames = Arrays.asList(ThreadPool.Names.GENERIC,
-                ThreadPool.Names.SAME);
+        final List<String> threadPoolNames = Arrays.asList(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME);
         Randomness.shuffle(threadPoolNames);
         final ExecutorService commonExecutor = threadPool.executor(threadPoolNames.get(0));
         final ExecutorService rarelyExecutor = threadPool.executor(threadPoolNames.get(1));
-        final Set<SearchRequest> requests = Collections
-                .newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
-        TransportAction<SearchRequest, SearchResponse> searchAction = 
-                new TransportAction<SearchRequest, SearchResponse>(
-                        Settings.EMPTY, "action", threadPool, actionFilters, resolver,
-                        taskManager) {
+        final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
+        TransportAction<SearchRequest, SearchResponse> searchAction = new TransportAction<SearchRequest, SearchResponse>
+                (Settings.EMPTY, "action", threadPool, actionFilters, resolver, taskManager) {
             @Override
-            protected void doExecute(SearchRequest request, 
-                    ActionListener<SearchResponse> listener) {
+            protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
                 requests.add(request);
                 int currentConcurrentSearches = counter.incrementAndGet();
                 if (currentConcurrentSearches > maxAllowedConcurrentSearches) {
-                    errorHolder.set(new AssertionError("Current concurrent search ["
-                            + currentConcurrentSearches + "] is higher than is allowed ["
-                            + maxAllowedConcurrentSearches + "]"));
+                    errorHolder.set(new AssertionError("Current concurrent search [" + currentConcurrentSearches +
+                            "] is higher than is allowed [" + maxAllowedConcurrentSearches + "]"));
                 }
                 final ExecutorService executorService = rarely() ? rarelyExecutor : commonExecutor;
                 executorService.execute(() -> {
@@ -111,17 +102,16 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 });
             }
         };
-
-        TransportMultiSearchAction action = new TransportMultiSearchAction(threadPool,
-                actionFilters, transportService, clusterService, searchAction, resolver, 10,
+        
+        TransportMultiSearchAction action = 
+                new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, searchAction, resolver, 10,
                 System::nanoTime);
 
         // Execute the multi search api and fail if we find an error after executing:
         try {
             /*
-             * Allow for a large number of search requests in a single batch as
-             * previous implementations could stack overflow if the number of
-             * requests in a single batch was large
+             * Allow for a large number of search requests in a single batch as previous implementations could stack overflow if the number
+             * of requests in a single batch was large
              */
             int numSearchRequests = scaledRandomIntBetween(1, 8192);
             MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
@@ -143,16 +133,13 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         int numDataNodes = randomIntBetween(1, 10);
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         for (int i = 0; i < numDataNodes; i++) {
-            builder.add(new DiscoveryNode("_id" + i, buildNewFakeTransportAddress(),
-                    Collections.emptyMap(), Collections.singleton(DiscoveryNode.Role.DATA),
-                    Version.CURRENT));
+            builder.add(new DiscoveryNode("_id" + i, buildNewFakeTransportAddress(), Collections.emptyMap(),
+                    Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT));
         }
-        builder.add(
-                new DiscoveryNode("master", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                        Collections.singleton(DiscoveryNode.Role.MASTER), Version.CURRENT));
-        builder.add(
-                new DiscoveryNode("ingest", buildNewFakeTransportAddress(), Collections.emptyMap(),
-                        Collections.singleton(DiscoveryNode.Role.INGEST), Version.CURRENT));
+        builder.add(new DiscoveryNode("master", buildNewFakeTransportAddress(), Collections.emptyMap(),
+                Collections.singleton(DiscoveryNode.Role.MASTER), Version.CURRENT));
+        builder.add(new DiscoveryNode("ingest", buildNewFakeTransportAddress(), Collections.emptyMap(),
+                Collections.singleton(DiscoveryNode.Role.INGEST), Version.CURRENT));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).nodes(builder).build();
         int result = TransportMultiSearchAction.defaultMaxConcurrentSearches(10, state);
@@ -162,4 +149,5 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         result = TransportMultiSearchAction.defaultMaxConcurrentSearches(10, state);
         assertThat(result, equalTo(1));
     }
+
 }

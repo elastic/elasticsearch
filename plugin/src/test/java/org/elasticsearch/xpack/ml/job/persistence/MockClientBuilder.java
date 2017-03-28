@@ -175,7 +175,7 @@ public class MockClientBuilder {
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public MockClientBuilder createIndexRequest(String index, ArgumentCaptor<CreateIndexRequest> requestCapture) {
+    public MockClientBuilder createIndexRequest(ArgumentCaptor<CreateIndexRequest> requestCapture) {
 
         doAnswer(invocation -> {
             CreateIndexResponse response = new CreateIndexResponse(true, true) {};

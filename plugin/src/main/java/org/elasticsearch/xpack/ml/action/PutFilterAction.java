@@ -9,9 +9,11 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
@@ -128,6 +130,7 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
             super(client, action, new Request());
         }
     }
+
     public static class Response extends AcknowledgedResponse {
 
         public Response() {
@@ -151,16 +154,16 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
     // extends TransportMasterNodeAction, because we will store in cluster state.
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
-        private final TransportIndexAction transportIndexAction;
+        private final TransportBulkAction transportBulkAction;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                ThreadPool threadPool, ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver,
-                TransportIndexAction transportIndexAction) {
+                               ThreadPool threadPool, ActionFilters actionFilters,
+                               IndexNameExpressionResolver indexNameExpressionResolver,
+                               TransportBulkAction transportBulkAction) {
             super(settings, PutFilterAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
-            this.transportIndexAction = transportIndexAction;
+            this.transportBulkAction = transportBulkAction;
         }
 
         @Override
@@ -180,16 +183,17 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
             IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.ML_META_INDEX, MlFilter.TYPE.getPreferredName(), filterId);
             XContentBuilder builder = XContentFactory.jsonBuilder();
             indexRequest.source(filter.toXContent(builder, ToXContent.EMPTY_PARAMS));
-            transportIndexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
+            BulkRequest bulkRequest = new BulkRequest().add(indexRequest);
+
+            transportBulkAction.execute(bulkRequest, new ActionListener<BulkResponse>() {
                 @Override
-                public void onResponse(IndexResponse indexResponse) {
+                public void onResponse(BulkResponse indexResponse) {
                     listener.onResponse(new Response());
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("Could not create filter with ID [" + filterId + "]", e);
-                    throw new ResourceNotFoundException("Could not create filter with ID [" + filterId + "]", e);
+                    listener.onFailure(new ResourceNotFoundException("Could not create filter with ID [" + filterId + "]", e));
                 }
             });
         }

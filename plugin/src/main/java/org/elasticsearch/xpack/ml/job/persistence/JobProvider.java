@@ -131,7 +131,7 @@ public class JobProvider {
         final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
                     client.admin().indices().prepareAliases()
                             .addAlias(indexName, aliasName, QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
-                            // we could return 'sucess && r.isAcknowledged()' instead of 'true', but that makes
+                            // we could return 'success && r.isAcknowledged()' instead of 'true', but that makes
                             // testing not possible as we can't create IndicesAliasesResponse instance or
                             // mock IndicesAliasesResponse#isAcknowledged()
                             .execute(ActionListener.wrap(r -> finalListener.onResponse(true),

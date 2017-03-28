@@ -86,7 +86,7 @@ public class JobProviderTests extends ESTestCase {
 
         MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
         ArgumentCaptor<CreateIndexRequest> captor = ArgumentCaptor.forClass(CreateIndexRequest.class);
-        clientBuilder.createIndexRequest(resultsIndexName, captor);
+        clientBuilder.createIndexRequest(captor);
         clientBuilder.prepareAlias(resultsIndexName, AnomalyDetectorsIndex.jobResultsAliasedName("foo"), jobFilter);
 
         Job.Builder job = buildJobBuilder("foo");
@@ -195,7 +195,7 @@ public class JobProviderTests extends ESTestCase {
 
         MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
         ArgumentCaptor<CreateIndexRequest> captor = ArgumentCaptor.forClass(CreateIndexRequest.class);
-        clientBuilder.createIndexRequest(indexName, captor);
+        clientBuilder.createIndexRequest(captor);
         clientBuilder.prepareAlias(indexName, aliasName, jobFilter);
         clientBuilder.preparePutMapping(mock(PutMappingResponse.class), Result.TYPE.getPreferredName());
 

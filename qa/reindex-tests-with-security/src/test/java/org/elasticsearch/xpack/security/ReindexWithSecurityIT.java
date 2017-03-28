@@ -9,6 +9,7 @@ import org.elasticsearch.action.bulk.byscroll.BulkByScrollResponse;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexPlugin;
@@ -48,14 +49,23 @@ public class ReindexWithSecurityIT extends SecurityIntegTestCase {
     public void testDeleteByQuery() {
         createIndicesWithRandomAliases("test1", "test2", "test3");
 
-        BulkByScrollResponse response = DeleteByQueryAction.INSTANCE.newRequestBuilder(client()).source("test1", "test2").get();
+        BulkByScrollResponse response = DeleteByQueryAction.INSTANCE.newRequestBuilder(client())
+                .source("test1", "test2")
+                .filter(QueryBuilders.matchAllQuery())
+                .get();
         assertNotNull(response);
 
-        response = DeleteByQueryAction.INSTANCE.newRequestBuilder(client()).source("test*").get();
+        response = DeleteByQueryAction.INSTANCE.newRequestBuilder(client())
+                .source("test*")
+                .filter(QueryBuilders.matchAllQuery())
+                .get();
         assertNotNull(response);
 
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
-                () -> DeleteByQueryAction.INSTANCE.newRequestBuilder(client()).source("test1", "index1").get());
+                () -> DeleteByQueryAction.INSTANCE.newRequestBuilder(client())
+                        .source("test1", "index1")
+                        .filter(QueryBuilders.matchAllQuery())
+                        .get());
         assertEquals("no such index", e.getMessage());
     }
 

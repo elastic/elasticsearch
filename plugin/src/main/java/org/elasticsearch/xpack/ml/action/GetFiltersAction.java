@@ -16,15 +16,12 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -43,6 +40,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
@@ -219,34 +217,25 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
         }
     }
 
-    public static class TransportAction extends TransportMasterNodeReadAction<Request, Response> {
+    public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         private final TransportGetAction transportGetAction;
         private final TransportSearchAction transportSearchAction;
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                               ThreadPool threadPool, ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver,
-                               TransportGetAction transportGetAction, TransportSearchAction transportSearchAction) {
-            super(settings, GetFiltersAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        public TransportAction(Settings settings, ThreadPool threadPool,
+                TransportService transportService, ActionFilters actionFilters,
+                IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider,
+                JobManager jobManager, Client client, TransportGetAction transportGetAction,
+                TransportSearchAction transportSearchAction) {
+            super(settings, NAME, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.transportGetAction = transportGetAction;
             this.transportSearchAction = transportSearchAction;
         }
 
         @Override
-        protected String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        protected Response newResponse() {
-            return new Response();
-        }
-
-        @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        protected void doExecute(Request request, ActionListener<Response> listener) {
             final String filterId = request.getFilterId();
             if (!Strings.isNullOrEmpty(filterId)) {
                 getFilter(filterId, listener);
@@ -255,11 +244,6 @@ public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFilter
             } else {
                 throw new IllegalStateException("Both filterId and pageParams are null");
             }
-        }
-
-        @Override
-        protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
         }
 
         private void getFilter(String filterId, ActionListener<Response> listener) {

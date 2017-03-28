@@ -14,14 +14,13 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -33,10 +32,12 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlMetadata;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -143,34 +144,28 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
         }
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
+    public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         private final TransportBulkAction transportAction;
+        private final ClusterService clusterService;
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                               ThreadPool threadPool, ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver,
-                               TransportBulkAction transportAction) {
-            super(settings, DeleteFilterAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        public TransportAction(Settings settings, ThreadPool threadPool,
+                TransportService transportService, ActionFilters actionFilters,
+                IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider,
+                JobManager jobManager, Client client, ClusterService clusterService,
+                TransportBulkAction transportAction) {
+            super(settings, NAME, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new);
+            this.clusterService = clusterService;
             this.transportAction = transportAction;
         }
 
         @Override
-        protected String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        protected Response newResponse() {
-            return new Response();
-        }
-
-        @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        protected void doExecute(Request request, ActionListener<Response> listener) {
 
             final String filterId = request.getFilterId();
+            ClusterState state = clusterService.state();
             MlMetadata currentMlMetadata = state.metaData().custom(MlMetadata.TYPE);
             Map<String, Job> jobs = currentMlMetadata.getJobs();
             List<String> currentlyUsedBy = new ArrayList<>();
@@ -209,11 +204,6 @@ public class DeleteFilterAction extends Action<DeleteFilterAction.Request, Delet
                     listener.onFailure(new IllegalStateException("Could not delete filter with ID [" + filterId + "]", e));
                 }
             });
-        }
-
-        @Override
-        protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
         }
     }
 }

@@ -13,18 +13,14 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,8 +31,10 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -151,38 +149,31 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
 
     }
 
-    // extends TransportMasterNodeAction, because we will store in cluster state.
-    public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
+    public static class TransportAction extends HandledTransportAction<Request, Response> {
 
         private final TransportBulkAction transportBulkAction;
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                               ThreadPool threadPool, ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver,
-                               TransportBulkAction transportBulkAction) {
-            super(settings, PutFilterAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        public TransportAction(Settings settings, ThreadPool threadPool,
+                TransportService transportService, ActionFilters actionFilters,
+                IndexNameExpressionResolver indexNameExpressionResolver, JobProvider jobProvider,
+                JobManager jobManager, Client client, TransportBulkAction transportBulkAction) {
+            super(settings, NAME, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.transportBulkAction = transportBulkAction;
         }
 
         @Override
-        protected String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        protected Response newResponse() {
-            return new Response();
-        }
-
-        @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        protected void doExecute(Request request, ActionListener<Response> listener) {
             MlFilter filter = request.getFilter();
             final String filterId = filter.getId();
             IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.ML_META_INDEX, MlFilter.TYPE.getPreferredName(), filterId);
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            indexRequest.source(filter.toXContent(builder, ToXContent.EMPTY_PARAMS));
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                indexRequest.source(filter.toXContent(builder, ToXContent.EMPTY_PARAMS));
+            } catch (IOException e) {
+                throw new IllegalStateException(
+                        "Failed to serialise filter with id [" + filter.getId() + "]", e);
+            }
             BulkRequest bulkRequest = new BulkRequest().add(indexRequest);
 
             transportBulkAction.execute(bulkRequest, new ActionListener<BulkResponse>() {
@@ -196,11 +187,6 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
                     listener.onFailure(new ResourceNotFoundException("Could not create filter with ID [" + filterId + "]", e));
                 }
             });
-        }
-
-        @Override
-        protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
         }
     }
 }

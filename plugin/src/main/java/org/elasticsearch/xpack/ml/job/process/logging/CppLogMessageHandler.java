@@ -220,7 +220,6 @@ public class CppLogMessageHandler implements Closeable {
             } else {
                 LOGGER.log(level, "[{}/{}] [{}@{}] {}", msg.getLogger(), latestPid, msg.getFile(), msg.getLine(), latestMessage);
             }
-            // TODO: Could send the message for indexing instead of or as well as logging it
         } catch (IOException e) {
             if (jobId != null) {
                 LOGGER.warn(new ParameterizedMessage("[{}] Failed to parse C++ log message: {}",

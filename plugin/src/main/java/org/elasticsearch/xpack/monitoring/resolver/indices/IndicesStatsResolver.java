@@ -53,11 +53,6 @@ public class IndicesStatsResolver extends MonitoringIndexNameResolver.Timestampe
     }
 
     @Override
-    public String type(IndicesStatsMonitoringDoc document) {
-        return TYPE;
-    }
-
-    @Override
     public Set<String> filters() {
         return FILTERS;
     }

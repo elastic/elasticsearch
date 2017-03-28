@@ -59,20 +59,11 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
 
     @Override
     protected NodeStatsMonitoringDoc newMonitoringDoc() {
-        NodeStatsMonitoringDoc doc = new NodeStatsMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
-        doc.setClusterUUID(randomAsciiOfLength(5));
-        doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
-        doc.setNodeMaster(randomBoolean());
-        doc.setNodeId(UUID.randomUUID().toString());
-        doc.setMlockall(randomBoolean());
-        doc.setNodeStats(randomNodeStats());
+        NodeStatsMonitoringDoc doc = new NodeStatsMonitoringDoc(randomMonitoringId(),
+                randomAsciiOfLength(2), randomAsciiOfLength(5),
+                new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                randomBoolean(), randomNodeStats(), randomBoolean());
         return doc;
-    }
-
-    @Override
-    protected boolean checkResolvedId() {
-        return false;
     }
 
     @Override
@@ -111,12 +102,9 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
 
     public void testNodeStatsResolver() throws IOException {
         NodeStatsMonitoringDoc doc = newMonitoringDoc();
-        doc.setTimestamp(1437580442979L);
 
         NodeStatsResolver resolver = newResolver();
         assertThat(resolver.index(doc), equalTo(".monitoring-es-" + MonitoringTemplateUtils.TEMPLATE_VERSION + "-2015.07.22"));
-        assertThat(resolver.type(doc), equalTo(NodeStatsResolver.TYPE));
-        assertThat(resolver.id(doc), nullValue());
 
         assertSource(resolver.source(doc, XContentType.JSON),
                 Sets.newHashSet(
@@ -161,7 +149,8 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
                 new ThreadPoolStats.Stats(ThreadPool.Names.SEARCH, 0, 0, 0, 0, 0, 0),
                 new ThreadPoolStats.Stats(InternalWatchExecutor.THREAD_POOL_NAME, 0, 0, 0, 0, 0, 0)
         );
-        return new NodeStats(new DiscoveryNode("node_0", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT), 0,
+        return new NodeStats(new DiscoveryNode("node_0", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                1437580442979L,
                 new NodeIndicesStats(new CommonStats(), statsByShard), OsProbe.getInstance().osStats(),
                 ProcessProbe.getInstance().processStats(), JvmStats.jvmStats(),
                 new ThreadPoolStats(threadPoolStats),

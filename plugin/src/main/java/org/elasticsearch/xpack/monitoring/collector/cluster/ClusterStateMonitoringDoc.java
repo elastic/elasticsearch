@@ -7,30 +7,33 @@ package org.elasticsearch.xpack.monitoring.collector.cluster;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
+/**
+ * Monitoring document collected by {@link ClusterStateCollector} that contains the
+ * current cluster state.
+ */
 public class ClusterStateMonitoringDoc extends MonitoringDoc {
 
-    private ClusterState clusterState;
-    private ClusterHealthStatus status;
+    public static final String TYPE = "cluster_state";
 
-    public ClusterStateMonitoringDoc(String monitoringId, String monitoringVersion) {
-        super(monitoringId, monitoringVersion);
+    private final ClusterState clusterState;
+    private final ClusterHealthStatus status;
+
+    public ClusterStateMonitoringDoc(String monitoringId, String monitoringVersion,
+                                     String clusterUUID, long timestamp, DiscoveryNode node,
+                                     ClusterState clusterState, ClusterHealthStatus status) {
+        super(monitoringId, monitoringVersion, TYPE, null, clusterUUID, timestamp, node);
+        this.clusterState = clusterState;
+        this.status = status;
     }
 
     public ClusterState getClusterState() {
         return clusterState;
     }
 
-    public void setClusterState(ClusterState clusterState) {
-        this.clusterState = clusterState;
-    }
-
     public ClusterHealthStatus getStatus() {
         return status;
-    }
-
-    public void setStatus(ClusterHealthStatus status) {
-        this.status = status;
     }
 }

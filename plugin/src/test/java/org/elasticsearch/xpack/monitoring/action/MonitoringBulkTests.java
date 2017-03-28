@@ -14,6 +14,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -61,9 +62,10 @@ public class MonitoringBulkTests extends MonitoringIntegTestCase {
 
         int numDocs = scaledRandomIntBetween(100, 5000);
         for (int i = 0; i < numDocs; i++) {
-            MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(), MonitoringTemplateUtils.TEMPLATE_VERSION);
-            doc.setType(randomFrom(types));
-            doc.setSource(jsonBuilder().startObject().field("num", numDocs).endObject().bytes(), XContentType.JSON);
+            MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(),
+                    MonitoringTemplateUtils.TEMPLATE_VERSION, null, randomFrom(types), null,
+                    jsonBuilder().startObject().field("num", numDocs).endObject().bytes(),
+                    XContentType.JSON);
             requestBuilder.add(doc);
         }
 
@@ -113,10 +115,13 @@ public class MonitoringBulkTests extends MonitoringIntegTestCase {
 
                         int numDocs = scaledRandomIntBetween(10, 50);
                         for (int k = 0; k < numDocs; k++) {
+                            BytesReference source =  jsonBuilder().startObject()
+                                                                    .field("num", k)
+                                                                  .endObject().bytes();
                             MonitoringBulkDoc doc =
-                                    new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(), MonitoringTemplateUtils.TEMPLATE_VERSION);
-                            doc.setType("concurrent");
-                            doc.setSource(jsonBuilder().startObject().field("num", k).endObject().bytes(), XContentType.JSON);
+                                    new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(),
+                                            MonitoringTemplateUtils.TEMPLATE_VERSION, null,
+                                            "concurrent", null, source, XContentType.JSON);
                             requestBuilder.add(doc);
                         }
 
@@ -150,15 +155,16 @@ public class MonitoringBulkTests extends MonitoringIntegTestCase {
         int unsupportedDocs = 0;
 
         for (int i = 0; i < totalDocs; i++) {
+            BytesReference source = jsonBuilder().startObject().field("num", i).endObject().bytes();
             MonitoringBulkDoc doc;
             if (randomBoolean()) {
-                doc = new MonitoringBulkDoc("unknown", MonitoringTemplateUtils.TEMPLATE_VERSION);
+                doc = new MonitoringBulkDoc("unknown", MonitoringTemplateUtils.TEMPLATE_VERSION,
+                        null, randomFrom(types), null, source, XContentType.JSON);
                 unsupportedDocs++;
             } else {
-                doc = new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(), MonitoringTemplateUtils.TEMPLATE_VERSION);
+                doc = new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(), MonitoringTemplateUtils.TEMPLATE_VERSION,
+                        null, randomFrom(types), null, source, XContentType.JSON);
             }
-            doc.setType(randomFrom(types));
-            doc.setSource(jsonBuilder().startObject().field("num", i).endObject().bytes(), XContentType.JSON);
             requestBuilder.add(doc);
         }
 

@@ -6,61 +6,59 @@
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
 import java.util.List;
 
+/**
+ * Monitoring document collected by {@link ClusterStatsCollector} and indexed in the
+ * monitoring data index. It contains all information about the current cluster, mostly
+ * for enabling/disabling features on Kibana side according to the license and also for
+ * the "phone home" feature.
+ */
 public class ClusterInfoMonitoringDoc extends MonitoringDoc {
 
-    private String clusterName;
-    private String version;
-    private License license;
-    private List<XPackFeatureSet.Usage> usage;
-    private ClusterStatsResponse clusterStats;
+    public static final String TYPE = "cluster_info";
 
-    public ClusterInfoMonitoringDoc(String monitoringId, String monitoringVersion) {
-        super(monitoringId, monitoringVersion);
+    private final String clusterName;
+    private final String version;
+    private final License license;
+    private final List<XPackFeatureSet.Usage> usage;
+    private final ClusterStatsResponse clusterStats;
+
+    public ClusterInfoMonitoringDoc(String monitoringId, String monitoringVersion,
+                                    String clusterUUID, long timestamp, DiscoveryNode node,
+                                    String clusterName, String version, License license,
+                                    List<XPackFeatureSet.Usage> usage,
+                                    ClusterStatsResponse clusterStats) {
+        super(monitoringId, monitoringVersion, TYPE, clusterUUID, clusterUUID, timestamp, node);
+        this.clusterName = clusterName;
+        this.version = version;
+        this.license = license;
+        this.usage = usage;
+        this.clusterStats = clusterStats;
     }
 
     public String getClusterName() {
         return clusterName;
     }
 
-    public void setClusterName(String clusterName) {
-        this.clusterName = clusterName;
-    }
-
     public String getVersion() {
         return version;
-    }
-
-    public void setVersion(String version) {
-        this.version = version;
     }
 
     public License getLicense() {
         return license;
     }
 
-    public void setLicense(License license) {
-        this.license = license;
-    }
-
     public List<XPackFeatureSet.Usage> getUsage() {
         return usage;
     }
 
-    public void setUsage(List<XPackFeatureSet.Usage> usage) {
-        this.usage = usage;
-    }
-
     public ClusterStatsResponse getClusterStats() {
         return clusterStats;
-    }
-
-    public void setClusterStats(ClusterStatsResponse clusterStats) {
-        this.clusterStats = clusterStats;
     }
 }

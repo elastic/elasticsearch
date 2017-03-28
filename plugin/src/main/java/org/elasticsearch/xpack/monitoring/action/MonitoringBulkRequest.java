@@ -117,7 +117,7 @@ public class MonitoringBulkRequest extends ActionRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        docs.addAll(in.readList(MonitoringBulkDoc::new));
+        docs.addAll(in.readList(MonitoringBulkDoc::readFrom));
     }
 
     @Override

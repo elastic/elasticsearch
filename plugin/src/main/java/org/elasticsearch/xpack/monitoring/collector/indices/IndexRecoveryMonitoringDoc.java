@@ -6,21 +6,26 @@
 package org.elasticsearch.xpack.monitoring.collector.indices;
 
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
+/**
+ * Monitoring document collected by {@link IndexRecoveryCollector}
+ */
 public class IndexRecoveryMonitoringDoc extends MonitoringDoc {
 
-    private RecoveryResponse recoveryResponse;
+    public static final String TYPE = "index_recovery";
 
-    public IndexRecoveryMonitoringDoc(String monitoringId, String monitoringVersion) {
-        super(monitoringId, monitoringVersion);
+    private final RecoveryResponse recoveryResponse;
+
+    public IndexRecoveryMonitoringDoc(String monitoringId, String monitoringVersion,
+                                      String clusterUUID, long timestamp, DiscoveryNode node,
+                                      RecoveryResponse recoveryResponse) {
+        super(monitoringId, monitoringVersion, TYPE, null, clusterUUID, timestamp, node);
+        this.recoveryResponse = recoveryResponse;
     }
 
     public RecoveryResponse getRecoveryResponse() {
         return recoveryResponse;
-    }
-
-    public void setRecoveryResponse(RecoveryResponse recoveryResponse) {
-        this.recoveryResponse = recoveryResponse;
     }
 }

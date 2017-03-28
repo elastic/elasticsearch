@@ -38,34 +38,23 @@ import java.util.UUID;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class IndexStatsResolverTests extends MonitoringIndexNameResolverTestCase<IndexStatsMonitoringDoc, IndexStatsResolver> {
 
     @Override
     protected IndexStatsMonitoringDoc newMonitoringDoc() {
-        IndexStatsMonitoringDoc doc = new IndexStatsMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
-        doc.setClusterUUID(randomAsciiOfLength(5));
-        doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
-        doc.setIndexStats(randomIndexStats());
+        IndexStatsMonitoringDoc doc = new IndexStatsMonitoringDoc(randomMonitoringId(),
+                randomAsciiOfLength(2), randomAsciiOfLength(5), 1437580442979L,
+                new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                randomIndexStats());
         return doc;
-    }
-
-    @Override
-    protected boolean checkResolvedId() {
-        return false;
     }
 
     public void testIndexStatsResolver() throws Exception {
         IndexStatsMonitoringDoc doc = newMonitoringDoc();
-        doc.setTimestamp(1437580442979L);
-        doc.setSourceNode(new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
 
         IndexStatsResolver resolver = newResolver();
         assertThat(resolver.index(doc), equalTo(".monitoring-es-" + MonitoringTemplateUtils.TEMPLATE_VERSION + "-2015.07.22"));
-        assertThat(resolver.type(doc), equalTo(IndexStatsResolver.TYPE));
-        assertThat(resolver.id(doc), nullValue());
 
         assertSource(resolver.source(doc, XContentType.JSON),
                 Sets.newHashSet(

@@ -42,11 +42,6 @@ public class ClusterStateResolver extends MonitoringIndexNameResolver.Timestampe
     }
 
     @Override
-    public String type(ClusterStateMonitoringDoc document) {
-        return TYPE;
-    }
-
-    @Override
     public Set<String> filters() {
         return FILTERS;
     }

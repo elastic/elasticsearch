@@ -43,16 +43,6 @@ public class ShardsResolver extends MonitoringIndexNameResolver.Timestamped<Shar
     }
 
     @Override
-    public String type(ShardMonitoringDoc document) {
-        return TYPE;
-    }
-
-    @Override
-    public String id(ShardMonitoringDoc document) {
-        return id(document.getClusterStateUUID(), document.getShardRouting());
-    }
-
-    @Override
     public Set<String> filters() {
         return FILTERS;
     }
@@ -72,32 +62,5 @@ public class ShardsResolver extends MonitoringIndexNameResolver.Timestamped<Shar
     static final class Fields {
         static final String SHARD = "shard";
         static final String STATE_UUID = "state_uuid";
-    }
-
-    /**
-     * Compute an id that has the format:
-     *
-     * {state_uuid}:{node_id || '_na'}:{index}:{shard}:{'p' || 'r'}
-     */
-    static String id(String stateUUID, ShardRouting shardRouting) {
-        StringBuilder builder = new StringBuilder();
-        builder.append(stateUUID);
-        builder.append(':');
-        if (shardRouting.assignedToNode()) {
-            builder.append(shardRouting.currentNodeId());
-        } else {
-            builder.append("_na");
-        }
-        builder.append(':');
-        builder.append(shardRouting.getIndexName());
-        builder.append(':');
-        builder.append(Integer.valueOf(shardRouting.id()));
-        builder.append(':');
-        if (shardRouting.primary()) {
-            builder.append("p");
-        } else {
-            builder.append("r");
-        }
-        return builder.toString();
     }
 }

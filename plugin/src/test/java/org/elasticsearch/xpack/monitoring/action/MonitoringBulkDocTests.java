@@ -7,10 +7,12 @@ package org.elasticsearch.xpack.monitoring.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
 import java.io.IOException;
@@ -28,11 +30,6 @@ public class MonitoringBulkDocTests extends ESTestCase {
         for (int i = 0; i < iterations; i++) {
             MonitoringBulkDoc doc = newRandomMonitoringBulkDoc();
 
-            boolean hasSourceNode = randomBoolean();
-            if (hasSourceNode) {
-                doc.setSourceNode(newRandomSourceNode());
-            }
-
             BytesStreamOutput output = new BytesStreamOutput();
             Version outputVersion = randomVersion(random());
             output.setVersion(outputVersion);
@@ -40,7 +37,7 @@ public class MonitoringBulkDocTests extends ESTestCase {
 
             StreamInput streamInput = output.bytes().streamInput();
             streamInput.setVersion(outputVersion);
-            MonitoringBulkDoc doc2 = new MonitoringBulkDoc(streamInput);
+            MonitoringBulkDoc doc2 = MonitoringBulkDoc.readFrom(streamInput);
 
             assertThat(doc2.getMonitoringId(), equalTo(doc.getMonitoringId()));
             assertThat(doc2.getMonitoringVersion(), equalTo(doc.getMonitoringVersion()));
@@ -65,7 +62,7 @@ public class MonitoringBulkDocTests extends ESTestCase {
                 Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
         try (StreamInput in = StreamInput.wrap(data)) {
             in.setVersion(version);
-            MonitoringBulkDoc bulkDoc = new MonitoringBulkDoc(in);
+            MonitoringBulkDoc bulkDoc = MonitoringBulkDoc.readFrom(in);
             assertEquals(XContentType.JSON, bulkDoc.getXContentType());
             assertEquals("mId", bulkDoc.getMonitoringId());
             assertEquals("5.1.2", bulkDoc.getMonitoringVersion());
@@ -82,24 +79,23 @@ public class MonitoringBulkDocTests extends ESTestCase {
         }
     }
 
-    private MonitoringBulkDoc newRandomMonitoringBulkDoc() {
-        MonitoringBulkDoc doc = new MonitoringBulkDoc(randomAsciiOfLength(2), randomAsciiOfLength(2));
-        if (frequently()) {
-            doc.setClusterUUID(randomAsciiOfLength(5));
-            doc.setType(randomAsciiOfLength(5));
-        }
-        if (randomBoolean()) {
-            doc.setTimestamp(System.currentTimeMillis());
-            doc.setSource(new BytesArray("{\"key\" : \"value\"}"), XContentType.JSON);
-        }
-        if (rarely()) {
-            doc.setIndex(MonitoringIndex.DATA);
-            doc.setId(randomAsciiOfLength(2));
-        }
-        return doc;
+    public static MonitoringBulkDoc newRandomMonitoringBulkDoc() {
+        String monitoringId = randomFrom(MonitoredSystem.values()).getSystem();
+        String monitoringVersion = randomVersion(random()).toString();
+        MonitoringIndex index = randomBoolean() ? randomFrom(MonitoringIndex.values()) : null;
+        String type = randomFrom("type1", "type2", "type3");
+        String id = randomBoolean() ? randomAsciiOfLength(3) : null;
+        String clusterUUID = randomBoolean() ? randomAsciiOfLength(5) : null;
+        long timestamp = randomBoolean() ? randomNonNegativeLong() : 0L;
+        MonitoringDoc.Node sourceNode = randomBoolean() ? newRandomSourceNode() : null;
+        BytesReference source =  new BytesArray("{\"key\" : \"value\"}");
+        XContentType xContentType = XContentType.JSON;
+
+        return new MonitoringBulkDoc(monitoringId, monitoringVersion, index, type, id,
+                clusterUUID, timestamp, sourceNode, source, xContentType);
     }
 
-    private MonitoringDoc.Node newRandomSourceNode() {
+    public static MonitoringDoc.Node newRandomSourceNode() {
         String uuid = null;
         String name = null;
         String ip = null;

@@ -19,19 +19,18 @@ import java.util.UUID;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DiscoveryNodeResolverTests extends MonitoringIndexNameResolverTestCase<DiscoveryNodeMonitoringDoc, DiscoveryNodeResolver> {
 
     @Override
     protected DiscoveryNodeMonitoringDoc newMonitoringDoc() {
-        DiscoveryNodeMonitoringDoc doc = new DiscoveryNodeMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
-        doc.setClusterUUID(randomAsciiOfLength(5));
-        doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
-        doc.setNode(new DiscoveryNode(randomAsciiOfLength(3), UUID.randomUUID().toString(),
-                buildNewFakeTransportAddress(), emptyMap(), emptySet(),
-                VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), Version.CURRENT)));
+        DiscoveryNodeMonitoringDoc doc = new DiscoveryNodeMonitoringDoc(randomMonitoringId(),
+                randomAsciiOfLength(2), randomAsciiOfLength(5), 1437580442979L,
+                new DiscoveryNode(randomAsciiOfLength(3), UUID.randomUUID().toString(),
+                    buildNewFakeTransportAddress(), emptyMap(), emptySet(),
+                    randomVersionBetween(random(), VersionUtils.getFirstVersion(), Version.CURRENT)));
         return doc;
     }
 
@@ -42,12 +41,9 @@ public class DiscoveryNodeResolverTests extends MonitoringIndexNameResolverTestC
 
     public void testDiscoveryNodeResolver() throws Exception {
         DiscoveryNodeMonitoringDoc doc = newMonitoringDoc();
-        doc.setTimestamp(1437580442979L);
 
         DiscoveryNodeResolver resolver = newResolver();
         assertThat(resolver.index(doc), equalTo(".monitoring-data-" + MonitoringTemplateUtils.TEMPLATE_VERSION));
-        assertThat(resolver.type(doc), equalTo(DiscoveryNodeResolver.TYPE));
-        assertThat(resolver.id(doc), equalTo(doc.getNode().getId()));
 
         assertSource(resolver.source(doc, XContentType.JSON),
                 Sets.newHashSet(

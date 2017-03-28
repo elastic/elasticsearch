@@ -5,31 +5,33 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
+/**
+ * Monitoring document collected by {@link ClusterStateCollector} that contains the id of
+ * every node of the cluster.
+ */
 public class ClusterStateNodeMonitoringDoc extends MonitoringDoc {
 
-    private String stateUUID;
-    private String nodeId;
+    public static final String TYPE = "node";
 
-    public ClusterStateNodeMonitoringDoc(String monitoringId, String monitoringVersion) {
-        super(monitoringId, monitoringVersion);
+    private final String stateUUID;
+    private final String nodeId;
+
+    public ClusterStateNodeMonitoringDoc(String monitoringId, String monitoringVersion,
+                                         String clusterUUID, long timestamp, DiscoveryNode node,
+                                         String stateUUID, String nodeId) {
+        super(monitoringId, monitoringVersion, TYPE, null, clusterUUID, timestamp, node);
+        this.stateUUID = stateUUID;
+        this.nodeId = nodeId;
     }
 
     public String getStateUUID() {
         return stateUUID;
     }
 
-    public void setStateUUID(String stateUUID) {
-        this.stateUUID = stateUUID;
-    }
-
     public String getNodeId() {
         return nodeId;
     }
-
-    public void setNodeId(String nodeId) {
-        this.nodeId = nodeId;
-    }
 }
-

@@ -11,6 +11,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.ExportException;
@@ -61,7 +62,10 @@ public class LocalBulk extends ExportBulk {
 
             try {
                 MonitoringIndexNameResolver<MonitoringDoc> resolver = resolvers.getResolver(doc);
-                IndexRequest request = new IndexRequest(resolver.index(doc), resolver.type(doc), resolver.id(doc));
+                IndexRequest request = new IndexRequest(resolver.index(doc), doc.getType());
+                if (Strings.hasText(doc.getId())) {
+                    request.id(doc.getId());
+                }
                 request.source(resolver.source(doc, XContentType.SMILE), XContentType.SMILE);
 
                 // allow the use of ingest pipelines to be completely optional

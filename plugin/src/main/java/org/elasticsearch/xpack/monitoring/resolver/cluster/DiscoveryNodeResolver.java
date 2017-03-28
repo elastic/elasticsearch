@@ -19,16 +19,6 @@ public class DiscoveryNodeResolver extends MonitoringIndexNameResolver.Data<Disc
     public static final String TYPE = "node";
 
     @Override
-    public String type(DiscoveryNodeMonitoringDoc document) {
-        return TYPE;
-    }
-
-    @Override
-    public String id(DiscoveryNodeMonitoringDoc document) {
-        return document.getNode().getId();
-    }
-
-    @Override
     protected void buildXContent(DiscoveryNodeMonitoringDoc document,
                                  XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.NODE);

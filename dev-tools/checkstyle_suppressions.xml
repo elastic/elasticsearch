@@ -286,13 +286,6 @@
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]monitoring[/\\]cleaner[/\\]CleanerService.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]monitoring[/\\]client[/\\]MonitoringClient.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]monitoring[/\\]collector[/\\]Collector.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]monitoring[/\\]collector[/\\]cluster[/\\]ClusterStateCollector.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]monitoring[/\\]collector[/\\]cluster[/\\]ClusterStatsCollector.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]monitoring[/\\]collector[/\\]indices[/\\]IndexRecoveryCollector.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]monitoring[/\\]collector[/\\]indices[/\\]IndexStatsCollector.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]monitoring[/\\]collector[/\\]indices[/\\]IndicesStatsCollector.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]monitoring[/\\]collector[/\\]node[/\\]NodeStatsCollector.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]monitoring[/\\]collector[/\\]shards[/\\]ShardsCollector.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]monitoring[/\\]exporter[/\\]ExportBulk.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]monitoring[/\\]exporter[/\\]Exporter.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]monitoring[/\\]exporter[/\\]Exporters.java" checks="LineLength" />

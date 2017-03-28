@@ -18,10 +18,13 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.test.ESTestCase;
@@ -53,7 +56,6 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -245,11 +247,19 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
     private static MonitoringBulkRequest randomRequest(final int numDocs) throws IOException {
         MonitoringBulkRequest request = new MonitoringBulkRequest();
         for (int i = 0; i < numDocs; i++) {
-            MonitoringBulkDoc doc = new MonitoringBulkDoc(randomFrom(MonitoredSystem.values()).getSystem(),
-                    randomVersion(random()).toString());
-            doc.setType(randomFrom("type1", "type2"));
-            doc.setSource(jsonBuilder().startObject().field("num", i).endObject().bytes(), XContentType.JSON);
-            request.add(doc);
+            String monitoringId = randomFrom(MonitoredSystem.values()).getSystem();
+            String monitoringVersion = randomVersion(random()).toString();
+            MonitoringIndex index = randomBoolean() ? randomFrom(MonitoringIndex.values()) : null;
+            String type = randomFrom("type1", "type2", "type3");
+            String id = randomAsciiOfLength(10);
+
+            BytesReference source;
+            XContentType xContentType = randomFrom(XContentType.values());
+            try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+                source = builder.startObject().field("key", i).endObject().bytes();
+            }
+            request.add(new MonitoringBulkDoc(monitoringId, monitoringVersion, index, type, id,
+                    null, 0L, null, source, xContentType));
         }
         return request;
     }
@@ -293,9 +303,5 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
             consumer.accept(docs);
             listener.onResponse(null);
         }
-    }
-
-    public static void setState(ClusterService clusterService, ClusterState clusterState) {
-
     }
 }

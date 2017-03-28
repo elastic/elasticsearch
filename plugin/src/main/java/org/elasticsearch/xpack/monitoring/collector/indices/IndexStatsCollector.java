@@ -26,18 +26,17 @@ import java.util.List;
 /**
  * Collector for indices statistics.
  * <p>
- * This collector runs on the master node only and collect a {@link IndexStatsMonitoringDoc} document
- * for each existing index in the cluster.
+ * This collector runs on the master node only and collect a {@link IndexStatsMonitoringDoc}
+ * document for each existing index in the cluster.
  */
 public class IndexStatsCollector extends Collector {
-
-    public static final String NAME = "index-stats-collector";
 
     private final Client client;
 
     public IndexStatsCollector(Settings settings, ClusterService clusterService,
-                               MonitoringSettings monitoringSettings, XPackLicenseState licenseState, InternalClient client) {
-        super(settings, NAME, clusterService, monitoringSettings, licenseState);
+                               MonitoringSettings monitoringSettings,
+                               XPackLicenseState licenseState, InternalClient client) {
+        super(settings, "index-stats", clusterService, monitoringSettings, licenseState);
         this.client = client;
     }
 
@@ -70,12 +69,8 @@ public class IndexStatsCollector extends Collector {
         DiscoveryNode sourceNode = localNode();
 
         for (IndexStats indexStats : indicesStats.getIndices().values()) {
-            IndexStatsMonitoringDoc indexStatsDoc = new IndexStatsMonitoringDoc(monitoringId(), monitoringVersion());
-            indexStatsDoc.setClusterUUID(clusterUUID);
-            indexStatsDoc.setTimestamp(timestamp);
-            indexStatsDoc.setSourceNode(sourceNode);
-            indexStatsDoc.setIndexStats(indexStats);
-            results.add(indexStatsDoc);
+            results.add(new IndexStatsMonitoringDoc(monitoringId(), monitoringVersion(),
+                    clusterUUID, timestamp, sourceNode, indexStats));
         }
         return Collections.unmodifiableCollection(results);
     }

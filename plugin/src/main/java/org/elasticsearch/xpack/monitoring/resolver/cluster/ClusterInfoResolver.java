@@ -22,18 +22,6 @@ import java.util.Map;
 
 public class ClusterInfoResolver extends MonitoringIndexNameResolver.Data<ClusterInfoMonitoringDoc> {
 
-    public static final String TYPE = "cluster_info";
-
-    @Override
-    public String type(ClusterInfoMonitoringDoc document) {
-        return TYPE;
-    }
-
-    @Override
-    public String id(ClusterInfoMonitoringDoc document) {
-        return document.getClusterUUID();
-    }
-
     @Override
     protected void buildXContent(ClusterInfoMonitoringDoc document, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.field("cluster_name", document.getClusterName());

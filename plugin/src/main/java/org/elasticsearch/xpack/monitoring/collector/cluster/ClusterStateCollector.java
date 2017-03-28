@@ -5,11 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,21 +18,25 @@ import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.security.InternalClient;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
 /**
  * Collector for cluster state.
  * <p>
- * This collector runs on the master node only and collects {@link ClusterStateMonitoringDoc} document
- * at a given frequency.
+ * This collector runs on the master node only and collects {@link ClusterStateMonitoringDoc}
+ * document at a given frequency.
  */
 public class ClusterStateCollector extends Collector {
-
-    public static final String NAME = "cluster-state-collector";
 
     private final Client client;
 
     public ClusterStateCollector(Settings settings, ClusterService clusterService,
-                                 MonitoringSettings monitoringSettings, XPackLicenseState licenseState, InternalClient client) {
-        super(settings, NAME, clusterService, monitoringSettings, licenseState);
+                                 MonitoringSettings monitoringSettings,
+                                 XPackLicenseState licenseState, InternalClient client) {
+        super(settings, "cluster-state", clusterService, monitoringSettings, licenseState);
         this.client = client;
     }
 
@@ -56,36 +55,23 @@ public class ClusterStateCollector extends Collector {
         long timestamp = System.currentTimeMillis();
         DiscoveryNode sourceNode = localNode();
 
-        ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().get(monitoringSettings.clusterStateTimeout());
+        ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth()
+                .get(monitoringSettings.clusterStateTimeout());
 
         // Adds a cluster_state document with associated status
-        ClusterStateMonitoringDoc clusterStateDoc = new ClusterStateMonitoringDoc(monitoringId(), monitoringVersion());
-        clusterStateDoc.setClusterUUID(clusterUUID);
-        clusterStateDoc.setTimestamp(timestamp);
-        clusterStateDoc.setSourceNode(sourceNode);
-        clusterStateDoc.setClusterState(clusterState);
-        clusterStateDoc.setStatus(clusterHealth.getStatus());
-        results.add(clusterStateDoc);
+        results.add(new ClusterStateMonitoringDoc(monitoringId(), monitoringVersion(), clusterUUID,
+                timestamp, sourceNode, clusterState, clusterHealth.getStatus()));
 
         DiscoveryNodes nodes = clusterState.nodes();
         if (nodes != null) {
             for (DiscoveryNode node : nodes) {
-                // Adds a document for every node in the monitoring timestamped index (type "nodes")
-                ClusterStateNodeMonitoringDoc clusterStateNodeDoc = new ClusterStateNodeMonitoringDoc(monitoringId(), monitoringVersion());
-                clusterStateNodeDoc.setClusterUUID(clusterUUID);;
-                clusterStateNodeDoc.setTimestamp(timestamp);
-                clusterStateNodeDoc.setSourceNode(sourceNode);
-                clusterStateNodeDoc.setStateUUID(stateUUID);
-                clusterStateNodeDoc.setNodeId(node.getId());
-                results.add(clusterStateNodeDoc);
+                // Adds a document for every node in the monitoring timestamped index
+                results.add(new ClusterStateNodeMonitoringDoc(monitoringId(), monitoringVersion(),
+                        clusterUUID, timestamp, sourceNode, stateUUID, node.getId()));
 
-                // Adds a document for every node in the monitoring data index (type "node")
-                DiscoveryNodeMonitoringDoc discoveryNodeDoc = new DiscoveryNodeMonitoringDoc(monitoringId(), monitoringVersion());
-                discoveryNodeDoc.setClusterUUID(clusterUUID);
-                discoveryNodeDoc.setTimestamp(timestamp);
-                discoveryNodeDoc.setSourceNode(node);
-                discoveryNodeDoc.setNode(node);
-                results.add(discoveryNodeDoc);
+                // Adds a document for every node in the monitoring data index
+                results.add(new DiscoveryNodeMonitoringDoc(monitoringId(), monitoringVersion(),
+                        clusterUUID, timestamp, node));
             }
         }
 

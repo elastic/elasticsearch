@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -33,20 +34,20 @@ public class MonitoringBulkRequestTests extends ESTestCase {
     }
 
     public void testValidateRequestSingleDoc() {
-        MonitoringBulkDoc doc = new MonitoringBulkDoc(null, null);
+        MonitoringBulkDoc doc = new MonitoringBulkDoc(null, null, null, null, null, null, null);
 
         assertValidationErrors(new MonitoringBulkRequest().add(doc), hasItems("monitored system id is missing for monitoring document [0]",
                 "monitored system API version is missing for monitoring document [0]",
                 "type is missing for monitoring document [0]",
                 "source is missing for monitoring document [0]"));
 
-        doc = new MonitoringBulkDoc("id", null);
+        doc = new MonitoringBulkDoc("id", null, null, null, null, null, null);
         assertValidationErrors(new MonitoringBulkRequest().add(doc),
                 hasItems("monitored system API version is missing for monitoring document [0]",
                 "type is missing for monitoring document [0]",
                 "source is missing for monitoring document [0]"));
 
-        doc = new MonitoringBulkDoc("id", "version");
+        doc = new MonitoringBulkDoc("id", "version", null, null, null, null, null);
         assertValidationErrors(new MonitoringBulkRequest().add(doc), hasItems("type is missing for monitoring document [0]",
                 "source is missing for monitoring document [0]"));
 
@@ -62,32 +63,33 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         MonitoringBulkRequest request = new MonitoringBulkRequest();
 
         // Doc0 is complete
-        MonitoringBulkDoc doc0 = new MonitoringBulkDoc(randomAsciiOfLength(2), randomAsciiOfLength(2));
-        doc0.setType(randomAsciiOfLength(5));
-        doc0.setSource(SOURCE, XContentType.JSON);
+        MonitoringBulkDoc doc0 = new MonitoringBulkDoc(randomAsciiOfLength(2),
+                randomAsciiOfLength(2), MonitoringIndex.TIMESTAMPED, randomAsciiOfLength(5),
+                null, SOURCE, XContentType.JSON);
         request.add(doc0);
 
         // Doc1 has no type
-        MonitoringBulkDoc doc1 = new MonitoringBulkDoc(randomAsciiOfLength(2), randomAsciiOfLength(2));
-        doc1.setSource(SOURCE, XContentType.JSON);
+        MonitoringBulkDoc doc1 = new MonitoringBulkDoc(randomAsciiOfLength(2),
+                randomAsciiOfLength(2), MonitoringIndex.TIMESTAMPED, null,
+                null, SOURCE, XContentType.JSON);
         request.add(doc1);
 
         // Doc2 has no source
-        MonitoringBulkDoc doc2 = new MonitoringBulkDoc(randomAsciiOfLength(2), randomAsciiOfLength(2));
-        doc2.setType(randomAsciiOfLength(5));
-        doc2.setSource(BytesArray.EMPTY, XContentType.JSON);
+        MonitoringBulkDoc doc2 = new MonitoringBulkDoc(randomAsciiOfLength(2),
+                randomAsciiOfLength(2), MonitoringIndex.TIMESTAMPED, randomAsciiOfLength(5),
+                null, BytesArray.EMPTY, XContentType.JSON);
         request.add(doc2);
 
         // Doc3 has no version
-        MonitoringBulkDoc doc3 = new MonitoringBulkDoc(randomAsciiOfLength(2), null);
-        doc3.setType(randomAsciiOfLength(5));
-        doc3.setSource(SOURCE, XContentType.JSON);
+        MonitoringBulkDoc doc3 = new MonitoringBulkDoc(randomAsciiOfLength(2),
+                null, MonitoringIndex.TIMESTAMPED, randomAsciiOfLength(5),
+                null, SOURCE, XContentType.JSON);
         request.add(doc3);
 
         // Doc4 has no id
-        MonitoringBulkDoc doc4 = new MonitoringBulkDoc(null, randomAsciiOfLength(2));
-        doc4.setType(randomAsciiOfLength(5));
-        doc4.setSource(SOURCE, XContentType.JSON);
+        MonitoringBulkDoc doc4 = new MonitoringBulkDoc(null,
+                randomAsciiOfLength(2), MonitoringIndex.TIMESTAMPED, randomAsciiOfLength(5),
+                null, SOURCE, XContentType.JSON);
         request.add(doc4);
 
         assertValidationErrors(request, hasItems("type is missing for monitoring document [1]",
@@ -101,7 +103,9 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         MonitoringBulkRequest request = new MonitoringBulkRequest();
         final int nbDocs = randomIntBetween(1, 20);
         for (int i = 0; i < nbDocs; i++) {
-            request.add(new MonitoringBulkDoc(String.valueOf(i), String.valueOf(i)));
+            request.add(new MonitoringBulkDoc(String.valueOf(i), String.valueOf(i),
+                    randomFrom(MonitoringIndex.values()), randomAsciiOfLength(5),
+                    randomAsciiOfLength(5), SOURCE, XContentType.JSON));
         }
         assertThat(request.getDocs(), hasSize(nbDocs));
     }
@@ -162,19 +166,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
 
         int numDocs = iterations(10, 30);
         for (int i = 0; i < numDocs; i++) {
-            MonitoringBulkDoc doc = new MonitoringBulkDoc(randomAsciiOfLength(2), randomVersion(random()).toString());
-            doc.setType(randomFrom("type1", "type2", "type3"));
-            doc.setSource(SOURCE, XContentType.JSON);
-            if (randomBoolean()) {
-                doc.setIndex(MonitoringIndex.DATA);
-            }
-            if (randomBoolean()) {
-                doc.setId(randomAsciiOfLength(3));
-            }
-            if (rarely()) {
-                doc.setClusterUUID(randomAsciiOfLength(5));
-            }
-            request.add(doc);
+            request.add(MonitoringBulkDocTests.newRandomMonitoringBulkDoc());
         }
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -195,10 +187,13 @@ public class MonitoringBulkRequestTests extends ESTestCase {
             assertThat(doc2.getMonitoringId(), equalTo(doc.getMonitoringId()));
             assertThat(doc2.getMonitoringVersion(), equalTo(doc.getMonitoringVersion()));
             assertThat(doc2.getClusterUUID(), equalTo(doc.getClusterUUID()));
+            assertThat(doc2.getTimestamp(), equalTo(doc.getTimestamp()));
+            assertThat(doc2.getSourceNode(), equalTo(doc.getSourceNode()));
             assertThat(doc2.getIndex(), equalTo(doc.getIndex()));
             assertThat(doc2.getType(), equalTo(doc.getType()));
             assertThat(doc2.getId(), equalTo(doc.getId()));
             assertThat(doc2.getSource(), equalTo(doc.getSource()));
+            assertThat(doc2.getXContentType(), equalTo(doc.getXContentType()));
         }
     }
 

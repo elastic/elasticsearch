@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.License;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterInfoMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
@@ -65,14 +66,14 @@ public class ClusterInfoTests extends MonitoringIntegTestCase {
         awaitIndexExists(dataIndex);
 
         // waiting for cluster info collector to collect data
-        awaitMonitoringDocsCount(equalTo(1L), ClusterInfoResolver.TYPE);
+        awaitMonitoringDocsCount(equalTo(1L), ClusterInfoMonitoringDoc.TYPE);
 
         // retrieving cluster info document
-        GetResponse response = client().prepareGet(dataIndex, ClusterInfoResolver.TYPE, clusterUUID).get();
+        GetResponse response = client().prepareGet(dataIndex, ClusterInfoMonitoringDoc.TYPE, clusterUUID).get();
         assertTrue("cluster_info document does not exist in data index", response.isExists());
 
         assertThat(response.getIndex(), equalTo(dataIndex));
-        assertThat(response.getType(), equalTo(ClusterInfoResolver.TYPE));
+        assertThat(response.getType(), equalTo(ClusterInfoMonitoringDoc.TYPE));
         assertThat(response.getId(), equalTo(clusterUUID));
 
         Map<String, Object> source = response.getSource();
@@ -139,7 +140,7 @@ public class ClusterInfoTests extends MonitoringIntegTestCase {
 
         assertHitCount(client().prepareSearch().setSize(0)
                 .setIndices(dataIndex)
-                .setTypes(ClusterInfoResolver.TYPE)
+                .setTypes(ClusterInfoMonitoringDoc.TYPE)
                 .setQuery(
                     QueryBuilders.boolQuery()
                         .should(QueryBuilders.matchQuery(License.Fields.STATUS, License.Status.ACTIVE.label()))

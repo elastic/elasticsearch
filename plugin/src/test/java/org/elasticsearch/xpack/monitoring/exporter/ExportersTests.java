@@ -256,7 +256,9 @@ public class ExportersTests extends ESTestCase {
                 protected void doRun() throws Exception {
                     List<MonitoringDoc> docs = new ArrayList<>();
                     for (int n = 0; n < threadDocs; n++) {
-                        docs.add(new MonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString()));
+                        docs.add(new MonitoringDoc(MonitoredSystem.ES.getSystem(),
+                                Version.CURRENT.toString(), null, null, null, 0L,
+                                (MonitoringDoc.Node) null));
                     }
                     barrier.await(10, TimeUnit.SECONDS);
                     exporters.export(docs, ActionListener.wrap(

@@ -28,34 +28,25 @@ public class ClusterStateResolverTests extends MonitoringIndexNameResolverTestCa
 
     @Override
     protected ClusterStateMonitoringDoc newMonitoringDoc() {
-        ClusterStateMonitoringDoc doc = new ClusterStateMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
-        doc.setClusterUUID(randomAsciiOfLength(5));
-        doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
-        doc.setStatus(randomFrom(ClusterHealthStatus.values()));
-
         DiscoveryNode masterNode = new DiscoveryNode("master", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNode otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).masterNodeId(masterNode.getId()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
-        doc.setClusterState(clusterState);
-        return doc;
-    }
 
-    @Override
-    protected boolean checkResolvedId() {
-        return false;
+        ClusterStateMonitoringDoc doc = new ClusterStateMonitoringDoc(randomMonitoringId(),
+                randomAsciiOfLength(2), randomAsciiOfLength(5), 1437580442979L,
+                new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                clusterState, randomFrom(ClusterHealthStatus.values()));
+
+        return doc;
     }
 
     public void testClusterStateResolver() throws IOException {
         ClusterStateMonitoringDoc doc = newMonitoringDoc();
-        doc.setTimestamp(1437580442979L);
 
         ClusterStateResolver resolver = newResolver();
         assertThat(resolver.index(doc), equalTo(".monitoring-es-" + MonitoringTemplateUtils.TEMPLATE_VERSION + "-2015.07.22"));
-        assertThat(resolver.type(doc), equalTo(ClusterStateResolver.TYPE));
-        assertThat(resolver.id(doc), nullValue());
 
         assertSource(resolver.source(doc, XContentType.JSON),
                 Sets.newHashSet(

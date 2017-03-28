@@ -6,21 +6,26 @@
 package org.elasticsearch.xpack.monitoring.collector.indices;
 
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
+/**
+ * Monitoring document collected by {@link IndexStatsCollector}
+ */
 public class IndexStatsMonitoringDoc extends MonitoringDoc {
 
-    private IndexStats indexStats;
+    public static final String TYPE = "index_stats";
 
-    public IndexStatsMonitoringDoc(String monitoringId, String monitoringVersion) {
-        super(monitoringId, monitoringVersion);
+    private final IndexStats indexStats;
+
+    public IndexStatsMonitoringDoc(String monitoringId, String monitoringVersion,
+                                   String clusterUUID, long timestamp, DiscoveryNode node,
+                                   IndexStats indexStats) {
+        super(monitoringId, monitoringVersion, TYPE, null, clusterUUID, timestamp, node);
+        this.indexStats = indexStats;
     }
 
     public IndexStats getIndexStats() {
         return indexStats;
-    }
-
-    public void setIndexStats(IndexStats indexStats) {
-        this.indexStats = indexStats;
     }
 }

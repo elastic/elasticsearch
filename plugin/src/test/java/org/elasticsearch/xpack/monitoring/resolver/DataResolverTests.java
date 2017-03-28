@@ -27,21 +27,10 @@ public class DataResolverTests extends MonitoringIndexNameResolverTestCase {
 
     @Override
     protected MonitoringDoc newMonitoringDoc() {
-        MonitoringDoc doc = new MonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
-        doc.setClusterUUID(randomAsciiOfLength(5));
-        doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
+        MonitoringDoc doc = new MonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2),
+                null, null, randomAsciiOfLength(5), Math.abs(randomLong()),
+                new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
         return doc;
-    }
-
-    @Override
-    protected boolean checkResolvedType() {
-        return false;
-    }
-
-    @Override
-    protected boolean checkResolvedId() {
-        return false;
     }
 
     @Override
@@ -55,16 +44,6 @@ public class DataResolverTests extends MonitoringIndexNameResolverTestCase {
 
     private MonitoringIndexNameResolver.Data<MonitoringDoc> newDataResolver() {
         return new MonitoringIndexNameResolver.Data<MonitoringDoc>() {
-            @Override
-            public String type(MonitoringDoc document) {
-                return null;
-            }
-
-            @Override
-            public String id(MonitoringDoc document) {
-                return null;
-            }
-
             @Override
             protected void buildXContent(MonitoringDoc document, XContentBuilder builder, ToXContent.Params params) throws IOException {
             }

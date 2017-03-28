@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -42,15 +43,14 @@ import java.util.List;
  */
 public class ClusterStatsCollector extends Collector {
 
-    public static final String NAME = "cluster-stats-collector";
-
     private final LicenseService licenseService;
     private final Client client;
 
     public ClusterStatsCollector(Settings settings, ClusterService clusterService,
-                                 MonitoringSettings monitoringSettings, XPackLicenseState licenseState, InternalClient client,
+                                 MonitoringSettings monitoringSettings,
+                                 XPackLicenseState licenseState, InternalClient client,
                                  LicenseService licenseService) {
-        super(settings, NAME, clusterService, monitoringSettings, licenseState);
+        super(settings, "cluster-stats", clusterService, monitoringSettings, licenseState);
         this.client = client;
         this.licenseService = licenseService;
     }
@@ -64,37 +64,32 @@ public class ClusterStatsCollector extends Collector {
     @Override
     protected Collection<MonitoringDoc> doCollect() throws Exception {
         final Supplier<ClusterStatsResponse> clusterStatsSupplier =
-                () -> client.admin().cluster().prepareClusterStats().get(monitoringSettings.clusterStatsTimeout());
-        final Supplier<List<XPackFeatureSet.Usage>> usageSupplier = () -> new XPackUsageRequestBuilder(client).get().getUsages();
+                () -> client.admin().cluster().prepareClusterStats()
+                        .get(monitoringSettings.clusterStatsTimeout());
+        final Supplier<List<XPackFeatureSet.Usage>> usageSupplier =
+                () -> new XPackUsageRequestBuilder(client).get().getUsages();
 
         final ClusterStatsResponse clusterStats = clusterStatsSupplier.get();
 
         final long timestamp = System.currentTimeMillis();
         final String clusterUUID = clusterUUID();
         final DiscoveryNode sourceNode = localNode();
+        final String clusterName = clusterService.getClusterName().value();
+        final String version = Version.CURRENT.toString();
+        final License license = licenseService.getLicense();
+        final List<XPackFeatureSet.Usage> usage = collect(usageSupplier);
 
         final List<MonitoringDoc> results = new ArrayList<>(1);
 
         // Adds a cluster info document
-        ClusterInfoMonitoringDoc clusterInfoDoc = new ClusterInfoMonitoringDoc(monitoringId(), monitoringVersion());
-        clusterInfoDoc.setClusterUUID(clusterUUID);
-        clusterInfoDoc.setTimestamp(timestamp);
-        clusterInfoDoc.setSourceNode(sourceNode);
-        clusterInfoDoc.setClusterName(clusterService.getClusterName().value());
-        clusterInfoDoc.setVersion(Version.CURRENT.toString());
-        clusterInfoDoc.setLicense(licenseService.getLicense());
-        clusterInfoDoc.setClusterStats(clusterStats);
-        clusterInfoDoc.setUsage(collect(usageSupplier));
-        results.add(clusterInfoDoc);
+        results.add(new ClusterInfoMonitoringDoc(monitoringId(), monitoringVersion(),
+                clusterUUID, timestamp, sourceNode, clusterName, version, license, usage,
+                clusterStats));
 
         // Adds a cluster stats document
         if (super.shouldCollect()) {
-            ClusterStatsMonitoringDoc clusterStatsDoc = new ClusterStatsMonitoringDoc(monitoringId(), monitoringVersion());
-            clusterStatsDoc.setClusterUUID(clusterUUID);
-            clusterStatsDoc.setTimestamp(timestamp);
-            clusterStatsDoc.setSourceNode(sourceNode);
-            clusterStatsDoc.setClusterStats(clusterStats);
-            results.add(clusterStatsDoc);
+            results.add(new ClusterStatsMonitoringDoc(monitoringId(), monitoringVersion(),
+                    clusterUUID, timestamp, sourceNode, clusterStats));
         }
 
         return Collections.unmodifiableCollection(results);
@@ -106,8 +101,8 @@ public class ClusterStatsCollector extends Collector {
             return supplier.get();
         } catch (ElasticsearchSecurityException e) {
             if (LicenseUtils.isLicenseExpiredException(e)) {
-                logger.trace((Supplier<?>) () -> new ParameterizedMessage(
-                                "collector [{}] - unable to collect data because of expired license", name()), e);
+                logger.trace((Supplier<?>) () -> new ParameterizedMessage("collector [{}] - " +
+                        "unable to collect data because of expired license", name()), e);
             } else {
                 throw e;
             }

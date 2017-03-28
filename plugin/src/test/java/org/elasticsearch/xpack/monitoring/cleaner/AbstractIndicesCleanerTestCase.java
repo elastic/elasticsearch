@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.monitoring.cleaner;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
@@ -23,6 +22,8 @@ import org.joda.time.DateTimeZone;
 import java.util.Locale;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.elasticsearch.xpack.monitoring.action.MonitoringBulkDocTests.newRandomSourceNode;
 
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTestCase {
@@ -185,7 +186,16 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
     }
 
     private MonitoringDoc randomMonitoringDoc() {
-        return new MonitoringDoc(randomFrom(MonitoredSystem.values()).getSystem(), VersionUtils.randomVersion(random()).toString());
+        String monitoringId = randomFrom(MonitoredSystem.values()).getSystem();
+        String monitoringVersion = randomVersion(random()).toString();
+        String type = randomFrom("type1", "type2", "type3");
+        String id = randomBoolean() ? randomAsciiOfLength(3) : null;
+        String clusterUUID = randomBoolean() ? randomAsciiOfLength(5) : null;
+        long timestamp = randomBoolean() ? randomNonNegativeLong() : 0L;
+        MonitoringDoc.Node sourceNode = randomBoolean() ? newRandomSourceNode() : null;
+
+        return new MonitoringDoc(monitoringId, monitoringVersion, type, id, clusterUUID,
+                timestamp, sourceNode);
     }
 
     /**
@@ -213,8 +223,8 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
      * Creates a monitoring timestamped index using a given template version.
      */
     protected void createTimestampedIndex(DateTime creationDate, String version) {
-        MonitoringDoc monitoringDoc = randomMonitoringDoc();
-        monitoringDoc.setTimestamp(creationDate.getMillis());
+        MonitoringDoc monitoringDoc = new MonitoringDoc(null, null, null, null, null,
+                creationDate.getMillis(), (MonitoringDoc.Node) null);
 
         MonitoringIndexNameResolver.Timestamped resolver =
                 new MockTimestampedIndexNameResolver(MonitoredSystem.ES, Settings.EMPTY, version);

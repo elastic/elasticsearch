@@ -36,22 +36,10 @@ public class TimestampedResolverTests extends MonitoringIndexNameResolverTestCas
 
     @Override
     protected MonitoringDoc newMonitoringDoc() {
-        MonitoringDoc doc = new MonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
-        doc.setClusterUUID(randomAsciiOfLength(5));
-        doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode(randomAsciiOfLength(5), buildNewFakeTransportAddress(),
-                emptyMap(), emptySet(), Version.CURRENT));
+        MonitoringDoc doc = new MonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2),
+                null, null, randomAsciiOfLength(5), 1437580442979L,  // "2015-07-22T15:54:02.979Z"
+                new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
         return doc;
-    }
-
-    @Override
-    protected boolean checkResolvedType() {
-        return false;
-    }
-
-    @Override
-    protected boolean checkResolvedId() {
-        return false;
     }
 
     @Override
@@ -61,7 +49,6 @@ public class TimestampedResolverTests extends MonitoringIndexNameResolverTestCas
 
     public void testTimestampedResolver() {
         final MonitoringDoc doc = newMonitoringDoc();
-        doc.setTimestamp(1437580442979L); // "2015-07-22T15:54:02.979Z"
 
         for (String format : Arrays.asList("YYYY", "YYYY.MM", "YYYY.MM.dd", "YYYY.MM.dd-HH", "YYYY.MM.dd-HH.mm", "YYYY.MM.dd-HH.mm.SS")) {
             Settings settings = Settings.EMPTY;
@@ -82,11 +69,6 @@ public class TimestampedResolverTests extends MonitoringIndexNameResolverTestCas
 
     private MonitoringIndexNameResolver.Timestamped<MonitoringDoc> newTimestampedResolver(MonitoredSystem id, Settings settings) {
         return new MonitoringIndexNameResolver.Timestamped<MonitoringDoc>(id, settings) {
-            @Override
-            public String type(MonitoringDoc document) {
-                return null;
-            }
-
             @Override
             protected void buildXContent(MonitoringDoc document, XContentBuilder builder, ToXContent.Params params) throws IOException {
                 // noop

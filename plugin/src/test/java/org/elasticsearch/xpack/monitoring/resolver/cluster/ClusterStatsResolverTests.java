@@ -61,27 +61,18 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
 
     @Override
     protected ClusterStatsMonitoringDoc newMonitoringDoc() {
-        ClusterStatsMonitoringDoc doc = new ClusterStatsMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
-        doc.setClusterUUID(randomAsciiOfLength(5));
-        doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
-        doc.setClusterStats(randomClusterStats());
+        ClusterStatsMonitoringDoc doc = new ClusterStatsMonitoringDoc(randomMonitoringId(),
+                randomAsciiOfLength(2), randomAsciiOfLength(5), 1437580442979L,
+                new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                randomClusterStats());
         return doc;
-    }
-
-    @Override
-    protected boolean checkResolvedId() {
-        return false;
     }
 
     public void testClusterStatsResolver() throws Exception {
         ClusterStatsMonitoringDoc doc = newMonitoringDoc();
-        doc.setTimestamp(1437580442979L);
 
         ClusterStatsResolver resolver = newResolver();
         assertThat(resolver.index(doc), equalTo(".monitoring-es-" + MonitoringTemplateUtils.TEMPLATE_VERSION + "-2015.07.22"));
-        assertThat(resolver.type(doc), equalTo(ClusterStatsResolver.TYPE));
-        assertThat(resolver.id(doc), nullValue());
 
         assertSource(resolver.source(doc, XContentType.JSON),
                 Sets.newHashSet(

@@ -127,11 +127,6 @@ public class NodeStatsResolver extends MonitoringIndexNameResolver.Timestamped<N
     }
 
     @Override
-    public String type(NodeStatsMonitoringDoc document) {
-        return TYPE;
-    }
-
-    @Override
     public Set<String> filters() {
         return FILTERS;
     }

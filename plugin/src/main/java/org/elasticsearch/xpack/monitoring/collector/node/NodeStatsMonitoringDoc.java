@@ -6,32 +6,29 @@
 package org.elasticsearch.xpack.monitoring.collector.node;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
+/**
+ * Monitoring document collected by {@link NodeStatsCollector}
+ */
 public class NodeStatsMonitoringDoc extends MonitoringDoc {
 
-    private String nodeId;
-    private boolean nodeMaster;
-    private NodeStats nodeStats;
-    private boolean mlockall;
+    public static final String TYPE = "node_stats";
 
-    public NodeStatsMonitoringDoc(String monitoringId, String monitoringVersion) {
-        super(monitoringId, monitoringVersion);
-    }
+    private final String nodeId;
+    private final boolean nodeMaster;
+    private final NodeStats nodeStats;
+    private final boolean mlockall;
 
-    public void setNodeId(String nodeId) {
-        this.nodeId = nodeId;
-    }
-
-    public void setNodeMaster(boolean nodeMaster) {
-        this.nodeMaster = nodeMaster;
-    }
-
-    public void setNodeStats(NodeStats nodeStats) {
+    public NodeStatsMonitoringDoc(String monitoringId, String monitoringVersion,
+                                  String clusterUUID, DiscoveryNode node,
+                                  boolean isMaster, NodeStats nodeStats, boolean mlockall) {
+        super(monitoringId, monitoringVersion, TYPE, null, clusterUUID,
+                nodeStats.getTimestamp(), node);
+        this.nodeId = node.getId();
+        this.nodeMaster = isMaster;
         this.nodeStats = nodeStats;
-    }
-
-    public void setMlockall(boolean mlockall) {
         this.mlockall = mlockall;
     }
 
@@ -51,4 +48,3 @@ public class NodeStatsMonitoringDoc extends MonitoringDoc {
         return mlockall;
     }
 }
-

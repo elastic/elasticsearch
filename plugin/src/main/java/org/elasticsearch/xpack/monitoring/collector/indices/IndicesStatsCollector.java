@@ -22,17 +22,17 @@ import java.util.Collections;
 /**
  * Collector for indices statistics.
  * <p>
- * This collector runs on the master node only and collect one {@link IndicesStatsMonitoringDoc} document.
+ * This collector runs on the master node only and collect one {@link IndicesStatsMonitoringDoc}
+ * document.
  */
 public class IndicesStatsCollector extends Collector {
-
-    public static final String NAME = "indices-stats-collector";
 
     private final Client client;
 
     public IndicesStatsCollector(Settings settings, ClusterService clusterService,
-                                 MonitoringSettings monitoringSettings, XPackLicenseState licenseState, InternalClient client) {
-        super(settings, NAME, clusterService, monitoringSettings, licenseState);
+                                 MonitoringSettings monitoringSettings,
+                                 XPackLicenseState licenseState, InternalClient client) {
+        super(settings, "indices-stats", clusterService, monitoringSettings, licenseState);
         this.client = client;
     }
 
@@ -53,11 +53,9 @@ public class IndicesStatsCollector extends Collector {
                 .setStore(true)
                 .get(monitoringSettings.indicesStatsTimeout());
 
-        IndicesStatsMonitoringDoc indicesStatsDoc = new IndicesStatsMonitoringDoc(monitoringId(), monitoringVersion());
-        indicesStatsDoc.setClusterUUID(clusterUUID());
-        indicesStatsDoc.setTimestamp(System.currentTimeMillis());
-        indicesStatsDoc.setSourceNode(localNode());
-        indicesStatsDoc.setIndicesStats(indicesStats);
+        IndicesStatsMonitoringDoc indicesStatsDoc = new IndicesStatsMonitoringDoc(monitoringId(),
+                monitoringVersion(), clusterUUID(), System.currentTimeMillis(), localNode(),
+                indicesStats);
         return Collections.singletonList(indicesStatsDoc);
     }
 }

@@ -27,11 +27,6 @@ public class IndexRecoveryResolver extends MonitoringIndexNameResolver.Timestamp
     }
 
     @Override
-    public String type(IndexRecoveryMonitoringDoc document) {
-        return TYPE;
-    }
-
-    @Override
     protected void buildXContent(IndexRecoveryMonitoringDoc document,
                                  XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.INDEX_RECOVERY);

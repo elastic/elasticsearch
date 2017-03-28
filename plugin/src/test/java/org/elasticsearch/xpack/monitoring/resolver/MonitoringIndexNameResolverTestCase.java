@@ -84,32 +84,6 @@ public abstract class MonitoringIndexNameResolverTestCase<M extends MonitoringDo
         }
     }
 
-    protected boolean checkResolvedType() {
-        return true;
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testType() {
-        if (checkResolvedType()) {
-            assertThat(newResolver().type(newMonitoringDoc()), not(isEmptyOrNullString()));
-        } else {
-            assertThat(newResolver().type(newMonitoringDoc()), is(nullValue()));
-        }
-    }
-
-    protected boolean checkResolvedId() {
-        return true;
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testId() {
-        if (checkResolvedId()) {
-            assertThat(newResolver().id(newMonitoringDoc()), not(isEmptyOrNullString()));
-        } else {
-            assertThat(newResolver().id(newMonitoringDoc()), is(nullValue()));
-        }
-    }
-
     protected boolean checkFilters() {
         return true;
     }
@@ -145,7 +119,6 @@ public abstract class MonitoringIndexNameResolverTestCase<M extends MonitoringDo
         }
 
         if (resolver instanceof MonitoringIndexNameResolver.Data) {
-            MonitoringIndexNameResolver.Data data = (MonitoringIndexNameResolver.Data) resolver;
             assertThat(resolver.index(newMonitoringDoc()),
                     equalTo(PREFIX + DELIMITER + MonitoringIndexNameResolver.Data.DATA + DELIMITER + TEMPLATE_VERSION));
         }

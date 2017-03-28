@@ -47,29 +47,18 @@ public class IndicesStatsResolverTests extends MonitoringIndexNameResolverTestCa
 
     @Override
     protected IndicesStatsMonitoringDoc newMonitoringDoc() {
-        IndicesStatsMonitoringDoc doc = new IndicesStatsMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
-        doc.setClusterUUID(randomAsciiOfLength(5));
-        doc.setTimestamp(Math.abs(randomLong()));
-        doc.setSourceNode(new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
-        doc.setIndicesStats(randomIndicesStats());
+        IndicesStatsMonitoringDoc doc = new IndicesStatsMonitoringDoc(randomMonitoringId(),
+                randomAsciiOfLength(2), randomAsciiOfLength(5), 1437580442979L,
+                new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                randomIndicesStats());
         return doc;
-    }
-
-    @Override
-    protected boolean checkResolvedId() {
-        return false;
     }
 
     public void testIndicesStatsResolver() throws Exception {
         IndicesStatsMonitoringDoc doc = newMonitoringDoc();
-        doc.setClusterUUID(randomAsciiOfLength(5));
-        doc.setTimestamp(1437580442979L);
-        doc.setSourceNode(new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
 
         IndicesStatsResolver resolver = newResolver();
         assertThat(resolver.index(doc), equalTo(".monitoring-es-" + MonitoringTemplateUtils.TEMPLATE_VERSION + "-2015.07.22"));
-        assertThat(resolver.type(doc), equalTo(IndicesStatsResolver.TYPE));
-        assertThat(resolver.id(doc), nullValue());
 
         assertSource(resolver.source(doc, XContentType.JSON),
                 Sets.newHashSet("cluster_uuid", "timestamp", "source_node", "indices_stats"), XContentType.JSON);

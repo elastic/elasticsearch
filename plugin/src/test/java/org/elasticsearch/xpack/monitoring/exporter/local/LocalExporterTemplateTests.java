@@ -171,8 +171,9 @@ public class LocalExporterTemplateTests extends MonitoringIntegTestCase {
     }
 
     private String currentTimestampedIndexName() {
-        MonitoringDoc doc = new MonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString());
-        doc.setTimestamp(System.currentTimeMillis());
+        MonitoringDoc doc = new MonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT
+                .toString(), null, null, null, System.currentTimeMillis(),
+                (MonitoringDoc.Node) null);
 
         MockTimestampedIndexNameResolver resolver =
                 new MockTimestampedIndexNameResolver(MonitoredSystem.ES, localExporter, MonitoringTemplateUtils.TEMPLATE_VERSION);

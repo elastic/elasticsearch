@@ -24,18 +24,17 @@ import java.util.List;
 /**
  * Collector for the Recovery API.
  * <p>
- * This collector runs on the master node only and collects a {@link IndexRecoveryMonitoringDoc} document
- * for every index that has on-going shard recoveries.
+ * This collector runs on the master node only and collects a {@link IndexRecoveryMonitoringDoc}
+ * document for every index that has on-going shard recoveries.
  */
 public class IndexRecoveryCollector extends Collector {
-
-    public static final String NAME = "index-recovery-collector";
 
     private final Client client;
 
     public IndexRecoveryCollector(Settings settings, ClusterService clusterService,
-                                  MonitoringSettings monitoringSettings, XPackLicenseState licenseState, InternalClient client) {
-        super(settings, NAME, clusterService, monitoringSettings, licenseState);
+                                  MonitoringSettings monitoringSettings,
+                                  XPackLicenseState licenseState, InternalClient client) {
+        super(settings, "index-recovery", clusterService, monitoringSettings, licenseState);
         this.client = client;
     }
 
@@ -54,12 +53,8 @@ public class IndexRecoveryCollector extends Collector {
                 .get(monitoringSettings.recoveryTimeout());
 
         if (recoveryResponse.hasRecoveries()) {
-            IndexRecoveryMonitoringDoc indexRecoveryDoc = new IndexRecoveryMonitoringDoc(monitoringId(), monitoringVersion());
-            indexRecoveryDoc.setClusterUUID(clusterUUID());
-            indexRecoveryDoc.setTimestamp(System.currentTimeMillis());
-            indexRecoveryDoc.setSourceNode(localNode());
-            indexRecoveryDoc.setRecoveryResponse(recoveryResponse);
-            results.add(indexRecoveryDoc);
+            results.add(new IndexRecoveryMonitoringDoc(monitoringId(), monitoringVersion(),
+                    clusterUUID(), System.currentTimeMillis(), localNode(), recoveryResponse));
         }
         return Collections.unmodifiableCollection(results);
     }

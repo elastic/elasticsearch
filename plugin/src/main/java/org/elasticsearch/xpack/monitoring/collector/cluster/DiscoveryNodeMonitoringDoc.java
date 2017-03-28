@@ -8,19 +8,23 @@ package org.elasticsearch.xpack.monitoring.collector.cluster;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
+/**
+ * Monitoring document collected by {@link ClusterStateCollector} that contains information
+ * about every node of the cluster.
+ */
 public class DiscoveryNodeMonitoringDoc extends MonitoringDoc {
 
-    private DiscoveryNode node;
+    public static final String TYPE = "node";
 
-    public DiscoveryNodeMonitoringDoc(String monitoringId, String monitoringVersion) {
-        super(monitoringId, monitoringVersion);
+    private final DiscoveryNode node;
+
+    public DiscoveryNodeMonitoringDoc(String monitoringId, String monitoringVersion,
+                                      String clusterUUID, long timestamp, DiscoveryNode node) {
+        super(monitoringId, monitoringVersion, TYPE, node.getId(), clusterUUID, timestamp, node);
+        this.node = node;
     }
 
     public DiscoveryNode getNode() {
         return node;
-    }
-
-    public void setNode(DiscoveryNode node) {
-        this.node = node;
     }
 }

@@ -117,8 +117,8 @@ class HttpExportBulk extends ExportBulk {
 
             if (resolver != null) {
                 String index = resolver.index(doc);
-                String type = resolver.type(doc);
-                String id = resolver.id(doc);
+                String type = doc.getType();
+                String id = doc.getId();
 
                 try (XContentBuilder builder = new XContentBuilder(xContent, out)) {
                     // Builds the bulk action metadata line
@@ -145,8 +145,8 @@ class HttpExportBulk extends ExportBulk {
 
                 logger.trace("added index request [index={}, type={}, id={}]", index, type, id);
             } else {
-                logger.error("no resolver found for monitoring document [class={}, id={}, version={}]",
-                             doc.getClass().getName(), doc.getMonitoringId(), doc.getMonitoringVersion());
+                logger.error("no resolver found for monitoring document [class={}]",
+                             doc.getClass().getName());
             }
 
             return BytesReference.toBytes(out.bytes());

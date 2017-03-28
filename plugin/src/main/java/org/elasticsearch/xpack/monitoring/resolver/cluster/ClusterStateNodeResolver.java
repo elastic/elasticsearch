@@ -16,15 +16,8 @@ import java.io.IOException;
 
 public class ClusterStateNodeResolver extends MonitoringIndexNameResolver.Timestamped<ClusterStateNodeMonitoringDoc> {
 
-    public static final String TYPE = "node";
-
     public ClusterStateNodeResolver(MonitoredSystem id, Settings settings) {
         super(id, settings);
-    }
-
-    @Override
-    public String type(ClusterStateNodeMonitoringDoc document) {
-        return TYPE;
     }
 
     @Override

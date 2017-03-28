@@ -6,21 +6,27 @@
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
+/**
+ * Monitoring document collected by {@link ClusterStatsCollector} that contains the current
+ * cluster stats.
+ */
 public class ClusterStatsMonitoringDoc extends MonitoringDoc {
 
-    private ClusterStatsResponse clusterStats;
+    public static final String TYPE = "cluster_stats";
 
-    public ClusterStatsMonitoringDoc(String monitoringId, String monitoringVersion) {
-        super(monitoringId, monitoringVersion);
+    private final ClusterStatsResponse clusterStats;
+
+    public ClusterStatsMonitoringDoc(String monitoringId, String monitoringVersion,
+                                     String clusterUUID, long timestamp, DiscoveryNode node,
+                                     ClusterStatsResponse clusterStats) {
+        super(monitoringId, monitoringVersion, TYPE, null, clusterUUID, timestamp, node);
+        this.clusterStats = clusterStats;
     }
 
     public ClusterStatsResponse getClusterStats() {
         return clusterStats;
-    }
-
-    public void setClusterStats(ClusterStatsResponse clusterStats) {
-        this.clusterStats = clusterStats;
     }
 }

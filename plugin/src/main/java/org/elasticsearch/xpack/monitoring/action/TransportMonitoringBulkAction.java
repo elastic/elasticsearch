@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -19,10 +20,10 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class TransportMonitoringBulkAction extends HandledTransportAction<MonitoringBulkRequest, MonitoringBulkResponse> {
 
@@ -70,34 +71,49 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
          * - timestamp
          * - source node
          */
-        Collection<MonitoringDoc> prepareForExport(Collection<? extends MonitoringDoc> docs) {
-            final String clusterUUID = clusterService.state().metaData().clusterUUID();
-            Function<MonitoringDoc, MonitoringDoc> updateClusterUUID = doc -> {
-                if (doc.getClusterUUID() == null) {
-                    doc.setClusterUUID(clusterUUID);
-                }
-                return doc;
-            };
+        Collection<MonitoringDoc> prepareForExport(Collection<MonitoringBulkDoc> bulkDocs) {
+            final long defaultTimestamp = System.currentTimeMillis();
+            final String defaultClusterUUID = clusterService.state().metaData().clusterUUID();
 
-            final long timestamp = System.currentTimeMillis();
-            Function<MonitoringDoc, MonitoringDoc> updateTimestamp = doc -> {
-                if (doc.getTimestamp() == 0) {
-                    doc.setTimestamp(timestamp);
-                }
-                return doc;
-            };
+            DiscoveryNode discoveryNode = clusterService.localNode();
+            final MonitoringDoc.Node defaultNode = new MonitoringDoc.Node(discoveryNode.getId(),
+                    discoveryNode.getHostName(), discoveryNode.getAddress().toString(),
+                    discoveryNode.getHostAddress(), discoveryNode.getName(),
+                    discoveryNode.getAttributes());
 
-            final DiscoveryNode sourceNode = clusterService.localNode();
-            Function<MonitoringDoc, MonitoringDoc> updateSourceNode = doc -> {
-                if (doc.getSourceNode() == null) {
-                    doc.setSourceNode(sourceNode);
+            List<MonitoringDoc> docs = new ArrayList<>();
+            for (MonitoringBulkDoc bulkDoc : bulkDocs) {
+                String clusterUUID;
+                if (Strings.hasLength(bulkDoc.getClusterUUID())) {
+                    clusterUUID = bulkDoc.getClusterUUID();
+                } else {
+                    clusterUUID = defaultClusterUUID;
                 }
-                return doc;
-            };
 
-            return docs.stream()
-                    .map(updateClusterUUID.andThen(updateTimestamp.andThen(updateSourceNode)))
-                    .collect(Collectors.toList());
+                long timestamp;
+                if (bulkDoc.getTimestamp() != 0L) {
+                    timestamp = bulkDoc.getTimestamp();
+                } else {
+                    timestamp = defaultTimestamp;
+                }
+
+                MonitoringDoc.Node node;
+                if (bulkDoc.getSourceNode() != null) {
+                    node = bulkDoc.getSourceNode();
+                } else {
+                    node = defaultNode;
+                }
+
+                // TODO Convert MonitoringBulkDoc to a simple MonitoringDoc when all resolvers are
+                // removed and MonitoringBulkDoc does not inherit from MonitoringDoc anymore.
+                // Monitoring indices will be resolved here instead of being resolved at export
+                // time.
+                docs.add(new MonitoringBulkDoc(bulkDoc.getMonitoringId(),
+                        bulkDoc.getMonitoringVersion(), bulkDoc.getIndex(), bulkDoc.getType(),
+                        bulkDoc.getId(), clusterUUID, timestamp, node, bulkDoc.getSource(),
+                        bulkDoc.getXContentType()));
+            }
+            return docs;
         }
 
         /**

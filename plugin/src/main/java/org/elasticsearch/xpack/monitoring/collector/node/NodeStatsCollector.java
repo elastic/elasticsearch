@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.node;
 
-import java.util.Collection;
-import java.util.Collections;
-
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -23,6 +20,9 @@ import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.security.InternalClient;
 
+import java.util.Collection;
+import java.util.Collections;
+
 /**
  * Collector for nodes statistics.
  * <p>
@@ -31,13 +31,12 @@ import org.elasticsearch.xpack.security.InternalClient;
  */
 public class NodeStatsCollector extends Collector {
 
-    public static final String NAME = "node-stats-collector";
-
     private final Client client;
 
-    public NodeStatsCollector(Settings settings, ClusterService clusterService, MonitoringSettings monitoringSettings,
+    public NodeStatsCollector(Settings settings, ClusterService clusterService,
+                              MonitoringSettings monitoringSettings,
                               XPackLicenseState licenseState, InternalClient client) {
-        super(settings, NAME, clusterService, monitoringSettings, licenseState);
+        super(settings, "node-stats", clusterService, monitoringSettings, licenseState);
         this.client = client;
     }
 
@@ -53,7 +52,8 @@ public class NodeStatsCollector extends Collector {
 
         NodesStatsResponse response = client.admin().cluster().nodesStats(request).actionGet();
 
-        // if there's a failure, then we failed to work with the _local node (guaranteed a single exception)
+        // if there's a failure, then we failed to work with the
+        // _local node (guaranteed a single exception)
         if (response.hasFailures()) {
             throw response.failures().get(0);
         }
@@ -61,14 +61,9 @@ public class NodeStatsCollector extends Collector {
         NodeStats nodeStats = response.getNodes().get(0);
         DiscoveryNode sourceNode = localNode();
 
-        NodeStatsMonitoringDoc nodeStatsDoc = new NodeStatsMonitoringDoc(monitoringId(), monitoringVersion());
-        nodeStatsDoc.setClusterUUID(clusterUUID());
-        nodeStatsDoc.setTimestamp(System.currentTimeMillis());
-        nodeStatsDoc.setSourceNode(sourceNode);
-        nodeStatsDoc.setNodeId(sourceNode.getId());
-        nodeStatsDoc.setNodeMaster(isLocalNodeMaster());
-        nodeStatsDoc.setNodeStats(nodeStats);
-        nodeStatsDoc.setMlockall(BootstrapInfo.isMemoryLocked());
+        NodeStatsMonitoringDoc nodeStatsDoc = new NodeStatsMonitoringDoc(monitoringId(),
+                monitoringVersion(), clusterUUID(), sourceNode, isLocalNodeMaster(),
+                nodeStats, BootstrapInfo.isMemoryLocked());
 
         return Collections.singletonList(nodeStatsDoc);
     }

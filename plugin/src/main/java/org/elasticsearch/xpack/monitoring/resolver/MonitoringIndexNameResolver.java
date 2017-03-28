@@ -54,22 +54,6 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
     public abstract String indexPattern();
 
     /**
-     * Returns the document type under which the monitoring document must be indexed.
-     *
-     * @param document the monitoring document
-     * @return the type of the document
-     */
-    public abstract String type(T document);
-
-    /**
-     * Returns the document id under which the monitoring document must be indexed.
-     *
-     * @param document the monitoring document
-     * @return the id of the document
-     */
-    public abstract String id(T document);
-
-    /**
      * Builds the source of the document in a given XContentType
      *
      * @param document     the monitoring document
@@ -201,12 +185,6 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
         @Override
         public String indexPattern() {
             return String.join(DELIMITER, index, "*");
-        }
-
-        @Override
-        public String id(T document) {
-            // Documents in timestamped indices are usually indexed with auto-generated ids
-            return null;
         }
 
         @Override

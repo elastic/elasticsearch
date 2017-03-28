@@ -40,20 +40,23 @@ public class ClusterInfoResolverTests extends MonitoringIndexNameResolverTestCas
                     .issueDate(1437580442979L)
                     .expiryDate(1437580442979L + TimeValue.timeValueHours(2).getMillis());
 
-            ClusterInfoMonitoringDoc doc = new ClusterInfoMonitoringDoc(randomMonitoringId(), randomAsciiOfLength(2));
-            doc.setClusterUUID(randomAsciiOfLength(5));
-            doc.setTimestamp(Math.abs(randomLong()));
-            doc.setSourceNode(new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
-            doc.setVersion(randomFrom(Version.V_2_0_0, Version.CURRENT).toString());
-            doc.setLicense(licenseBuilder.build());
-            doc.setClusterName(randomAsciiOfLength(5));
-            doc.setClusterStats(
+
+
+            ClusterInfoMonitoringDoc doc = new ClusterInfoMonitoringDoc(randomMonitoringId(),
+                    randomAsciiOfLength(2), randomAsciiOfLength(5),
+                    Math.abs(randomLong()),
+                    new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                    randomAsciiOfLength(5),
+                    randomFrom(Version.V_2_0_0, Version.CURRENT).toString(),
+                    licenseBuilder.build(),
+                    Collections.singletonList(new MonitoringFeatureSet.Usage(randomBoolean(), randomBoolean(), emptyMap())),
                     new ClusterStatsResponse(
                             Math.abs(randomLong()),
                             ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY),
                             Collections.emptyList(),
-                            Collections.emptyList()));
-            doc.setUsage(Collections.singletonList(new MonitoringFeatureSet.Usage(randomBoolean(), randomBoolean(), emptyMap())));
+                            Collections.emptyList())
+                    );
+
             return doc;
         } catch (Exception e) {
             throw new IllegalStateException("Failed to generated random ClusterInfoMonitoringDoc", e);
@@ -66,16 +69,10 @@ public class ClusterInfoResolverTests extends MonitoringIndexNameResolverTestCas
     }
 
     public void testClusterInfoResolver() throws Exception {
-        String clusterUUID = UUID.randomUUID().toString();
-
         ClusterInfoMonitoringDoc doc = newMonitoringDoc();
-        doc.setClusterUUID(clusterUUID);
 
         ClusterInfoResolver resolver = newResolver();
         assertThat(resolver.index(doc), equalTo(".monitoring-data-" + MonitoringTemplateUtils.TEMPLATE_VERSION));
-        assertThat(resolver.type(doc), equalTo(ClusterInfoResolver.TYPE));
-        assertThat(resolver.id(doc), equalTo(clusterUUID));
-
         assertSource(resolver.source(doc, XContentType.JSON),
                      Sets.newHashSet(
                          "cluster_uuid",

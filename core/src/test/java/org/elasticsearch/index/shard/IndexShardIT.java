@@ -364,7 +364,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public void testMaybeRollTranslogGeneration() throws Exception {
-        final int generationThreshold = randomIntBetween(1, 512);
+        final int generationThreshold = randomIntBetween(64, 512);
         final Settings settings =
                 Settings
                         .builder()
@@ -380,7 +380,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         int rolls = 0;
         final Translog translog = shard.getEngine().getTranslog();
         final long generation = translog.currentFileGeneration();
-        for (int i = 0; i < randomIntBetween(32, 128); i++) {
+        final int numberOfDocuments = randomIntBetween(32, 128);
+        for (int i = 0; i < numberOfDocuments; i++) {
             assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
             final ParsedDocument doc = testParsedDocument(
                     "1",

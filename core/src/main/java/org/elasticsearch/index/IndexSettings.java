@@ -119,6 +119,15 @@ public final class IndexSettings {
             Setting.byteSizeSetting(
                     "index.translog.generation_threshold_size",
                     new ByteSizeValue(64, ByteSizeUnit.MB),
+                    /*
+                     * An empty translog occupies 43 bytes on disk. If the generation threshold is
+                     * below this, the flush thread can get stuck in an infinite loop repeatedly
+                     * rolling the generation as every new generation will already exceed the
+                     * generation threshold. However, small thresholds are useful for testing so we
+                     * do not add a large lower bound here.
+                     */
+                    new ByteSizeValue(64, ByteSizeUnit.BYTES),
+                    new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
                     new Property[]{Property.Dynamic, Property.IndexScope});
 
     public static final Setting<TimeValue> INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL =

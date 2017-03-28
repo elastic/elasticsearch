@@ -1,0 +1,11 @@
+[[watcher-limitations]]
+== Watcher Limitations
+
+[float]
+=== Watches Are Not Updated When File Based Scripts Change
+
+When you refer to a file script in a watch, the watch itself is not updated
+if you change the script on the filesystem.
+
+Currently, the only way to reload a file script in a watch is to delete 
+the watch and recreate it.

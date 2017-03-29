@@ -77,10 +77,10 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
         if (shardFailures == null) {
             return ShardSearchFailure.EMPTY_ARRAY;
         }
-        List<AtomicArray.Entry<ShardSearchFailure>> entries = shardFailures.asList();
+        List<ShardSearchFailure> entries = shardFailures.asList();
         ShardSearchFailure[] failures = new ShardSearchFailure[entries.size()];
         for (int i = 0; i < failures.length; i++) {
-            failures[i] = entries.get(i).value;
+            failures[i] = entries.get(i);
         }
         return failures;
     }
@@ -126,7 +126,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
 
     private void executeQueryPhase(final int shardIndex, final AtomicInteger counter, DiscoveryNode node, final long searchId) {
         InternalScrollSearchRequest internalRequest = internalScrollSearchRequest(searchId, request);
-        searchTransportService.sendExecuteQuery(node, internalRequest, task, new ActionListener<ScrollQuerySearchResult>() {
+        searchTransportService.sendExecuteScrollQuery(node, internalRequest, task, new ActionListener<ScrollQuerySearchResult>() {
             @Override
             public void onResponse(ScrollQuerySearchResult result) {
                 queryResults.set(shardIndex, result.queryResult());
@@ -167,7 +167,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
     }
 
     private void executeFetchPhase() throws Exception {
-        sortedShardDocs = searchPhaseController.sortDocs(true, queryResults);
+        sortedShardDocs = searchPhaseController.sortDocs(true, queryResults.asList(), queryResults.length());
         if (sortedShardDocs.length == 0) {
             finishHim(searchPhaseController.reducedQueryPhase(queryResults.asList()));
             return;
@@ -184,12 +184,12 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
             if (docIds != null) {
                 final QuerySearchResult querySearchResult = queryResults.get(index);
                 ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[index];
-                ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.id(), docIds, lastEmittedDoc);
-                DiscoveryNode node = nodes.get(querySearchResult.shardTarget().getNodeId());
+                ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.getRequestId(), docIds, lastEmittedDoc);
+                DiscoveryNode node = nodes.get(querySearchResult.getSearchShardTarget().getNodeId());
                 searchTransportService.sendExecuteFetchScroll(node, shardFetchRequest, task, new ActionListener<FetchSearchResult>() {
                     @Override
                     public void onResponse(FetchSearchResult result) {
-                        result.shardTarget(querySearchResult.shardTarget());
+                        result.setSearchShardTarget(querySearchResult.getSearchShardTarget());
                         fetchResults.set(index, result);
                         if (counter.decrementAndGet() == 0) {
                             finishHim(reducedQueryPhase);

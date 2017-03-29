@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.transport.Transport;
@@ -33,7 +34,7 @@ import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 final class SearchQueryThenFetchAsyncAction
-        extends AbstractSearchAsyncAction<QuerySearchResultProvider> {
+        extends AbstractSearchAsyncAction<SearchPhaseResult> {
 
     private final SearchPhaseController searchPhaseController;
 
@@ -73,7 +74,7 @@ final class SearchQueryThenFetchAsyncAction
     protected void executePhaseOnShard(
             final ShardIterator shardIt,
             final ShardRouting shard,
-            final ActionListener<QuerySearchResultProvider> listener) {
+            final SearchActionListener<SearchPhaseResult> listener) {
         getSearchTransport().sendExecuteQuery(
                 getConnection(shard.currentNodeId()),
                 buildShardSearchRequest(shardIt, shard),
@@ -83,7 +84,7 @@ final class SearchQueryThenFetchAsyncAction
 
     @Override
     protected SearchPhase getNextPhase(
-            final SearchPhaseResults<QuerySearchResultProvider> results,
+            final SearchPhaseResults<SearchPhaseResult> results,
             final SearchPhaseContext context) {
         return new FetchSearchPhase(results, searchPhaseController, context);
     }

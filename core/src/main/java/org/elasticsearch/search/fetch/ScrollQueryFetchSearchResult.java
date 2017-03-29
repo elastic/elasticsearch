@@ -54,7 +54,7 @@ public class ScrollQueryFetchSearchResult extends TransportResponse {
         super.readFrom(in);
         shardTarget = new SearchShardTarget(in);
         result = readQueryFetchSearchResult(in);
-        result.shardTarget(shardTarget);
+        result.setSearchShardTarget(shardTarget);
     }
 
     @Override

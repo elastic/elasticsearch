@@ -20,12 +20,63 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.transport.TransportResponse;
 
-public interface SearchPhaseResult extends Streamable {
+/**
+ * This class is a base class for all search releated results. It contains the shard target it
+ * was executed against, a shard index used to reference the result on the coordinating node
+ * and a request ID that is used to reference the request context on the executing node. The
+ * request ID is particularly important since it is used to reference and maintain a context
+ * across search phases to ensure the same point in time snapshot is used for querying and
+ * fetching etc.
+ */
+public abstract class SearchPhaseResult extends TransportResponse implements Streamable {
 
-    long id();
+    private SearchShardTarget searchShardTarget;
+    private int shardIndex = -1;
+    protected long requestId;
 
-    SearchShardTarget shardTarget();
+    /**
+     * Returns the results request ID that is used to reference the search context on the executing
+     * node
+     */
+    public long getRequestId() {
+        return requestId;
+    }
 
-    void shardTarget(SearchShardTarget shardTarget);
+    /**
+     * Returns the shard index in the context of the currently executing search request that is
+     * used for accounting on the coordinating node
+     */
+    public int getShardIndex() {
+        assert shardIndex != -1 : "shardIndex is not set";
+        return shardIndex;
+    }
+
+    public SearchShardTarget getSearchShardTarget() {
+        return searchShardTarget;
+    }
+
+    public void setSearchShardTarget(SearchShardTarget shardTarget) {
+        this.searchShardTarget = shardTarget;
+    }
+
+    public void setShardIndex(int shardIndex) {
+        assert shardIndex >= 0 : "shardIndex must be >= 0 but was: " + shardIndex;
+        this.shardIndex = shardIndex;
+    }
+
+    /**
+     * Returns the query result iff it's included in this response otherwise <code>null</code>
+     */
+    public QuerySearchResult queryResult() {
+        return  null;
+    }
+
+    /**
+     * Returns the fetch result iff it's included in this response otherwise <code>null</code>
+     */
+    public FetchSearchResult fetchResult() { return null; }
 }

@@ -74,10 +74,10 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
         if (shardFailures == null) {
             return ShardSearchFailure.EMPTY_ARRAY;
         }
-        List<AtomicArray.Entry<ShardSearchFailure>> entries = shardFailures.asList();
+        List<ShardSearchFailure> entries = shardFailures.asList();
         ShardSearchFailure[] failures = new ShardSearchFailure[entries.size()];
         for (int i = 0; i < failures.length; i++) {
-            failures[i] = entries.get(i).value;
+            failures[i] = entries.get(i);
         }
         return failures;
     }
@@ -130,7 +130,7 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
 
     void executePhase(final int shardIndex, DiscoveryNode node, final long searchId) {
         InternalScrollSearchRequest internalRequest = internalScrollSearchRequest(searchId, request);
-        searchTransportService.sendExecuteFetch(node, internalRequest, task, new ActionListener<ScrollQueryFetchSearchResult>() {
+        searchTransportService.sendExecuteScrollFetch(node, internalRequest, task, new ActionListener<ScrollQueryFetchSearchResult>() {
             @Override
             public void onResponse(ScrollQueryFetchSearchResult result) {
                 queryFetchResults.set(shardIndex, result.result());
@@ -170,7 +170,7 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
     }
 
     private void innerFinishHim() throws Exception {
-        ScoreDoc[] sortedShardDocs = searchPhaseController.sortDocs(true, queryFetchResults);
+        ScoreDoc[] sortedShardDocs = searchPhaseController.sortDocs(true, queryFetchResults.asList(), queryFetchResults.length());
         final InternalSearchResponse internalResponse = searchPhaseController.merge(true, sortedShardDocs,
             searchPhaseController.reducedQueryPhase(queryFetchResults.asList()), queryFetchResults);
         String scrollId = null;

@@ -42,7 +42,6 @@ import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 public final class QuerySearchResult extends QuerySearchResultProvider {
 
-    private long id;
     private SearchShardTarget shardTarget;
     private int from;
     private int size;
@@ -61,7 +60,7 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
     }
 
     public QuerySearchResult(long id, SearchShardTarget shardTarget) {
-        this.id = id;
+        this.requestId = id;
         this.shardTarget = shardTarget;
     }
 
@@ -71,17 +70,17 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
     }
 
     @Override
-    public long id() {
-        return this.id;
+    public long getRequestId() {
+        return this.requestId;
     }
 
     @Override
-    public SearchShardTarget shardTarget() {
+    public SearchShardTarget getSearchShardTarget() {
         return shardTarget;
     }
 
     @Override
-    public void shardTarget(SearchShardTarget shardTarget) {
+    public void setSearchShardTarget(SearchShardTarget shardTarget) {
         this.shardTarget = shardTarget;
     }
 
@@ -230,7 +229,7 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
     }
 
     public void readFromWithId(long id, StreamInput in) throws IOException {
-        this.id = id;
+        this.requestId = id;
         from = in.readVInt();
         size = in.readVInt();
         int numSortFieldsPlus1 = in.readVInt();
@@ -260,7 +259,7 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(id);
+        out.writeLong(requestId);
         writeToNoId(out);
     }
 

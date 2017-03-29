@@ -23,19 +23,5 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.transport.TransportResponse;
 
-public abstract class QuerySearchResultProvider extends TransportResponse implements SearchPhaseResult {
-
-    /**
-     * Returns the query result iff it's included in this response otherwise <code>null</code>
-     */
-    public QuerySearchResult queryResult() {
-        return  null;
-    }
-
-    /**
-     * Returns the fetch result iff it's included in this response otherwise <code>null</code>
-     */
-    public FetchSearchResult fetchResult() {
-        return null;
-    }
+public abstract class QuerySearchResultProvider extends SearchPhaseResult {
 }

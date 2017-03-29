@@ -36,7 +36,6 @@ public class QueryFetchSearchResult extends QuerySearchResultProvider {
     private FetchSearchResult fetchResult;
 
     public QueryFetchSearchResult() {
-
     }
 
     public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
@@ -45,19 +44,27 @@ public class QueryFetchSearchResult extends QuerySearchResultProvider {
     }
 
     @Override
-    public long id() {
-        return queryResult.id();
+    public long getRequestId() {
+        return queryResult.getRequestId();
     }
 
     @Override
-    public SearchShardTarget shardTarget() {
-        return queryResult.shardTarget();
+    public SearchShardTarget getSearchShardTarget() {
+        return queryResult.getSearchShardTarget();
     }
 
     @Override
-    public void shardTarget(SearchShardTarget shardTarget) {
-        queryResult.shardTarget(shardTarget);
-        fetchResult.shardTarget(shardTarget);
+    public void setSearchShardTarget(SearchShardTarget shardTarget) {
+        super.setSearchShardTarget(shardTarget);
+        queryResult.setSearchShardTarget(shardTarget);
+        fetchResult.setSearchShardTarget(shardTarget);
+    }
+
+    @Override
+    public void setShardIndex(int requestIndex) {
+        super.setShardIndex(requestIndex);
+        queryResult.setShardIndex(requestIndex);
+        fetchResult.setShardIndex(requestIndex);
     }
 
     @Override

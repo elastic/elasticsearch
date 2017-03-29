@@ -246,7 +246,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
             throw new UnsupportedOperationException();
         }
     }

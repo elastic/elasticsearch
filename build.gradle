@@ -83,7 +83,6 @@ allprojects {
     bwcVersion = "${prevMajor}.${prevMinor}.0${prevSnapshot}"
   }
 }
-println bwcVersion
 
 subprojects {
   project.afterEvaluate {

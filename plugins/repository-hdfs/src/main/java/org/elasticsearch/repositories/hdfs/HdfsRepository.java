@@ -20,6 +20,8 @@ package org.elasticsearch.repositories.hdfs;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Locale;
@@ -38,8 +40,10 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -53,7 +57,7 @@ public final class HdfsRepository extends BlobStoreRepository {
     private static final Logger LOGGER = Loggers.getLogger(HdfsRepository.class);
 
     private static final String CONF_SECURITY_PRINCIPAL = "security.principal";
-    private static final String CONF_SECURITY_KEYTAB = "security.keytab";
+    private static final String PROP_KRB5_KEYTAB = "krb5.keytab";
 
     private final BlobPath basePath = BlobPath.cleanPath();
     private final ByteSizeValue chunkSize;
@@ -146,27 +150,18 @@ public final class HdfsRepository extends BlobStoreRepository {
             throw new RuntimeException("Unsupported authorization mode ["+authMethod+"]");
         }
 
-        // Check if the user added keytab settings:
+        // Check if the user added a principal to use, and that there is a keytab file provided
         String kerberosPrincipal = repositorySettings.get(CONF_SECURITY_PRINCIPAL);
-        String kerberosKeytab = repositorySettings.get(CONF_SECURITY_KEYTAB);
-        if (kerberosPrincipal == null && kerberosKeytab != null) {
-            throw new RuntimeException("Invalid settings: If [" + CONF_SECURITY_KEYTAB + "] is set [" +
-                CONF_SECURITY_PRINCIPAL + "] must be set also.");
-        }
-        if (kerberosPrincipal != null && kerberosKeytab == null) {
-            throw new RuntimeException("Invalid settings: If [" + CONF_SECURITY_PRINCIPAL + "] is set [" +
-                CONF_SECURITY_KEYTAB + "] must be set also.");
-        }
 
         // Check to see if the authentication method is compatible
         if (kerberosPrincipal != null && authMethod.equals(AuthenticationMethod.SIMPLE)) {
-            LOGGER.warn("Hadoop authentication method is set to [SIMPLE], but Kerberos information is " +
+            LOGGER.warn("Hadoop authentication method is set to [SIMPLE], but a Kerberos principal is " +
                 "specified. Continuing with [KERBEROS] authentication.");
             SecurityUtil.setAuthenticationMethod(AuthenticationMethod.KERBEROS, hadoopConfiguration);
         } else if (kerberosPrincipal == null && authMethod.equals(AuthenticationMethod.KERBEROS)) {
             throw new RuntimeException("HDFS Repository does not support [KERBEROS] authentication without " +
-                "a valid Kerberos principal and keytab. Please specify them in the repository settings with [" +
-                CONF_SECURITY_PRINCIPAL + "] and [" + CONF_SECURITY_KEYTAB + "].");
+                "a valid Kerberos principal and keytab. Please specify a principal in the repository settings with [" +
+                CONF_SECURITY_PRINCIPAL + "].");
         }
 
         // Now we can initialize the UGI with the configuration.
@@ -179,13 +174,43 @@ public final class HdfsRepository extends BlobStoreRepository {
         // UserGroupInformation (UGI) instance is just a Hadoop specific wrapper around a Java Subject
         try {
             if (UserGroupInformation.isSecurityEnabled()) {
-                LOGGER.debug("Using kerberos principal [{}] and keytab located at [{}]", kerberosPrincipal, kerberosKeytab);
-                UserGroupInformation.loginUserFromKeytab(kerberosPrincipal, kerberosKeytab);
+                String keytab = locateKeytabFile();
+                LOGGER.debug("Using kerberos principal [{}] and keytab located at [{}]", kerberosPrincipal, keytab);
+                UserGroupInformation.loginUserFromKeytab(kerberosPrincipal, keytab);
             }
             return UserGroupInformation.getCurrentUser();
         } catch (IOException e) {
             throw new RuntimeException("Could not retrieve the current user information", e);
         }
+    }
+
+    // locate the keytab file, and throw if we cannot find or access it.
+    @SuppressForbidden(reason = "PathUtils.get() for finding configured keytab file location")
+    private static String locateKeytabFile() {
+        String keytabLocation = System.getProperty(PROP_KRB5_KEYTAB);
+
+        // Validate if we can find and access the keytab file
+        if (keytabLocation != null) {
+            // Check exists
+            try {
+                Path keytabPath = PathUtils.get(keytabLocation);
+                if (Files.exists(keytabPath) == false) {
+                    throw new RuntimeException("Invalid settings: [" + CONF_SECURITY_PRINCIPAL + "] is set but " +
+                        "could not locate keytab file at [" + keytabLocation + "]. Check that the " +
+                        "[" + PROP_KRB5_KEYTAB + "] system property is correct.");
+                }
+            } catch (SecurityException se) {
+                throw new RuntimeException("Invalid settings: [" + CONF_SECURITY_PRINCIPAL + "] is set but " +
+                    "plugin is denied access to keytab file at [" + keytabLocation + "]. Check that the " +
+                    "[" + PROP_KRB5_KEYTAB + "] system property is correct.", se);
+            }
+        } else {
+            // Not set
+            throw new RuntimeException("Invalid settings: [" + CONF_SECURITY_PRINCIPAL + "] is set but keytab " +
+                "file location is not set in the [" + PROP_KRB5_KEYTAB + "] system property.");
+        }
+
+        return keytabLocation;
     }
 
     @Override

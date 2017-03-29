@@ -53,6 +53,10 @@ grant {
   // com.sun.security.auth.module.Krb5LoginModule.login()
   permission java.lang.RuntimePermission "accessClassInPackage.sun.security.krb5";
 
+  // For reading the keytab file
+  // Expected that the user specifies the location of the keytab file by setting "krb5.keytab" system property
+  permission java.io.FilePermission "/etc/krb5.keytab", "read";
+
   // com.sun.security.auth.module.Krb5LoginModule.commit()
   permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
   permission javax.security.auth.AuthPermission "modifyPrincipals";

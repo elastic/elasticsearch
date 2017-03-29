@@ -1,0 +1,128 @@
+[[watcher-api-put-watch]]
+=== Put Watch API
+
+The PUT watch API either registers a new watch in {watcher} or update an
+existing one. Once registered, a new document will be added to the `.watches`
+index, representing the watch, and its trigger will immediately be registered
+with the relevant trigger engine (typically the scheduler, for the `schedule`
+trigger).
+
+IMPORTANT:  Putting a watch must be done via this API only. Do not put a watch
+            directly to the `.watches` index using Elasticsearch's Index API.
+            If {security} is enabled, make sure no `write` privileges are
+            granted to anyone over the `.watches` index.
+
+The following example adds a watch with the `my-watch` id that has the following
+characteristics:
+
+* The watch schedule triggers every minute.
+* The watch search input looks for any 404 HTTP responses that occurred in the
+  last five minutes.
+* The watch condition checks if any search hits where found.
+* When found, the watch action sends an email to an administrator.
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/watcher/watch/my-watch
+{
+  "trigger" : {
+    "schedule" : { "cron" : "0 0/1 * * * ?" }
+  },
+  "input" : {
+    "search" : {
+      "request" : {
+        "indices" : [
+          "logstash*"
+        ],
+        "body" : {
+          "query" : {
+            "bool" : {
+              "must" : {
+                "match": {
+                   "response": 404
+                }
+              },
+              "filter" : {
+                "range": {
+                  "@timestamp": {
+                    "from": "{{ctx.trigger.scheduled_time}}||-5m",
+                    "to": "{{ctx.trigger.triggered_time}}"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "condition" : {
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
+  },
+  "actions" : {
+    "email_admin" : {
+      "email" : {
+        "to" : "admin@domain.host.com",
+        "subject" : "404 recently encountered"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+A watch has the following fields:
+
+[options="header"]
+|======
+| Name              | Description
+
+| `trigger`         | The <<trigger, trigger>> that defines when the watch
+                      should run.
+
+| `input`           | The <<input, input>> that defines the input that loads the
+                      data for the watch.
+
+| `condition`       | The <<condition, condition>> that defines if the actions
+                      should be run.
+
+| `actions`         | The list of <<actions, actions>> that will be run if the
+                      condition matches
+
+| `metadata`        | Metadata json that will be copied into the history entries.
+
+| `throttle_period` | The minimum time between actions being run, the default
+                      for this is 5 seconds. This default can be changed in the
+                      config file with the setting `xpack.watcher.throttle.period.default_period`.
+|======
+
+[float]
+==== Timeouts
+
+When updating a watch while it is executing, the put action will block and wait
+for the watch execution to finish. Depending on the nature of the watch, in some
+situations this can take a while. For this reason, the put watch action is
+associated with a timeout that is set to 10 seconds by default. You can control
+this timeout by passing in the `master_timeout` parameter.
+
+The following snippet shows how to change the default timeout of the put action
+to 30 seconds:
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/watcher/watch/my-watch?master_timeout=30s
+--------------------------------------------------
+
+[[watcher-api-put-watch-active-state]]
+==== Controlling Default Active State
+
+When adding a watch you can also define its initial <<watch-active-state, active state>>.
+You do that by setting the `active` parameter. The following command add a watch
+and sets it to be inactive by default:
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/watcher/watch/my-watch?active=false
+--------------------------------------------------
+
+NOTE: If you omit the `active` parameter, the watch is active by default.

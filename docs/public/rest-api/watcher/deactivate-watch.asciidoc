@@ -1,0 +1,64 @@
+[[watcher-api-deactivate-watch]]
+=== Deactivate Watch API
+
+A watch can be either <<watch-active-state, active or inactive>>. This API
+enables you to deactivate a currently active watch.
+
+The status of an active watch is returned with the watch definition when you
+call the <<watcher-api-get-watch, Get Watch API>>:
+
+[source,js]
+--------------------------------------------------
+GET _xpack/watcher/watch/my_watch
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:my_active_watch]
+
+[source,js]
+--------------------------------------------------
+{
+  "found": true,
+  "_id": "my_watch",
+  "_status": {
+    "state" : {
+      "active" : true,
+      "timestamp" : "2015-08-20T12:21:32.734Z"
+    },
+    "actions": ...,
+    "version": 1
+  },
+  "watch": ...
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2015-08-20T12:21:32.734Z/$body._status.state.timestamp/]
+// TESTRESPONSE[s/"actions": \.\.\./"actions": "$body._status.actions"/]
+// TESTRESPONSE[s/"watch": \.\.\./"watch": "$body.watch"/]
+// TESTRESPONSE[s/"version": 1/"version": $body._status.version/]
+
+You can deactivate the watch by executing the following API call:
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/watcher/watch/my_watch/_deactivate
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:my_active_watch]
+
+The new state of the watch is returned as part of its overall status:
+
+[source,js]
+--------------------------------------------------
+{
+  "_status": {
+    "state" : {
+      "active" : false,
+      "timestamp" : "2015-09-04T08:39:46.816Z"
+    },
+    "actions": ...,
+    "version": 1
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2015-09-04T08:39:46.816Z/$body._status.state.timestamp/]
+// TESTRESPONSE[s/"actions": \.\.\./"actions": "$body._status.actions"/]
+// TESTRESPONSE[s/"version": 1/"version": $body._status.version/]

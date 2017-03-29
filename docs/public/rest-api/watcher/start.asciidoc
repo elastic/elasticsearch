@@ -1,0 +1,21 @@
+[[watcher-api-start]]
+=== Start API
+
+The `start` API starts the {watcher} service if the service is not already
+running, as in the following example:
+
+[source,js]
+--------------------------------------------------
+POST _xpack/watcher/_start
+--------------------------------------------------
+// CONSOLE
+
+{watcher} returns the following response if the request is successful:
+
+[source,js]
+--------------------------------------------------
+{
+   "acknowledged": true
+}
+--------------------------------------------------
+// TESTRESPONSE

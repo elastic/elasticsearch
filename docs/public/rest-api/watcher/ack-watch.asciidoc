@@ -1,0 +1,224 @@
+[[watcher-api-ack-watch]]
+=== Ack Watch API
+
+<<actions-ack-throttle, Acknowledging>> a watch enables you to manually throttle
+execution of the watch's actions. An action's _acknowledgement state_ is stored
+in the `_status.actions.<id>.ack.state` structure.
+
+To demonstrate let's create a new watch:
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/watcher/watch/my_watch
+{
+  "trigger": {
+    "schedule": {
+      "hourly": {
+        "minute": [ 0, 5 ]
+      }
+    }
+  },
+  "input": {
+    "simple": {
+      "payload": {
+        "send": "yes"
+      }
+    }
+  },
+  "condition": {
+    "always": {}
+  },
+  "actions": {
+    "test_index": {
+      "throttle_period": "15m",
+      "index": {
+        "index": "test",
+        "doc_type": "test2"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TESTSETUP
+
+The current status of a watch and the state of its actions is returned with the
+watch definition when you call the <<watcher-api-get-watch, Get Watch API>>:
+
+[source,js]
+--------------------------------------------------
+GET _xpack/watcher/watch/my_watch
+--------------------------------------------------
+// CONSOLE
+
+The action state of a newly-created watch is `awaits_successful_execution`:
+
+[source,js]
+--------------------------------------------------
+{
+  "found": true,
+  "_id": "my_watch",
+  "_status": {
+    "version": 1,
+    "actions": {
+      "test_index": {
+        "ack": {
+          "timestamp": "2015-05-26T18:04:27.723Z",
+          "state": "awaits_successful_execution"
+        }
+      }
+    },
+    "state": ...
+  },
+  "watch": ...
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"state": \.\.\./"state": "$body._status.state"/]
+// TESTRESPONSE[s/"watch": \.\.\./"watch": "$body.watch"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-26T18:04:27.723Z"/"timestamp": "$body._status.actions.test_index.ack.timestamp"/]
+
+When the watch executes and the condition matches, the value of the `ack.state`
+changes to `ackable`. Let's force execution of the watch and fetch it again to
+check the status:
+
+[source,js]
+--------------------------------------------------
+POST _xpack/watcher/watch/my_watch/_execute
+GET _xpack/watcher/watch/my_watch
+--------------------------------------------------
+// TEST[continued]
+
+and the action is now in `ackable` state:
+
+[source,js]
+--------------------------------------------------
+{
+  "found": true,
+  "_id": "my_watch",
+  "_status": {
+    "version": 1,
+    "actions": {
+      "test_index": {
+        "ack": {
+          "timestamp": "2015-05-26T18:04:27.723Z",
+          "state": "ackable"
+        }
+      }
+    },
+    "state": ...
+  },
+  "watch": ...
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"state": \.\.\./"state": "$body._status.state"/]
+// TESTRESPONSE[s/"watch": \.\.\./"watch": "$body.watch"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-26T18:04:27.723Z"/"timestamp": "$body._status.actions.test_index.ack.timestamp"/]
+
+Now we can acknowledge it:
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/watcher/watch/my_watch/_ack/test_index
+GET _xpack/watcher/watch/my_watch
+--------------------------------------------------
+// CONSOLE
+
+[source,js]
+--------------------------------------------------
+{
+  "found": true,
+  "_id": "my_watch",
+  "_status": {
+    "version": 1,
+    "actions": {
+      "test_index": {
+        "ack": {
+          "timestamp": "2015-05-26T18:04:27.723Z",
+          "state": "acknowledged"
+        }
+      }
+    },
+    "state": ...
+  },
+  "watch": ...
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"state": \.\.\./"state": "$body._status.state"/]
+// TESTRESPONSE[s/"watch": \.\.\./"watch": "$body.watch"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-26T18:04:27.723Z"/"timestamp": "$body._status.actions.test_index.ack.timestamp"/]
+
+Acknowledging an action throttles further executions of that action until its
+`ack.state` is reset to `awaits_successful_execution`. This happens when the
+condition of the watch is not met (the condition evaluates to `false`).
+
+You can acknowledge multiple actions by assigning the `actions` parameter a
+comma-separated list of action ids:
+
+[source,js]
+--------------------------------------------------
+POST _xpack/watcher/watch/my_watch/_ack/action1,action2
+--------------------------------------------------
+// CONSOLE
+
+To acknowledge all of the actions of a watch, simply omit the `actions`
+parameter:
+
+[source,js]
+--------------------------------------------------
+POST _xpack/watcher/watch/my_watch/_ack
+--------------------------------------------------
+// CONSOLE
+
+[float]
+==== Timeouts
+
+If you acknowledge a watch while it is executing, the request blocks and waits
+for the watch execution to finish. For some watches, this can take a significant
+amount of time. By default, the acknowledge action has a timeout of 10 seconds.
+You can change the timeout setting by specifying the `master_timeout` parameter.
+
+The following snippet shows how to change the default timeout of the acknowledge
+action to 30 seconds:
+
+[source,js]
+--------------------------------------------------
+POST _xpack/watcher/watch/my_watch/_ack?master_timeout=30s
+--------------------------------------------------
+// CONSOLE
+
+[float]
+==== Response format
+[source,js]
+
+The response format looks like:
+
+[source,js]
+--------------------------------------------------
+{
+   "_status": {
+      "last_checked": "2015-05-26T18:21:08.630Z",
+      "last_met_condition": "2015-05-26T18:21:08.630Z",
+      "actions": {
+         "my-action": {
+            "ack_status": {
+               "timestamp": "2015-05-26T18:21:09.982Z",
+               "state": "acked"
+            },
+            "last_execution": {
+               "timestamp": "2015-05-26T18:21:04.106Z",
+               "successful": true
+            },
+            "last_successful_execution": {
+               "timestamp": "2015-05-26T18:21:04.106Z",
+               "successful": true
+            },
+            "last_throttle": {
+               "timestamp": "2015-05-26T18:21:08.630Z",
+               "reason": "throttling interval is set to [5 seconds] but time elapsed since last execution is [4 seconds and 530 milliseconds]"
+            }
+         }
+      }
+   }
+}
+--------------------------------------------------
+// TESTRESPONSE

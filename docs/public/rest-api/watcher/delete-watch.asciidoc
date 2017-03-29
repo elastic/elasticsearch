@@ -1,0 +1,55 @@
+[[watcher-api-delete-watch]]
+=== Delete Watch API
+
+The DELETE watch API removes a watch (identified by its `id`) from {watcher}.
+Once removed, the document representing the watch in the `.watches` index is
+gone and it will never be executed again.
+
+Please note that deleting a watch **does not** delete any watch execution records
+related to this watch from the watch history.
+
+IMPORTANT:  Deleting a watch must be done via this API only. Do not delete the
+            watch directly from the `.watches` index using Elasticsearch's
+            DELETE Document API. When {security} is enabled, make sure no `write`
+            privileges are granted to anyone over the `.watches` index.
+
+The following example deletes a watch with the `my-watch` id:
+
+[source,js]
+--------------------------------------------------
+DELETE _xpack/watcher/watch/my_watch
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:my_active_watch]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+   "found": true,
+   "_id": "my_watch",
+   "_version": 2
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+[float]
+==== Timeouts
+
+When deleting a watch while it is executing, the delete action will block and
+wait for the watch execution to finish. Depending on the nature of the watch, in
+some situations this can take a while. For this reason, the delete watch action
+is associated with a timeout that is set to 10 seconds by default. You can
+control this timeout by passing in the `master_timeout` parameter.
+
+The following snippet shows how to change the default timeout of the delete
+action to 30 seconds:
+
+[source,js]
+--------------------------------------------------
+DELETE _xpack/watcher/watch/my_watch?master_timeout=30s
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:my_active_watch]
+

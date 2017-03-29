@@ -20,13 +20,11 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicReference;
 
 public class NotifyOnceListenerTests extends ESTestCase {
 
-    @Test
     public void testWhenSuccessCannotNotifyMultipleTimes() {
         AtomicReference<String> response = new AtomicReference<>();
         AtomicReference<Exception> exception = new AtomicReference<>();
@@ -51,7 +49,6 @@ public class NotifyOnceListenerTests extends ESTestCase {
         assertEquals("response", response.get());
     }
 
-    @Test
     public void testWhenErrorCannotNotifyMultipleTimes() {
         AtomicReference<String> response = new AtomicReference<>();
         AtomicReference<Exception> exception = new AtomicReference<>();

@@ -1622,12 +1622,16 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
         @Override
         public void innerOnResponse(Channel channel) {
-            Releasables.close(optionalReleasable, transportAdaptorCallback::run);
+            release();
         }
 
         @Override
         public void innerOnFailure(Exception e) {
-            onResponse(null);
+            release();
+        }
+
+        private void release() {
+            Releasables.close(optionalReleasable, transportAdaptorCallback::run);
         }
     }
 }

@@ -35,11 +35,19 @@ task createClone(type: LoggedExec) {
   commandLine = ['git', 'clone', rootDir, checkoutDir]
 }
 
-task findUpstream(type: LoggedExec) {
+// we use regular Exec here to ensure we always get output, regardless of logging level
+task findUpstream(type: Exec) {
   dependsOn createClone
   workingDir = checkoutDir
   commandLine = ['git', 'remote', '-v']
+  ignoreExitValue = true
+  ByteArrayOutputStream output = new ByteArrayOutputStream()
+  standardOutput = output
   doLast {
+    if (execResult.exitValue != 0) {
+      output.toString('UTF-8').eachLine { line -> logger.error(line) }
+      execResult.assertNormalExitValue()
+    }
     project.ext.upstreamExists = false
     output.toString('UTF-8').eachLine {
       if (it.contains("upstream")) {

@@ -24,6 +24,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -40,9 +41,8 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
-public final class QuerySearchResult extends QuerySearchResultProvider {
+public final class QuerySearchResult extends SearchPhaseResult {
 
-    private SearchShardTarget shardTarget;
     private int from;
     private int size;
     private TopDocs topDocs;
@@ -61,7 +61,7 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
 
     public QuerySearchResult(long id, SearchShardTarget shardTarget) {
         this.requestId = id;
-        this.shardTarget = shardTarget;
+        setSearchShardTarget(shardTarget);
     }
 
     @Override
@@ -69,20 +69,6 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
         return this;
     }
 
-    @Override
-    public long getRequestId() {
-        return this.requestId;
-    }
-
-    @Override
-    public SearchShardTarget getSearchShardTarget() {
-        return shardTarget;
-    }
-
-    @Override
-    public void setSearchShardTarget(SearchShardTarget shardTarget) {
-        this.shardTarget = shardTarget;
-    }
 
     public void searchTimedOut(boolean searchTimedOut) {
         this.searchTimedOut = searchTimedOut;

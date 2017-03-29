@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.transport.Transport;
 
 import java.util.Map;
@@ -70,7 +69,6 @@ final class SearchQueryThenFetchAsyncAction
         this.searchPhaseController = searchPhaseController;
     }
 
-
     protected void executePhaseOnShard(
             final ShardIterator shardIt,
             final ShardRouting shard,
@@ -88,5 +86,4 @@ final class SearchQueryThenFetchAsyncAction
             final SearchPhaseContext context) {
         return new FetchSearchPhase(results, searchPhaseController, context);
     }
-
 }

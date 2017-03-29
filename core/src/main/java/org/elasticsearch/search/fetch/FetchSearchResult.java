@@ -22,21 +22,20 @@ package org.elasticsearch.search.fetch;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.query.QuerySearchResultProvider;
 
 import java.io.IOException;
 
-public class FetchSearchResult extends QuerySearchResultProvider {
+public final class FetchSearchResult extends SearchPhaseResult {
 
     private SearchHits hits;
     // client side counter
     private transient int counter;
 
     public FetchSearchResult() {
-
     }
 
     public FetchSearchResult(long id, SearchShardTarget shardTarget) {

@@ -21,16 +21,16 @@ package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.query.QuerySearchResultProvider;
 
 import java.io.IOException;
 
 import static org.elasticsearch.search.fetch.FetchSearchResult.readFetchSearchResult;
 import static org.elasticsearch.search.query.QuerySearchResult.readQuerySearchResult;
 
-public class QueryFetchSearchResult extends QuerySearchResultProvider {
+public final class QueryFetchSearchResult extends SearchPhaseResult {
 
     private QuerySearchResult queryResult;
     private FetchSearchResult fetchResult;

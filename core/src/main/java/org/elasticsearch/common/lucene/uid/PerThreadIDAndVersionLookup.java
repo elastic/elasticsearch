@@ -55,6 +55,7 @@ final class PerThreadIDAndVersionLookup {
     /** Reused for iteration (when the term exists) */
     private PostingsEnum docsEnum;
 
+    /** used for assertions to make sure class usage meets assumptions */
     private final Object readerKey;
 
     /**
@@ -67,12 +68,20 @@ final class PerThreadIDAndVersionLookup {
         assert termsEnum != null;
         versions = reader.getNumericDocValues(VersionFieldMapper.NAME);
         assert versions != null;
-        readerKey = reader.getCoreCacheKey();
+        boolean assertionsOn = false;
+        assert (assertionsOn = true);
+        if (assertionsOn) {
+            readerKey = reader.getCoreCacheKey();
+        } else {
+            readerKey = null;
+        }
+
     }
 
     /** Return null if id is not found. */
     public DocIdAndVersion lookupVersion(BytesRef id, Bits liveDocs, LeafReaderContext context) throws IOException {
-        assert context.reader().getCoreCacheKey().equals(readerKey);
+        assert context.reader().getCoreCacheKey().equals(readerKey) :
+            "context's reader is not the same as the reader class was initialized on.";
         int docID = getDocID(id, liveDocs);
 
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
@@ -82,7 +91,10 @@ final class PerThreadIDAndVersionLookup {
         }
     }
 
-    /** returns the internal lucene doc id for the given id bytes. {@link DocIdSetIterator#NO_MORE_DOCS} is returned if not found */
+    /**
+     * returns the internal lucene doc id for the given id bytes.
+     * {@link DocIdSetIterator#NO_MORE_DOCS} is returned if not found
+     * */
     private int getDocID(BytesRef id, Bits liveDocs) throws IOException {
         if (termsEnum.seekExact(id)) {
             int docID = DocIdSetIterator.NO_MORE_DOCS;

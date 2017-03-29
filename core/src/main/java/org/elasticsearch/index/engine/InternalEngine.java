@@ -403,7 +403,11 @@ public class InternalEngine extends Engine {
         }
     }
 
-    enum LuceneOpStatus {
+    /**
+     * the status of the current doc version in lucene, compared to the version in an incoming
+     * operation
+     */
+    enum LuceneDocStatus {
         NEWER_OR_EQUAL,
         OLDER,
         NOT_FOUND
@@ -411,28 +415,31 @@ public class InternalEngine extends Engine {
 
     /** resolves the current version of the document, returning null if not found */
     private VersionValue resolveDocVersion(final Operation op) throws IOException {
-        assert incrementVersionLookup();
+        assert incrementVersionLookup(); // used for asserting in tests
         VersionValue versionValue = versionMap.getUnderLock(op.uid());
         if (versionValue == null) {
-            assert incrementIndexVersionLookup();
+            assert incrementIndexVersionLookup(); // used for asserting in tests
             final long currentVersion = loadCurrentVersionFromIndex(op.uid());
             if (currentVersion != Versions.NOT_FOUND) {
                 versionValue = new VersionValue(currentVersion);
             }
         } else if (engineConfig.isEnableGcDeletes() && versionValue.isDelete() &&
-            (engineConfig.getThreadPool().relativeTimeInMillis() - versionValue.getTime()) > getGcDeletesInMillis()) {
+            (engineConfig.getThreadPool().relativeTimeInMillis() - versionValue.getTime()) >
+                getGcDeletesInMillis()) {
             versionValue = null;
         }
         return versionValue;
     }
 
-    private LuceneOpStatus checkLuceneOpStatusBasedOnVersions(final Operation op) throws IOException {
-        assert op.version() >= 0;
+    private LuceneDocStatus checkLuceneDocStatusBasedOnVersions(final Operation op)
+        throws IOException {
+        assert op.version() >= 0 : "versions should be non-negative. got " + op.version();
         final VersionValue versionValue = resolveDocVersion(op);
         if (versionValue == null) {
-            return LuceneOpStatus.NOT_FOUND;
+            return LuceneDocStatus.NOT_FOUND;
         } else {
-            return op.version() > versionValue.getVersion() ? LuceneOpStatus.OLDER : LuceneOpStatus.NEWER_OR_EQUAL;
+            return op.version() > versionValue.getVersion() ?
+                LuceneDocStatus.OLDER : LuceneDocStatus.NEWER_OR_EQUAL;
         }
     }
 
@@ -577,28 +584,31 @@ public class InternalEngine extends Engine {
                             performOperation = true;
                         }
                     }
-                } else if (canOptimizeAddDocument && mayHaveBeenIndexedBefore(index) == false) {
-                    // no need to deal with out of order delivery - we never saw this one
-                    useLuceneUpdateDocument = false;
-                    currentNotFoundOrDeleted = true;
-                    assert index.version() == 1L : "can optimize on replicas but incoming version is [" + index.version() + "]";
-                    seqNoForIndexing = index.seqNo();
-                    versionForIndexing = index.version();
-                    performOperation = true;
                 } else {
-                    // drop out of order operations
-                    assert index.versionType().versionTypeForReplicationAndRecovery() == index.versionType() :
-                        "resolving out of order delivery based on versioning but version type isn't fit for it. got ["
-                            + index.versionType() + "]";
-                    final LuceneOpStatus luceneOpStatus = checkLuceneOpStatusBasedOnVersions(index);
-                    // unlike the primary, replicas don't really care to about creation status of documents
-                    // this allows to ignore the case where a document was found in the live version maps in
-                    // a delete state and return false for the created flag in favor of code simplicity
-                    currentNotFoundOrDeleted = luceneOpStatus == LuceneOpStatus.NOT_FOUND;
-                    useLuceneUpdateDocument = luceneOpStatus != LuceneOpStatus.NOT_FOUND;
-                    seqNoForIndexing = index.seqNo();
-                    versionForIndexing = index.version();
-                    performOperation = luceneOpStatus != LuceneOpStatus.NEWER_OR_EQUAL;
+                    // non-primary mode (i.e., replica or recovery)
+                    if (canOptimizeAddDocument && mayHaveBeenIndexedBefore(index) == false) {
+                        // no need to deal with out of order delivery - we never saw this one
+                        useLuceneUpdateDocument = false;
+                        currentNotFoundOrDeleted = true;
+                        assert index.version() == 1L : "can optimize on replicas but incoming version is [" + index.version() + "]";
+                        seqNoForIndexing = index.seqNo();
+                        versionForIndexing = index.version();
+                        performOperation = true;
+                    } else {
+                        // drop out of order operations
+                        assert index.versionType().versionTypeForReplicationAndRecovery() == index.versionType() :
+                            "resolving out of order delivery based on versioning but version type isn't fit for it. got ["
+                                + index.versionType() + "]";
+                        final LuceneDocStatus luceneOpStatus = checkLuceneDocStatusBasedOnVersions(index);
+                        // unlike the primary, replicas don't really care to about creation status of documents
+                        // this allows to ignore the case where a document was found in the live version maps in
+                        // a delete state and return false for the created flag in favor of code simplicity
+                        currentNotFoundOrDeleted = luceneOpStatus == LuceneDocStatus.NOT_FOUND;
+                        useLuceneUpdateDocument = luceneOpStatus != LuceneDocStatus.NOT_FOUND;
+                        seqNoForIndexing = index.seqNo();
+                        versionForIndexing = index.version();
+                        performOperation = luceneOpStatus != LuceneDocStatus.NEWER_OR_EQUAL;
+                    }
                 }
 
                 final IndexResult indexResult;
@@ -637,7 +647,7 @@ public class InternalEngine extends Engine {
     private IndexResult indexIntoLucene(Index index, long seqNo, long newVersion, boolean markDocAsCreated,
                                         boolean useLuceneUpdateDocument)
         throws IOException {
-        assertSequenceNumberBeforeIndexing(index.origin(), seqNo);
+        assert assertSequenceNumberBeforeIndexing(index.origin(), seqNo);
         assert newVersion >= 0;
         /* Update the document's sequence number and primary term; the sequence number here is derived here from either the sequence
          * number service if this is on the primary, or the existing document's sequence number if this is on the replica. The
@@ -666,6 +676,9 @@ public class InternalEngine extends Engine {
                  * Bottom line is that we can only rely on the fact that if it's a document failure then
                  * `indexWriter.getTragicException()` will be null otherwise we have to rethrow and treat it as fatal or rather
                  * non-document failure
+                 *
+                 * we return a `MATCH_ANY` version to indicate no document was index. The value is
+                 * not used anyway
                  */
                 return new IndexResult(ex, Versions.MATCH_ANY, index.seqNo());
             } else {
@@ -674,6 +687,12 @@ public class InternalEngine extends Engine {
         }
     }
 
+    /**
+     * returns true if the indexing operation may have already be processed by this engine.
+     * Note that it is OK to rarely return true even if this is not the case. However a `false`
+     * return value must always be correct.
+     *
+     */
     private boolean mayHaveBeenIndexedBefore(Index index) {
         assert canOptimizeAddDocument(index);
         boolean mayHaveBeenIndexBefore;
@@ -778,14 +797,14 @@ public class InternalEngine extends Engine {
                 assert delete.versionType().versionTypeForReplicationAndRecovery() == delete.versionType() :
                     "resolving out of order delivery based on versioning but version type isn't fit for it. got ["
                         + delete.versionType() + "]";
-                final LuceneOpStatus luceneOpStatus = checkLuceneOpStatusBasedOnVersions(delete);
+                final LuceneDocStatus luceneOpStatus = checkLuceneDocStatusBasedOnVersions(delete);
                 // unlike the primary, replicas don't really care to about found status of documents
                 // this allows to ignore the case where a document was found in the live version maps in
                 // a delete state and return true for the found flag in favor of code simplicity
-                currentlyDeleted = luceneOpStatus == LuceneOpStatus.NOT_FOUND;
+                currentlyDeleted = luceneOpStatus == LuceneDocStatus.NOT_FOUND;
                 seqNoOfDeletion = delete.seqNo();
                 versionOfDeletion = delete.version();
-                performOperation = luceneOpStatus != LuceneOpStatus.NEWER_OR_EQUAL;
+                performOperation = luceneOpStatus != LuceneDocStatus.NEWER_OR_EQUAL;
             }
 
             if (earlyResultOnPreflightError.isPresent()) {

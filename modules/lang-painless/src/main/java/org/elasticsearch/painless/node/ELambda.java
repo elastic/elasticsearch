@@ -109,8 +109,15 @@ public final class ELambda extends AExpression implements ILambda {
             interfaceMethod = null;
             // we don't know anything: treat as def
             returnType = Definition.DEF_TYPE;
-            // don't infer any types
-            actualParamTypeStrs = paramTypeStrs;
+            // don't infer any types, replace any null types with def
+            actualParamTypeStrs = new ArrayList<>();
+            for (String type : paramTypeStrs) {
+                if (type == null) {
+                    actualParamTypeStrs.add("def");
+                } else {
+                    actualParamTypeStrs.add(type);
+                }
+            }
         } else {
             // we know the method statically, infer return type and any unknown/def types
             interfaceMethod = expected.struct.getFunctionalMethod();
@@ -128,11 +135,11 @@ public final class ELambda extends AExpression implements ILambda {
             } else {
                 returnType = interfaceMethod.rtn;
             }
-            // replace any def types with the actual type (which could still be def)
+            // replace any null types with the actual type
             actualParamTypeStrs = new ArrayList<String>();
             for (int i = 0; i < paramTypeStrs.size(); i++) {
                 String paramType = paramTypeStrs.get(i);
-                if (paramType.equals(Definition.DEF_TYPE.name)) {
+                if (paramType == null) {
                     actualParamTypeStrs.add(interfaceMethod.arguments.get(i).name);
                 } else {
                     actualParamTypeStrs.add(paramType);
@@ -206,9 +213,7 @@ public final class ELambda extends AExpression implements ILambda {
                                  LAMBDA_BOOTSTRAP_HANDLE,
                                  interfaceType,
                                  name,
-                                 samMethodType,
-                location.getSourceName(),
-                location.getOffset()
+                                 samMethodType
                                  );
         } else {
             // placeholder

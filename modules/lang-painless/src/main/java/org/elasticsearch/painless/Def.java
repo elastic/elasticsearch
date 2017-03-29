@@ -37,6 +37,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
+
 /**
  * Support for dynamic type (def).
  * <p>
@@ -132,7 +134,7 @@ public final class Def {
         } catch (final ReflectiveOperationException roe) {
             throw new AssertionError(roe);
         }
-        
+
         // lookup up the factory for arraylength MethodHandle (intrinsic) from Java 9:
         // https://bugs.openjdk.java.net/browse/JDK-8156915
         MethodHandle arrayLengthMHFactory;
@@ -150,7 +152,7 @@ public final class Def {
     static <T extends Throwable> void rethrow(Throwable t) throws T {
         throw (T) t;
     }
-    
+
     /** Returns an array length getter MethodHandle for the given array type */
     static MethodHandle arrayLengthGetter(Class<?> arrayType) {
         if (JAVA9_ARRAY_LENGTH_MH_FACTORY != null) {
@@ -205,7 +207,7 @@ public final class Def {
                 }
             }
         }
-        
+
         throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] with [" + arity + "] arguments " +
                                            "for class [" + receiverClass.getCanonicalName() + "].");
     }
@@ -229,7 +231,7 @@ public final class Def {
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      * @throws Throwable if a method reference cannot be converted to an functional interface
      */
-     static MethodHandle lookupMethod(Lookup lookup, MethodType callSiteType, 
+     static MethodHandle lookupMethod(Lookup lookup, MethodType callSiteType,
              Class<?> receiverClass, String name, Object args[]) throws Throwable {
          String recipeString = (String) args[0];
          int numArguments = callSiteType.parameterCount();
@@ -237,7 +239,7 @@ public final class Def {
          if (recipeString.isEmpty()) {
              return lookupMethodInternal(receiverClass, name, numArguments - 1).handle;
          }
-         
+
          // convert recipe string to a bitset for convenience (the code below should be refactored...)
          BitSet lambdaArgs = new BitSet();
          for (int i = 0; i < recipeString.length(); i++) {
@@ -245,7 +247,7 @@ public final class Def {
          }
 
          // otherwise: first we have to compute the "real" arity. This is because we have extra arguments:
-         // e.g. f(a, g(x), b, h(y), i()) looks like f(a, g, x, b, h, y, i). 
+         // e.g. f(a, g(x), b, h(y), i()) looks like f(a, g, x, b, h, y, i).
          int arity = callSiteType.parameterCount() - 1;
          int upTo = 1;
          for (int i = 1; i < numArguments; i++) {
@@ -255,7 +257,7 @@ public final class Def {
                  arity -= numCaptures;
              }
          }
-         
+
          // lookup the method with the proper arity, then we know everything (e.g. interface types of parameters).
          // based on these we can finally link any remaining lambdas that were deferred.
          Method method = lookupMethodInternal(receiverClass, name, arity);
@@ -266,7 +268,7 @@ public final class Def {
          for (int i = 1; i < numArguments; i++) {
              // its a functional reference, replace the argument with an impl
              if (lambdaArgs.get(i - 1)) {
-                 // decode signature of form 'type.call,2' 
+                 // decode signature of form 'type.call,2'
                  String signature = (String) args[upTo++];
                  int separator = signature.lastIndexOf('.');
                  int separator2 = signature.indexOf(',');
@@ -292,7 +294,7 @@ public final class Def {
                      // this is dynamically based on the receiver type (and cached separately, underneath
                      // this cache). It won't blow up since we never nest here (just references)
                      MethodType nestedType = MethodType.methodType(interfaceType.clazz, captures);
-                     CallSite nested = DefBootstrap.bootstrap(lookup, 
+                     CallSite nested = DefBootstrap.bootstrap(lookup,
                                                               call,
                                                               nestedType,
                                                               0,
@@ -309,17 +311,17 @@ public final class Def {
                  replaced += numCaptures;
              }
          }
-         
+
          return handle;
      }
-     
+
      /**
       * Returns an implementation of interfaceClass that calls receiverClass.name
       * <p>
       * This is just like LambdaMetaFactory, only with a dynamic type. The interface type is known,
       * so we simply need to lookup the matching implementation method based on receiver type.
       */
-     static MethodHandle lookupReference(Lookup lookup, String interfaceClass, 
+     static MethodHandle lookupReference(Lookup lookup, String interfaceClass,
                                          Class<?> receiverClass, String name) throws Throwable {
          Definition.Type interfaceType = Definition.getType(interfaceClass);
          Method interfaceMethod = interfaceType.struct.getFunctionalMethod();
@@ -330,7 +332,7 @@ public final class Def {
          Method implMethod = lookupMethodInternal(receiverClass, name, arity);
          return lookupReferenceInternal(lookup, interfaceType, implMethod.owner.name, implMethod.name, receiverClass);
      }
-     
+
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
      private static MethodHandle lookupReferenceInternal(Lookup lookup, Definition.Type clazz, String type,
                                                          String call, Class<?>... captures) throws Throwable {
@@ -345,15 +347,15 @@ public final class Def {
              int arity = interfaceMethod.arguments.size() + captures.length;
              final MethodHandle handle;
              try {
-                 MethodHandle accessor = lookup.findStaticGetter(lookup.lookupClass(), 
-                                                                 getUserFunctionHandleFieldName(call, arity), 
+                 MethodHandle accessor = lookup.findStaticGetter(lookup.lookupClass(),
+                                                                 getUserFunctionHandleFieldName(call, arity),
                                                                  MethodHandle.class);
                  handle = (MethodHandle) accessor.invokeExact();
              } catch (NoSuchFieldException | IllegalAccessException e) {
                  // is it a synthetic method? If we generated the method ourselves, be more helpful. It can only fail
                  // because the arity does not match the expected interface type.
                  if (call.contains("$")) {
-                     throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name + 
+                     throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name +
                                                         "] in [" + clazz.clazz + "]");
                  }
                  throw new IllegalArgumentException("Unknown call [" + call + "] with [" + arity + "] arguments.");
@@ -363,29 +365,16 @@ public final class Def {
              // whitelist lookup
              ref = new FunctionRef(clazz, type, call, captures.length);
          }
-         final CallSite callSite;
-         if (ref.needsBridges()) {
-             callSite = LambdaMetafactory.altMetafactory(lookup, 
-                     ref.invokedName, 
-                     ref.invokedType,
-                     ref.samMethodType,
-                     ref.implMethod,
-                     ref.samMethodType,
-                     LambdaMetafactory.FLAG_BRIDGES,
-                     1,
-                     ref.interfaceMethodType);
-         } else {
-             callSite = LambdaMetafactory.altMetafactory(lookup, 
-                     ref.invokedName, 
-                     ref.invokedType,
-                     ref.samMethodType,
-                     ref.implMethod,
-                     ref.samMethodType,
-                     0);
-         }
+         final CallSite callSite = LambdaBootstrap.bootstrap(lookup,
+             ref.invokedName,
+             ref.invokedType,
+             ref.interfaceMethodType,
+             call,
+             ref.samMethodType
+         );
          return callSite.dynamicInvoker().asType(MethodType.methodType(clazz.clazz, captures));
      }
-     
+
      /** gets the field name used to lookup up the MethodHandle for a function. */
      public static String getUserFunctionHandleFieldName(String name, int arity) {
          return "handle$" + name + "$" + arity;
@@ -587,7 +576,7 @@ public final class Def {
         throw new IllegalArgumentException("Attempting to address a non-array type " +
                                            "[" + receiverClass.getCanonicalName() + "] as an array.");
     }
-    
+
     /** Helper class for isolating MethodHandles and methods to get iterators over arrays
      * (to emulate "enhanced for loop" using MethodHandles). These cause boxing, and are not as efficient
      * as they could be, but works.

@@ -79,8 +79,8 @@ public class LambdaTests extends ScriptTestCase {
 
     public void testPrimitiveLambdasConvertible() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
-        assertEquals(2, exec("List l = new ArrayList(); l.add(1.0); l.add(1); "
-                           + "return l.stream().mapToInt(long x -> 1).sum();"));
+        assertEquals(2, exec("List l = new ArrayList(); l.add((short)1); l.add(1); "
+                           + "return l.stream().mapToInt(long x -> (int)1).sum();"));
     }
 
     public void testPrimitiveArgs() {

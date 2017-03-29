@@ -135,7 +135,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         when(autodetectProcess.isProcessAlive()).thenReturn(true);
         when(autodetectProcess.readAutodetectResults()).thenReturn(Collections.emptyIterator());
-        AutodetectProcessFactory autodetectProcessFactory = (j, modelSnapshot, quantiles, filters, i, e) -> autodetectProcess;
+        AutodetectProcessFactory autodetectProcessFactory =
+                (j, modelSnapshot, quantiles, filters, i, e, onProcessCrash) -> autodetectProcess;
         Settings.Builder settings = Settings.builder();
         settings.put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), 3);
         AutodetectProcessManager manager = spy(new AutodetectProcessManager(settings.build(), client, threadPool, jobManager, jobProvider,
@@ -297,7 +298,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(jobManager.getJobOrThrowIfUnknown("my_id")).thenReturn(createJobDetails("my_id"));
         PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
-        AutodetectProcessFactory autodetectProcessFactory = (j, modelSnapshot, quantiles, filters, i, e) -> autodetectProcess;
+        AutodetectProcessFactory autodetectProcessFactory =
+                (j, modelSnapshot, quantiles, filters, i, e, onProcessCrash) -> autodetectProcess;
         AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, persistentTasksService,

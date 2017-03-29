@@ -58,8 +58,11 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     }
 
     @Override
-    public AutodetectProcess createAutodetectProcess(Job job, ModelSnapshot modelSnapshot, Quantiles quantiles, Set<MlFilter> filters,
-                                                     boolean ignoreDowntime, ExecutorService executorService) {
+    public AutodetectProcess createAutodetectProcess(Job job, ModelSnapshot modelSnapshot,
+                                                     Quantiles quantiles, Set<MlFilter> filters,
+                                                     boolean ignoreDowntime,
+                                                     ExecutorService executorService,
+                                                     Runnable onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, ProcessCtrl.AUTODETECT, job.getId(),
                 true, false, true, true, modelSnapshot != null, !ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING.get(settings));
@@ -70,7 +73,8 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         AutodetectResultsParser resultsParser = new AutodetectResultsParser(settings);
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(
                 job.getId(), processPipes.getLogStream().get(), processPipes.getProcessInStream().get(),
-                processPipes.getProcessOutStream().get(), numberOfAnalysisFields, filesToDelete, resultsParser
+                processPipes.getProcessOutStream().get(), numberOfAnalysisFields, filesToDelete,
+                resultsParser, onProcessCrash
         );
         try {
             autodetect.start(executorService, stateProcessor, processPipes.getPersistStream().get());

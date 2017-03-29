@@ -29,6 +29,7 @@ import java.nio.file.Path;
 import java.time.ZonedDateTime;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -49,12 +50,16 @@ class NativeAutodetectProcess implements AutodetectProcess {
     private final ZonedDateTime startTime;
     private final int numberOfAnalysisFields;
     private final List<Path> filesToDelete;
+    private final Runnable onProcessCrash;
     private volatile Future<?> logTailFuture;
     private volatile Future<?> stateProcessorFuture;
+    private volatile boolean processCloseInitiated;
     private final AutodetectResultsParser resultsParser;
 
-    NativeAutodetectProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
-                            int numberOfAnalysisFields, List<Path> filesToDelete, AutodetectResultsParser resultsParser) {
+    NativeAutodetectProcess(String jobId, InputStream logStream, OutputStream processInStream,
+                            InputStream processOutStream, int numberOfAnalysisFields,
+                            List<Path> filesToDelete, AutodetectResultsParser resultsParser,
+                            Runnable onProcessCrash) {
         this.jobId = jobId;
         cppLogHandler = new CppLogMessageHandler(jobId, logStream);
         this.processInStream = new BufferedOutputStream(processInStream);
@@ -64,6 +69,7 @@ class NativeAutodetectProcess implements AutodetectProcess {
         this.numberOfAnalysisFields = numberOfAnalysisFields;
         this.filesToDelete = filesToDelete;
         this.resultsParser = resultsParser;
+        this.onProcessCrash = Objects.requireNonNull(onProcessCrash);
     }
 
     public void start(ExecutorService executorService, StateProcessor stateProcessor, InputStream persistStream) {
@@ -71,7 +77,15 @@ class NativeAutodetectProcess implements AutodetectProcess {
             try (CppLogMessageHandler h = cppLogHandler) {
                 h.tailStream();
             } catch (IOException e) {
-                LOGGER.error(new ParameterizedMessage("[{}] Error tailing C++ process logs", new Object[] { jobId }), e);
+                LOGGER.error(new ParameterizedMessage("[{}] Error tailing autodetect process logs",
+                        new Object[] { jobId }), e);
+            } finally {
+                if (processCloseInitiated == false) {
+                    // The log message doesn't say "crashed", as the process could have been killed
+                    // by a user or other process (e.g. the Linux OOM killer)
+                    LOGGER.error("[{}] autodetect process stopped unexpectedly", jobId);
+                    onProcessCrash.run();
+                }
             }
         });
         stateProcessorFuture = executorService.submit(() -> {
@@ -117,6 +131,7 @@ class NativeAutodetectProcess implements AutodetectProcess {
     @Override
     public void close() throws IOException {
         try {
+            processCloseInitiated = true;
             // closing its input causes the process to exit
             processInStream.close();
             // wait for the process to exit by waiting for end-of-file on the named pipe connected to its logger

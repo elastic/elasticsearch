@@ -37,6 +37,7 @@ class NativeNormalizerProcess implements NormalizerProcess {
     private final OutputStream processInStream;
     private final InputStream processOutStream;
     private final LengthEncodedWriter recordWriter;
+    private volatile boolean processCloseInitiated;
     private Future<?> logTailThread;
 
     NativeNormalizerProcess(String jobId, Settings settings, InputStream logStream, OutputStream processInStream,
@@ -51,7 +52,14 @@ class NativeNormalizerProcess implements NormalizerProcess {
             try (CppLogMessageHandler h = cppLogHandler) {
                 h.tailStream();
             } catch (IOException e) {
-                LOGGER.error(new ParameterizedMessage("[{}] Error tailing C++ process logs", new Object[] { jobId }), e);
+                LOGGER.error(new ParameterizedMessage("[{}] Error tailing normalizer process logs",
+                        new Object[] { jobId }), e);
+            } finally {
+                if (processCloseInitiated == false) {
+                    // The log message doesn't say "crashed", as the process could have been killed
+                    // by a user or other process (e.g. the Linux OOM killer)
+                    LOGGER.error("[{}] normalizer process stopped unexpectedly", jobId);
+                }
             }
         });
     }
@@ -64,6 +72,7 @@ class NativeNormalizerProcess implements NormalizerProcess {
     @Override
     public void close() throws IOException {
         try {
+            processCloseInitiated = true;
             // closing its input causes the process to exit
             processInStream.close();
             // wait for the process to exit by waiting for end-of-file on the named pipe connected to its logger

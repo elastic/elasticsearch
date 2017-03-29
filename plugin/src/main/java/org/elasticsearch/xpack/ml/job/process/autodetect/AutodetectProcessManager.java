@@ -268,7 +268,8 @@ public class AutodetectProcessManager extends AbstractComponent {
                     threadPool.executor(MachineLearning.THREAD_POOL_NAME), job.getAnalysisConfig().getUsePerPartitionNormalization());
 
             AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams.modelSnapshot(),
-                    autodetectParams.quantiles(), autodetectParams.filters(), ignoreDowntime, executorService);
+                    autodetectParams.quantiles(), autodetectParams.filters(), ignoreDowntime,
+                    executorService, () -> setJobState(taskId, jobId, JobState.FAILED));
             boolean usePerPartitionNormalization = job.getAnalysisConfig().getUsePerPartitionNormalization();
             AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
                     client, jobId, renormalizer, jobResultsPersister, autodetectParams.modelSizeStats());

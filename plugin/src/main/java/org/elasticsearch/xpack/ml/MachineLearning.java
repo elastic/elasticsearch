@@ -286,7 +286,8 @@ public class MachineLearning implements ActionPlugin {
                 throw new ElasticsearchException("Failed to create native process factories for Machine Learning", e);
             }
         } else {
-            autodetectProcessFactory = (jobDetails, modelSnapshot, quantiles, filters, ignoreDowntime, executorService) ->
+            autodetectProcessFactory = (jobDetails, modelSnapshot, quantiles, filters,
+                                        ignoreDowntime, executorService, onProcessCrash) ->
                     new BlackHoleAutodetectProcess();
             // factor of 1.0 makes renormalization a no-op
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, perPartitionNormalization,

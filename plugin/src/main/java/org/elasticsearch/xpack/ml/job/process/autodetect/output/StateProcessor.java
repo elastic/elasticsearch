@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * Reads the autodetect persisted state and writes the results via the {@linkplain JobResultsPersister} passed in the constructor.
+ * Reads the autodetect state and persists via a bulk request
  */
 public class StateProcessor extends AbstractComponent {
 

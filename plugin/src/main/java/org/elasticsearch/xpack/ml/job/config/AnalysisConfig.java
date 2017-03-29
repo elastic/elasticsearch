@@ -402,7 +402,9 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
             builder.field(MULTIPLE_BUCKET_SPANS.getPreferredName(),
                     multipleBucketSpans.stream().map(s -> s.getStringRep()).collect(Collectors.toList()));
         }
-        builder.field(USER_PER_PARTITION_NORMALIZATION.getPreferredName(), usePerPartitionNormalization);
+        if (usePerPartitionNormalization) {
+            builder.field(USER_PER_PARTITION_NORMALIZATION.getPreferredName(), usePerPartitionNormalization);
+        }
         builder.endObject();
         return builder;
     }

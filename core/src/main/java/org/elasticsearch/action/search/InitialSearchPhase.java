@@ -165,8 +165,8 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     }
 
     private void onShardResult(FirstResult result, ShardIterator shardIt) {
-        assert result.getShardIndex() != -1;
-        assert result.getSearchShardTarget() != null;
+        assert result.getShardIndex() != -1 : "shard index is not set";
+        assert result.getSearchShardTarget() != null : "search shard target must not be null";
         onShardSuccess(result);
         // we need to increment successful ops first before we compare the exit condition otherwise if we
         // are fast we could concurrently update totalOps but then preempt one of the threads which can

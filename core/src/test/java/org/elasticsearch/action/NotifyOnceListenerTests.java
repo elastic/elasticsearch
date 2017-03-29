@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class NotifyOnceListenerTests extends ESTestCase {
 
     @Test
-    public void testCannotNotifyMultipleTimes() {
+    public void testWhenSuccessCannotNotifyMultipleTimes() {
         AtomicReference<String> response = new AtomicReference<>();
         AtomicReference<Exception> exception = new AtomicReference<>();
 
@@ -49,5 +49,31 @@ public class NotifyOnceListenerTests extends ESTestCase {
 
         assertNull(exception.get());
         assertEquals("response", response.get());
+    }
+
+    @Test
+    public void testWhenErrorCannotNotifyMultipleTimes() {
+        AtomicReference<String> response = new AtomicReference<>();
+        AtomicReference<Exception> exception = new AtomicReference<>();
+
+        NotifyOnceListener<String> listener = new NotifyOnceListener<String>() {
+            @Override
+            public void innerOnResponse(String s) {
+                response.set(s);
+            }
+
+            @Override
+            public void innerOnFailure(Exception e) {
+                exception.set(e);
+            }
+        };
+
+        RuntimeException expected = new RuntimeException();
+        listener.onFailure(expected);
+        listener.onFailure(new IllegalArgumentException());
+        listener.onResponse("response");
+
+        assertNull(response.get());
+        assertSame(expected, exception.get());
     }
 }

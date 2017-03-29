@@ -120,7 +120,10 @@ task integTest {
 
 test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
-check.dependsOn(integTest)
+// Silence UpgradeClusterClientYamlTestSuiteIT (as the failure happens during test setup, we cannot really use @AwaitsFix here)
+// Please reenable this test again by removing the comment below after https://github.com/elastic/x-pack-elasticsearch/issues/870
+// (caused by https://github.com/elastic/x-pack-kibana/issues/690) has been fixed.
+//check.dependsOn(integTest)
 
 dependencies {
     testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')

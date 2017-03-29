@@ -78,7 +78,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         addTestNodes(nodes, randomIntBetween(1, 10));
         int numberOfTasks = randomIntBetween(2, 40);
         for (int i = 0; i < numberOfTasks; i++) {
-            addTask(tasks, "should_assign", "assign_one", randomBoolean() ? null : "no_longer_exits", false);
+            addTask(tasks, "should_assign", "assign_one", randomBoolean() ? null : "no_longer_exits");
         }
 
         MetaData.Builder metaData = MetaData.builder(clusterState.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE, tasks.build());
@@ -99,21 +99,17 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         addTestNodes(nodes, randomIntBetween(1, 10));
         int numberOfTasks = randomIntBetween(0, 40);
         for (int i = 0; i < numberOfTasks; i++) {
-            switch (randomInt(3)) {
+            switch (randomInt(2)) {
                 case 0:
                     // add an unassigned task that should get assigned because it's assigned to a non-existing node or unassigned
-                    addTask(tasks, "should_assign", "assign_me", randomBoolean() ? null : "no_longer_exits", false);
+                    addTask(tasks, "should_assign", "assign_me", randomBoolean() ? null : "no_longer_exits");
                     break;
                 case 1:
                     // add a task assigned to non-existing node that should not get assigned
-                    addTask(tasks, "should_not_assign", "dont_assign_me", randomBoolean() ? null : "no_longer_exits", false);
+                    addTask(tasks, "should_not_assign", "dont_assign_me", randomBoolean() ? null : "no_longer_exits");
                     break;
                 case 2:
-                    // add a stopped task assigned to non-existing node that should not get assigned
-                    addTask(tasks, "should_not_assign", "fail_me_if_called", null, true);
-                    break;
-                case 3:
-                    addTask(tasks, "assign_one", "assign_one", randomBoolean() ? null : "no_longer_exits", false);
+                    addTask(tasks, "assign_one", "assign_one", randomBoolean() ? null : "no_longer_exits");
                     break;
 
             }
@@ -131,39 +127,34 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         int assignOneCount = 0;
 
         for (PersistentTask<?> task : tasksInProgress.tasks()) {
-            if (task.isStopped()) {
-                assertThat("stopped tasks should be never assigned", task.getExecutorNode(), nullValue());
-                assertThat(task.getAssignment().getExplanation(), equalTo("explanation: " + task.getTaskName()));
-            } else {
-                // explanation should correspond to the action name
-                switch (task.getTaskName()) {
-                    case "should_assign":
-                        assertThat(task.getExecutorNode(), notNullValue());
-                        assertThat(task.isAssigned(), equalTo(true));
-                        if (clusterState.nodes().nodeExists(task.getExecutorNode()) == false) {
-                            logger.info(clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE).toString());
-                        }
-                        assertThat("task should be assigned to a node that is in the cluster, was assigned to " + task.getExecutorNode(),
-                                clusterState.nodes().nodeExists(task.getExecutorNode()), equalTo(true));
+            // explanation should correspond to the action name
+            switch (task.getTaskName()) {
+                case "should_assign":
+                    assertThat(task.getExecutorNode(), notNullValue());
+                    assertThat(task.isAssigned(), equalTo(true));
+                    if (clusterState.nodes().nodeExists(task.getExecutorNode()) == false) {
+                        logger.info(clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE).toString());
+                    }
+                    assertThat("task should be assigned to a node that is in the cluster, was assigned to " + task.getExecutorNode(),
+                            clusterState.nodes().nodeExists(task.getExecutorNode()), equalTo(true));
+                    assertThat(task.getAssignment().getExplanation(), equalTo("test assignment"));
+                    break;
+                case "should_not_assign":
+                    assertThat(task.getExecutorNode(), nullValue());
+                    assertThat(task.isAssigned(), equalTo(false));
+                    assertThat(task.getAssignment().getExplanation(), equalTo("no appropriate nodes found for the assignment"));
+                    break;
+                case "assign_one":
+                    if (task.isAssigned()) {
+                        assignOneCount++;
+                        assertThat("more than one assign_one tasks are assigned", assignOneCount, lessThanOrEqualTo(1));
                         assertThat(task.getAssignment().getExplanation(), equalTo("test assignment"));
-                        break;
-                    case "should_not_assign":
-                        assertThat(task.getExecutorNode(), nullValue());
-                        assertThat(task.isAssigned(), equalTo(false));
-                        assertThat(task.getAssignment().getExplanation(), equalTo("no appropriate nodes found for the assignment"));
-                        break;
-                    case "assign_one":
-                        if (task.isAssigned()) {
-                            assignOneCount++;
-                            assertThat("more than one assign_one tasks are assigned", assignOneCount, lessThanOrEqualTo(1));
-                            assertThat(task.getAssignment().getExplanation(), equalTo("test assignment"));
-                        } else {
-                            assertThat(task.getAssignment().getExplanation(), equalTo("only one task can be assigned at a time"));
-                        }
-                        break;
-                    default:
-                        fail("Unknown action " + task.getTaskName());
-                }
+                    } else {
+                        assertThat(task.getAssignment().getExplanation(), equalTo("only one task can be assigned at a time"));
+                    }
+                    break;
+                default:
+                    fail("Unknown action " + task.getTaskName());
             }
         }
     }
@@ -204,8 +195,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
     private Assignment assignOnlyOneTaskAtATime(ClusterState clusterState) {
         DiscoveryNodes nodes = clusterState.nodes();
         PersistentTasksCustomMetaData tasksInProgress = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        if (tasksInProgress.findTasks("assign_one",
-                task -> task.isStopped() == false && nodes.nodeExists(task.getExecutorNode())).isEmpty()) {
+        if (tasksInProgress.findTasks("assign_one", task -> nodes.nodeExists(task.getExecutorNode())).isEmpty()) {
             return randomNodeAssignment(clusterState.nodes());
         } else {
             return new Assignment(null, "only one task can be assigned at a time");
@@ -255,13 +245,12 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             // we don't have any unassigned tasks - add some
             if (randomBoolean()) {
                 logger.info("added random task");
-                addRandomTask(builder, MetaData.builder(clusterState.metaData()), PersistentTasksCustomMetaData.builder(tasks), null,
-                        false);
+                addRandomTask(builder, MetaData.builder(clusterState.metaData()), PersistentTasksCustomMetaData.builder(tasks), null);
                 tasksOrNodesChanged = true;
             } else {
                 logger.info("added unassignable task with custom assignment message");
                 addRandomTask(builder, MetaData.builder(clusterState.metaData()), PersistentTasksCustomMetaData.builder(tasks),
-                        new Assignment(null, "change me"), "never_assign", false);
+                        new Assignment(null, "change me"), "never_assign");
                 tasksOrNodesChanged = true;
             }
         }
@@ -318,23 +307,16 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 }
                 if (randomBoolean()) {
                     logger.info("added random unassignable task");
-                    addRandomTask(builder, MetaData.builder(clusterState.metaData()), tasksBuilder, NO_NODE_FOUND, "never_assign", false);
+                    addRandomTask(builder, MetaData.builder(clusterState.metaData()), tasksBuilder, NO_NODE_FOUND, "never_assign");
                     return builder.build();
                 }
-                if (randomBoolean()) {
-                    // add unassigned task in stopped state
-                    logger.info("added random stopped task");
-                    addRandomTask(builder, MetaData.builder(clusterState.metaData()), tasksBuilder, null, true);
-                    return builder.build();
-                } else {
-                    logger.info("changed routing table");
-                    MetaData.Builder metaData = MetaData.builder(clusterState.metaData());
-                    metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build());
-                    RoutingTable.Builder routingTable = RoutingTable.builder(clusterState.routingTable());
-                    changeRoutingTable(metaData, routingTable);
-                    builder.metaData(metaData).routingTable(routingTable.build());
-                    return builder.build();
-                }
+                logger.info("changed routing table");
+                MetaData.Builder metaData = MetaData.builder(clusterState.metaData());
+                metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build());
+                RoutingTable.Builder routingTable = RoutingTable.builder(clusterState.routingTable());
+                changeRoutingTable(metaData, routingTable);
+                builder.metaData(metaData).routingTable(routingTable.build());
+                return builder.build();
             }
         }
         if (randomBoolean()) {
@@ -384,9 +366,6 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             return false;
         }
         return tasks.tasks().stream().anyMatch(task -> {
-            if (task.isStopped()) {
-                return false;
-            }
             if (task.getExecutorNode() == null || discoveryNodes.nodeExists(task.getExecutorNode())) {
                 return "never_assign".equals(((TestRequest) task.getRequest()).getTestParam()) == false;
             }
@@ -401,20 +380,20 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
 
     private ClusterState.Builder addRandomTask(ClusterState.Builder clusterStateBuilder,
                                                MetaData.Builder metaData, PersistentTasksCustomMetaData.Builder tasks,
-                                               String node, boolean stopped) {
+                                               String node) {
         return addRandomTask(clusterStateBuilder, metaData, tasks, new Assignment(node, randomAsciiOfLength(10)),
-                randomAsciiOfLength(10), stopped);
+                randomAsciiOfLength(10));
     }
 
     private ClusterState.Builder addRandomTask(ClusterState.Builder clusterStateBuilder,
                                                MetaData.Builder metaData, PersistentTasksCustomMetaData.Builder tasks,
-                                               Assignment assignment, String param, boolean stopped) {
+                                               Assignment assignment, String param) {
         return clusterStateBuilder.metaData(metaData.putCustom(PersistentTasksCustomMetaData.TYPE,
-                tasks.addTask(randomAsciiOfLength(10), new TestRequest(param), stopped, randomBoolean(), assignment).build()));
+                tasks.addTask(randomAsciiOfLength(10), new TestRequest(param), assignment).build()));
     }
 
-    private void addTask(PersistentTasksCustomMetaData.Builder tasks, String action, String param, String node, boolean stopped) {
-        tasks.addTask(action, new TestRequest(param), stopped, randomBoolean(), new Assignment(node, "explanation: " + action));
+    private void addTask(PersistentTasksCustomMetaData.Builder tasks, String action, String param, String node) {
+        tasks.addTask(action, new TestRequest(param), new Assignment(node, "explanation: " + action));
     }
 
     private DiscoveryNode newNode(String nodeId) {

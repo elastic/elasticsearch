@@ -48,7 +48,7 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
 
     public void testValidate() {
         PersistentTask<?> task = new PersistentTask<PersistentTaskRequest>(1L, StartDatafeedAction.NAME,
-                new StartDatafeedAction.Request("foo", 0L), false, false, new PersistentTasksCustomMetaData.Assignment("node_id", ""));
+                new StartDatafeedAction.Request("foo", 0L), new PersistentTasksCustomMetaData.Assignment("node_id", ""));
         task = new PersistentTask<>(task, DatafeedState.STARTED);
         PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(1L, task));
 
@@ -69,7 +69,7 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
         PersistentTasksCustomMetaData tasks;
         if (randomBoolean()) {
             PersistentTask<?> task = new PersistentTask<PersistentTaskRequest>(1L, StartDatafeedAction.NAME,
-                    new StartDatafeedAction.Request("foo", 0L), false, false, new PersistentTasksCustomMetaData.Assignment("node_id", ""));
+                    new StartDatafeedAction.Request("foo", 0L), new PersistentTasksCustomMetaData.Assignment("node_id", ""));
             task = new PersistentTask<>(task, DatafeedState.STOPPED);
             tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(1L, task));
         } else {

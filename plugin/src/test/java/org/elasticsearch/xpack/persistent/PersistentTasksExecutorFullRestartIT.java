@@ -47,35 +47,26 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
         long[] taskIds = new long[numberOfTasks];
         List<PersistentTaskOperationFuture> futures = new ArrayList<>(numberOfTasks);
 
-        boolean[] stopped = new boolean[numberOfTasks];
-        int runningTasks = 0;
         for (int i = 0; i < numberOfTasks; i++) {
-            stopped[i] = randomBoolean();
-            if (stopped[i] == false) {
-                runningTasks++;
-            }
             PersistentTaskOperationFuture future = new PersistentTaskOperationFuture();
             futures.add(future);
-            service.createPersistentActionTask(TestPersistentTasksExecutor.NAME, new TestRequest("Blah"), stopped[i], true, future);
+            service.createPersistentActionTask(TestPersistentTasksExecutor.NAME, new TestRequest("Blah"), future);
         }
 
         for (int i = 0; i < numberOfTasks; i++) {
             taskIds[i] = futures.get(i).get();
         }
 
-        final int numberOfRunningTasks = runningTasks;
         PersistentTasksCustomMetaData tasksInProgress = internalCluster().clusterService().state().getMetaData()
                 .custom(PersistentTasksCustomMetaData.TYPE);
         assertThat(tasksInProgress.tasks().size(), equalTo(numberOfTasks));
 
-        if (numberOfRunningTasks > 0) {
-            // Make sure that at least one of the tasks is running
-            assertBusy(() -> {
-                // Wait for the task to start
-                assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get()
-                        .getTasks().size(), greaterThan(0));
-            });
-        }
+        // Make sure that at least one of the tasks is running
+        assertBusy(() -> {
+            // Wait for the task to start
+            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get()
+                    .getTasks().size(), greaterThan(0));
+        });
 
         // Restart cluster
         internalCluster().fullRestart();
@@ -87,30 +78,6 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
         for (int i = 0; i < numberOfTasks; i++) {
             PersistentTask<?> task = tasksInProgress.getTask(taskIds[i]);
             assertNotNull(task);
-            assertThat(task.isStopped(), equalTo(stopped[i]));
-        }
-
-        logger.info("Waiting for {} original tasks to start", numberOfRunningTasks);
-        assertBusy(() -> {
-            // Wait for the running task to start automatically
-            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get()
-                            .getTasks().size(), equalTo(numberOfRunningTasks));
-        });
-
-        // Start all other tasks
-        tasksInProgress = internalCluster().clusterService().state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        service = internalCluster().getInstance(PersistentTasksService.class);
-        for (int i = 0; i < numberOfTasks; i++) {
-            PersistentTask<?> task = tasksInProgress.getTask(taskIds[i]);
-            assertNotNull(task);
-            logger.info("checking task with id {} stopped {} node {}", task.getId(), task.isStopped(), task.getExecutorNode());
-            assertThat(task.isStopped(), equalTo(stopped[i]));
-            assertThat(task.getExecutorNode(), stopped[i] ? nullValue() : notNullValue());
-            if (stopped[i]) {
-                PersistentTaskOperationFuture startFuture = new PersistentTaskOperationFuture();
-                service.startTask(task.getId(), startFuture);
-                assertEquals(startFuture.get(), (Long) task.getId());
-            }
         }
 
         logger.info("Waiting for {} tasks to start", numberOfTasks);

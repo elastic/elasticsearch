@@ -126,8 +126,7 @@ public class StartDatafeedActionTests extends ESTestCase {
                 .putJob(job1, false)
                 .build();
         PersistentTask<OpenJobAction.Request> task =
-                new PersistentTask<>(0L, OpenJobAction.NAME, new OpenJobAction.Request("job_id"), false, true,
-                        INITIAL_ASSIGNMENT);
+                new PersistentTask<>(0L, OpenJobAction.NAME, new OpenJobAction.Request("job_id"), INITIAL_ASSIGNMENT);
         PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(0L, Collections.singletonMap(0L, task));
         DatafeedConfig datafeedConfig1 = DatafeedJobRunnerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
         MlMetadata mlMetadata2 = new MlMetadata.Builder(mlMetadata1)
@@ -153,7 +152,7 @@ public class StartDatafeedActionTests extends ESTestCase {
         PersistentTask<OpenJobAction.Request> jobTask = createJobTask(0L, "job_id", "node_id", JobState.OPENED);
         PersistentTask<StartDatafeedAction.Request> datafeedTask =
                 new PersistentTask<>(0L, StartDatafeedAction.NAME, new StartDatafeedAction.Request("datafeed_id", 0L),
-                        false, true, new Assignment("node_id", "test assignment"));
+                        new Assignment("node_id", "test assignment"));
         datafeedTask = new PersistentTask<>(datafeedTask, DatafeedState.STARTED);
         Map<Long, PersistentTask<?>> taskMap = new HashMap<>();
         taskMap.put(0L, jobTask);

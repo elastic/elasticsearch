@@ -44,9 +44,8 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         int numberOfTasks = randomInt(10);
         PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder();
         for (int i = 0; i < numberOfTasks; i++) {
-            boolean stopped = randomBoolean();
             tasks.addTask(TestPersistentTasksExecutor.NAME, new TestRequest(randomAsciiOfLength(10)),
-                    stopped, randomBoolean(), stopped ? new Assignment(null, "stopped") : randomAssignment());
+                    randomAssignment());
             if (randomBoolean()) {
                 // From time to time update status
                 tasks.updateTaskStatus(tasks.getCurrentId(), new Status(randomAsciiOfLength(10)));
@@ -136,9 +135,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
     }
 
     private Builder addRandomTask(Builder builder) {
-        boolean stopped = randomBoolean();
-        builder.addTask(TestPersistentTasksExecutor.NAME, new TestRequest(randomAsciiOfLength(10)), stopped, randomBoolean(),
-                stopped ? new Assignment(null, "stopped") : randomAssignment());
+        builder.addTask(TestPersistentTasksExecutor.NAME, new TestRequest(randomAsciiOfLength(10)), randomAssignment());
         return builder;
     }
 
@@ -183,7 +180,6 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
             assertEquals(testTask.getId(), newTask.getId());
             assertEquals(testTask.getStatus(), newTask.getStatus());
             assertEquals(testTask.getRequest(), newTask.getRequest());
-            assertEquals(testTask.isStopped(), newTask.isStopped());
 
             // Things that shouldn't be serialized
             assertEquals(0, newTask.getAllocationId());
@@ -220,16 +216,12 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
                             if (randomBoolean()) {
                                 // Trying to reassign to the same node
                                 builder.assignTask(lastKnownTask, (s, request) -> task.getAssignment());
-                                // should change if the task was stopped AND unassigned
-                                if (task.getExecutorNode() == null && task.isStopped()) {
-                                    changed = true;
-                                }
                             } else {
                                 // Trying to reassign to a different node
                                 Assignment randomAssignment = randomAssignment();
                                 builder.assignTask(lastKnownTask, (s, request) -> randomAssignment);
                                 // should change if the task was unassigned and was reassigned to a different node or started
-                                if ((task.isAssigned() == false && randomAssignment.isAssigned()) || task.isStopped()) {
+                                if ((task.isAssigned() == false && randomAssignment.isAssigned())) {
                                     changed = true;
                                 }
                             }

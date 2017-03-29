@@ -104,7 +104,7 @@ public class CloseJobActionTests extends ESTestCase {
     public static PersistentTask<StartDatafeedAction.Request> createDatafeedTask(long id, String datafeedId, long startTime,
                                                                                  String nodeId, DatafeedState datafeedState) {
         PersistentTask<StartDatafeedAction.Request> task =
-                new PersistentTask<>(id, StartDatafeedAction.NAME, new StartDatafeedAction.Request(datafeedId, startTime), false, true,
+                new PersistentTask<>(id, StartDatafeedAction.NAME, new StartDatafeedAction.Request(datafeedId, startTime),
                         new PersistentTasksCustomMetaData.Assignment(nodeId, "test assignment"));
         task = new PersistentTask<>(task, datafeedState);
         return task;

@@ -30,26 +30,13 @@ public class PersistentTasksService extends AbstractComponent {
     }
 
     /**
-     * Creates the specified persistent action and tries to start it immediately, upon completion the task is
-     * removed from the cluster state
-     */
-    public <Request extends PersistentTaskRequest> void createPersistentActionTask(String action, Request request,
-                                                                                   PersistentTaskOperationListener listener) {
-        createPersistentActionTask(action, request, false, true, listener);
-    }
-
-    /**
      * Creates the specified persistent action. The action is started unless the stopped parameter is equal to true.
      * If removeOnCompletion parameter is equal to true, the task is removed from the cluster state upon completion.
      * Otherwise it will remain there in the stopped state.
      */
     public <Request extends PersistentTaskRequest> void createPersistentActionTask(String action, Request request,
-                                                                                   boolean stopped,
-                                                                                   boolean removeOnCompletion,
                                                                                    PersistentTaskOperationListener listener) {
         CreatePersistentTaskAction.Request createPersistentActionRequest = new CreatePersistentTaskAction.Request(action, request);
-        createPersistentActionRequest.setStopped(stopped);
-        createPersistentActionRequest.setRemoveOnCompletion(removeOnCompletion);
         try {
             client.execute(CreatePersistentTaskAction.INSTANCE, createPersistentActionRequest, ActionListener.wrap(
                     o -> listener.onResponse(o.getTaskId()), listener::onFailure));

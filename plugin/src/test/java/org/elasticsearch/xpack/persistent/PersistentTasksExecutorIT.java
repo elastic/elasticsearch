@@ -112,67 +112,6 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         stopOrCancelTask(firstRunningTask.getTaskId());
     }
 
-    public void testPersistentActionCompletionWithoutRemoval() throws Exception {
-        boolean stopped = randomBoolean();
-        PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
-        PersistentTaskOperationFuture future = new PersistentTaskOperationFuture();
-        persistentTasksService.createPersistentActionTask(TestPersistentTasksExecutor.NAME, new TestRequest("Blah"), stopped, false,
-                future);
-        long taskId = future.get();
-
-        PersistentTasksCustomMetaData tasksInProgress = internalCluster().clusterService().state().getMetaData()
-                .custom(PersistentTasksCustomMetaData.TYPE);
-        assertThat(tasksInProgress.tasks().size(), equalTo(1));
-        assertThat(tasksInProgress.getTask(taskId).isStopped(), equalTo(stopped));
-        assertThat(tasksInProgress.getTask(taskId).getExecutorNode(), stopped ? nullValue() : notNullValue());
-        assertThat(tasksInProgress.getTask(taskId).shouldRemoveOnCompletion(), equalTo(false));
-
-        int numberOfIters = randomIntBetween(1, 5); // we will start/stop the action a few times before removing it
-        logger.info("start/stop the task {} times stating with stopped {}", numberOfIters, stopped);
-        for (int i = 0; i < numberOfIters; i++) {
-            logger.info("iteration {}", i);
-            if (stopped) {
-                assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get()
-                                .getTasks(), empty());
-                PersistentTaskOperationFuture startFuture = new PersistentTaskOperationFuture();
-                persistentTasksService.startTask(taskId, startFuture);
-                assertEquals(startFuture.get(), (Long) taskId);
-            }
-            assertBusy(() -> {
-                // Wait for the task to start
-                assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get()
-                        .getTasks().size(), equalTo(1));
-            });
-            TaskInfo firstRunningTask = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
-                    .get().getTasks().get(0);
-
-            stopOrCancelTask(firstRunningTask.getTaskId());
-
-            assertBusy(() -> {
-                // Wait for the task to finish
-                List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
-                        .get().getTasks();
-                logger.info("Found {} tasks", tasks.size());
-                assertThat(tasks.size(), equalTo(0));
-            });
-            stopped = true;
-        }
-
-        assertBusy(() -> {
-            // Wait for the task to be marked as stopped
-            PersistentTasksCustomMetaData tasks = internalCluster().clusterService().state().getMetaData()
-                    .custom(PersistentTasksCustomMetaData.TYPE);
-            assertThat(tasks.tasks().size(), equalTo(1));
-            assertThat(tasks.getTask(taskId).isStopped(), equalTo(true));
-            assertThat(tasks.getTask(taskId).shouldRemoveOnCompletion(), equalTo(false));
-        });
-
-        logger.info("Removing action record from cluster state");
-        PersistentTaskOperationFuture removeFuture = new PersistentTaskOperationFuture();
-        persistentTasksService.removeTask(taskId, removeFuture);
-        assertEquals(removeFuture.get(), (Long) taskId);
-    }
-
     public void testPersistentActionWithNoAvailableNode() throws Exception {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         PersistentTaskOperationFuture future = new PersistentTaskOperationFuture();

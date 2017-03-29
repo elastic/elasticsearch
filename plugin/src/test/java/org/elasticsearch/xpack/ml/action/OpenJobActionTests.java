@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
@@ -118,12 +119,9 @@ public class OpenJobActionTests extends ESTestCase {
                 .build();
 
         Map<Long, PersistentTask<?>> taskMap = new HashMap<>();
-        taskMap.put(0L, new PersistentTask<>(0L, OpenJobAction.NAME, new OpenJobAction.Request("job_id1"), false, true,
-                new Assignment("_node_id1", "test assignment")));
-        taskMap.put(1L, new PersistentTask<>(1L, OpenJobAction.NAME, new OpenJobAction.Request("job_id2"), false, true,
-                new Assignment("_node_id1", "test assignment")));
-        taskMap.put(2L, new PersistentTask<>(2L, OpenJobAction.NAME, new OpenJobAction.Request("job_id3"), false, true,
-                new Assignment("_node_id2", "test assignment")));
+        taskMap.put(0L, new PersistentTask<>(0L, OpenJobAction.NAME, new OpenJobAction.Request("job_id1"), new Assignment("_node_id1", "test assignment")));
+        taskMap.put(1L, new PersistentTask<>(1L, OpenJobAction.NAME, new OpenJobAction.Request("job_id2"), new Assignment("_node_id1", "test assignment")));
+        taskMap.put(2L, new PersistentTask<>(2L, OpenJobAction.NAME, new OpenJobAction.Request("job_id3"), new Assignment("_node_id2", "test assignment")));
         PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(3L, taskMap);
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
@@ -180,7 +178,7 @@ public class OpenJobActionTests extends ESTestCase {
                 .build();
 
         PersistentTask<OpenJobAction.Request> task =
-                new PersistentTask<>(1L, OpenJobAction.NAME, new OpenJobAction.Request("job_id1"), false, true,
+                new PersistentTask<>(1L, OpenJobAction.NAME, new OpenJobAction.Request("job_id1"),
                         new Assignment("_node_id1", "test assignment"));
         PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(1L, task));
 
@@ -241,7 +239,7 @@ public class OpenJobActionTests extends ESTestCase {
         assertNull("no node selected, because OPENING state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
-        taskMap.put(5L, new PersistentTask<>(lastTask, false, new Assignment("_node_id3", "test assignment")));
+        taskMap.put(5L, new PersistentTask<>(lastTask, new Assignment("_node_id3", "test assignment")));
         tasks = new PersistentTasksCustomMetaData(6L, taskMap);
 
         csBuilder = ClusterState.builder(cs);
@@ -251,7 +249,7 @@ public class OpenJobActionTests extends ESTestCase {
         assertNull("no node selected, because stale task", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
-        taskMap.put(5L, new PersistentTask<>(lastTask, null));
+        taskMap.put(5L, new PersistentTask<>(lastTask, (Task.Status) null));
         tasks = new PersistentTasksCustomMetaData(6L, taskMap);
 
         csBuilder = ClusterState.builder(cs);
@@ -300,8 +298,7 @@ public class OpenJobActionTests extends ESTestCase {
 
     public static PersistentTask<OpenJobAction.Request> createJobTask(long id, String jobId, String nodeId, JobState jobState) {
         PersistentTask<OpenJobAction.Request> task =
-                new PersistentTask<>(id, OpenJobAction.NAME, new OpenJobAction.Request(jobId), false, true,
-                        new Assignment(nodeId, "test assignment"));
+                new PersistentTask<>(id, OpenJobAction.NAME, new OpenJobAction.Request(jobId), new Assignment(nodeId, "test assignment"));
         task = new PersistentTask<>(task, jobState);
         return task;
     }

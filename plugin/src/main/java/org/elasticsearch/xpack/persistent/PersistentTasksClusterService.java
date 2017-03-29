@@ -47,21 +47,15 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
      * @param request  request
      * @param listener the listener that will be called when task is started
      */
-    public <Request extends PersistentTaskRequest> void createPersistentTask(String action, Request request, boolean stopped,
-                                                                             boolean removeOnCompletion,
+    public <Request extends PersistentTaskRequest> void createPersistentTask(String action, Request request,
                                                                              ActionListener<Long> listener) {
         clusterService.submitStateUpdateTask("create persistent task", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 validate(action, clusterService.state(), request);
                 final Assignment assignment;
-                if (stopped) {
-                    // the task is stopped no need to assign it anywhere
-                    assignment = PersistentTasksCustomMetaData.FINISHED_TASK_ASSIGNMENT;
-                } else {
-                    assignment = getAssignement(action, currentState, request);
-                }
-                return update(currentState, builder(currentState).addTask(action, request, stopped, removeOnCompletion, assignment));
+                assignment = getAssignement(action, currentState, request);
+                return update(currentState, builder(currentState).addTask(action, request, assignment));
             }
 
             @Override
@@ -305,11 +299,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
                         logger.trace("ignoring task {} because assignment is the same {}", task.getId(), assignment);
                     }
                 } else {
-                    if (task.isStopped()) {
-                        logger.trace("ignoring task {} because it is stopped", task.getId());
-                    } else {
-                        logger.trace("ignoring task {} because it is still running", task.getId());
-                    }
+                    logger.trace("ignoring task {} because it is still running", task.getId());
                 }
             }
         }

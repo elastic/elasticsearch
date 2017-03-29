@@ -76,11 +76,11 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         boolean added = false;
         if (nonLocalNodesCount > 0) {
             for (int i = 0; i < randomInt(5); i++) {
-                tasks.addTask("test_action", new TestRequest("other_" + i), false, true,
+                tasks.addTask("test_action", new TestRequest("other_" + i),
                         new Assignment("other_node_" + randomInt(nonLocalNodesCount), "test assignment on other node"));
                 if (added == false && randomBoolean()) {
                     added = true;
-                    tasks.addTask("test", new TestRequest("this_param"), false, true,
+                    tasks.addTask("test", new TestRequest("this_param"),
                             new Assignment("this_node", "test assignment on this node"));
                 }
             }
@@ -303,7 +303,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         PersistentTasksCustomMetaData.Builder builder =
                 PersistentTasksCustomMetaData.builder(state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
         return ClusterState.builder(state).metaData(MetaData.builder(state.metaData()).putCustom(PersistentTasksCustomMetaData.TYPE,
-                builder.addTask(action, request, false, true, new Assignment(node, "test assignment")).build())).build();
+                builder.addTask(action, request, new Assignment(node, "test assignment")).build())).build();
     }
 
     private ClusterState reallocateTask(ClusterState state, long taskId, String node) {

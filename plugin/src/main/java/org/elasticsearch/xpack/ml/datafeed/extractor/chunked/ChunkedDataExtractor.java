@@ -96,7 +96,7 @@ public class ChunkedDataExtractor implements DataExtractor {
             currentStart = dataSummary.earliestTime;
             currentEnd = currentStart;
             chunkSpan = context.chunkSpan == null ? dataSummary.estimateChunk() : context.chunkSpan.getMillis();
-            LOGGER.info("Chunked search configured:  totalHits = {}, dataTimeSpread = {} ms, chunk span = {} ms",
+            LOGGER.debug("Chunked search configured:  totalHits = {}, dataTimeSpread = {} ms, chunk span = {} ms",
                     dataSummary.totalHits, dataSummary.getDataTimeSpread(), chunkSpan);
         } else {
             // search is over

@@ -127,6 +127,37 @@
       $body: / (^|\n)test_2 .+ \n/
 
 ---
+"Multiple alias names":
+
+  - do:
+        indices.create:
+            index: test
+
+  - do:
+        indices.create:
+            index: test2
+
+  - do:
+        indices.put_alias:
+            index: test
+            name: foo
+
+  - do:
+        indices.put_alias:
+            index: test2
+            name: bar
+
+  - do:
+        cat.aliases:
+            name: foo,bar
+
+  - match:
+      $body: /(^|\n)foo\s+test /
+
+  - match:
+      $body: /(^|\n)bar\s+test2 /
+
+---
 "Column headers":
 
   - do:

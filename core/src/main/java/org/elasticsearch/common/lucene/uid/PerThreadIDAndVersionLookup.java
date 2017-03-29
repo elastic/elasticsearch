@@ -65,9 +65,15 @@ final class PerThreadIDAndVersionLookup {
         Fields fields = reader.fields();
         Terms terms = fields.terms(UidFieldMapper.NAME);
         termsEnum = terms.iterator();
-        assert termsEnum != null;
+        if (termsEnum == null) {
+            throw new IllegalArgumentException("reader misses the [" + UidFieldMapper.NAME +
+                "] field");
+        }
         versions = reader.getNumericDocValues(VersionFieldMapper.NAME);
-        assert versions != null;
+        if (versions == null) {
+            throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME +
+                "] field");
+        }
         boolean assertionsOn = false;
         assert (assertionsOn = true);
         if (assertionsOn) {
@@ -79,7 +85,8 @@ final class PerThreadIDAndVersionLookup {
     }
 
     /** Return null if id is not found. */
-    public DocIdAndVersion lookupVersion(BytesRef id, Bits liveDocs, LeafReaderContext context) throws IOException {
+    public DocIdAndVersion lookupVersion(BytesRef id, Bits liveDocs, LeafReaderContext context)
+        throws IOException {
         assert context.reader().getCoreCacheKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
         int docID = getDocID(id, liveDocs);

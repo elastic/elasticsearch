@@ -109,23 +109,6 @@ public class VersionsResolver {
     }
 
     /**
-     * Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b>
-     * and a seqNo.
-     **/
-    public static class DocIdAndSeqNo {
-        public final int docId;
-        public final long seqNo;
-        public final LeafReaderContext context;
-
-        public DocIdAndSeqNo(int docId, long seqNo, LeafReaderContext context) {
-            this.docId = docId;
-            this.seqNo = seqNo;
-            this.context = context;
-        }
-    }
-
-
-    /**
      * Load the internal doc ID and version for the uid from the reader, returning<ul>
      * <li>null if the uid wasn't found,
      * <li>a doc ID and a version otherwise

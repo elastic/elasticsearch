@@ -69,10 +69,6 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
 
         private PersistentTaskRequest request;
 
-        private boolean stopped;
-
-        private boolean removeOnCompletion = true;
-
         public Request() {
 
         }
@@ -80,8 +76,6 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
         public Request(String action, PersistentTaskRequest request) {
             this.action = action;
             this.request = request;
-            this.stopped = false;
-            this.removeOnCompletion = true;
         }
 
         @Override
@@ -89,8 +83,6 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
             super.readFrom(in);
             action = in.readString();
             request = in.readNamedWriteable(PersistentTaskRequest.class);
-            stopped = in.readBoolean();
-            removeOnCompletion = in.readBoolean();
         }
 
         @Override
@@ -98,8 +90,6 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
             super.writeTo(out);
             out.writeString(action);
             out.writeNamedWriteable(request);
-            out.writeBoolean(stopped);
-            out.writeBoolean(removeOnCompletion);
         }
 
         @Override
@@ -120,14 +110,12 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
             if (o == null || getClass() != o.getClass()) return false;
             Request request1 = (Request) o;
             return Objects.equals(action, request1.action) &&
-                    Objects.equals(request, request1.request) &&
-                    removeOnCompletion == request1.removeOnCompletion &&
-                    stopped == request1.stopped;
+                    Objects.equals(request, request1.request);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(action, request, removeOnCompletion, stopped);
+            return Objects.hash(action, request);
         }
 
         public String getAction() {
@@ -146,21 +134,6 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
             this.request = request;
         }
 
-        public boolean isStopped() {
-            return stopped;
-        }
-
-        public void setStopped(boolean stopped) {
-            this.stopped = stopped;
-        }
-
-        public boolean shouldRemoveOnCompletion() {
-            return removeOnCompletion;
-        }
-
-        public void setRemoveOnCompletion(boolean removeOnCompletion) {
-            this.removeOnCompletion = removeOnCompletion;
-        }
     }
 
     public static class RequestBuilder extends MasterNodeOperationRequestBuilder<CreatePersistentTaskAction.Request,
@@ -180,21 +153,6 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
             return this;
         }
 
-        /**
-         * Indicates if the persistent task should be created in the stopped state. Defaults to false.
-         */
-        public RequestBuilder setStopped(boolean stopped) {
-            request.setStopped(stopped);
-            return this;
-        }
-
-        /**
-         * Indicates if the persistent task record should be removed upon the first successful completion of the task. Defaults to true.
-         */
-        public RequestBuilder setRemoveOnCompletion(boolean removeOnCompletion) {
-            request.setRemoveOnCompletion(removeOnCompletion);
-            return this;
-        }
     }
 
     public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
@@ -235,7 +193,7 @@ public class CreatePersistentTaskAction extends Action<CreatePersistentTaskActio
         @Override
         protected final void masterOperation(final Request request, ClusterState state,
                                              final ActionListener<PersistentTaskResponse> listener) {
-            persistentTasksClusterService.createPersistentTask(request.action, request.request, request.stopped, request.removeOnCompletion,
+            persistentTasksClusterService.createPersistentTask(request.action, request.request,
                     new ActionListener<Long>() {
                 @Override
                 public void onResponse(Long newTaskId) {

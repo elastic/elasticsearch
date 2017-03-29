@@ -146,13 +146,13 @@ public class SearchTransportService extends AbstractLifecycleComponent {
     }
 
     public void sendExecuteScrollQuery(DiscoveryNode node, final InternalScrollSearchRequest request, SearchTask task,
-                                       final ActionListener<ScrollQuerySearchResult> listener) {
+                                       final SearchActionListener<ScrollQuerySearchResult> listener) {
         transportService.sendChildRequest(transportService.getConnection(node), QUERY_SCROLL_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(listener, ScrollQuerySearchResult::new));
     }
 
     public void sendExecuteScrollFetch(DiscoveryNode node, final InternalScrollSearchRequest request, SearchTask task,
-                                       final ActionListener<ScrollQueryFetchSearchResult> listener) {
+                                       final SearchActionListener<ScrollQueryFetchSearchResult> listener) {
         transportService.sendChildRequest(transportService.getConnection(node), QUERY_FETCH_SCROLL_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(listener, ScrollQueryFetchSearchResult::new));
     }
@@ -163,12 +163,12 @@ public class SearchTransportService extends AbstractLifecycleComponent {
     }
 
     public void sendExecuteFetchScroll(DiscoveryNode node, final ShardFetchRequest request, SearchTask task,
-                                       final ActionListener<FetchSearchResult> listener) {
+                                       final SearchActionListener<FetchSearchResult> listener) {
         sendExecuteFetch(transportService.getConnection(node), FETCH_ID_SCROLL_ACTION_NAME, request, task, listener);
     }
 
     private void sendExecuteFetch(Transport.Connection connection, String action, final ShardFetchRequest request, SearchTask task,
-                                  final ActionListener<FetchSearchResult> listener) {
+                                  final SearchActionListener<FetchSearchResult> listener) {
         transportService.sendChildRequest(connection, action, request, task,
             new ActionListenerResponseHandler<>(listener, FetchSearchResult::new));
     }

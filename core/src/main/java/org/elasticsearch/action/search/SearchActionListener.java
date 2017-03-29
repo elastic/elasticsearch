@@ -40,8 +40,12 @@ abstract class SearchActionListener<T extends SearchPhaseResult> implements Acti
     @Override
     public final void onResponse(T response) {
         response.setShardIndex(requestIndex);
-        response.setSearchShardTarget(searchShardTarget);
+        setSearchShardTarget(response);
         innerOnResponse(response);
+    }
+
+    protected void setSearchShardTarget(T response) { // some impls need to override this
+        response.setSearchShardTarget(searchShardTarget);
     }
 
     protected abstract void innerOnResponse(T response);

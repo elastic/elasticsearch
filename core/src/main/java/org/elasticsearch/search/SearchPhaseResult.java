@@ -72,7 +72,7 @@ public abstract class SearchPhaseResult extends TransportResponse implements Str
      * Returns the query result iff it's included in this response otherwise <code>null</code>
      */
     public QuerySearchResult queryResult() {
-        return  null;
+        return null;
     }
 
     /**

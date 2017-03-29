@@ -19,10 +19,10 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.lucene.document.DoubleRangeField;
-import org.apache.lucene.document.FloatRangeField;
-import org.apache.lucene.document.IntRangeField;
-import org.apache.lucene.document.LongRangeField;
+import org.apache.lucene.document.DoubleRange;
+import org.apache.lucene.document.FloatRange;
+import org.apache.lucene.document.IntRange;
+import org.apache.lucene.document.LongRange;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
@@ -113,44 +113,44 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         int[] lower = new int[] {from + (includeLower ? 0 : 1)};
         int[] upper = new int[] {to - (includeUpper ? 0 : 1)};
         if (relation == ShapeRelation.WITHIN) {
-            return IntRangeField.newWithinQuery(FIELDNAME, lower, upper);
+            return IntRange.newWithinQuery(FIELDNAME, lower, upper);
         } else if (relation == ShapeRelation.CONTAINS) {
-            return IntRangeField.newContainsQuery(FIELDNAME, lower, upper);
+            return IntRange.newContainsQuery(FIELDNAME, lower, upper);
         }
-        return IntRangeField.newIntersectsQuery(FIELDNAME, lower, upper);
+        return IntRange.newIntersectsQuery(FIELDNAME, lower, upper);
     }
 
     private Query getLongRangeQuery(ShapeRelation relation, long from, long to, boolean includeLower, boolean includeUpper) {
         long[] lower = new long[] {from + (includeLower ? 0 : 1)};
         long[] upper = new long[] {to - (includeUpper ? 0 : 1)};
         if (relation == ShapeRelation.WITHIN) {
-            return LongRangeField.newWithinQuery(FIELDNAME, lower, upper);
+            return LongRange.newWithinQuery(FIELDNAME, lower, upper);
         } else if (relation == ShapeRelation.CONTAINS) {
-            return LongRangeField.newContainsQuery(FIELDNAME, lower, upper);
+            return LongRange.newContainsQuery(FIELDNAME, lower, upper);
         }
-        return LongRangeField.newIntersectsQuery(FIELDNAME, lower, upper);
+        return LongRange.newIntersectsQuery(FIELDNAME, lower, upper);
     }
 
     private Query getFloatRangeQuery(ShapeRelation relation, float from, float to, boolean includeLower, boolean includeUpper) {
         float[] lower = new float[] {includeLower ? from : Math.nextUp(from)};
         float[] upper = new float[] {includeUpper ? to : Math.nextDown(to)};
         if (relation == ShapeRelation.WITHIN) {
-            return FloatRangeField.newWithinQuery(FIELDNAME, lower, upper);
+            return FloatRange.newWithinQuery(FIELDNAME, lower, upper);
         } else if (relation == ShapeRelation.CONTAINS) {
-            return FloatRangeField.newContainsQuery(FIELDNAME, lower, upper);
+            return FloatRange.newContainsQuery(FIELDNAME, lower, upper);
         }
-        return FloatRangeField.newIntersectsQuery(FIELDNAME, lower, upper);
+        return FloatRange.newIntersectsQuery(FIELDNAME, lower, upper);
     }
 
     private Query getDoubleRangeQuery(ShapeRelation relation, double from, double to, boolean includeLower, boolean includeUpper) {
         double[] lower = new double[] {includeLower ? from : Math.nextUp(from)};
         double[] upper = new double[] {includeUpper ? to : Math.nextDown(to)};
         if (relation == ShapeRelation.WITHIN) {
-            return DoubleRangeField.newWithinQuery(FIELDNAME, lower, upper);
+            return DoubleRange.newWithinQuery(FIELDNAME, lower, upper);
         } else if (relation == ShapeRelation.CONTAINS) {
-            return DoubleRangeField.newContainsQuery(FIELDNAME, lower, upper);
+            return DoubleRange.newContainsQuery(FIELDNAME, lower, upper);
         }
-        return DoubleRangeField.newIntersectsQuery(FIELDNAME, lower, upper);
+        return DoubleRange.newIntersectsQuery(FIELDNAME, lower, upper);
     }
 
     private Object nextFrom() {

@@ -112,12 +112,36 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     public WritePrimaryResult<BulkShardRequest, BulkShardResponse> shardOperationOnPrimary(
             BulkShardRequest request, IndexShard primary) throws Exception {
+        final BulkShardResult shardResult = performOnPrimary(request, primary, updateHelper,
+                threadPool::absoluteTimeInMillis, new ConcreteMappingUpdatePerformer());
+        return new WritePrimaryResult<>(shardResult.request, shardResult.response,
+                shardResult.location, null, primary, logger);
+    }
+
+    /** Result holder of executing shard bulk on primary */
+    public static class BulkShardResult {
+        public final BulkShardRequest request;
+        public final BulkShardResponse response;
+        public final Translog.Location location;
+
+        private BulkShardResult(BulkShardRequest request, BulkShardResponse response, Translog.Location location) {
+            this.request = request;
+            this.response = response;
+            this.location = location;
+        }
+    }
+
+    public static BulkShardResult performOnPrimary(
+            BulkShardRequest request,
+            IndexShard primary,
+            UpdateHelper updateHelper,
+            LongSupplier nowInMillisSupplier,
+            MappingUpdatePerformer mappingUpdater) throws Exception {
         final IndexMetaData metaData = primary.indexSettings().getIndexMetaData();
         Translog.Location location = null;
-        final MappingUpdatePerformer mappingUpdater = new ConcreteMappingUpdatePerformer();
         for (int requestIndex = 0; requestIndex < request.items().length; requestIndex++) {
             location = executeBulkItemRequest(metaData, primary, request, location, requestIndex,
-                    updateHelper, threadPool::absoluteTimeInMillis, mappingUpdater);
+                    updateHelper, nowInMillisSupplier, mappingUpdater);
         }
         BulkItemResponse[] responses = new BulkItemResponse[request.items().length];
         BulkItemRequest[] items = request.items();
@@ -125,9 +149,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             responses[i] = items[i].getPrimaryResponse();
         }
         BulkShardResponse response = new BulkShardResponse(request.shardId(), responses);
-        return new WritePrimaryResult<>(request, response, location, null, primary, logger);
+        return new BulkShardResult(request, response, location);
     }
-
 
     private static BulkItemResultHolder executeIndexRequest(final IndexRequest indexRequest,
                                                             final BulkItemRequest bulkItemRequest,
@@ -221,7 +244,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                                     BulkShardRequest request, Translog.Location location,
                                                     int requestIndex, UpdateHelper updateHelper,
                                                     LongSupplier nowInMillisSupplier,
-                                                    final MappingUpdatePerformer  mappingUpdater) throws Exception {
+                                                    final MappingUpdatePerformer mappingUpdater) throws Exception {
         final DocWriteRequest itemRequest = request.items()[requestIndex].request();
         final DocWriteRequest.OpType opType = itemRequest.opType();
         final BulkItemResultHolder responseHolder;
@@ -360,12 +383,22 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     static boolean shouldExecuteReplicaItem(final BulkItemRequest request, final int index) {
         final BulkItemResponse primaryResponse = request.getPrimaryResponse();
-        assert primaryResponse != null : "expected primary response to be set for item [" + index + "] request ["+ request.request() +"]";
-        return primaryResponse.isFailed() == false && primaryResponse.getResponse().getResult() != DocWriteResponse.Result.NOOP;
+        assert primaryResponse != null : "expected primary response to be set for item [" + index + "] request [" + request.request() + "]";
+        if (primaryResponse.isFailed()) {
+            return primaryResponse.getFailure().getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        } else {
+            // NOTE: for bwc as pre-6.0 write requests has unassigned seq no
+            return primaryResponse.getResponse().getResult() != DocWriteResponse.Result.NOOP;
+        }
     }
 
     @Override
     public WriteReplicaResult<BulkShardRequest> shardOperationOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
+        final Translog.Location location = performOnReplica(request, replica);
+        return new WriteReplicaResult<>(request, location, null, replica, logger);
+    }
+
+    public static Translog.Location performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
         Translog.Location location = null;
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
@@ -377,6 +410,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         // execution on primary resulted in a failure
                         // if primary execution generated a sequence no, execute a noop on the replica engine to record it in the translog
                         final BulkItemResponse.Failure failure = item.getPrimaryResponse().getFailure();
+                        assert failure.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO : "seq no must be assigned";
                         operationResult = executeFailedSeqNoOnReplica(failure, docWriteRequest, replica);
                     } else {
                         final DocWriteResponse primaryResponse = item.getPrimaryResponse().getResponse();
@@ -413,7 +447,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 }
             }
         }
-        return new WriteReplicaResult<>(request, location, null, replica, logger);
+        return  location;
     }
 
     private static Translog.Location locationToSync(Translog.Location current,
@@ -537,7 +571,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return replica.delete(delete);
     }
 
-    private Engine.NoOpResult executeFailedSeqNoOnReplica(BulkItemResponse.Failure primaryFailure, DocWriteRequest docWriteRequest, IndexShard replica) throws IOException {
+    private static Engine.NoOpResult executeFailedSeqNoOnReplica(BulkItemResponse.Failure primaryFailure, DocWriteRequest docWriteRequest, IndexShard replica) throws IOException {
         final Engine.NoOp noOp = replica.prepareNoOpOnReplica(docWriteRequest.type(), docWriteRequest.id(),
                 primaryFailure.getSeqNo(), primaryFailure.getMessage());
         return replica.noOp(noOp);

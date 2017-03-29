@@ -2857,10 +2857,13 @@ public class InternalEngineTests extends ESTestCase {
                 }
                 Engine.IndexResult indexResult = engine.index(indexForDoc(doc1));
                 assertNotNull(indexResult.getFailure());
-
+                // document failures should be recorded in translog
+                assertNotNull(indexResult.getTranslogLocation());
                 throwingIndexWriter.get().clearFailure();
                 indexResult = engine.index(indexForDoc(doc1));
                 assertNull(indexResult.getFailure());
+                // document failures should be recorded in translog
+                assertNotNull(indexResult.getTranslogLocation());
                 engine.index(indexForDoc(doc2));
 
                 // test failure while deleting

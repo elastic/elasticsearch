@@ -21,21 +21,27 @@ package org.elasticsearch.index.replication;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTests;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 
 import java.io.IOException;
@@ -44,7 +50,9 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase {
 
@@ -113,8 +121,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             shards.startAll();
             final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}", XContentType.JSON);
             indexRequest.onRetry(); // force an update of the timestamp
-            final IndexResponse response = shards.index(indexRequest);
-            assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
+            final BulkItemResponse response = shards.index(indexRequest);
+            assertEquals(DocWriteResponse.Result.CREATED, response.getResponse().getResult());
             if (randomBoolean()) { // lets check if that also happens if no translog record is replicated
                 shards.flush();
             }
@@ -158,7 +166,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
 
     public void testConflictingOpsOnReplica() throws Exception {
         Map<String, String> mappings =
-            Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
+                Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(2, mappings))) {
             shards.startAll();
             IndexShard replica1 = shards.getReplicas().get(0);
@@ -176,6 +184,69 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
                     TopDocs search = searcher.searcher().search(new TermQuery(new Term("f", "2")), 10);
                     assertEquals("shard " + shard.routingEntry() + " misses new version", 1, search.totalHits);
+                }
+            }
+        }
+    }
+
+    /**
+     * test document failures (failures after seq_no generation) are added as noop operation to the translog
+     * for primary and replica shards
+     */
+    public void testDocumentFailureReplication() throws Exception {
+        IndexMetaData metaData = buildIndexMetaData(1);
+        final ReplicationGroup replicationGroupWithDocumentFailureOnPrimary = new ReplicationGroup(metaData) {
+            @Override
+            protected EngineFactory getEngineFactory(ShardRouting routing) {
+                if (routing.primary()) {
+                    return config -> InternalEngineTests.createInternalEngine((directory, writerConfig) ->
+                            new IndexWriter(directory, writerConfig) {
+                                @Override
+                                public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
+                                    throw new IOException("simulated document failure");
+                                }
+                            }, null, config);
+                } else {
+                    return null;
+                }
+            }
+        };
+        replicationGroupWithDocumentFailureOnPrimary.startAll();
+        final BulkItemResponse response = replicationGroupWithDocumentFailureOnPrimary.index(
+                new IndexRequest(index.getName(), "testDocumentFailureReplication", "1")
+                        .source("{}", XContentType.JSON)
+        );
+        assertTrue(response.isFailed());
+        for (IndexShard indexShard : replicationGroupWithDocumentFailureOnPrimary) {
+            try(Translog.View view = indexShard.acquireTranslogView()) {
+                assertThat(view.totalOperations(), equalTo(1));
+                Translog.Operation op = view.snapshot().next();
+                assertThat(op.opType(), equalTo(Translog.Operation.Type.NO_OP));
+                assertThat(op.seqNo(), equalTo(0L));
+                assertThat(((Translog.NoOp) op).reason(), containsString("simulated document failure"));
+            }
+        }
+        replicationGroupWithDocumentFailureOnPrimary.assertAllEqual(0);
+        replicationGroupWithDocumentFailureOnPrimary.close();
+    }
+
+    /**
+     * test request failures (failures before seq_no generation) are not added as a noop to translog
+     */
+    public void testRequestFailureReplication() throws Exception {
+        try (ReplicationGroup shards = createGroup(1)) {
+            shards.startAll();
+            final BulkItemResponse response = shards.index(
+                    new IndexRequest(index.getName(), "testRequestFailureException", "1")
+                            .source("{}", XContentType.JSON)
+                            .version(2)
+            );
+            assertTrue(response.isFailed());
+            assertThat(response.getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
+            shards.assertAllEqual(0);
+            for (IndexShard indexShard : shards) {
+                try(Translog.View view = indexShard.acquireTranslogView()) {
+                    assertThat(view.totalOperations(), equalTo(0));
                 }
             }
         }

@@ -28,11 +28,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public abstract class NotifyOnceListener<Response> implements ActionListener<Response> {
 
-    private AtomicBoolean hasBeenCalled = new AtomicBoolean(false);
+    private final AtomicBoolean hasBeenCalled = new AtomicBoolean(false);
 
-    public abstract void innerOnResponse(Response response);
+    protected abstract void innerOnResponse(Response response);
 
-    public abstract void innerOnFailure(Exception e);
+    protected abstract void innerOnFailure(Exception e);
 
     @Override
     public final void onResponse(Response response) {

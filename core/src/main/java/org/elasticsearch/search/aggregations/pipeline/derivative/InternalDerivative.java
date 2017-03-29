@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalDerivative extends InternalSimpleValue implements Derivative {
     private final double normalizationFactor;
@@ -88,5 +89,18 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
             }
         }
         return builder;
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(normalizationFactor, super.doHashCode());
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalDerivative other = (InternalDerivative) obj;
+        return Objects.equals(getValue(), other.getValue())
+                && Objects.equals(normalizationFactor, other.normalizationFactor)
+                && Objects.equals(format.getWriteableName(), other.format.getWriteableName());
     }
 }

@@ -50,7 +50,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return createTestInstance(name, pipelineAggregators, metaData);
     }
 
-    public final void testReduceRandom() {
+    public void testReduceRandom() {
         String name = randomAsciiOfLength(5);
         List<T> inputs = new ArrayList<>();
         List<InternalAggregation> toReduce = new ArrayList<>();

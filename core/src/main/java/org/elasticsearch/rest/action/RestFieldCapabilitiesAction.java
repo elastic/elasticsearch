@@ -37,6 +37,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
@@ -44,7 +45,9 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
     public RestFieldCapabilitiesAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_field_caps", this);
+        controller.registerHandler(POST, "/_field_caps", this);
         controller.registerHandler(GET, "/{index}/_field_caps", this);
+        controller.registerHandler(POST, "/{index}/_field_caps", this);
     }
 
     @Override

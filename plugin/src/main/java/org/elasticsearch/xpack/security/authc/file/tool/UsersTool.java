@@ -129,11 +129,11 @@ public class UsersTool extends MultiCommand {
         @Override
         protected void printAdditionalHelp(Terminal terminal) {
             terminal.println("Removes an existing file based user from elasticsearch. The user will be");
-            terminal.println("removed from the users file and its roles will be removed to the");
+            terminal.println("removed from the users file and its roles will be removed from the");
             terminal.println("users_roles file. If non-default files are used (different file");
             terminal.println("locations are configured in elasticsearch.yml) the appropriate files");
             terminal.println("will be resolved from the settings and the user and its roles will be");
-            terminal.println("removed to them.");
+            terminal.println("removed from them.");
             terminal.println("");
         }
 

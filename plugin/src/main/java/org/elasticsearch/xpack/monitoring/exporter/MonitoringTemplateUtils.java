@@ -26,7 +26,25 @@ public final class MonitoringTemplateUtils {
      */
     public static final String[] NEW_DATA_TYPES = { "kibana", "logstash", "beats" };
 
+    /**
+     * IDs of templates that can be used with {@linkplain #loadTemplate(String) loadTemplate} that are not managed by a Resolver.
+     * <p>
+     * This will be the complete list of template IDs when resolvers are removed.
+     */
+    public static final String[] TEMPLATE_IDS = { "alerts" };
+
     private MonitoringTemplateUtils() {
+    }
+
+    /**
+     * Get a template name for any template ID.
+     *
+     * @param id The template identifier.
+     * @return Never {@code null} {@link String} prefixed by ".monitoring-" and the
+     * @see #TEMPLATE_IDS
+     */
+    public static String templateName(String id) {
+        return ".monitoring-" + id + "-" + TEMPLATE_VERSION;
     }
 
     public static String loadTemplate(String id) {

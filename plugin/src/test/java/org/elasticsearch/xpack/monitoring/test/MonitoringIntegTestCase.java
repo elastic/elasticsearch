@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.client.MonitoringClient;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.security.Security;
@@ -54,6 +55,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -253,16 +255,30 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     protected List<Tuple<String, String>> monitoringTemplates() {
-        return StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
+        final List<Tuple<String, String>> templates = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
+                .map(id -> new Tuple<>(MonitoringTemplateUtils.templateName(id), MonitoringTemplateUtils.loadTemplate(id)))
+                .collect(Collectors.toList());
+
+        // TODO: remove this when we remove resolvers
+        templates.addAll(StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
                 .map((resolver) -> new Tuple<>(resolver.templateName(), resolver.template()))
                 .distinct()
-                .collect(Collectors.toList());
+                .collect(Collectors.toList()));
+
+        return templates;
     }
 
     protected Set<String> monitoringTemplateNames() {
-        return StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
-                .map(MonitoringIndexNameResolver::templateName)
+        final Set<String> templates = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
+                .map(MonitoringTemplateUtils::templateName)
                 .collect(Collectors.toSet());
+
+        // TODO: remove this when we remove resolvers
+        templates.addAll(StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
+                .map(MonitoringIndexNameResolver::templateName)
+                .collect(Collectors.toSet()));
+
+        return templates;
     }
 
     protected void assertTemplateInstalled(String name) {

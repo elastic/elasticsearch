@@ -531,13 +531,20 @@ public class HttpExporter extends Exporter {
             resources.add(new DataTypeMappingHttpResource(resourceOwnerName, templateTimeout, type));
         }
 
+        // add templates not managed by resolvers
+        for (final String templateId : MonitoringTemplateUtils.TEMPLATE_IDS) {
+            final String templateName = MonitoringTemplateUtils.templateName(templateId);
+            final Supplier<String> templateLoader = () -> MonitoringTemplateUtils.loadTemplate(templateId);
+
+            resources.add(new TemplateHttpResource(resourceOwnerName, templateTimeout, templateName, templateLoader));
+        }
+
+        // TODO: when resolvers are removed, all templates managed by this loop should be included in the TEMPLATE_IDS loop above
         for (final MonitoringIndexNameResolver resolver : resolvers) {
             final String templateName = resolver.templateName();
 
             // ignore duplicates
-            if (templateNames.contains(templateName) == false) {
-                templateNames.add(templateName);
-
+            if (templateNames.add(templateName)) {
                 resources.add(new TemplateHttpResource(resourceOwnerName, templateTimeout, templateName, resolver::template));
             }
         }

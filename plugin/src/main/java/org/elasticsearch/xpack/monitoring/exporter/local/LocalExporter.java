@@ -145,6 +145,14 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         final Map<String, String> templates = StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
                 .collect(Collectors.toMap(MonitoringIndexNameResolver::templateName, MonitoringIndexNameResolver::template, (a, b) -> a));
 
+        // templates not managed by resolvers
+        // TODO: this should just become "templates" when we remove resolvers (and the above templates will disappear as a result)
+        final Map<String, String> nonResolverTemplates = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
+                .collect(Collectors.toMap(MonitoringTemplateUtils::templateName, MonitoringTemplateUtils::loadTemplate));
+
+        // add templates that don't come from resolvers
+        templates.putAll(nonResolverTemplates);
+
         boolean setup = true;
 
         // elected master node needs to setup templates; non-master nodes need to wait for it to be setup

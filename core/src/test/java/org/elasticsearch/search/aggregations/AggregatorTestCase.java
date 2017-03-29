@@ -51,6 +51,7 @@ import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
@@ -59,6 +60,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.mockito.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -81,9 +83,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
 
-    protected <A extends Aggregator, B extends AggregationBuilder> A createAggregator(B aggregationBuilder,
-                                                                                      IndexSearcher indexSearcher,
-                                                                                      MappedFieldType... fieldTypes) throws IOException {
+    protected <B extends AggregationBuilder> AggregatorFactory<?> createAggregatorFactory(B aggregationBuilder,
+            IndexSearcher indexSearcher,
+            MappedFieldType... fieldTypes) throws IOException {
+
         IndexSettings indexSettings = new IndexSettings(
             IndexMetaData.builder("_index").settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards(1)
@@ -145,9 +148,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         QueryShardContext queryShardContext = queryShardContextMock(fieldTypes, indexSettings, circuitBreakerService);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
+        return aggregationBuilder.build(searchContext, null);
+    }
 
+    protected <A extends Aggregator, B extends AggregationBuilder> A createAggregator(B aggregationBuilder,
+            IndexSearcher indexSearcher,
+            MappedFieldType... fieldTypes) throws IOException {
+        AggregatorFactory<?> factory = createAggregatorFactory(aggregationBuilder, indexSearcher, fieldTypes);
         @SuppressWarnings("unchecked")
-        A aggregator = (A) aggregationBuilder.build(searchContext, null).create(null, true);
+        A aggregator = (A) factory.create(null, true);
         return aggregator;
     }
 
@@ -170,6 +179,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     new IndexFieldDataCache.None(), circuitBreakerService, mock(MapperService.class)));
         }
         NestedScope nestedScope = new NestedScope();
+        when(queryShardContext.isFilter()).thenCallRealMethod();
+        Mockito.doCallRealMethod().when(queryShardContext).setIsFilter(Matchers.anyBoolean());
         when(queryShardContext.nestedScope()).thenReturn(nestedScope);
         return queryShardContext;
     }

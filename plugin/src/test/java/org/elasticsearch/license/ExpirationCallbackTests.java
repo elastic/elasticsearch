@@ -64,6 +64,7 @@ public class ExpirationCallbackTests extends ESTestCase {
         assertThat(pre.delay(expiryDuration.millis() + now, now), equalTo(TimeValue.timeValueMillis(0)));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/869")
     public void testPreExpirationScheduleTime() throws Exception {
         TimeValue expiryDuration = TimeValue.timeValueSeconds(randomIntBetween(5, 10));
         TimeValue min = TimeValue.timeValueSeconds(1);

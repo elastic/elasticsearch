@@ -40,8 +40,10 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
@@ -49,6 +51,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,9 +68,11 @@ import static org.mockito.Mockito.when;
  * {@link AggregationBuilder} instance.
  */
 public abstract class AggregatorTestCase extends ESTestCase {
-    protected <A extends Aggregator, B extends AggregationBuilder> A createAggregator(B aggregationBuilder,
-                                                                                      IndexSearcher indexSearcher,
-                                                                                      MappedFieldType... fieldTypes) throws IOException {
+
+    protected <B extends AggregationBuilder> AggregatorFactory<?> createAggregatorFactory(B aggregationBuilder,
+            IndexSearcher indexSearcher,
+            MappedFieldType... fieldTypes) throws IOException {
+
         IndexSettings indexSettings = new IndexSettings(
             IndexMetaData.builder("_index").settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards(1)
@@ -108,18 +113,44 @@ public abstract class AggregatorTestCase extends ESTestCase {
         SearchLookup searchLookup = new SearchLookup(mapperService, mock(IndexFieldDataService.class), new String[]{"type"});
         when(searchContext.lookup()).thenReturn(searchLookup);
 
+        QueryShardContext queryShardContext = queryShardContextMock(fieldTypes, indexSettings, circuitBreakerService);
+        when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
+        return aggregationBuilder.build(searchContext, null);
+    }
+
+    protected <A extends Aggregator, B extends AggregationBuilder> A createAggregator(B aggregationBuilder,
+            IndexSearcher indexSearcher,
+            MappedFieldType... fieldTypes) throws IOException {
+        AggregatorFactory<?> factory = createAggregatorFactory(aggregationBuilder, indexSearcher, fieldTypes);
+        @SuppressWarnings("unchecked")
+        A aggregator = (A) factory.create(null, true);
+        return aggregator;
+    }
+
+    /**
+     * sub-tests that need a more complex mock can overwrite this
+     */
+    protected MapperService mapperServiceMock() {
+        return mock(MapperService.class);
+    }
+
+    /**
+     * sub-tests that need a more complex mock can overwrite this
+     */
+    protected QueryShardContext queryShardContextMock(MappedFieldType[] fieldTypes, IndexSettings indexSettings,
+            CircuitBreakerService circuitBreakerService) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         for (MappedFieldType fieldType : fieldTypes) {
             IndexFieldData<?> fieldData = fieldType.fielddataBuilder().build(indexSettings, fieldType,
                 new IndexFieldDataCache.None(), circuitBreakerService, mock(MapperService.class));
             when(queryShardContext.fieldMapper(fieldType.name())).thenReturn(fieldType);
             when(queryShardContext.getForField(fieldType)).thenReturn(fieldData);
-            when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
         }
-
-        @SuppressWarnings("unchecked")
-        A aggregator = (A) aggregationBuilder.build(searchContext, null).create(null, true);
-        return aggregator;
+        NestedScope nestedScope = new NestedScope();
+        when(queryShardContext.isFilter()).thenCallRealMethod();
+        Mockito.doCallRealMethod().when(queryShardContext).setIsFilter(Matchers.anyBoolean());
+        when(queryShardContext.nestedScope()).thenReturn(nestedScope);
+        return queryShardContext;
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A search(IndexSearcher searcher,

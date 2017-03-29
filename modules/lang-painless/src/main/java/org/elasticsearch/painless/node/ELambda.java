@@ -204,9 +204,11 @@ public final class ELambda extends AExpression implements ILambda {
             writer.invokeDynamic(ref.invokedName,
                                  invokedType,
                                  LAMBDA_BOOTSTRAP_HANDLE,
-                                 samMethodType,
+                                 interfaceType,
                                  name,
-                                 interfaceType
+                                 samMethodType,
+                location.getSourceName(),
+                location.getOffset()
                                  );
         } else {
             // placeholder

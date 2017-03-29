@@ -21,6 +21,8 @@ package org.elasticsearch.painless;
 
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Handle;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.GeneratorAdapter;
 import org.objectweb.asm.commons.Method;
@@ -40,6 +42,7 @@ import java.util.BitSet;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.elasticsearch.painless.WriterConstants.CLASS_VERSION;
+import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE2;
 import static org.objectweb.asm.Opcodes.ACC_FINAL;
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
 import static org.objectweb.asm.Opcodes.ACC_STATIC;
@@ -67,10 +70,19 @@ public class LambdaBootstrap {
         }
     }
 
-    public static CallSite bootstrap(MethodHandles.Lookup lookup, String name, MethodType type, Object... args) {
+    public static CallSite bootstrap2(MethodHandles.Lookup lookup, String lambdaName, MethodType delegateMethodType, MethodHandle lambdaMethodHandle) {
+        try {
+            return new ConstantCallSite(lambdaMethodHandle.asType(delegateMethodType));
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
+    }
+
+    public static CallSite bootstrap(MethodHandles.Lookup lookup, String name, MethodType type, MethodType delegateMethodType, String lambdaName,
+                                     MethodType lambdaMethodType, String source, int offset) {
         try {
             String baseClassName = "java/lang/Object";
-            String lambdaClassName = lookup.lookupClass().getName().replace('.', '/') + "$$" + ((String)args[1]).replace('l', 'L');
+            String lambdaClassName = lookup.lookupClass().getName().replace('.', '/') + "$$" + lambdaName.replace('l', 'L');
             String lambdaInterfaceName = type.returnType().getName().replace('.', '/');
             ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
             cw.visit(CLASS_VERSION, ACC_PUBLIC | ACC_STATIC | ACC_SUPER | ACC_FINAL | ACC_SYNTHETIC, lambdaClassName, null, baseClassName, new String[]{lambdaInterfaceName});
@@ -88,11 +100,16 @@ public class LambdaBootstrap {
             constructor.endMethod();
 
             Type scriptClassType = Type.getType(lookup.lookupClass());
-            Method lambdaMethod = new Method((String)args[1], ((MethodType)args[2]).toMethodDescriptorString());
-            Method delegateMethod = new Method(name, ((MethodType)args[0]).toMethodDescriptorString());
+            Method lambdaMethod = new Method(lambdaName, lambdaMethodType.toMethodDescriptorString());
+            Method delegateMethod = new Method(name, delegateMethodType.toMethodDescriptorString());
             MethodWriter delegate = new MethodWriter(ACC_PUBLIC, delegateMethod, cw, null, null);
             delegate.visitCode();
-            delegate.invokeStatic(scriptClassType, lambdaMethod);
+            delegate.loadArgs(0, delegateMethodType.parameterCount());
+            Handle lambdaHandle =
+                new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(lookup.lookupClass()),
+                    lambdaName, lambdaMethodType.toMethodDescriptorString(), false);
+            delegate.invokeDynamic(lambdaName, Type.getMethodType(delegateMethodType.toMethodDescriptorString()).getDescriptor(), LAMBDA_BOOTSTRAP_HANDLE2,
+                lambdaHandle);
             delegate.returnValue();
             delegate.endMethod();
 

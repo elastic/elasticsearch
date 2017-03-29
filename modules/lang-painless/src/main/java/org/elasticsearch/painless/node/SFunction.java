@@ -174,7 +174,7 @@ public final class SFunction extends AStatement {
 
     /** Writes the function to given ClassVisitor. */
     void write (ClassVisitor writer, CompilerSettings settings, Globals globals) {
-        int access = Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC;
+        int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;
         if (synthetic) {
             access |= Opcodes.ACC_SYNTHETIC;
         }

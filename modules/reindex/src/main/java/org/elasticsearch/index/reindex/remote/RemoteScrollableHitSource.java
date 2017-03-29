@@ -58,7 +58,6 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
-import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.clearScrollEntity;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchEntity;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchParams;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchPath;
@@ -107,12 +106,12 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     @Override
     protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse) {
         execute("POST", scrollPath(), scrollParams(timeValueNanos(searchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos())),
-                scrollEntity(scrollId), RESPONSE_PARSER, onResponse);
+                scrollEntity(scrollId, remoteVersion), RESPONSE_PARSER, onResponse);
     }
 
     @Override
     protected void clearScroll(String scrollId, Runnable onCompletion) {
-        client.performRequestAsync("DELETE", scrollPath(), emptyMap(), clearScrollEntity(scrollId), new ResponseListener() {
+        client.performRequestAsync("DELETE", scrollPath(), emptyMap(), scrollEntity(scrollId, remoteVersion), new ResponseListener() {
             @Override
             public void onSuccess(org.elasticsearch.client.Response response) {
                 logger.debug("Successfully cleared [{}]", scrollId);

@@ -742,6 +742,10 @@ public class InternalEngine extends Engine {
                              long versionForIndexing, IndexResult earlyResultOnPreFlightError) {
             assert useLuceneUpdateDocument == false || indexIntoLucene :
                 "use lucene update is set to true, but we're not indexing into lucene";
+            assert (indexIntoLucene && earlyResultOnPreFlightError != null) == false :
+                "can only index into lucene or have a preflight result but not both." +
+                    "indexIntoLucene: " + indexIntoLucene
+                    + "  earlyResultOnPreFlightError:" + earlyResultOnPreFlightError;
             this.currentNotFoundOrDeleted = currentNotFoundOrDeleted;
             this.useLuceneUpdateDocument = useLuceneUpdateDocument;
             this.seqNoForIndexing = seqNoForIndexing;
@@ -819,68 +823,25 @@ public class InternalEngine extends Engine {
         try (ReleasableLock ignored = readLock.acquire(); Releasable ignored2 = acquireLock(delete.uid())) {
             ensureOpen();
             lastWriteNanos = delete.startTime();
-            // TODO: we can separate the two in the case that a document is already deleted but we want to update
-            // the version. For now, prefer to keep the code paths simpler (they are hairy enough) at the expense
-            // of a rare double delete
-            final boolean performOperation;
-            final boolean currentlyDeleted;
-            final long seqNoOfDeletion;
-            final long versionOfDeletion;
-            Optional<DeleteResult> earlyResultOnPreflightError = Optional.empty();
+            final DeletionPlan plan;
             if (delete.origin() == Operation.Origin.PRIMARY) {
-                // resolve operation from external to internal
-                final VersionValue versionValue = resolveDocVersion(delete);
-                assert incrementVersionLookup();
-                final long currentVersion;
-                if (versionValue == null) {
-                    currentVersion = Versions.NOT_FOUND;
-                    currentlyDeleted = true;
-                } else {
-                    currentVersion = versionValue.getVersion();
-                    currentlyDeleted = versionValue.isDelete();
-                }
-                if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
-                    earlyResultOnPreflightError = Optional.of(new DeleteResult(
-                        new VersionConflictEngineException(shardId, delete, currentVersion, currentlyDeleted),
-                        currentVersion, delete.seqNo(), currentlyDeleted == false
-                    ));
-                    performOperation = false;
-                    seqNoOfDeletion = SequenceNumbersService.UNASSIGNED_SEQ_NO;
-                    versionOfDeletion = -1;
-                } else {
-                    versionOfDeletion = delete.versionType().updateVersion(currentVersion, delete.version());
-                    seqNoOfDeletion = seqNoService().generateSeqNo();
-                    performOperation =  true;
-                }
+                plan = planDeletionAsPrimary(delete);
             } else {
-                // drop out of order operations
-                assert delete.versionType().versionTypeForReplicationAndRecovery() == delete.versionType() :
-                    "resolving out of order delivery based on versioning but version type isn't fit for it. got ["
-                        + delete.versionType() + "]";
-                final LuceneDocStatus luceneOpStatus = checkLuceneDocStatusBasedOnVersions(delete);
-                // unlike the primary, replicas don't really care to about found status of documents
-                // this allows to ignore the case where a document was found in the live version maps in
-                // a delete state and return true for the found flag in favor of code simplicity
-                currentlyDeleted = luceneOpStatus == LuceneDocStatus.NOT_FOUND;
-                seqNoOfDeletion = delete.seqNo();
-                versionOfDeletion = delete.version();
-                performOperation = luceneOpStatus != LuceneDocStatus.NEWER_OR_EQUAL;
+                plan = planDeletionAsNonPrimary(delete);
             }
 
-            if (earlyResultOnPreflightError.isPresent()) {
-                deleteResult = earlyResultOnPreflightError.get();
-                assert performOperation == false;
+            if (plan.earlyResultOnPreflightError.isPresent()) {
+                deleteResult = plan.earlyResultOnPreflightError.get();
+            } else if (plan.deleteFromLucene) {
+                deleteResult = deleteInLucene(delete, plan);
             } else {
-                if (performOperation) {
-                    deleteResult = deleteInLucene(delete, currentlyDeleted, seqNoOfDeletion, versionOfDeletion);
-                } else {
-                    deleteResult = new DeleteResult(versionOfDeletion, seqNoOfDeletion, currentlyDeleted == false);
-                }
+                deleteResult = new DeleteResult(plan.versionOfDeletion, plan.seqNoOfDeletion,
+                    plan.currentlyDeleted == false);
             }
-            if (!deleteResult.hasFailure()) {
-                Translog.Location location = delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY
-                    ? translog.add(new Translog.Delete(delete, deleteResult))
-                    : null;
+            if (!deleteResult.hasFailure() &&
+                delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+                Translog.Location location =
+                    translog.add(new Translog.Delete(delete, deleteResult));
                 deleteResult.setTranslogLocation(location);
             }
             if (deleteResult.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
@@ -900,24 +861,124 @@ public class InternalEngine extends Engine {
         return deleteResult;
     }
 
-    private DeleteResult deleteInLucene(Delete delete, boolean currentlyDeleted, long seqNo, long version)
+    private DeletionPlan planDeletionAsNonPrimary(Delete delete) throws IOException {
+        assert delete.origin() != Operation.Origin.PRIMARY : "planing as primary but got "
+            + delete.origin();
+        // drop out of order operations
+        assert delete.versionType().versionTypeForReplicationAndRecovery() == delete.versionType() :
+            "resolving out of order delivery based on versioning but version type isn't fit for it. got ["
+                + delete.versionType() + "]";
+        // unlike the primary, replicas don't really care to about found status of documents
+        // this allows to ignore the case where a document was found in the live version maps in
+        // a delete state and return true for the found flag in favor of code simplicity
+        final LuceneDocStatus luceneOpStatus = checkLuceneDocStatusBasedOnVersions(delete);
+
+        final DeletionPlan plan;
+        if (luceneOpStatus == LuceneDocStatus.NEWER_OR_EQUAL) {
+            plan = DeletionPlan.processButSkipLucene(luceneOpStatus == LuceneDocStatus.NOT_FOUND,
+                delete.seqNo(), delete.version());
+        } else {
+            plan = DeletionPlan.processNormally(luceneOpStatus == LuceneDocStatus.NOT_FOUND,
+                delete.seqNo(), delete.version());
+        }
+        return plan;
+    }
+
+    private DeletionPlan planDeletionAsPrimary(Delete delete) throws IOException {
+        assert delete.origin() == Operation.Origin.PRIMARY : "planing as primary but got "
+            + delete.origin();
+        // resolve operation from external to internal
+        final VersionValue versionValue = resolveDocVersion(delete);
+        assert incrementVersionLookup();
+        final long currentVersion;
+        final boolean currentlyDeleted;
+        if (versionValue == null) {
+            currentVersion = Versions.NOT_FOUND;
+            currentlyDeleted = true;
+        } else {
+            currentVersion = versionValue.getVersion();
+            currentlyDeleted = versionValue.isDelete();
+        }
+        final DeletionPlan plan;
+        if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
+            plan = DeletionPlan.skipDueToVersionConflict(
+                new VersionConflictEngineException(shardId, delete, currentVersion, currentlyDeleted),
+                currentVersion, currentlyDeleted);
+        } else {
+            plan = DeletionPlan.processNormally(currentlyDeleted,
+                seqNoService().generateSeqNo(),
+                delete.versionType().updateVersion(currentVersion, delete.version()));
+        }
+        return plan;
+    }
+
+    private DeleteResult deleteInLucene(Delete delete, DeletionPlan plan)
         throws IOException {
         try {
-            if (currentlyDeleted == false) {
-                // any exception that comes from this is a either an ACE or a fatal exception there can't be any document failures
-                // coming from this
+            if (plan.currentlyDeleted == false) {
+                // any exception that comes from this is a either an ACE or a fatal exception there
+                // can't be any document failures  coming from this
                 indexWriter.deleteDocuments(delete.uid());
             }
-            versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(version,
-                engineConfig.getThreadPool().relativeTimeInMillis()));
-            return new DeleteResult(version, seqNo, currentlyDeleted == false);
+            versionMap.putUnderLock(delete.uid().bytes(),
+                new DeleteVersionValue(plan.versionOfDeletion,
+                    engineConfig.getThreadPool().relativeTimeInMillis()));
+            return new DeleteResult(
+                plan.versionOfDeletion, plan.seqNoOfDeletion, plan.currentlyDeleted == false);
         } catch (Exception ex) {
             if (indexWriter.getTragicException() == null) {
                 // there is no tragic event and such it must be a document level failure
-                return new DeleteResult(ex, version, seqNo, currentlyDeleted == false);
+                return new DeleteResult(ex, plan.versionOfDeletion, plan.versionOfDeletion,
+                    plan.currentlyDeleted == false);
             } else {
                 throw ex;
             }
+        }
+    }
+
+    private final static class DeletionPlan {
+        // of a rare double delete
+        final boolean deleteFromLucene;
+        final boolean currentlyDeleted;
+        final long seqNoOfDeletion;
+        final long versionOfDeletion;
+        final Optional<DeleteResult> earlyResultOnPreflightError;
+
+        private DeletionPlan(boolean deleteFromLucene, boolean currentlyDeleted,
+                             long seqNoOfDeletion, long versionOfDeletion,
+                             DeleteResult earlyResultOnPreflightError) {
+            assert (deleteFromLucene && earlyResultOnPreflightError != null) == false :
+                "can only delete from lucene or have a preflight result but not both." +
+                    "deleteFromLucene: " + deleteFromLucene
+                    + "  earlyResultOnPreFlightError:" + earlyResultOnPreflightError;
+            this.deleteFromLucene = deleteFromLucene;
+            this.currentlyDeleted = currentlyDeleted;
+            this.seqNoOfDeletion = seqNoOfDeletion;
+            this.versionOfDeletion = versionOfDeletion;
+            this.earlyResultOnPreflightError = earlyResultOnPreflightError == null ?
+                Optional.empty() : Optional.of(earlyResultOnPreflightError);
+        }
+
+        static DeletionPlan skipDueToVersionConflict(VersionConflictEngineException e,
+                                                     long currentVersion, boolean currentlyDeleted) {
+            return new DeletionPlan(false, currentlyDeleted,
+                SequenceNumbersService.UNASSIGNED_SEQ_NO, Versions.NOT_FOUND,
+                new DeleteResult(e, currentVersion, SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                    currentlyDeleted == false));
+        }
+
+        static DeletionPlan processNormally(boolean currentlyDeleted,
+                                            long seqNoOfDeletion, long versionOfDeletion) {
+            return new DeletionPlan(true, currentlyDeleted, seqNoOfDeletion, versionOfDeletion,
+                null);
+
+        }
+
+        public static DeletionPlan processButSkipLucene(boolean currentlyDeleted,
+                                                        long seqNoOfDeletion,
+                                                        long versionOfDeletion) {
+            return new DeletionPlan(false, currentlyDeleted, seqNoOfDeletion, versionOfDeletion,
+                null);
         }
     }
 

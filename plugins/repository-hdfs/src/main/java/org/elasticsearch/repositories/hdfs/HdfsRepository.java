@@ -24,11 +24,17 @@ import java.net.URI;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
+
+import javax.security.auth.Subject;
+import javax.security.auth.kerberos.KerberosPrincipal;
+import javax.security.auth.kerberos.KerberosTicket;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.AbstractFileSystem;
@@ -129,6 +135,7 @@ public final class HdfsRepository extends BlobStoreRepository {
 
         // Create a hadoop user
         UserGroupInformation ugi = login(hadoopConfiguration, repositorySettings);
+        logKerberosTGTInfo(ugi);
 
         // Disable FS cache
         hadoopConfiguration.setBoolean("fs.hdfs.impl.disable.cache", true);
@@ -242,6 +249,29 @@ public final class HdfsRepository extends BlobStoreRepository {
         }
 
         return keytabLocation;
+    }
+
+    // Log the lifetime of the ticket
+    private static void logKerberosTGTInfo(UserGroupInformation ugi) {
+        // We can skip this if we're not even in debug mode.
+        // We check if debug is enabled here instead of using a message supplier because log4j doesn't have doAs privs.
+        if (ugi.isFromKeytab() && LOGGER.isDebugEnabled()) {
+            // Hack to get at the underlying subject inside of the UGI to log the TGT information.
+            ugi.doAs((PrivilegedAction<Void>) () -> {
+                AccessControlContext context = AccessController.getContext();
+                Subject subject = Subject.getSubject(context);
+                Set<KerberosTicket> tickets = subject.getPrivateCredentials(KerberosTicket.class);
+                for (KerberosTicket ticket : tickets) {
+                    KerberosPrincipal principal = ticket.getServer();
+                    if (principal != null && principal.getName().equals("krbtgt/" + principal.getRealm() + "@" + principal.getRealm())) {
+                        LOGGER.debug("Kerberos TGT Found: Start Time [{}] - End Time [{}] - Renewable [{}] - Renew Till [{}]",
+                            ticket.getStartTime(), ticket.getEndTime(), ticket.isRenewable(), ticket.getRenewTill());
+                        break;
+                    }
+                }
+                return null;
+            });
+        }
     }
 
     @Override

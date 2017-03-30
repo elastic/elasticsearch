@@ -96,7 +96,6 @@ public class BulkProcessor implements Closeable {
         private BackoffPolicy backoffPolicy = BackoffPolicy.exponentialBackoff();
         private Settings settings;
         private ThreadPool threadPool;
-        private BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduleFunction;
 
         /**
          * Creates a builder of bulk processor with the client to use and the listener that will be used
@@ -160,14 +159,6 @@ public class BulkProcessor implements Closeable {
          */
         public Builder setThreadPool(ThreadPool threadPool) {
             this.threadPool = threadPool;
-            return this;
-        }
-
-        /**
-         * Sets an optional BiFunction to schedule flush actions and request retries
-         */
-        public Builder setScheduleFunction(BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduleFunction) {
-            this.scheduleFunction = scheduleFunction;
             return this;
         }
 

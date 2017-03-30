@@ -595,7 +595,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         AtomicReference<BulkRequest> requestRef = new AtomicReference<>();
         AtomicReference<Throwable> error = new AtomicReference<>();
 
-        BulkProcessor processor = new BulkProcessor.Builder(highLevelClient()::bulkAsync, new BulkProcessor.Listener() {
+        BulkProcessor.Listener listener = new BulkProcessor.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
 
@@ -611,58 +611,58 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
                 error.set(failure);
             }
-        }, Settings.EMPTY)
+        };
+
+        try(BulkProcessor processor = new BulkProcessor.Builder(highLevelClient()::bulkAsync, listener, Settings.EMPTY)
             .setConcurrentRequests(0)
             .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.GB))
-            .setBulkActions(nbItems + 1000)
-            .build();
+            .setBulkActions(nbItems + 1)
+            .build()) {
+            for (int i = 0; i < nbItems; i++) {
+                String id = String.valueOf(i);
+                boolean erroneous = randomBoolean();
+                errors[i] = erroneous;
 
-        for (int i = 0; i < nbItems; i++) {
-            String id = String.valueOf(i);
-            boolean erroneous = randomBoolean();
-            errors[i] = erroneous;
-
-            DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
-            if (opType == DocWriteRequest.OpType.DELETE) {
-                if (erroneous == false) {
-                    assertEquals(RestStatus.CREATED,
-                        highLevelClient().index(new IndexRequest("index", "test", id).source("field", -1)).status());
-                }
-                DeleteRequest deleteRequest = new DeleteRequest("index", "test", id);
-                processor.add(deleteRequest);
-
-            } else {
-                BytesReference source = XContentBuilder.builder(xContentType.xContent()).startObject().field("id", i).endObject().bytes();
-                if (opType == DocWriteRequest.OpType.INDEX) {
-                    IndexRequest indexRequest = new IndexRequest("index", "test", id).source(source, xContentType);
-                    if (erroneous) {
-                        indexRequest.version(12L);
-                    }
-                    processor.add(indexRequest);
-
-                } else if (opType == DocWriteRequest.OpType.CREATE) {
-                    IndexRequest createRequest = new IndexRequest("index", "test", id).source(source, xContentType).create(true);
-                    if (erroneous) {
-                        assertEquals(RestStatus.CREATED, highLevelClient().index(createRequest).status());
-                    }
-                    processor.add(createRequest);
-
-                } else if (opType == DocWriteRequest.OpType.UPDATE) {
-                    UpdateRequest updateRequest = new UpdateRequest("index", "test", id)
-                        .doc(new IndexRequest().source(source, xContentType));
+                DocWriteRequest.OpType opType = randomFrom(DocWriteRequest.OpType.values());
+                if (opType == DocWriteRequest.OpType.DELETE) {
                     if (erroneous == false) {
                         assertEquals(RestStatus.CREATED,
                             highLevelClient().index(new IndexRequest("index", "test", id).source("field", -1)).status());
                     }
-                    processor.add(updateRequest);
+                    DeleteRequest deleteRequest = new DeleteRequest("index", "test", id);
+                    processor.add(deleteRequest);
+
+                } else {
+                    BytesReference source = XContentBuilder.builder(xContentType.xContent()).startObject().field("id", i).endObject().bytes();
+                    if (opType == DocWriteRequest.OpType.INDEX) {
+                        IndexRequest indexRequest = new IndexRequest("index", "test", id).source(source, xContentType);
+                        if (erroneous) {
+                            indexRequest.version(12L);
+                        }
+                        processor.add(indexRequest);
+
+                    } else if (opType == DocWriteRequest.OpType.CREATE) {
+                        IndexRequest createRequest = new IndexRequest("index", "test", id).source(source, xContentType).create(true);
+                        if (erroneous) {
+                            assertEquals(RestStatus.CREATED, highLevelClient().index(createRequest).status());
+                        }
+                        processor.add(createRequest);
+
+                    } else if (opType == DocWriteRequest.OpType.UPDATE) {
+                        UpdateRequest updateRequest = new UpdateRequest("index", "test", id)
+                            .doc(new IndexRequest().source(source, xContentType));
+                        if (erroneous == false) {
+                            assertEquals(RestStatus.CREATED,
+                                highLevelClient().index(new IndexRequest("index", "test", id).source("field", -1)).status());
+                        }
+                        processor.add(updateRequest);
+                    }
                 }
             }
+            assertNull(responseRef.get());
+            assertNull(requestRef.get());
         }
 
-        assertNull(responseRef.get());
-        assertNull(requestRef.get());
-
-        processor.flush();
 
         BulkResponse bulkResponse = responseRef.get();
         BulkRequest bulkRequest = requestRef.get();

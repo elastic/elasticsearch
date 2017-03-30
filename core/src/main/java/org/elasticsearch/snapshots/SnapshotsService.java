@@ -60,6 +60,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -70,6 +71,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -550,7 +552,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     /**
      * Returns status of shards  currently finished snapshots
      * <p>
-     * This method is executed on master node and it's complimentary to the {@link SnapshotShardsService#currentSnapshotShards(Snapshot)} because it
+     * This method is executed on master node and it's complimentary to the
+     * {@link SnapshotShardsService#currentSnapshotShards(Snapshot)} because it
      * returns similar information but for already finished snapshots.
      * </p>
      *
@@ -564,6 +567,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Repository repository = repositoriesService.repository(repositoryName);
         RepositoryData repositoryData = repository.getRepositoryData();
         MetaData metaData = repository.getSnapshotMetaData(snapshotInfo, repositoryData.resolveIndices(snapshotInfo.indices()));
+        Map<ShardId, IndexId> nonFailedShards = new HashMap<>();
+        boolean hasFailedShards = false;
         for (String index : snapshotInfo.indices()) {
             IndexId indexId = repositoryData.resolveIndexId(index);
             IndexMetaData indexMetaData = metaData.indices().get(index);
@@ -577,13 +582,41 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         shardSnapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FAILURE);
                         shardSnapshotStatus.failure(shardFailure.reason());
                         shardStatus.put(shardId, shardSnapshotStatus);
+                        hasFailedShards = true;
                     } else {
-                        IndexShardSnapshotStatus shardSnapshotStatus =
-                            repository.getShardSnapshotStatus(snapshotInfo.snapshotId(), snapshotInfo.version(), indexId, shardId);
-                        shardStatus.put(shardId, shardSnapshotStatus);
+                        nonFailedShards.put(shardId, indexId);
                     }
                 }
             }
+        }
+        for (Map.Entry<ShardId, IndexId> shard : nonFailedShards.entrySet()) {
+            final ShardId shardId = shard.getKey();
+            final IndexId indexId = shard.getValue();
+            IndexShardSnapshotStatus shardSnapshotStatus;
+            try {
+                shardSnapshotStatus = repository.getShardSnapshotStatus(
+                    snapshotInfo.snapshotId(), snapshotInfo.version(), indexId, shardId);
+            } catch (IndexShardRestoreFailedException e) {
+                if (e.getCause() != null
+                        && e.getCause() instanceof NoSuchFileException
+                        && hasFailedShards) {
+                    // the snap-*.dat file could not be found for the index, even
+                    // though there was no shard failure for the index, this can
+                    // happen when a snapshot is *not* set to partial (won't take
+                    // partial snapshots) and has indices that contain missing
+                    // or corrupted shards, in which case the snapshot will not proceed
+                    // for any of the indices, even the ones that have no shard failures
+                    shardSnapshotStatus = new IndexShardSnapshotStatus();
+                    shardSnapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FAILURE);
+                    String msg = "snapshot not taken because partial snapshots are not " +
+                                 "configured for this snapshot and another shard caused the " +
+                                 "snapshot to fail";
+                    shardSnapshotStatus.failure(msg);
+                } else {
+                    throw e;
+                }
+            }
+            shardStatus.put(shardId, shardSnapshotStatus);
         }
         return unmodifiableMap(shardStatus);
     }

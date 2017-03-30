@@ -54,6 +54,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -2737,4 +2738,77 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertEquals(SnapshotState.SUCCESS, getSnapshotsResponse.getSnapshots().get(0).state());
     }
 
+    public void testSnapshotStatusOnFailedIndex() throws Exception {
+        logger.info("--> creating repository");
+        final Path repoPath = randomRepoPath();
+        final Client client = client();
+        assertAcked(client.admin().cluster()
+            .preparePutRepository("test-repo")
+            .setType("fs")
+            .setVerify(false)
+            .setSettings(Settings.builder().put("location", repoPath)));
+
+        logger.info("--> creating good index");
+        assertAcked(prepareCreate("test-idx-good")
+            .setSettings(Settings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)));
+        ensureGreen();
+        final int numDocs = randomIntBetween(1, 5);
+        for (int i = 0; i < numDocs; i++) {
+            index("test-idx-good", "doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+
+        logger.info("--> creating bad index");
+        assertAcked(prepareCreate("test-idx-bad")
+            .setWaitForActiveShards(ActiveShardCount.NONE)
+            .setSettings(Settings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                // set shard allocation to none so the primary cannot be
+                // allocated - simulates a "bad" index that fails to snapshot
+                .put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(),
+                     "none")));
+
+        logger.info("--> snapshot bad index and get status");
+        client.admin().cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap1")
+            .setWaitForCompletion(true)
+            .setIndices("test-idx-bad")
+            .get();
+        SnapshotsStatusResponse snapshotsStatusResponse = client.admin().cluster()
+            .prepareSnapshotStatus("test-repo")
+            .setSnapshots("test-snap1")
+            .get();
+        assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
+        assertEquals(State.FAILED, snapshotsStatusResponse.getSnapshots().get(0).getState());
+
+        logger.info("--> snapshot both good and bad index and get status");
+        client.admin().cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap2")
+            .setWaitForCompletion(true)
+            .setIndices("test-idx-good", "test-idx-bad")
+            .get();
+        snapshotsStatusResponse = client.admin().cluster()
+            .prepareSnapshotStatus("test-repo")
+            .setSnapshots("test-snap2")
+            .get();
+        assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
+        // verify a FAILED status is returned instead of a 500 status code
+        // see https://github.com/elastic/elasticsearch/issues/23716
+        SnapshotStatus snapshotStatus = snapshotsStatusResponse.getSnapshots().get(0);
+        assertEquals(State.FAILED, snapshotStatus.getState());
+        for (SnapshotIndexShardStatus shardStatus : snapshotStatus.getShards()) {
+            assertEquals(SnapshotIndexShardStage.FAILURE, shardStatus.getStage());
+            if (shardStatus.getIndex().equals("test-idx-good")) {
+                String msg = "snapshot not taken because partial snapshots are not " +
+                             "configured for this snapshot and another shard caused the " +
+                             "snapshot to fail";
+                assertEquals(msg, shardStatus.getFailure());
+            } else {
+                assertEquals("primary shard is not allocated", shardStatus.getFailure());
+            }
+        }
+    }
 }

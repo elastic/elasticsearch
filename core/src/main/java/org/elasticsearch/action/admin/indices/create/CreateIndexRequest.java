@@ -382,37 +382,33 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     @SuppressWarnings("unchecked")
     public CreateIndexRequest source(Map<String, ?> source) {
-        boolean found = false;
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
             if (name.equals("settings")) {
-                found = true;
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("mappings")) {
-                found = true;
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
                 for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
             } else if (name.equals("aliases")) {
-                found = true;
                 aliases((Map<String, Object>) entry.getValue());
             } else {
                 // maybe custom?
                 IndexMetaData.Custom proto = IndexMetaData.lookupPrototype(name);
                 if (proto != null) {
-                    found = true;
                     try {
                         customs.put(name, proto.fromMap((Map<String, Object>) entry.getValue()));
                     } catch (IOException e) {
                         throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
                     }
+                } else {
+                    // found a key which is neither custom defined nor one of the supported ones
+                    throw new ElasticsearchParseException(
+                            "unknown key [{}] for a [{}], expected [settings], [mappings] or [aliases]",
+                            name, XContentParser.Token.START_OBJECT);
                 }
             }
-        }
-        if (!found) {
-            // the top level are settings, use them
-            settings(source);
         }
         return this;
     }

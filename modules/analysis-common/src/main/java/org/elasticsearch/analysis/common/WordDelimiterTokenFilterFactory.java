@@ -54,7 +54,8 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     private final int flags;
     private final CharArraySet protoWords;
 
-    public WordDelimiterTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    public WordDelimiterTokenFilterFactory(IndexSettings indexSettings, Environment env,
+            String name, Settings settings) {
         super(indexSettings, name, settings);
 
         // Sample Format for the type table:
@@ -89,7 +90,8 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         // If set, causes trailing "'s" to be removed for each subword: "O'Neil's" => "O", "Neil"
         flags |= getFlag(STEM_ENGLISH_POSSESSIVE, settings, "stem_english_possessive", true);
         // If not null is the set of tokens to protect from being delimited
-        Set<?> protectedWords = Analysis.getWordSet(env, indexSettings.getIndexVersionCreated(), settings, "protected_words");
+        Set<?> protectedWords = Analysis.getWordSet(env, indexSettings.getIndexVersionCreated(),
+                settings, "protected_words");
         this.protoWords = protectedWords == null ? null : CharArraySet.copy(protectedWords);
         this.flags = flags;
     }
@@ -103,7 +105,8 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     }
 
     public int getFlag(int flag, Settings settings, String key, boolean defaultValue) {
-        if (settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), key, defaultValue, deprecationLogger)) {
+        if (settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(),
+                key, defaultValue, deprecationLogger)) {
             return flag;
         }
         return 0;
@@ -124,14 +127,16 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
             String lhs = parseString(m.group(1).trim());
             Byte rhs = parseType(m.group(2).trim());
             if (lhs.length() != 1)
-                throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Only a single character is allowed.");
+                throw new RuntimeException("Invalid Mapping Rule : ["
+                        + rule + "]. Only a single character is allowed.");
             if (rhs == null)
                 throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Illegal type.");
             typeMap.put(lhs.charAt(0), rhs);
         }
 
         // ensure the table is always at least as big as DEFAULT_WORD_DELIM_TABLE for performance
-        byte types[] = new byte[Math.max(typeMap.lastKey() + 1, WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE.length)];
+        byte types[] = new byte[Math.max(
+                typeMap.lastKey() + 1, WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE.length)];
         for (int i = 0; i < types.length; i++)
             types[i] = WordDelimiterIterator.getType(i);
         for (Map.Entry<Character, Byte> mapping : typeMap.entrySet())

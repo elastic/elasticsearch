@@ -36,7 +36,9 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.JobStateObserver;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
@@ -225,15 +227,18 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
 
         private final InternalClient client;
         private final ClusterService clusterService;
+        private final Auditor auditor;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ClusterService clusterService, AutodetectProcessManager manager, InternalClient client) {
+                               ClusterService clusterService, AutodetectProcessManager manager, InternalClient client,
+                               Auditor auditor) {
             super(settings, CloseJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new, Response::new, ThreadPool.Names.MANAGEMENT, manager);
             this.client = client;
             this.clusterService = clusterService;
+            this.auditor = auditor;
         }
 
         @Override
@@ -241,9 +246,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             if (request.isForce()) {
                 forceCloseJob(request.getJobId(), listener);
             } else {
-                ActionListener<Response> finalListener =
-                        ActionListener.wrap(r -> waitForJobClosed(request, r, listener), listener::onFailure);
-                super.doExecute(task, request, finalListener);
+                normalCloseJob(task, request, listener);
             }
         }
 
@@ -261,6 +264,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         }
 
         private void forceCloseJob(String jobId, ActionListener<Response> listener) {
+            auditor.info(jobId, Messages.JOB_AUDIT_FORCE_CLOSING);
             ClusterState currentState = clusterService.state();
             PersistentTask<?> task = MlMetadata.getJobTask(jobId,
                     currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
@@ -276,6 +280,13 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
                 logger.warn(msg);
                 listener.onFailure(new RuntimeException(msg));
             }
+        }
+
+        private void normalCloseJob(Task task, Request request, ActionListener<Response> listener) {
+            auditor.info(request.getJobId(), Messages.JOB_AUDIT_CLOSING);
+            ActionListener<Response> finalListener =
+                    ActionListener.wrap(r -> waitForJobClosed(request, r, listener), listener::onFailure);
+            super.doExecute(task, request, finalListener);
         }
 
         // Wait for job to be marked as closed in cluster state, which means the job persistent task has been removed

@@ -30,6 +30,8 @@ public final class Messages {
 
     public static final String JOB_AUDIR_DATAFEED_DATA_SEEN_AGAIN = "Datafeed has started retrieving data again";
     public static final String JOB_AUDIT_CREATED = "Job created";
+    public static final String JOB_AUDIT_CLOSING = "Job is closing";
+    public static final String JOB_AUDIT_FORCE_CLOSING = "Job is closing (forced)";
     public static final String JOB_AUDIT_DATAFEED_CONTINUED_REALTIME = "Datafeed continued in real-time";
     public static final String JOB_AUDIT_DATAFEED_DATA_ANALYSIS_ERROR = "Datafeed is encountering errors submitting data for analysis: {0}";
     public static final String JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR = "Datafeed is encountering errors extracting data: {0}";

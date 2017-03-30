@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.store.Store;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -73,6 +72,7 @@ public final class ThreadContext implements Closeable, Writeable {
     public static final String PREFIX = "request.headers";
     public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", Property.NodeScope);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
+    private static final String INTERNAL_EXECUTION_HEADER = "transient.header.internal_execution";
     private final Map<String, String> defaultHeader;
     private final ContextThreadLocal threadLocal;
 
@@ -315,6 +315,23 @@ public final class ThreadContext implements Closeable, Writeable {
      */
     boolean isDefaultContext() {
         return threadLocal.get() == DEFAULT_CONTEXT;
+    }
+
+    /**
+     * Marks this thread context as an internal system context. This signals that actions in this context are issued
+     * by the system itself rather than by a user action.
+     */
+    public void markAsSystemContext() {
+        if (isSystemContext() == false) {
+            putTransient(INTERNAL_EXECUTION_HEADER, Boolean.TRUE);
+        }
+    }
+
+    /**
+     * Returns <code>true</code> iff this context is a system context
+     */
+    public boolean isSystemContext() {
+        return getTransient(INTERNAL_EXECUTION_HEADER) != null;
     }
 
     /**

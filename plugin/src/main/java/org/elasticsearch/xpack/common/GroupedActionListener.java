@@ -49,8 +49,7 @@ public final class GroupedActionListener<T> implements ActionListener<T> {
             if (failure.get() != null) {
                 delegate.onFailure(failure.get());
             } else {
-                List<T> collect = this.roles.asList().stream().map((e)
-                        -> e.value).filter(Objects::nonNull).collect(Collectors.toList());
+                List<T> collect = this.roles.asList();
                 collect.addAll(defaults);
                 delegate.onResponse(Collections.unmodifiableList(collect));
             }

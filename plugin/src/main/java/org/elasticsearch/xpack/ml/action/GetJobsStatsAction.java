@@ -452,9 +452,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                             assignmentExplanation, null));
                     if (counter.decrementAndGet() == 0) {
                         List<Response.JobStats> results = response.getResponse().results();
-                        results.addAll(jobStats.asList().stream()
-                                .map(e -> e.value)
-                                .collect(Collectors.toList()));
+                        results.addAll(jobStats.asList());
                         listener.onResponse(new Response(response.getTaskFailures(), response.getNodeFailures(),
                                 new QueryPage<>(results, results.size(), Job.RESULTS_FIELD)));
                     }

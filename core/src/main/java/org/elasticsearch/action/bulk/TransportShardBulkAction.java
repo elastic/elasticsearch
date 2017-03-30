@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -467,7 +466,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      * Execute the given {@link IndexRequest} on a replica shard, throwing a
      * {@link RetryOnReplicaException} if the operation needs to be re-tried.
      */
-    public static Engine.IndexResult executeIndexRequestOnReplica(
+    private static Engine.IndexResult executeIndexRequestOnReplica(
             DocWriteResponse primaryResponse,
             IndexRequest request,
             IndexShard replica) throws IOException {
@@ -510,7 +509,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     /** Utility method to prepare an index operation on primary shards */
-    static Engine.Index prepareIndexOperationOnPrimary(IndexRequest request, IndexShard primary) {
+    private static Engine.Index prepareIndexOperationOnPrimary(IndexRequest request, IndexShard primary) {
         final SourceToParse sourceToParse =
                 SourceToParse.source(SourceToParse.Origin.PRIMARY, request.index(), request.type(),
                         request.id(), request.source(), request.getContentType())
@@ -520,8 +519,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     /** Executes index operation on primary shard after updates mapping if dynamic mappings are found */
-    public static Engine.IndexResult executeIndexRequestOnPrimary(IndexRequest request, IndexShard primary,
-                                                                  MappingUpdatePerformer mappingUpdater) throws Exception {
+    private static Engine.IndexResult executeIndexRequestOnPrimary(IndexRequest request, IndexShard primary,
+                                                                   MappingUpdatePerformer mappingUpdater) throws Exception {
         // Update the mappings if parsing the documents includes new dynamic updates
         final Engine.Index preUpdateOperation;
         final Mapping mappingUpdate;

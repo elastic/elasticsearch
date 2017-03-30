@@ -302,6 +302,61 @@ documents into buckets starting at 6am:
 NOTE: The start `offset` of each bucket is calculated after the `time_zone`
 adjustments have been made.
 
+==== Keyed Response
+
+Setting the `keyed` flag to `true` will associate a unique string key with each bucket and return the ranges as a hash rather than an array:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs": {
+        "nyc_accident_histogram": {
+            "date_histogram": {
+                "field": "date",
+                "interval" : "year",
+                "keyed": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "nyc_accident_histogram": {
+            "buckets": {
+                "2013-01-01T00:00:00.000Z": {
+                    "key_as_string": "2013-01-01T00:00:00.000Z",
+                    "key": 1356998400000,
+                    "doc_count": 203733
+                },
+                "2014-01-01T00:00:00.000Z": {
+                    "key_as_string": "2014-01-01T00:00:00.000Z",
+                    "key": 1388534400000,
+                    "doc_count": 205929
+                },
+                "2015-01-01T00:00:00.000Z": {
+                    "key_as_string": "2015-01-01T00:00:00.000Z",
+                    "key": 1420070400000,
+                    "doc_count": 217637
+                },
+                "2016-01-01T00:00:00.000Z": {
+                    "key_as_string": "2016-01-01T00:00:00.000Z",
+                    "key": 1451606400000,
+                    "doc_count": 227656
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
 ==== Scripts
 
 Like with the normal <<search-aggregations-bucket-histogram-aggregation,histogram>>, both document level scripts and

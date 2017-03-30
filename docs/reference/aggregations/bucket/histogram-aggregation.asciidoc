@@ -362,6 +362,61 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
+==== Keyed Response
+
+Setting the `keyed` flag to `true` will associate a unique string key with each bucket and return the ranges as a hash rather than an array:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs": {
+        "bytes_histogram": {
+            "histogram": {
+                "field": "bytes",
+                "interval": 200,
+                "keyed": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations": {
+        "bytes_histogram": {
+            "buckets": {
+                "0.0": {
+                    "key": 0,
+                    "doc_count": 13596
+                },
+                "200.0": {
+                    "key": 200,
+                    "doc_count": 33882
+                },
+                "400.0": {
+                    "key": 400,
+                    "doc_count": 548
+                },
+                "600.0": {
+                    "key": 600,
+                    "doc_count": 0
+                },
+                "800.0": {
+                    "key": 800,
+                    "doc_count": 460
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
 ==== Missing value
 
 The `missing` parameter defines how documents that are missing a value should be treated.

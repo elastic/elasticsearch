@@ -293,7 +293,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
                         client.execute(CloseJobAction.INSTANCE, closeRequest).get();
                 assertTrue(response.isClosed());
             } catch (Exception e1) {
-                if (e1.getMessage().contains("because job [" + jobId + "] hasn't been opened")) {
+                if (e1.getMessage().contains("because job [" + jobId + "] is not open")) {
                     logger.debug("job [" + jobId + "] has already been closed", e1);
                 } else {
                     try {

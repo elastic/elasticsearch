@@ -472,7 +472,7 @@ public class StartDatafeedAction
         JobState jobState = MlMetadata.getJobState(datafeed.getJobId(), tasks);
         if (jobState != JobState.OPENED) {
             throw ExceptionsHelper.conflictStatusException("cannot start datafeed [" + datafeedId + "] because job [" + job.getId() +
-                    "] hasn't been opened");
+                    "] is not open");
         }
 
         PersistentTask<?> datafeedTask = MlMetadata.getDatafeedTask(datafeedId, tasks);

@@ -421,7 +421,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             if (invalidLicense) {
                 // so the license expired then job closes automatically, so an error is expected:
                 Exception e = expectThrows(ElasticsearchStatusException.class, listener::actionGet);
-                assertEquals("Cannot perform requested action because job [foo] hasn't been opened", e.getMessage());
+                assertEquals("Cannot perform requested action because job [foo] is not open", e.getMessage());
             } else {
                 listener.actionGet();
             }

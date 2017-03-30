@@ -134,7 +134,7 @@ public class StartDatafeedActionTests extends ESTestCase {
                 .build();
         Exception e = expectThrows(ElasticsearchStatusException.class,
                 () -> StartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks));
-        assertThat(e.getMessage(), equalTo("cannot start datafeed [foo-datafeed] because job [job_id] hasn't been opened"));
+        assertThat(e.getMessage(), equalTo("cannot start datafeed [foo-datafeed] because job [job_id] is not open"));
     }
 
     public void testValidate_dataFeedAlreadyStarted() {

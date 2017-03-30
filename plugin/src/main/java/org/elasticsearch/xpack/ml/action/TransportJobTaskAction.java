@@ -63,7 +63,7 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
         PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
         if (jobTask == null || jobTask.isAssigned() == false) {
-            String message = "Cannot perform requested action because job [" + jobId + "] hasn't been opened";
+            String message = "Cannot perform requested action because job [" + jobId + "] is not open";
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));
         } else {
             request.setNodes(jobTask.getExecutorNode());
@@ -81,7 +81,7 @@ public abstract class TransportJobTaskAction<OperationTask extends Task, Request
         } else {
             logger.warn("Unexpected job state based on cluster state version [{}]", state.getVersion());
             listener.onFailure(ExceptionsHelper.conflictStatusException("Cannot perform requested action because job [" +
-                    request.getJobId() + "] hasn't been opened"));
+                    request.getJobId() + "] is not open"));
         }
     }
 

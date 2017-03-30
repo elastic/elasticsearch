@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
+import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.ml.action.PutJobAction;
@@ -417,12 +418,15 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             PlainListenableActionFuture<CloseJobAction.Response> listener = new PlainListenableActionFuture<>(client.threadPool());
             CloseJobAction.Request request = new CloseJobAction.Request("foo");
             request.setTimeout(TimeValue.timeValueSeconds(30));
-            new MachineLearningClient(client).closeJob(request, listener);
             if (invalidLicense) {
-                // so the license expired then job closes automatically, so an error is expected:
-                Exception e = expectThrows(ElasticsearchStatusException.class, listener::actionGet);
-                assertEquals("Cannot perform requested action because job [foo] is not open", e.getMessage());
+                // the close due to invalid license happens async, so check if the job turns into closed state:
+                assertBusy(() -> {
+                    GetJobsStatsAction.Response response =
+                            new MachineLearningClient(client).getJobsStats(new GetJobsStatsAction.Request("foo")).actionGet();
+                    assertEquals(JobState.CLOSED, response.getResponse().results().get(0).getState());
+                });
             } else {
+                new MachineLearningClient(client).closeJob(request, listener);
                 listener.actionGet();
             }
         }

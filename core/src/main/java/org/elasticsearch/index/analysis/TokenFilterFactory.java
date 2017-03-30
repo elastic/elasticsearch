@@ -20,6 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 
 public interface TokenFilterFactory {

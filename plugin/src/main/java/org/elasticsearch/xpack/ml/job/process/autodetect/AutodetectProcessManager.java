@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.action.OpenJobAction.JobTask;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
@@ -41,7 +42,6 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ScoresUpdater;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ShortCircuitingRenormalizer;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 
 import java.io.IOException;
@@ -77,7 +77,6 @@ public class AutodetectProcessManager extends AbstractComponent {
 
     private final JobResultsPersister jobResultsPersister;
     private final JobDataCountsPersister jobDataCountsPersister;
-    private final PersistentTasksService persistentTasksService;
 
     private final ConcurrentMap<String, AutodetectCommunicator> autoDetectCommunicatorByJob;
 
@@ -89,7 +88,7 @@ public class AutodetectProcessManager extends AbstractComponent {
             JobManager jobManager, JobProvider jobProvider, JobResultsPersister jobResultsPersister,
             JobDataCountsPersister jobDataCountsPersister,
             AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
-            PersistentTasksService persistentTasksService, NamedXContentRegistry xContentRegistry) {
+            NamedXContentRegistry xContentRegistry) {
         super(settings);
         this.client = client;
         this.threadPool = threadPool;
@@ -102,7 +101,6 @@ public class AutodetectProcessManager extends AbstractComponent {
 
         this.jobResultsPersister = jobResultsPersister;
         this.jobDataCountsPersister = jobDataCountsPersister;
-        this.persistentTasksService = persistentTasksService;
 
         this.autoDetectCommunicatorByJob = new ConcurrentHashMap<>();
     }
@@ -207,7 +205,7 @@ public class AutodetectProcessManager extends AbstractComponent {
         // TODO check for errors from autodetects
     }
 
-    public void openJob(String jobId, long taskId, boolean ignoreDowntime, Consumer<Exception> handler) {
+    public void openJob(String jobId, JobTask jobTask, boolean ignoreDowntime, Consumer<Exception> handler) {
         Job job = jobManager.getJobOrThrowIfUnknown(jobId);
         jobProvider.getAutodetectParams(job, params -> {
             // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
@@ -221,9 +219,9 @@ public class AutodetectProcessManager extends AbstractComponent {
                 protected void doRun() throws Exception {
                     try {
                         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.computeIfAbsent(jobId, id ->
-                                create(id, taskId, params, ignoreDowntime, handler));
+                                create(id, jobTask, params, ignoreDowntime, handler));
                         communicator.writeJobInputHeader();
-                        setJobState(taskId, jobId, JobState.OPENED);
+                        setJobState(jobTask, JobState.OPENED);
                     } catch (Exception e1) {
                         if (e1 instanceof ElasticsearchStatusException) {
                             logger.info(e1.getMessage());
@@ -231,17 +229,17 @@ public class AutodetectProcessManager extends AbstractComponent {
                             String msg = String.format(Locale.ROOT, "[%s] exception while opening job", jobId);
                             logger.error(msg, e1);
                         }
-                        setJobState(taskId, JobState.FAILED, e2 -> handler.accept(e1));
+                        setJobState(jobTask, JobState.FAILED, e2 -> handler.accept(e1));
                     }
                 }
             });
         }, e1 -> {
             logger.warn("Failed to gather information required to open job [" + jobId + "]", e1);
-            setJobState(taskId, JobState.FAILED, e2 -> handler.accept(e1));
+            setJobState(jobTask, JobState.FAILED, e2 -> handler.accept(e1));
         });
     }
 
-    AutodetectCommunicator create(String jobId, long taskId, AutodetectParams autodetectParams,
+    AutodetectCommunicator create(String jobId, JobTask jobTask, AutodetectParams autodetectParams,
                                   boolean ignoreDowntime, Consumer<Exception> handler) {
         if (autoDetectCommunicatorByJob.size() == maxAllowedRunningJobs) {
             throw new ElasticsearchStatusException("max running job capacity [" + maxAllowedRunningJobs + "] reached",
@@ -269,7 +267,7 @@ public class AutodetectProcessManager extends AbstractComponent {
 
             AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams.modelSnapshot(),
                     autodetectParams.quantiles(), autodetectParams.filters(), ignoreDowntime,
-                    executorService, () -> setJobState(taskId, jobId, JobState.FAILED));
+                    executorService, () -> setJobState(jobTask, JobState.FAILED));
             boolean usePerPartitionNormalization = job.getAnalysisConfig().getUsePerPartitionNormalization();
             AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
                     client, jobId, renormalizer, jobResultsPersister, autodetectParams.modelSizeStats());
@@ -285,7 +283,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                 }
                 throw e;
             }
-            return new AutodetectCommunicator(taskId, job, process, dataCountsReporter, processor,
+            return new AutodetectCommunicator(job, process, dataCountsReporter, processor,
                     handler, xContentRegistry);
         }
     }
@@ -335,22 +333,22 @@ public class AutodetectProcessManager extends AbstractComponent {
         return Optional.of(Duration.between(communicator.getProcessStartTime(), ZonedDateTime.now()));
     }
 
-    private void setJobState(long taskId, String jobId, JobState state) {
-        persistentTasksService.updateStatus(taskId, state, new PersistentTaskOperationListener() {
+    private void setJobState(JobTask jobTask, JobState state) {
+        jobTask.updatePersistentStatus(state, new PersistentTaskOperationListener() {
             @Override
             public void onResponse(long taskId) {
-                logger.info("Successfully set job state to [{}] for job [{}]", state, jobId);
+                logger.info("Successfully set job state to [{}] for job [{}]", state, jobTask.getJobId());
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("Could not set job state to [" + state + "] for job [" + jobId + "]", e);
+                logger.error("Could not set job state to [" + state + "] for job [" + jobTask.getJobId() + "]", e);
             }
         });
     }
 
-    public void setJobState(long taskId, JobState state, CheckedConsumer<Exception, IOException> handler) {
-        persistentTasksService.updateStatus(taskId, state, new PersistentTaskOperationListener() {
+    public void setJobState(JobTask jobTask, JobState state, CheckedConsumer<Exception, IOException> handler) {
+        jobTask.updatePersistentStatus(state, new PersistentTaskOperationListener() {
                     @Override
                     public void onResponse(long taskId) {
                         try {

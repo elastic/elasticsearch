@@ -386,7 +386,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         protected void nodeOperation(AllocatedPersistentTask task, Request request, ActionListener<TransportResponse.Empty> listener) {
             JobTask jobTask = (JobTask) task;
             jobTask.autodetectProcessManager = autodetectProcessManager;
-            autodetectProcessManager.openJob(request.getJobId(), task.getPersistentTaskId(), request.isIgnoreDowntime(), e2 -> {
+            autodetectProcessManager.openJob(request.getJobId(), jobTask, request.isIgnoreDowntime(), e2 -> {
                 if (e2 == null) {
                     listener.onResponse(new TransportResponse.Empty());
                 } else {

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.ml.action.StartDatafeedAction.DatafeedTask;
 import org.elasticsearch.xpack.ml.action.StartDatafeedActionTests;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -44,7 +45,6 @@ import org.elasticsearch.xpack.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -70,6 +70,7 @@ import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -85,7 +86,6 @@ public class DatafeedJobRunnerTests extends ESTestCase {
     private DatafeedJobRunner datafeedJobRunner;
     private long currentTime = 120000;
     private Auditor auditor;
-    private PersistentTasksService persistentTasksService;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -142,9 +142,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         when(client.execute(same(PostDataAction.INSTANCE), any())).thenReturn(jobDataFuture);
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
 
-        persistentTasksService = mock(PersistentTasksService.class);
-        datafeedJobRunner = new DatafeedJobRunner(threadPool, client, clusterService, jobProvider, () -> currentTime,
-                persistentTasksService, auditor) {
+        datafeedJobRunner = new DatafeedJobRunner(threadPool, client, clusterService, jobProvider, () -> currentTime, auditor) {
             @Override
             DataExtractorFactory createDataExtractorFactory(DatafeedConfig datafeedConfig, Job job) {
                 return dataExtractorFactory;
@@ -157,12 +155,6 @@ public class DatafeedJobRunnerTests extends ESTestCase {
             consumer.accept(new ResourceNotFoundException("dummy"));
             return null;
         }).when(jobProvider).bucketsViaInternalClient(any(), any(), any(), any());
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("rawtypes")
-            PersistentTaskOperationListener listener = (PersistentTaskOperationListener) invocationOnMock.getArguments()[2];
-            listener.onResponse(0L);
-            return null;
-        }).when(persistentTasksService).updateStatus(anyLong(), any(), any());
     }
 
     public void testLookbackOnly_WarnsWhenNoDataIsRetrieved() throws Exception {
@@ -171,7 +163,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         when(dataExtractor.next()).thenReturn(Optional.empty());
         Consumer<Exception> handler = mockConsumer();
-        StartDatafeedAction.DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
+        DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
         datafeedJobRunner.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
@@ -193,7 +185,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
                 new Date(0), new Date(0), new Date(0), new Date(0), new Date(0));
         when(jobDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
-        StartDatafeedAction.DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
+        DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
         datafeedJobRunner.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
@@ -223,7 +215,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
                 new Date(0), new Date(0), new Date(0), new Date(0), new Date(0));
         when(jobDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
-        StartDatafeedAction.DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
+        DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
         datafeedJobRunner.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
@@ -258,7 +250,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
         when(dataExtractor.hasNext()).thenReturn(false);
         Consumer<Exception> handler = mockConsumer();
-        StartDatafeedAction.DatafeedTask task = createDatafeedTask("datafeed_id", 0L, null);
+        DatafeedTask task = createDatafeedTask("datafeed_id", 0L, null);
         DatafeedJobRunner.Holder holder = datafeedJobRunner.createJobDatafeed(datafeedConfig, job, 100, 100, handler, task);
         datafeedJobRunner.doDatafeedRealtime(10L, "foo", holder);
 
@@ -282,8 +274,9 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         Consumer<Exception> handler = mockConsumer();
         boolean cancelled = randomBoolean();
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request("datafeed_id", 0L);
-        StartDatafeedAction.DatafeedTask task = StartDatafeedActionTests.createDatafeedTask(1, "type", "action", null,
+        DatafeedTask task = StartDatafeedActionTests.createDatafeedTask(1, "type", "action", null,
                 startDatafeedRequest, datafeedJobRunner);
+        task = spyDatafeedTask(task);
         datafeedJobRunner.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_RUNNER_THREAD_POOL_NAME);
@@ -316,16 +309,33 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         return builder;
     }
 
-    private static StartDatafeedAction.DatafeedTask createDatafeedTask(String datafeedId, long startTime, Long endTime) {
-        StartDatafeedAction.DatafeedTask task = mock(StartDatafeedAction.DatafeedTask.class);
+    private static DatafeedTask createDatafeedTask(String datafeedId, long startTime, Long endTime) {
+        DatafeedTask task = mock(DatafeedTask.class);
         when(task.getDatafeedId()).thenReturn(datafeedId);
         when(task.getDatafeedStartTime()).thenReturn(startTime);
         when(task.getEndTime()).thenReturn(endTime);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("rawtypes")
+            PersistentTaskOperationListener listener = (PersistentTaskOperationListener) invocationOnMock.getArguments()[1];
+            listener.onResponse(0L);
+            return null;
+        }).when(task).updatePersistentStatus(any(), any());
         return task;
     }
 
     @SuppressWarnings("unchecked")
     private Consumer<Exception> mockConsumer() {
         return mock(Consumer.class);
+    }
+
+    private DatafeedTask spyDatafeedTask(DatafeedTask task) {
+        task = spy(task);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("rawtypes")
+            PersistentTaskOperationListener listener = (PersistentTaskOperationListener) invocationOnMock.getArguments()[1];
+            listener.onResponse(0L);
+            return null;
+        }).when(task).updatePersistentStatus(any(), any());
+        return task;
     }
 }

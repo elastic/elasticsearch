@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
-import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 
 import java.time.Duration;
@@ -58,19 +57,17 @@ public class DatafeedJobRunner extends AbstractComponent {
     private final JobProvider jobProvider;
     private final ThreadPool threadPool;
     private final Supplier<Long> currentTimeSupplier;
-    private final PersistentTasksService persistentTasksService;
     private final Auditor auditor;
     private final ConcurrentMap<String, Holder> runningDatafeeds = new ConcurrentHashMap<>();
 
     public DatafeedJobRunner(ThreadPool threadPool, Client client, ClusterService clusterService, JobProvider jobProvider,
-                             Supplier<Long> currentTimeSupplier, PersistentTasksService persistentTasksService, Auditor auditor) {
+                             Supplier<Long> currentTimeSupplier, Auditor auditor) {
         super(Settings.EMPTY);
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.jobProvider = Objects.requireNonNull(jobProvider);
         this.threadPool = threadPool;
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
-        this.persistentTasksService = persistentTasksService;
         this.auditor = auditor;
     }
 
@@ -93,11 +90,15 @@ public class DatafeedJobRunner extends AbstractComponent {
             }
             Holder holder = createJobDatafeed(datafeed, job, latestFinalBucketEndMs, latestRecordTimeMs, handler, task);
             runningDatafeeds.put(datafeedId, holder);
-            updateDatafeedState(task.getPersistentTaskId(), DatafeedState.STARTED, e -> {
-                if (e != null) {
-                    handler.accept(e);
-                } else {
+            task.updatePersistentStatus(DatafeedState.STARTED, new PersistentTaskOperationListener() {
+                @Override
+                public void onResponse(long taskId) {
                     innerRun(holder, task.getDatafeedStartTime(), task.getEndTime());
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    handler.accept(e);
                 }
             });
         }, handler);
@@ -257,20 +258,6 @@ public class DatafeedJobRunner extends AbstractComponent {
                 errorHandler.accept(e);
             }
         });
-    }
-
-    private void updateDatafeedState(long persistentTaskId, DatafeedState datafeedState, Consumer<Exception> handler) {
-        persistentTasksService.updateStatus(persistentTaskId, datafeedState, new PersistentTaskOperationListener() {
-                    @Override
-                    public void onResponse(long taskId) {
-                        handler.accept(null);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        handler.accept(e);
-                    }
-                });
     }
 
     private static Duration getFrequencyOrDefault(DatafeedConfig datafeed, Job job) {

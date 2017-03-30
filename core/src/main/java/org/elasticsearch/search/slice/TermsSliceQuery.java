@@ -33,6 +33,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.DocIdSetBuilder;
+import org.apache.lucene.util.StringHelper;
 
 import java.io.IOException;
 
@@ -46,6 +47,9 @@ import java.io.IOException;
  * <b>NOTE</b>: Documents with no value for that field are ignored.
  */
 public final class TermsSliceQuery extends SliceQuery {
+    // Fixed seed for computing term hashCode
+    private static final int SEED = 7919;
+
     public TermsSliceQuery(String field, int id, int max) {
         super(field, id, max);
     }
@@ -71,7 +75,9 @@ public final class TermsSliceQuery extends SliceQuery {
         final TermsEnum te = terms.iterator();
         PostingsEnum docsEnum = null;
         for (BytesRef term = te.next(); term != null; term = te.next()) {
-            int hashCode = term.hashCode();
+            // use a fixed seed instead of term.hashCode() otherwise this query may return inconsistent results when
+            // running on another replica (StringHelper sets its default seed at startup with current time)
+            int hashCode = StringHelper.murmurhash3_x86_32(term, SEED);
             if (contains(hashCode)) {
                 docsEnum = te.postings(docsEnum, PostingsEnum.NONE);
                 builder.add(docsEnum);

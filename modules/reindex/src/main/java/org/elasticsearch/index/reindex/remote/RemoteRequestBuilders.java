@@ -184,4 +184,18 @@ final class RemoteRequestBuilders {
             throw new ElasticsearchException("failed to build scroll entity", e);
         }
     }
+
+    static HttpEntity clearScrollEntity(String scroll, Version remoteVersion) {
+        if (remoteVersion.before(Version.V_2_0_0)) {
+            // Versions before 2.0.0 extract the plain scroll_id from the body
+            return new StringEntity(scroll, ContentType.TEXT_PLAIN);
+        }
+        try (XContentBuilder entity = JsonXContent.contentBuilder()) {
+            return new StringEntity(entity.startObject()
+                .array("scroll_id", scroll)
+                .endObject().string(), ContentType.APPLICATION_JSON);
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to build clear scroll entity", e);
+        }
+    }
 }

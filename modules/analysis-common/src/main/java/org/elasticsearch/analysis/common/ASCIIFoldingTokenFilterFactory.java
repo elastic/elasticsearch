@@ -32,16 +32,19 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 /**
  * Factory for ASCIIFoldingFilter.
  */
-public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
-    public static ParseField PRESERVE_ORIGINAL = new ParseField("preserve_original");
-    public static boolean DEFAULT_PRESERVE_ORIGINAL = false;
+public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory
+        implements MultiTermAwareComponent {
+    public static final ParseField PRESERVE_ORIGINAL = new ParseField("preserve_original");
+    public static final boolean DEFAULT_PRESERVE_ORIGINAL = false;
 
     private final boolean preserveOriginal;
 
-    public ASCIIFoldingTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    public ASCIIFoldingTokenFilterFactory(IndexSettings indexSettings, Environment environment,
+            String name, Settings settings) {
         super(indexSettings, name, settings);
         preserveOriginal = settings.getAsBooleanLenientForPreEs6Indices(
-            indexSettings.getIndexVersionCreated(), PRESERVE_ORIGINAL.getPreferredName(), DEFAULT_PRESERVE_ORIGINAL, deprecationLogger);
+                indexSettings.getIndexVersionCreated(), PRESERVE_ORIGINAL.getPreferredName(),
+                DEFAULT_PRESERVE_ORIGINAL, deprecationLogger);
     }
 
     @Override

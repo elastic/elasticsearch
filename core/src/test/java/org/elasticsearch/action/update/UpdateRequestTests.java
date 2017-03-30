@@ -329,7 +329,7 @@ public class UpdateRequestTests extends ESTestCase {
         {
             UpdateRequest updateRequest = new UpdateRequest("test", "type1", "2")
                 .upsert(indexRequest)
-                .script(inlineMockScript("ctx._source.update_timestamp = ctx._now"))
+                .script(mockInlineScript("ctx._source.update_timestamp = ctx._now"))
                 .scriptedUpsert(true);
             long nowInMillis = randomNonNegativeLong();
             // We simulate that the document is not existing yet
@@ -343,7 +343,7 @@ public class UpdateRequestTests extends ESTestCase {
         {
             UpdateRequest updateRequest = new UpdateRequest("test", "type1", "2")
                 .upsert(indexRequest)
-                .script(inlineMockScript("ctx._timestamp = ctx._now"))
+                .script(mockInlineScript("ctx._timestamp = ctx._now"))
                 .scriptedUpsert(true);
             // We simulate that the document is not existing yet
             GetResult getResult = new GetResult("test", "type1", "2", 0, true, new BytesArray("{}"), null);
@@ -359,7 +359,7 @@ public class UpdateRequestTests extends ESTestCase {
 
         final boolean delete = randomBoolean();
         final Script script =
-                delete ? inlineMockScript("ctx.op = delete") : inlineMockScript("return");
+                delete ? mockInlineScript("ctx.op = delete") : mockInlineScript("return");
         final UpdateRequest updateRequest =
                 new UpdateRequest("test", "type", "1")
                         .script(script)
@@ -381,7 +381,7 @@ public class UpdateRequestTests extends ESTestCase {
         }
     }
 
-    private Script inlineMockScript(final String script) {
+    private Script mockInlineScript(final String script) {
         return new Script(ScriptType.INLINE, "mock", script, emptyMap());
     }
 

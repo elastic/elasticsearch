@@ -20,9 +20,12 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.search.SortedSetSelector;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -43,7 +46,17 @@ public class BinaryDVIndexFieldData extends DocValuesIndexFieldData implements I
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
-        return new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
+        XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+        if (nested != null ||
+            (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN) ||
+            (source.sortMissingFirst(missingValue) == false && source.sortMissingLast(missingValue) == false)) {
+            return new SortField(getFieldName(), source, reverse);
+        }
+        SortField sortField = new SortedSetSortField(fieldName, reverse,
+            sortMode == MultiValueMode.MAX ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN);
+        sortField.setMissingValue(source.sortMissingLast(missingValue) ^ reverse ?
+            SortedSetSortField.STRING_LAST : SortedSetSortField.STRING_FIRST);
+        return sortField;
     }
 }

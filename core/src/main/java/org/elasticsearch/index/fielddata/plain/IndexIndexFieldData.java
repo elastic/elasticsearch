@@ -24,17 +24,23 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedSetSelector;
+import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -122,6 +128,21 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
     public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context)
             throws Exception {
         return atomicFieldData;
+    }
+
+    @Override
+    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
+        XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+        if (nested != null ||
+            (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN) ||
+            (source.sortMissingFirst(missingValue) == false && source.sortMissingLast(missingValue) == false)) {
+            return new SortField(getFieldName(), source, reverse);
+        }
+        SortField sortField = new SortedSetSortField(getFieldName(), reverse,
+            sortMode == MultiValueMode.MAX ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN);
+        sortField.setMissingValue(source.sortMissingLast(missingValue) ^ reverse ?
+            SortedSetSortField.STRING_LAST : SortedSetSortField.STRING_FIRST);
+        return sortField;
     }
 
     @Override

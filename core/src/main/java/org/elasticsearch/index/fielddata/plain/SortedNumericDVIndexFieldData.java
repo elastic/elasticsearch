@@ -26,6 +26,9 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSelector;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.Index;
@@ -60,17 +63,47 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
+    public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+        final XFieldComparatorSource source;
         switch (numericType) {
             case HALF_FLOAT:
             case FLOAT:
-                return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
+                source = new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
+                break;
+
             case DOUBLE:
-                return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
+                source = new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
+                break;
+
             default:
                 assert !numericType.isFloatingPoint();
-                return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+                source = new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+                break;
         }
+        if (nested != null
+            || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MAX)
+            || numericType == NumericType.HALF_FLOAT) {
+            return new SortField(fieldName, source, reverse);
+        }
+        final SortField sortField;
+        final SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX ?
+            SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN;
+        switch (numericType) {
+            case FLOAT:
+                sortField = new SortedNumericSortField(fieldName, SortField.Type.FLOAT, reverse, selectorType);
+                break;
+
+            case DOUBLE:
+                sortField = new SortedNumericSortField(fieldName, SortField.Type.DOUBLE, reverse, selectorType);
+                break;
+
+            default:
+                assert !numericType.isFloatingPoint();
+                sortField = new SortedNumericSortField(fieldName, SortField.Type.LONG, reverse, selectorType);
+                break;
+        }
+        sortField.setMissingValue(source.missingObject(missingValue, reverse));
+        return sortField;
     }
 
     @Override

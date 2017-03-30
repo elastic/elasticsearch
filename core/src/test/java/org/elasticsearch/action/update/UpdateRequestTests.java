@@ -61,6 +61,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -406,10 +407,6 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(action, instanceOf(ReplicationRequest.class));
         final ReplicationRequest request = (ReplicationRequest) action;
         assertThat(request.timeout(), equalTo(updateRequest.timeout()));
-    }
-
-    private Script mockInlineScript(final String script) {
-        return new Script(ScriptType.INLINE, "mock", script, emptyMap());
     }
 
     public void testToAndFromXContent() throws IOException {

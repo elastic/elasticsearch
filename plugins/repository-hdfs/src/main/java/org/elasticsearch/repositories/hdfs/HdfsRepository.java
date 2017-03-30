@@ -41,6 +41,7 @@ import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.apache.hadoop.security.SecurityUtil;
+import org.apache.hadoop.security.TicketEnforcer;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation.AuthenticationMethod;
 import org.apache.logging.log4j.Logger;
@@ -172,6 +173,9 @@ public final class HdfsRepository extends BlobStoreRepository {
                 "a valid Kerberos principal and keytab. Please specify a principal in the repository settings with [" +
                 CONF_SECURITY_PRINCIPAL + "].");
         }
+
+        // Force all kerberos tickets to be refreshed immediately.
+        TicketEnforcer.forceRefresh();
 
         // Now we can initialize the UGI with the configuration.
         UserGroupInformation.setConfiguration(hadoopConfiguration);

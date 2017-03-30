@@ -35,7 +35,8 @@ import java.util.Arrays;
 
 public class AnalysisTestsHelper {
 
-    public static ESTestCase.TestAnalysis createTestAnalysisFromClassPath(Path baseDir, String resource) throws IOException {
+    public static ESTestCase.TestAnalysis createTestAnalysisFromClassPath(Path baseDir,
+            String resource) throws IOException {
         Settings settings = Settings.builder()
                 .loadFromStream(resource, AnalysisTestsHelper.class.getResourceAsStream(resource))
                 .put(Environment.PATH_HOME_SETTING.getKey(), baseDir.toString())
@@ -47,10 +48,13 @@ public class AnalysisTestsHelper {
     public static ESTestCase.TestAnalysis createTestAnalysisFromSettings(
             Settings settings, AnalysisPlugin... plugins) throws IOException {
         if (settings.get(IndexMetaData.SETTING_VERSION_CREATED) == null) {
-            settings = Settings.builder().put(settings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            settings = Settings.builder().put(settings)
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         }
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        AnalysisRegistry analysisRegistry = new AnalysisModule(new Environment(settings), Arrays.asList(plugins)).getAnalysisRegistry();
+        AnalysisRegistry analysisRegistry =
+                new AnalysisModule(new Environment(settings), Arrays.asList(plugins))
+                .getAnalysisRegistry();
         return new ESTestCase.TestAnalysis(analysisRegistry.build(indexSettings),
             analysisRegistry.buildTokenFilterFactories(indexSettings),
             analysisRegistry.buildTokenizerFactories(indexSettings),

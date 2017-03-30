@@ -107,7 +107,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Alerts us if new analyzers are added to lucene, so we don't miss them.
+ * Alerts us if new analysis components are added to Lucene, so we don't miss them.
  * <p>
  * If we don't want to expose one for a specific reason, just map it to Void.
  * The deprecated ones can be mapped to Deprecated.class.
@@ -175,7 +175,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("apostrophe",                ApostropheFilterFactory.class)
         .put("arabicnormalization",       ArabicNormalizationFilterFactory.class)
         .put("arabicstem",                ArabicStemTokenFilterFactory.class)
-        .put("asciifolding",              Void.class)  // TODO remove this when core no longer depends on analysis-common
+        .put("asciifolding",              MovedToAnalysisCommon.class)
         .put("brazilianstem",             BrazilianStemTokenFilterFactory.class)
         .put("bulgarianstem",             StemmerTokenFilterFactory.class)
         .put("cjkbigram",                 CJKBigramFilterFactory.class)
@@ -250,8 +250,8 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("turkishlowercase",          LowerCaseTokenFilterFactory.class)
         .put("type",                      KeepTypesFilterFactory.class)
         .put("uppercase",                 UpperCaseTokenFilterFactory.class)
-        .put("worddelimiter",             Void.class)  // TODO remove this when core no longer depends on analysis-common
-        .put("worddelimitergraph",        Void.class)  // TODO remove this when core no longer depends on analysis-common
+        .put("worddelimiter",             MovedToAnalysisCommon.class)
+        .put("worddelimitergraph",        MovedToAnalysisCommon.class)
         .put("flattengraph",              FlattenGraphTokenFilterFactory.class)
 
         // TODO: these tokenfilters are not yet exposed: useful?
@@ -484,4 +484,11 @@ public class AnalysisFactoryTestCase extends ESTestCase {
                 classesThatShouldNotHaveMultiTermSupport.isEmpty());
     }
 
+    /**
+     * Marker class for components that have moved to the analysis-common modules. This will be
+     * removed when the module is complete and these analysis components aren't available to core.
+     */
+    protected static final class MovedToAnalysisCommon {
+        private MovedToAnalysisCommon() {}
+    }
 }

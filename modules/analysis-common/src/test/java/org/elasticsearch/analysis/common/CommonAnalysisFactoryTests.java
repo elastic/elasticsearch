@@ -22,7 +22,11 @@ package org.elasticsearch.analysis.common;
 import org.elasticsearch.AnalysisFactoryTestCase;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.toList;
 
 public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     @Override
@@ -44,5 +48,39 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     protected Map<String, Class<?>> getCharFilters() {
         Map<String, Class<?>> filters = new HashMap<>(super.getCharFilters());
         return filters;
+    }
+
+    /**
+     * Fails if a tokenizer is marked in the superclass with {@link MovedToAnalysisCommon} but
+     * hasn't been marked in this class with its proper factory.
+     */
+    public void testAllTokenizersMarked() {
+        markedTestCase("char filter", getTokenizers());
+    }
+
+    /**
+     * Fails if a char filter is marked in the superclass with {@link MovedToAnalysisCommon} but
+     * hasn't been marked in this class with its proper factory.
+     */
+    public void testAllCharFiltersMarked() {
+        markedTestCase("char filter", getCharFilters());
+    }
+
+    /**
+     * Fails if a char filter is marked in the superclass with {@link MovedToAnalysisCommon} but
+     * hasn't been marked in this class with its proper factory.
+     */
+    public void testAllTokenFiltersMarked() {
+        markedTestCase("token filter", getTokenFilters());
+    }
+
+    private void markedTestCase(String name, Map<String, Class<?>> map) {
+        List<String> unmarked = map.entrySet().stream()
+                .filter(e -> e.getValue() == MovedToAnalysisCommon.class)
+                .map(Map.Entry::getKey)
+                .sorted()
+                .collect(toList());
+        assertEquals(name + " marked in AnalysisFactoryTestCase as moved to analysis-common "
+                + "but not mapped here", emptyList(), unmarked);
     }
 }

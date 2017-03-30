@@ -439,12 +439,7 @@ public class ThreadContextTests extends ESTestCase {
 
                     @Override
                     public void onAfter() {
-                        if (systemContext) {
-                            assertTrue(threadContext.isSystemContext());
-                        } else {
-                            assertFalse(threadContext.isSystemContext());
-                        }
-
+                        assertEquals(systemContext, threadContext.isSystemContext());
                         assertEquals("bar", threadContext.getHeader("foo"));
                         assertEquals("bar_transient", threadContext.getTransient("foo"));
                         assertNotNull(threadContext.getTransient("failure"));
@@ -455,11 +450,7 @@ public class ThreadContextTests extends ESTestCase {
 
                     @Override
                     public void onFailure(Exception e) {
-                        if (systemContext) {
-                            assertTrue(threadContext.isSystemContext());
-                        } else {
-                            assertFalse(threadContext.isSystemContext());
-                        }
+                        assertEquals(systemContext, threadContext.isSystemContext());
                         assertEquals("exception from doRun", e.getMessage());
                         assertEquals("bar", threadContext.getHeader("foo"));
                         assertEquals("bar_transient", threadContext.getTransient("foo"));
@@ -469,11 +460,7 @@ public class ThreadContextTests extends ESTestCase {
 
                     @Override
                     protected void doRun() throws Exception {
-                        if (systemContext) {
-                            assertTrue(threadContext.isSystemContext());
-                        } else {
-                            assertFalse(threadContext.isSystemContext());
-                        }
+                        assertEquals(systemContext, threadContext.isSystemContext());
                         assertEquals("bar", threadContext.getHeader("foo"));
                         assertEquals("bar_transient", threadContext.getTransient("foo"));
                         assertFalse(threadContext.isDefaultContext());

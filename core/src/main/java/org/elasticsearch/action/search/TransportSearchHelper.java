@@ -41,10 +41,9 @@ final class TransportSearchHelper {
         try (RAMOutputStream out = new RAMOutputStream()) {
             out.writeString(searchPhaseResults.length() == 1 ? ParsedScrollId.QUERY_AND_FETCH_TYPE : ParsedScrollId.QUERY_THEN_FETCH_TYPE);
             out.writeVInt(searchPhaseResults.asList().size());
-            for (AtomicArray.Entry<? extends SearchPhaseResult> entry : searchPhaseResults.asList()) {
-                SearchPhaseResult searchPhaseResult = entry.value;
-                out.writeLong(searchPhaseResult.id());
-                out.writeString(searchPhaseResult.shardTarget().getNodeId());
+            for (SearchPhaseResult searchPhaseResult : searchPhaseResults.asList()) {
+                out.writeLong(searchPhaseResult.getRequestId());
+                out.writeString(searchPhaseResult.getSearchShardTarget().getNodeId());
             }
             byte[] bytes = new byte[(int) out.getFilePointer()];
             out.writeTo(bytes, 0);

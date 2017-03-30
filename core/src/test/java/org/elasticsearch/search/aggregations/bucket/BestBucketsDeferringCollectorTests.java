@@ -46,7 +46,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
     public void testReplay() throws Exception {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        int numDocs = randomInt(128);
+        int numDocs = randomIntBetween(1, 128);
         int maxNumValues = randomInt(16);
         for (int i = 0; i < numDocs; i++) {
             Document document = new Document();

@@ -191,8 +191,6 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertEquals("1", builder.build().get("index.allocation.max_retries"));
         assertEquals(version, builder.build().getAsVersion("index.version.created", null));
         assertEquals(upgraded, builder.build().getAsVersion("index.version.upgraded", null));
-        assertEquals(minCompat.luceneVersion.toString(), builder.build().get("index.version.minimum_compatible", null));
-
     }
 
     private DiscoveryNode newNode(String nodeId) {

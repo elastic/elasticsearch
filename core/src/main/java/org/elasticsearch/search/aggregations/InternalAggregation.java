@@ -185,7 +185,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
             builder.startObject(getName());
         }
         if (this.metaData != null) {
-            builder.field(CommonFields.META);
+            builder.field(CommonFields.META.getPreferredName());
             builder.map(this.metaData);
         }
         doXContentBody(builder, params);
@@ -240,18 +240,17 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
      * Common xcontent fields that are shared among addAggregation
      */
     public static final class CommonFields extends ParseField.CommonFields {
-        // todo convert these to ParseField
-        public static final String META = "meta";
-        public static final String BUCKETS = "buckets";
-        public static final String VALUE = "value";
-        public static final String VALUES = "values";
-        public static final String VALUE_AS_STRING = "value_as_string";
-        public static final String DOC_COUNT = "doc_count";
-        public static final String KEY = "key";
-        public static final String KEY_AS_STRING = "key_as_string";
-        public static final String FROM = "from";
-        public static final String FROM_AS_STRING = "from_as_string";
-        public static final String TO = "to";
-        public static final String TO_AS_STRING = "to_as_string";
+        public static final ParseField META = new ParseField("meta");
+        public static final ParseField BUCKETS = new ParseField("buckets");
+        public static final ParseField VALUE = new ParseField("value");
+        public static final ParseField VALUES = new ParseField("values");
+        public static final ParseField VALUE_AS_STRING = new ParseField("value_as_string");
+        public static final ParseField DOC_COUNT = new ParseField("doc_count");
+        public static final ParseField KEY = new ParseField("key");
+        public static final ParseField KEY_AS_STRING = new ParseField("key_as_string");
+        public static final ParseField FROM = new ParseField("from");
+        public static final ParseField FROM_AS_STRING = new ParseField("from_as_string");
+        public static final ParseField TO = new ParseField("to");
+        public static final ParseField TO_AS_STRING = new ParseField("to_as_string");
     }
 }

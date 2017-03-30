@@ -20,48 +20,28 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Objects;
 
 public interface MappingUpdatePerformer {
-    /**
-     * Determine if any mappings need to be updated, and update them on the
-     * master node if necessary. Returnes a failed {@code Engine.IndexResult}
-     * in the event updating the mappings fails or null if successful.
-     * Throws a {@code ReplicationOperation.RetryOnPrimaryException} if the
-     * operation needs to be retried on the primary due to the mappings not
-     * being present yet, or a different exception if updating the mappings
-     * on the master failed.
-     */
-    @Nullable
-    MappingUpdateResult updateMappingsIfNeeded(IndexShard primary, IndexRequest request) throws Exception;
 
     /**
-     * Class encapsulating the resulting of potentially updating the mapping
+     * Determine if any mappings need to be updated, and update them on the master node if
+     * necessary. Returnes a failure Exception in the event updating the mappings fails or null if
+     * successful.
      */
-    class MappingUpdateResult {
-        @Nullable
-        public final Engine.Index operation;
-        @Nullable
-        public final Exception failure;
+    void updateMappingsIfNeeded(Engine.Index operation,
+                                ShardId shardId,
+                                String type) throws Exception;
 
-        MappingUpdateResult(Exception failure) {
-            Objects.requireNonNull(failure, "failure cannot be null");
-            this.failure = failure;
-            this.operation = null;
-        }
+    /**
+     *  Throws a {@code ReplicationOperation.RetryOnPrimaryException} if the operation needs to be
+     * retried on the primary due to the mappings not being present yet, or a different exception if
+     * updating the mappings on the master failed.
+     */
+    void verifyMappings(Engine.Index operation, ShardId shardId) throws Exception;
 
-        MappingUpdateResult(Engine.Index operation) {
-            Objects.requireNonNull(operation, "operation cannot be null");
-            this.operation = operation;
-            this.failure = null;
-        }
-
-        public boolean isFailed() {
-            return failure != null;
-        }
-    }
 }

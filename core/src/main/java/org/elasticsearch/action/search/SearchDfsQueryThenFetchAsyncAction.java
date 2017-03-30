@@ -33,28 +33,59 @@ import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSearchResult> {
+
     private final SearchPhaseController searchPhaseController;
 
-    SearchDfsQueryThenFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
-                                       Function<String, Transport.Connection> nodeIdToConnection,
-                                       Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
-                                       SearchPhaseController searchPhaseController, Executor executor, SearchRequest request,
-                                       ActionListener<SearchResponse> listener, GroupShardsIterator shardsIts, long startTime,
-                                       long clusterStateVersion, SearchTask task) {
-        super("dfs", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, executor,
-                request, listener, shardsIts, startTime, clusterStateVersion, task, new SearchPhaseResults<>(shardsIts.size()));
+    SearchDfsQueryThenFetchAsyncAction(
+            final Logger logger,
+            final SearchTransportService searchTransportService,
+            final Function<String, Transport.Connection> nodeIdToConnection,
+            final Map<String, AliasFilter> aliasFilter,
+            final Map<String, Float> concreteIndexBoosts,
+            final SearchPhaseController searchPhaseController,
+            final Executor executor,
+            final SearchRequest request,
+            final ActionListener<SearchResponse> listener,
+            final GroupShardsIterator shardsIts,
+            final TransportSearchAction.SearchTimeProvider timeProvider,
+            final long clusterStateVersion,
+            final SearchTask task) {
+        super(
+                "dfs",
+                logger,
+                searchTransportService,
+                nodeIdToConnection,
+                aliasFilter,
+                concreteIndexBoosts,
+                executor,
+                request,
+                listener,
+                shardsIts,
+                timeProvider,
+                clusterStateVersion,
+                task,
+                new SearchPhaseResults<>(shardsIts.size()));
         this.searchPhaseController = searchPhaseController;
     }
 
     @Override
-    protected void executePhaseOnShard(ShardIterator shardIt, ShardRouting shard, ActionListener listener) {
+    protected void executePhaseOnShard(
+            final ShardIterator shardIt,
+            final ShardRouting shard,
+            final SearchActionListener<DfsSearchResult> listener) {
         getSearchTransport().sendExecuteDfs(getConnection(shard.currentNodeId()),
             buildShardSearchRequest(shardIt, shard) , getTask(), listener);
     }
 
     @Override
-    protected SearchPhase getNextPhase(SearchPhaseResults<DfsSearchResult> results, SearchPhaseContext context) {
-        return new DfsQueryPhase(results.results, searchPhaseController,
-            (queryResults) -> new FetchSearchPhase(queryResults, searchPhaseController, context), context);
+    protected SearchPhase getNextPhase(
+            final SearchPhaseResults<DfsSearchResult> results, final SearchPhaseContext context) {
+        return new DfsQueryPhase(
+                results.results,
+                searchPhaseController,
+                (queryResults) ->
+                        new FetchSearchPhase(queryResults, searchPhaseController, context),
+                context);
     }
+
 }

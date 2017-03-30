@@ -108,7 +108,7 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
             } else {
                 builder.startObject();
             }
-            builder.field(CommonFields.DOC_COUNT, docCount);
+            builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;
@@ -210,9 +210,9 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
-            builder.startObject(CommonFields.BUCKETS);
+            builder.startObject(CommonFields.BUCKETS.getPreferredName());
         } else {
-            builder.startArray(CommonFields.BUCKETS);
+            builder.startArray(CommonFields.BUCKETS.getPreferredName());
         }
         for (InternalBucket bucket : buckets) {
             bucket.toXContent(builder, params);

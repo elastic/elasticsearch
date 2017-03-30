@@ -9,6 +9,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.notification.slack.SentMessages;
 import org.elasticsearch.xpack.notification.slack.SlackAccount;
@@ -17,9 +19,12 @@ import org.elasticsearch.xpack.notification.slack.message.Attachment;
 import org.elasticsearch.xpack.notification.slack.message.SlackMessage;
 import org.elasticsearch.xpack.watcher.actions.slack.SlackAction;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.joda.time.DateTime;
+
+import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -113,11 +118,20 @@ public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
         SearchResponse response = searchHistory(searchSource().query(boolQuery()
                 .must(termQuery("result.actions.id", "slack"))
                 .must(termQuery("result.actions.type", "slack"))
-                .must(termQuery("result.actions.status", "success"))
-                .must(termQuery("result.actions.slack.account", account))
-                .must(termQuery("result.actions.slack.sent_messages.status", "success"))));
+                .must(termQuery("result.actions.slack.account", account))));
 
-        assertThat(response, notNullValue());
         assertThat(response.getHits().getTotalHits(), is(1L));
+
+        SearchHit hit = response.getHits().getAt(0);
+        assertSuccess(hit, "result.actions.0.slack.sent_messages.0.status");
+        assertSuccess(hit, "result.actions.0.slack.sent_messages.1.status");
+        assertSuccess(hit, "result.actions.0.status");
+    }
+
+    private void assertSuccess(SearchHit hit, String path) {
+        XContentSource source = new XContentSource(hit.getSourceRef(), XContentType.JSON);
+        String json = hit.getSourceAsString();
+        String message = String.format(Locale.ROOT, "Expected path [%s] to be [success], json is %s", path, json);
+        assertThat(message, source.getValue(path), is("success"));
     }
 }

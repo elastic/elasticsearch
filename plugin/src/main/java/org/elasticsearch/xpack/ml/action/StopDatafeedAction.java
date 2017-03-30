@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -224,10 +223,10 @@ public class StopDatafeedAction
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ClusterService clusterService, Client client) {
+                               ClusterService clusterService, InternalClient client) {
             super(settings, StopDatafeedAction.NAME, threadPool, clusterService, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new, Response::new, MachineLearning.THREAD_POOL_NAME);
-            this.client = new InternalClient(settings, threadPool, client);
+            this.client = client;
         }
 
         @Override

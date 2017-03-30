@@ -13,13 +13,13 @@
         "snapshot_id": {
           "type": "string",
           "required": true,
-          "description": "The ID of the snapshot whose description is to be updated"
+          "description": "The ID of the snapshot to update"
         }
       },
       "params": {}
     },
     "body": {
-      "description" : "A JSON object containing the description to update with",
+      "description" : "The model snapshot properties to update",
       "required" : true
     }
   }

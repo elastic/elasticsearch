@@ -9,7 +9,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction.Request;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
-public class PutModelSnapshotDescriptionActionRequestTests
+public class UpdateModelSnapshotActionRequestTests
         extends AbstractStreamableXContentTestCase<UpdateModelSnapshotAction.Request> {
 
     @Override
@@ -19,12 +19,19 @@ public class PutModelSnapshotDescriptionActionRequestTests
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20));
+        Request request = new Request(randomAsciiOfLengthBetween(1, 20),
+                randomAsciiOfLengthBetween(1, 20));
+        if (randomBoolean()) {
+            request.setDescription(randomAsciiOfLengthBetween(1, 20));
+        }
+        if (randomBoolean()) {
+            request.setRetain(randomBoolean());
+        }
+        return request;
     }
 
     @Override
     protected Request createBlankInstance() {
         return new Request();
     }
-
 }

@@ -42,9 +42,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-public class UpdateModelSnapshotAction extends
-Action<UpdateModelSnapshotAction.Request, UpdateModelSnapshotAction.Response,
-UpdateModelSnapshotAction.RequestBuilder> {
+public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.Request,
+        UpdateModelSnapshotAction.Response, UpdateModelSnapshotAction.RequestBuilder> {
 
     public static final UpdateModelSnapshotAction INSTANCE = new UpdateModelSnapshotAction();
     public static final String NAME = "cluster:admin/ml/job/model_snapshots/update";
@@ -70,7 +69,8 @@ UpdateModelSnapshotAction.RequestBuilder> {
         static {
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
             PARSER.declareString((request, snapshotId) -> request.snapshotId = snapshotId, ModelSnapshot.SNAPSHOT_ID);
-            PARSER.declareString((request, description) -> request.description = description, ModelSnapshot.DESCRIPTION);
+            PARSER.declareString(Request::setDescription, ModelSnapshot.DESCRIPTION);
+            PARSER.declareBoolean(Request::setRetain, ModelSnapshot.RETAIN);
         }
 
         public static Request parseRequest(String jobId, String snapshotId, XContentParser parser) {
@@ -87,14 +87,14 @@ UpdateModelSnapshotAction.RequestBuilder> {
         private String jobId;
         private String snapshotId;
         private String description;
+        private Boolean retain;
 
         Request() {
         }
 
-        public Request(String jobId, String snapshotId, String description) {
+        public Request(String jobId, String snapshotId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
             this.snapshotId = ExceptionsHelper.requireNonNull(snapshotId, ModelSnapshot.SNAPSHOT_ID.getPreferredName());
-            this.description = ExceptionsHelper.requireNonNull(description, ModelSnapshot.DESCRIPTION.getPreferredName());
         }
 
         public String getJobId() {
@@ -105,8 +105,20 @@ UpdateModelSnapshotAction.RequestBuilder> {
             return snapshotId;
         }
 
-        public String getDescriptionString() {
+        public String getDescription() {
             return description;
+        }
+
+        public void setDescription(String description) {
+            this.description = description;
+        }
+
+        public Boolean getRetain() {
+            return retain;
+        }
+
+        public void setRetain(Boolean retain) {
+            this.retain = retain;
         }
 
         @Override
@@ -119,7 +131,8 @@ UpdateModelSnapshotAction.RequestBuilder> {
             super.readFrom(in);
             jobId = in.readString();
             snapshotId = in.readString();
-            description = in.readString();
+            description = in.readOptionalString();
+            retain = in.readOptionalBoolean();
         }
 
         @Override
@@ -127,7 +140,8 @@ UpdateModelSnapshotAction.RequestBuilder> {
             super.writeTo(out);
             out.writeString(jobId);
             out.writeString(snapshotId);
-            out.writeString(description);
+            out.writeOptionalString(description);
+            out.writeOptionalBoolean(retain);
         }
 
         @Override
@@ -135,14 +149,19 @@ UpdateModelSnapshotAction.RequestBuilder> {
             builder.startObject();
             builder.field(Job.ID.getPreferredName(), jobId);
             builder.field(ModelSnapshot.SNAPSHOT_ID.getPreferredName(), snapshotId);
-            builder.field(ModelSnapshot.DESCRIPTION.getPreferredName(), description);
+            if (description != null) {
+                builder.field(ModelSnapshot.DESCRIPTION.getPreferredName(), description);
+            }
+            if (retain != null) {
+                builder.field(ModelSnapshot.RETAIN.getPreferredName(), retain);
+            }
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, snapshotId, description);
+            return Objects.hash(jobId, snapshotId, description, retain);
         }
 
         @Override
@@ -154,8 +173,10 @@ UpdateModelSnapshotAction.RequestBuilder> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) && Objects.equals(snapshotId, other.snapshotId)
-                    && Objects.equals(description, other.description);
+            return Objects.equals(jobId, other.jobId)
+                    && Objects.equals(snapshotId, other.snapshotId)
+                    && Objects.equals(description, other.description)
+                    && Objects.equals(retain, other.retain);
         }
     }
 
@@ -250,17 +271,14 @@ UpdateModelSnapshotAction.RequestBuilder> {
 
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
-            logger.debug("Received request to change model snapshot description using '" + request.getDescriptionString()
-            + "' for snapshot ID '" + request.getSnapshotId() + "' for job '" + request.getJobId() + "'");
+            logger.debug("Received request to update model snapshot [{}] for job [{}]", request.getSnapshotId(), request.getJobId());
             getChangeCandidates(request, changeCandidates -> {
                 checkForClashes(request, aVoid -> {
                     if (changeCandidates.size() > 1) {
                         logger.warn("More than one model found for [{}: {}, {}: {}] tuple.", Job.ID.getPreferredName(), request.getJobId(),
                                 ModelSnapshot.SNAPSHOT_ID.getPreferredName(), request.getSnapshotId());
                     }
-                    ModelSnapshot.Builder updatedSnapshotBuilder = new ModelSnapshot.Builder(changeCandidates.get(0));
-                    updatedSnapshotBuilder.setDescription(request.getDescriptionString());
-                    ModelSnapshot updatedSnapshot = updatedSnapshotBuilder.build();
+                    ModelSnapshot updatedSnapshot = applyUpdate(request, changeCandidates.get(0));
                     jobManager.updateModelSnapshot(updatedSnapshot, b -> {
                         // The quantiles can be large, and totally dominate the output -
                         // it's clearer to remove them
@@ -283,10 +301,15 @@ UpdateModelSnapshotAction.RequestBuilder> {
         }
 
         private void checkForClashes(Request request, Consumer<Void> handler, Consumer<Exception> errorHandler) {
-            getModelSnapshots(request.getJobId(), null, request.getDescriptionString(), clashCandidates -> {
+            if (request.getDescription() == null) {
+                handler.accept(null);
+                return;
+            }
+
+            getModelSnapshots(request.getJobId(), null, request.getDescription(), clashCandidates -> {
                 if (clashCandidates != null && !clashCandidates.isEmpty()) {
                     errorHandler.accept(new IllegalArgumentException(Messages.getMessage(
-                            Messages.REST_DESCRIPTION_ALREADY_USED, request.getDescriptionString(), request.getJobId())));
+                            Messages.REST_DESCRIPTION_ALREADY_USED, request.getDescription(), request.getJobId())));
                 } else {
                     handler.accept(null);
                 }
@@ -297,6 +320,17 @@ UpdateModelSnapshotAction.RequestBuilder> {
                                        Consumer<List<ModelSnapshot>> handler, Consumer<Exception> errorHandler) {
             jobProvider.modelSnapshots(jobId, 0, 1, null, null, null, true, snapshotId, description,
                     page -> handler.accept(page.results()), errorHandler);
+        }
+
+        private static ModelSnapshot applyUpdate(Request request, ModelSnapshot target) {
+            ModelSnapshot.Builder updatedSnapshotBuilder = new ModelSnapshot.Builder(target);
+            if (request.getDescription() != null) {
+                updatedSnapshotBuilder.setDescription(request.getDescription());
+            }
+            if (request.getRetain() != null) {
+                updatedSnapshotBuilder.setRetain(request.getRetain());
+            }
+            return updatedSnapshotBuilder.build();
         }
 
     }

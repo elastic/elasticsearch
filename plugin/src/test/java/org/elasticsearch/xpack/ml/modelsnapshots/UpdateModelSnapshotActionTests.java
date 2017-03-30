@@ -9,21 +9,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction;
 
 
-public class PutModelSnapshotDescriptionTests extends ESTestCase {
+public class UpdateModelSnapshotActionTests extends ESTestCase {
 
     public void testUpdateDescription_GivenMissingArg() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new UpdateModelSnapshotAction.Request(null, "foo", "bar"));
+                () -> new UpdateModelSnapshotAction.Request(null, "foo"));
         assertEquals("[job_id] must not be null.", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class,
-                () -> new UpdateModelSnapshotAction.Request("foo", null, "bar"));
+                () -> new UpdateModelSnapshotAction.Request("foo", null));
         assertEquals("[snapshot_id] must not be null.", e.getMessage());
-
-        e = expectThrows(IllegalArgumentException.class,
-                () -> new UpdateModelSnapshotAction.Request("foo", "foo", null));
-        assertEquals("[description] must not be null.", e.getMessage());
     }
-
-
 }

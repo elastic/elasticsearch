@@ -64,12 +64,20 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
             return;
         }
         LOGGER.info("Removing model snapshots of job [{}] that have a timestamp before [{}]", job.getId(), cutoffEpochMs);
-        QueryBuilder excludeFilter = QueryBuilders.termQuery(ModelSnapshot.SNAPSHOT_ID.getPreferredName(), job.getModelSnapshotId());
+
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
         searchRequest.types(ModelSnapshot.TYPE.getPreferredName());
-        QueryBuilder query = createQuery(job.getId(), cutoffEpochMs).mustNot(excludeFilter);
+
+        QueryBuilder activeSnapshotFilter = QueryBuilders.termQuery(
+                ModelSnapshot.SNAPSHOT_ID.getPreferredName(), job.getModelSnapshotId());
+        QueryBuilder retainFilter = QueryBuilders.termQuery(ModelSnapshot.RETAIN.getPreferredName(), true);
+        QueryBuilder query = createQuery(job.getId(), cutoffEpochMs)
+                .mustNot(activeSnapshotFilter)
+                .mustNot(retainFilter);
+
         searchRequest.source(new SearchSourceBuilder().query(query).size(MODEL_SNAPSHOT_SEARCH_SIZE));
+
         client.execute(SearchAction.INSTANCE, searchRequest, new ActionListener<SearchResponse>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {

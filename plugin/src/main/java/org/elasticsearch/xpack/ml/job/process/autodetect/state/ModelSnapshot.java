@@ -40,6 +40,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
     public static final ParseField SNAPSHOT_DOC_COUNT = new ParseField("snapshot_doc_count");
     public static final ParseField LATEST_RECORD_TIME = new ParseField("latest_record_time_stamp");
     public static final ParseField LATEST_RESULT_TIME = new ParseField("latest_result_time_stamp");
+    public static final ParseField RETAIN = new ParseField("retain");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("model_snapshots");
@@ -84,6 +85,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
                     "unexpected token [" + p.currentToken() + "] for [" + LATEST_RESULT_TIME.getPreferredName() + "]");
         }, LATEST_RESULT_TIME, ValueType.VALUE);
         PARSER.declareObject(Builder::setQuantiles, Quantiles.PARSER, Quantiles.TYPE);
+        PARSER.declareBoolean(Builder::setRetain, RETAIN);
     }
 
     private final String jobId;
@@ -95,9 +97,11 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
     private final Date latestRecordTimeStamp;
     private final Date latestResultTimeStamp;
     private final Quantiles quantiles;
+    private final boolean retain;
 
     private ModelSnapshot(String jobId, Date timestamp, String description, String snapshotId, int snapshotDocCount,
-                          ModelSizeStats modelSizeStats, Date latestRecordTimeStamp, Date latestResultTimeStamp, Quantiles quantiles) {
+                          ModelSizeStats modelSizeStats, Date latestRecordTimeStamp, Date latestResultTimeStamp, Quantiles quantiles,
+                          boolean retain) {
         this.jobId = jobId;
         this.timestamp = timestamp;
         this.description = description;
@@ -107,6 +111,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
         this.latestRecordTimeStamp = latestRecordTimeStamp;
         this.latestResultTimeStamp = latestResultTimeStamp;
         this.quantiles = quantiles;
+        this.retain = retain;
     }
 
     public ModelSnapshot(StreamInput in) throws IOException {
@@ -119,6 +124,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
         latestRecordTimeStamp = in.readBoolean() ? new Date(in.readVLong()) : null;
         latestResultTimeStamp = in.readBoolean() ? new Date(in.readVLong()) : null;
         quantiles = in.readOptionalWriteable(Quantiles::new);
+        retain = in.readBoolean();
     }
 
     @Override
@@ -147,6 +153,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
             out.writeBoolean(false);
         }
         out.writeOptionalWriteable(quantiles);
+        out.writeBoolean(retain);
     }
 
     @Override
@@ -177,6 +184,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
         if (quantiles != null) {
             builder.field(Quantiles.TYPE.getPreferredName(), quantiles);
         }
+        builder.field(RETAIN.getPreferredName(), retain);
         builder.endObject();
         return builder;
     }
@@ -220,7 +228,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(jobId, timestamp, description, snapshotId, quantiles, snapshotDocCount, modelSizeStats, latestRecordTimeStamp,
-                latestResultTimeStamp);
+                latestResultTimeStamp, retain);
     }
 
     /**
@@ -246,7 +254,8 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
                 && Objects.equals(this.modelSizeStats, that.modelSizeStats)
                 && Objects.equals(this.quantiles, that.quantiles)
                 && Objects.equals(this.latestRecordTimeStamp, that.latestRecordTimeStamp)
-                && Objects.equals(this.latestResultTimeStamp, that.latestResultTimeStamp);
+                && Objects.equals(this.latestResultTimeStamp, that.latestResultTimeStamp)
+                && this.retain == that.retain;
     }
 
     public static String documentId(ModelSnapshot snapshot) {
@@ -275,6 +284,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
         private Date latestRecordTimeStamp;
         private Date latestResultTimeStamp;
         private Quantiles quantiles;
+        private boolean retain;
 
         public Builder() {
         }
@@ -294,6 +304,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
             this.latestRecordTimeStamp = modelSnapshot.latestRecordTimeStamp;
             this.latestResultTimeStamp = modelSnapshot.latestResultTimeStamp;
             this.quantiles = modelSnapshot.quantiles;
+            this.retain = modelSnapshot.retain;
         }
 
         public Builder setJobId(String jobId) {
@@ -346,9 +357,14 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
             return this;
         }
 
+        public Builder setRetain(boolean value) {
+            this.retain = value;
+            return this;
+        }
+
         public ModelSnapshot build() {
             return new ModelSnapshot(jobId, timestamp, description, snapshotId, snapshotDocCount, modelSizeStats, latestRecordTimeStamp,
-                    latestResultTimeStamp, quantiles);
+                    latestResultTimeStamp, quantiles, retain);
         }
     }
 }

@@ -19,6 +19,7 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
     private static final int DEFAULT_DOC_COUNT = 7;
     private static final Date DEFAULT_LATEST_RESULT_TIMESTAMP = new Date(12345678901234L);
     private static final Date DEFAULT_LATEST_RECORD_TIMESTAMP = new Date(12345678904321L);
+    private static final boolean DEFAULT_RETAIN = true;
 
     public void testCopyBuilder() {
         ModelSnapshot modelSnapshot1 = createFullyPopulated().build();
@@ -132,6 +133,7 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
         modelSnapshot.setLatestResultTimeStamp(DEFAULT_LATEST_RESULT_TIMESTAMP);
         modelSnapshot.setLatestRecordTimeStamp(DEFAULT_LATEST_RECORD_TIMESTAMP);
         modelSnapshot.setQuantiles(new Quantiles("foo", DEFAULT_TIMESTAMP, "state"));
+        modelSnapshot.setRetain(DEFAULT_RETAIN);
         return modelSnapshot;
     }
 
@@ -152,6 +154,7 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
         modelSnapshot.setLatestRecordTimeStamp(
                 new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()));
         modelSnapshot.setQuantiles(QuantilesTests.createRandomized());
+        modelSnapshot.setRetain(randomBoolean());
         return modelSnapshot.build();
     }
 

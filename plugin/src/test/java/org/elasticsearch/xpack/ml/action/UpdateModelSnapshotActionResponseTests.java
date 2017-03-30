@@ -9,7 +9,8 @@ import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction.Response;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshotTests;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
-public class PutModelSnapshotDescriptionActionResponseTests extends AbstractStreamableTestCase<UpdateModelSnapshotAction.Response> {
+public class UpdateModelSnapshotActionResponseTests
+        extends AbstractStreamableTestCase<UpdateModelSnapshotAction.Response> {
 
     @Override
     protected Response createTestInstance() {

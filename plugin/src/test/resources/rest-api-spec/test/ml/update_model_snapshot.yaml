@@ -24,7 +24,8 @@ setup:
           {
             "job_id" : "foo",
             "timestamp": "2016-06-02T00:00:00Z",
-            "snapshot_id": "foo"
+            "snapshot_id": "foo",
+            "retain": false
           }
 
   - do:
@@ -40,24 +41,13 @@ setup:
             "job_id": "foo",
             "timestamp": "2016-06-01T00:00:00Z",
             "snapshot_id": "bar",
-            "description": "bar"
+            "description": "bar",
+            "retain": true
           }
 
   - do:
       indices.refresh:
         index: .ml-anomalies-foo
-
----
-"Test without description":
-  - do:
-      catch: request
-      xpack.ml.update_model_snapshot:
-        job_id: "foo"
-        snapshot_id: "foo"
-        body: >
-          {
-            "some_field": "foo"
-          }
 
 ---
 "Test with valid description":
@@ -79,6 +69,7 @@ setup:
           }
 
   - match: { acknowledged: true }
+  - match: { model.retain: false }
   - match: { model.description: "new_description" }
 
   - do:
@@ -114,3 +105,46 @@ setup:
           {
             "description": "bar"
           }
+
+---
+"Test with retain":
+  - do:
+      xpack.ml.update_model_snapshot:
+        job_id: "foo"
+        snapshot_id: "foo"
+        body: >
+          {
+            "retain": true
+          }
+
+  - match: { acknowledged: true }
+  - match: { model.retain: true }
+
+  - do:
+      xpack.ml.update_model_snapshot:
+        job_id: "foo"
+        snapshot_id: "bar"
+        body: >
+          {
+            "retain": false
+          }
+
+  - match: { acknowledged: true }
+  - match: { model.retain: false }
+  - match: { model.description: "bar" }
+
+---
+"Test with all fields":
+  - do:
+      xpack.ml.update_model_snapshot:
+        job_id: "foo"
+        snapshot_id: "foo"
+        body: >
+          {
+            "description": "new foo",
+            "retain": true
+          }
+
+  - match: { acknowledged: true }
+  - match: { model.description: "new foo" }
+  - match: { model.retain: true }

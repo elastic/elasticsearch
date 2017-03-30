@@ -58,7 +58,9 @@ public class BasicSecurityTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testWatcherMonitorRole() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate(Watch.INDEX));
+        if (client().admin().indices().prepareExists(Watch.INDEX).get().isExists() == false) {
+            assertAcked(client().admin().indices().prepareCreate(Watch.INDEX));
+        }
 
         // stats and get watch apis require at least monitor role:
         String token = basicAuthHeaderValue("test", new SecuredString("changeme".toCharArray()));

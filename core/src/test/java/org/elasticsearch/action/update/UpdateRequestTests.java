@@ -19,13 +19,16 @@
 
 package org.elasticsearch.action.update;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -48,6 +51,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -353,32 +357,55 @@ public class UpdateRequestTests extends ESTestCase {
         }
     }
 
-    public void testTimeout() {
+    public void testIndexTimeout() {
         final GetResult getResult =
                 new GetResult("test", "type", "1", 0, true, new BytesArray("{\"f\":\"v\"}"), null);
-
-        final boolean delete = randomBoolean();
-        final Script script =
-                delete ? mockInlineScript("ctx.op = delete") : mockInlineScript("return");
         final UpdateRequest updateRequest =
                 new UpdateRequest("test", "type", "1")
-                        .script(script)
+                        .script(mockInlineScript("return"))
                         .timeout(randomTimeValue());
+        runTimeoutTest(getResult, updateRequest);
+    }
+
+    public void testDeleteTimeout() {
+        final GetResult getResult =
+                new GetResult("test", "type", "1", 0, true, new BytesArray("{\"f\":\"v\"}"), null);
+        final UpdateRequest updateRequest =
+                new UpdateRequest("test", "type", "1")
+                        .script(mockInlineScript("ctx.op = delete"))
+                        .timeout(randomTimeValue());
+        runTimeoutTest(getResult, updateRequest);
+    }
+
+    public void testUpsertTimeout() throws IOException {
+        final boolean exists = randomBoolean();
+        final BytesReference source = exists ? new BytesArray("{\"f\":\"v\"}") : null;
+        final GetResult getResult = new GetResult("test", "type", "1", 0, exists, source, null);
+        final XContentBuilder sourceBuilder = jsonBuilder();
+        sourceBuilder.startObject();
+        {
+            sourceBuilder.field("f", "v");
+        }
+        sourceBuilder.endObject();
+        final IndexRequest upsert = new IndexRequest("test", "type", "1").source(sourceBuilder);
+        final UpdateRequest updateRequest =
+                new UpdateRequest("test", "type", "1")
+                .upsert(upsert)
+                .script(mockInlineScript("return"))
+                .timeout(randomTimeValue());
+        runTimeoutTest(getResult, updateRequest);
+    }
+
+    private void runTimeoutTest(final GetResult getResult, final UpdateRequest updateRequest) {
         final UpdateHelper.Result result = updateHelper.prepare(
                 new ShardId("test", "", 0),
                 updateRequest,
                 getResult,
                 ESTestCase::randomNonNegativeLong);
         final Streamable action = result.action();
-        if (delete) {
-            assertThat(action, instanceOf(DeleteRequest.class));
-            final DeleteRequest deleteRequest = (DeleteRequest) action;
-            assertThat(deleteRequest.timeout(), equalTo(deleteRequest.timeout()));
-        } else {
-            assertThat(action, instanceOf(IndexRequest.class));
-            final IndexRequest indexRequest = (IndexRequest) action;
-            assertThat(indexRequest.timeout(), equalTo(updateRequest.timeout()));
-        }
+        assertThat(action, instanceOf(ReplicationRequest.class));
+        final ReplicationRequest request = (ReplicationRequest) action;
+        assertThat(request.timeout(), equalTo(updateRequest.timeout()));
     }
 
     private Script mockInlineScript(final String script) {

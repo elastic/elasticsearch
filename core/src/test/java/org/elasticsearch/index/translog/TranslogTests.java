@@ -41,16 +41,18 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
@@ -100,6 +102,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -156,12 +159,25 @@ public class TranslogTests extends ESTestCase {
         return new Translog(getTranslogConfig(path), null, () -> globalCheckpoint.get());
     }
 
-    private TranslogConfig getTranslogConfig(Path path) {
-        Settings build = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
-            .build();
-        ByteSizeValue bufferSize = randomBoolean() ? TranslogConfig.DEFAULT_BUFFER_SIZE : new ByteSizeValue(10 + randomInt(128 * 1024), ByteSizeUnit.BYTES);
-        return new TranslogConfig(shardId, path, IndexSettingsModule.newIndexSettings(shardId.getIndex(), build), BigArrays.NON_RECYCLING_INSTANCE, bufferSize);
+    private TranslogConfig getTranslogConfig(final Path path) {
+        final Settings settings = Settings
+                .builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
+                .build();
+        return getTranslogConfig(path, settings);
+    }
+
+    private TranslogConfig getTranslogConfig(final Path path, final Settings settings) {
+        final ByteSizeValue bufferSize;
+        if (randomBoolean()) {
+            bufferSize = TranslogConfig.DEFAULT_BUFFER_SIZE;
+        } else {
+            bufferSize = new ByteSizeValue(10 + randomInt(128 * 1024), ByteSizeUnit.BYTES);
+        }
+
+        final IndexSettings indexSettings =
+                IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings);
+        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize);
     }
 
     protected void addToTranslogAndList(Translog translog, ArrayList<Translog.Operation> list, Translog.Operation op) throws IOException {
@@ -2073,4 +2089,93 @@ public class TranslogTests extends ESTestCase {
         Translog.Delete serializedDelete = new Translog.Delete(in);
         assertEquals(delete, serializedDelete);
     }
+
+    public void testRollGeneration() throws IOException {
+        final long generation = translog.currentFileGeneration();
+        final int rolls = randomIntBetween(1, 16);
+        int totalOperations = 0;
+        int seqNo = 0;
+        for (int i = 0; i < rolls; i++) {
+            final int operations = randomIntBetween(1, 128);
+            for (int j = 0; j < operations; j++) {
+                translog.add(new Translog.NoOp(seqNo++, 0, "test"));
+                totalOperations++;
+            }
+            try (ReleasableLock ignored = translog.writeLock.acquire()) {
+                translog.rollGeneration();
+            }
+            assertThat(translog.currentFileGeneration(), equalTo(generation + i + 1));
+            assertThat(translog.totalOperations(), equalTo(totalOperations));
+        }
+        for (int i = 0; i <= rolls; i++) {
+            assertFileIsPresent(translog, generation + i);
+        }
+        translog.commit();
+        assertThat(translog.currentFileGeneration(), equalTo(generation + rolls + 1));
+        assertThat(translog.totalOperations(), equalTo(0));
+        for (int i = 0; i <= rolls; i++) {
+            assertFileDeleted(translog, generation + i);
+        }
+        assertFileIsPresent(translog, generation + rolls + 1);
+    }
+
+    public void testRollGenerationBetweenPrepareCommitAndCommit() throws IOException {
+        final long generation = translog.currentFileGeneration();
+        int seqNo = 0;
+
+        final int rollsBefore = randomIntBetween(0, 16);
+        for (int r = 1; r <= rollsBefore; r++) {
+            final int operationsBefore = randomIntBetween(1, 256);
+            for (int i = 0; i < operationsBefore; i++) {
+                translog.add(new Translog.NoOp(seqNo++, 0, "test"));
+            }
+
+            try (Releasable ignored = translog.writeLock.acquire()) {
+                translog.rollGeneration();
+            }
+
+            assertThat(translog.currentFileGeneration(), equalTo(generation + r));
+            for (int i = 0; i <= r; i++) {
+                assertFileIsPresent(translog, generation + r);
+            }
+        }
+
+        assertThat(translog.currentFileGeneration(), equalTo(generation + rollsBefore));
+        translog.prepareCommit();
+        assertThat(translog.currentFileGeneration(), equalTo(generation + rollsBefore + 1));
+
+        for (int i = 0; i <= rollsBefore + 1; i++) {
+            assertFileIsPresent(translog, generation + i);
+        }
+
+        final int rollsBetween = randomIntBetween(0, 16);
+        for (int r = 1; r <= rollsBetween; r++) {
+            final int operationsBetween = randomIntBetween(1, 256);
+            for (int i = 0; i < operationsBetween; i++) {
+                translog.add(new Translog.NoOp(seqNo++, 0, "test"));
+            }
+
+            try (Releasable ignored = translog.writeLock.acquire()) {
+                translog.rollGeneration();
+            }
+
+            assertThat(
+                    translog.currentFileGeneration(),
+                    equalTo(generation + rollsBefore + 1 + r));
+            for (int i = 0; i <= rollsBefore + 1 + r; i++) {
+                assertFileIsPresent(translog, generation + i);
+            }
+        }
+
+        translog.commit();
+
+        for (int i = 0; i <= rollsBefore; i++) {
+            assertFileDeleted(translog, generation + i);
+        }
+        for (int i = rollsBefore + 1; i <= rollsBefore + 1 + rollsBetween; i++) {
+            assertFileIsPresent(translog, generation + i);
+        }
+
+    }
+
 }

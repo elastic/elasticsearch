@@ -109,7 +109,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         final long cardinality = getValue();
-        builder.field(CommonFields.VALUE, cardinality);
+        builder.field(CommonFields.VALUE.getPreferredName(), cardinality);
         return builder;
     }
 

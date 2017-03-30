@@ -473,14 +473,18 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * @param searchFailures any search failures accumulated during the request
      * @param timedOut have any of the sub-requests timed out?
      */
-    protected void finishHim(Exception failure, List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
-        scrollSource.close();
-        if (failure == null) {
-            listener.onResponse(
-                    buildResponse(timeValueNanos(System.nanoTime() - startTime.get()), indexingFailures, searchFailures, timedOut));
-        } else {
-            listener.onFailure(failure);
-        }
+    protected void finishHim(Exception failure, List<Failure> indexingFailures,
+            List<SearchFailure> searchFailures, boolean timedOut) {
+        scrollSource.close(() -> {
+            if (failure == null) {
+                BulkByScrollResponse response = buildResponse(
+                        timeValueNanos(System.nanoTime() - startTime.get()),
+                        indexingFailures, searchFailures, timedOut);
+                listener.onResponse(response);
+            } else {
+                listener.onFailure(failure);
+            }
+        });
     }
 
     /**

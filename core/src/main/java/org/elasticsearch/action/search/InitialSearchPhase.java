@@ -21,7 +21,6 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -144,10 +143,11 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
             onShardFailure(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
         } else {
             try {
-                executePhaseOnShard(shardIt, shard, new ActionListener<FirstResult>() {
+                executePhaseOnShard(shardIt, shard, new SearchActionListener<FirstResult>(new SearchShardTarget(shard.currentNodeId(),
+                    shardIt.shardId()), shardIndex) {
                     @Override
-                    public void onResponse(FirstResult result) {
-                        onShardResult(shardIndex, shard.currentNodeId(), result, shardIt);
+                    public void innerOnResponse(FirstResult result) {
+                        onShardResult(result, shardIt);
                     }
 
                     @Override
@@ -164,9 +164,10 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         }
     }
 
-    private void onShardResult(int shardIndex, String nodeId, FirstResult result, ShardIterator shardIt) {
-        result.shardTarget(new SearchShardTarget(nodeId, shardIt.shardId()));
-        onShardSuccess(shardIndex, result);
+    private void onShardResult(FirstResult result, ShardIterator shardIt) {
+        assert result.getShardIndex() != -1 : "shard index is not set";
+        assert result.getSearchShardTarget() != null : "search shard target must not be null";
+        onShardSuccess(result);
         // we need to increment successful ops first before we compare the exit condition otherwise if we
         // are fast we could concurrently update totalOps but then preempt one of the threads which can
         // cause the successor to read a wrong value from successfulOps if second phase is very fast ie. count etc.
@@ -185,7 +186,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     /**
      * Executed once all shard results have been received and processed
      * @see #onShardFailure(int, SearchShardTarget, Exception)
-     * @see #onShardSuccess(int, SearchPhaseResult)
+     * @see #onShardSuccess(SearchPhaseResult)
      */
     abstract void onPhaseDone(); // as a tribute to @kimchy aka. finishHim()
 
@@ -201,12 +202,10 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
 
     /**
      * Executed once for every successful shard level request.
-     * @param shardIndex the internal index for this shard. Each shard has an index / ordinal assigned that is used to reference
-     *                   it's results
      * @param result the result returned form the shard
      *
      */
-    abstract void onShardSuccess(int shardIndex, FirstResult result);
+    abstract void onShardSuccess(FirstResult result);
 
     /**
      * Sends the request to the actual shard.
@@ -214,7 +213,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
      * @param shard the shard routing to send the request for
      * @param listener the listener to notify on response
      */
-    protected abstract void executePhaseOnShard(ShardIterator shardIt, ShardRouting shard, ActionListener<FirstResult> listener);
+    protected abstract void executePhaseOnShard(ShardIterator shardIt, ShardRouting shard, SearchActionListener<FirstResult> listener);
 
     /**
      * This class acts as a basic result collection that can be extended to do on-the-fly reduction or result processing
@@ -237,17 +236,16 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
          * A stream of all non-null (successful) shard results
          */
         final Stream<Result> getSuccessfulResults() {
-            return results.asList().stream().map(e -> e.value);
+            return results.asList().stream();
         }
 
         /**
          * Consumes a single shard result
-         * @param shardIndex the shards index, this is a 0-based id that is used to establish a 1 to 1 mapping to the searched shards
          * @param result the shards result
          */
-        void consumeResult(int shardIndex, Result result) {
-            assert results.get(shardIndex) == null : "shardIndex: " + shardIndex + " is already set";
-            results.set(shardIndex, result);
+        void consumeResult(Result result) {
+            assert results.get(result.getShardIndex()) == null : "shardIndex: " + result.getShardIndex() + " is already set";
+            results.set(result.getShardIndex(), result);
         }
 
         /**

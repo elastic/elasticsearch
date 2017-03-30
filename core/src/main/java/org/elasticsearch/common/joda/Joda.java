@@ -333,9 +333,10 @@ public class Joda {
             boolean isPositive = text.startsWith("-") == false;
             boolean isTooLong = text.length() > estimateParsedLength();
 
-            if ((isPositive && isTooLong) ||
-                // timestamps have to have UTC timezone
-                bucket.getZone() != DateTimeZone.UTC) {
+            if (bucket.getZone() != DateTimeZone.UTC) {
+                String format = hasMilliSecondPrecision ? "epoch_millis" : "epoch_second";
+                throw new IllegalArgumentException("time_zone must be UTC for format [" + format + "]");
+            } else if (isPositive && isTooLong) {
                 return -1;
             }
 

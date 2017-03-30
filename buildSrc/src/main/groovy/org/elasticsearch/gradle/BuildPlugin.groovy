@@ -122,7 +122,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             // enforce gradle version
-            GradleVersion minGradle = GradleVersion.version('2.13')
+            GradleVersion minGradle = GradleVersion.version('3.3')
             if (GradleVersion.current() < minGradle) {
                 throw new GradleException("${minGradle} or above is required to build elasticsearch")
             }
@@ -328,45 +328,14 @@ class BuildPlugin implements Plugin<Project> {
                 return
             }
 
-            // check each dependency for any transitive deps
+            // fix deps incorrectly marked as runtime back to compile time deps
+            // see https://discuss.gradle.org/t/maven-publish-plugin-generated-pom-making-dependency-scope-runtime/7494/4
             for (Node depNode : depsNodes.get(0).children()) {
-                String groupId = depNode.get('groupId').get(0).text()
-                String artifactId = depNode.get('artifactId').get(0).text()
-                String version = depNode.get('version').get(0).text()
-
-                // fix deps incorrectly marked as runtime back to compile time deps
-                // see https://discuss.gradle.org/t/maven-publish-plugin-generated-pom-making-dependency-scope-runtime/7494/4
                 boolean isCompileDep = project.configurations.compile.allDependencies.find { dep ->
                     dep.name == depNode.artifactId.text()
                 }
                 if (depNode.scope.text() == 'runtime' && isCompileDep) {
                     depNode.scope*.value = 'compile'
-                }
-
-                // collect the transitive deps now that we know what this dependency is
-                String depConfig = transitiveDepConfigName(groupId, artifactId, version)
-                Configuration configuration = project.configurations.findByName(depConfig)
-                if (configuration == null) {
-                    continue // we did not make this dep non-transitive
-                }
-                Set<ResolvedArtifact> artifacts = configuration.resolvedConfiguration.resolvedArtifacts
-                if (artifacts.size() <= 1) {
-                    // this dep has no transitive deps (or the only artifact is itself)
-                    continue
-                }
-
-                // we now know we have something to exclude, so add exclusions for all artifacts except the main one
-                Node exclusions = depNode.appendNode('exclusions')
-                for (ResolvedArtifact artifact : artifacts) {
-                    ModuleVersionIdentifier moduleVersionIdentifier = artifact.moduleVersion.id;
-                    String depGroupId = moduleVersionIdentifier.group
-                    String depArtifactId = moduleVersionIdentifier.name
-                    // add exclusions for all artifacts except the main one
-                    if (depGroupId != groupId || depArtifactId != artifactId) {
-                        Node exclusion = exclusions.appendNode('exclusion')
-                        exclusion.appendNode('groupId', depGroupId)
-                        exclusion.appendNode('artifactId', depArtifactId)
-                    }
                 }
             }
         }

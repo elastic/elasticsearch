@@ -40,7 +40,8 @@ buildscript {
   }
 }
 
-Collection distributions = project.subprojects.findAll { it.path.contains(':tools') == false }
+Collection distributions = project.subprojects.findAll {
+   it.path.contains(':tools') == false && it.name != 'bwc-zip' }
 
 /*****************************************************************************
  *                                Notice file                                *
@@ -82,7 +83,7 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each
   }
   // We would like to make sure integ tests for the distribution run after
   // integ tests for the modules included in the distribution.
-  project.configure(distributions.findAll { it.name != 'integ-test-zip' }) { Project distribution ->
+  project.configure(distributions.findAll { it.name != 'integ-test-zip'}) { Project distribution ->
     distribution.afterEvaluate({
       // some integTest tasks will have multiple finalizers
       distribution.integTest.mustRunAfter module.tasks.find { t -> t.name.matches(".*integTest\$") }

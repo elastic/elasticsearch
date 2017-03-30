@@ -26,22 +26,15 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.Objects;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
@@ -93,17 +86,15 @@ public class BulkProcessor implements Closeable {
         private ByteSizeValue bulkSize = new ByteSizeValue(5, ByteSizeUnit.MB);
         private TimeValue flushInterval = null;
         private BackoffPolicy backoffPolicy = BackoffPolicy.exponentialBackoff();
-        private Settings settings;
         private ThreadPool threadPool;
 
         /**
          * Creates a builder of bulk processor with the client to use and the listener that will be used
          * to be notified on the completion of bulk requests.
          */
-        public Builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener, Settings settings) {
+        public Builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener) {
             this.consumer = consumer;
             this.listener = listener;
-            this.settings = settings;
         }
 
         /**
@@ -165,7 +156,7 @@ public class BulkProcessor implements Closeable {
          * Builds a new bulk processor.
          */
         public BulkProcessor build() {
-            return new BulkProcessor(consumer, backoffPolicy, listener, concurrentRequests, bulkActions, bulkSize, flushInterval, threadPool, settings);
+            return new BulkProcessor(consumer, backoffPolicy, listener, concurrentRequests, bulkActions, bulkSize, flushInterval, threadPool);
         }
     }
 
@@ -173,7 +164,7 @@ public class BulkProcessor implements Closeable {
         Objects.requireNonNull(client, "client");
         Objects.requireNonNull(listener, "listener");
 
-        return new Builder(client::bulk, listener, client.settings()).setThreadPool(client.threadPool());
+        return new Builder(client::bulk, listener).setThreadPool(client.threadPool());
     }
 
     private final int bulkActions;
@@ -191,7 +182,7 @@ public class BulkProcessor implements Closeable {
 
     BulkProcessor(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, Listener listener,
                   int concurrentRequests, int bulkActions, ByteSizeValue bulkSize, @Nullable TimeValue flushInterval,
-                  @Nullable ThreadPool threadPool, Settings settings) {
+                  @Nullable ThreadPool threadPool) {
         this.bulkActions = bulkActions;
         this.bulkSize = bulkSize.getBytes();
         this.bulkRequest = new BulkRequest();
@@ -200,9 +191,9 @@ public class BulkProcessor implements Closeable {
         scheduleFn = Retry.fromThreadPool(threadPool);
 
         if (concurrentRequests == 0) {
-            this.bulkRequestHandler = BulkRequestHandler.syncHandler(consumer, backoffPolicy, listener, settings, scheduleFn);
+            this.bulkRequestHandler = BulkRequestHandler.syncHandler(consumer, backoffPolicy, listener, scheduleFn);
         } else {
-            this.bulkRequestHandler = BulkRequestHandler.asyncHandler(consumer, backoffPolicy, listener, settings, scheduleFn, concurrentRequests);
+            this.bulkRequestHandler = BulkRequestHandler.asyncHandler(consumer, backoffPolicy, listener, scheduleFn, concurrentRequests);
         }
 
         // Start period flushing task after everything is setup

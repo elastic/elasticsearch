@@ -36,7 +36,7 @@ Usage of Netty 3 for transport (`transport.type=netty3`) or HTTP
 [float]
 ==== Lenient boolean representations are deprecated
 
-Usage of any value other than `false`, `"false", `true` and `"true"` in boolean
+Usage of any value other than `false`, `"false"`, `true` and `"true"` in boolean
 settings deprecated.
 
 [[breaking_53_rest_api_changes]]
@@ -46,7 +46,7 @@ settings deprecated.
 [float]
 ==== Lenient boolean representations are deprecated
 
-Usage of any value other than `false`, `"false", `true` and `"true"` for
+Usage of any value other than `false`, `"false"`, `true` and `"true"` for
 boolean request parameters and boolean properties in the body of REST API calls
 is deprecated.
 
@@ -57,5 +57,5 @@ is deprecated.
 [float]
 ==== Lenient boolean representations are deprecated
 
-Usage of any value other than `false`, `"false", `true` and `"true"` for
+Usage of any value other than `false`, `"false"`, `true` and `"true"` for
 boolean values in mappings is deprecated.

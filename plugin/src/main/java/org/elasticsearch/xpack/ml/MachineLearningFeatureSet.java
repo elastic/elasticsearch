@@ -108,7 +108,14 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         ClusterState state = clusterService.state();
         MlMetadata mlMetadata = state.getMetaData().custom(MlMetadata.TYPE);
-        new Usage.Retriever(client, mlMetadata, available(), enabled()).execute(listener);
+
+        // Handle case when usage is called but MlMetadata has not been installed yet
+        if (mlMetadata == null) {
+            listener.onResponse(new Usage(available(), enabled,
+                    Collections.emptyMap(), Collections.emptyMap()));
+        } else {
+            new Usage.Retriever(client, mlMetadata, available(), enabled()).execute(listener);
+        }
     }
 
     public static class Usage extends XPackFeatureSet.Usage {

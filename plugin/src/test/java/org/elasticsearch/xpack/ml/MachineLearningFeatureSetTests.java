@@ -182,6 +182,30 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         }
     }
 
+    public void testUsageGivenMlMetadataNotInstalled() throws Exception {
+        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+        Settings.Builder settings = Settings.builder();
+        settings.put("xpack.ml.enabled", true);
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(settings.build(),
+                clusterService, client, licenseState);
+        PlainActionFuture<Usage> future = new PlainActionFuture<>();
+        featureSet.usage(future);
+        XPackFeatureSet.Usage usage = future.get();
+
+        assertThat(usage.available(), is(true));
+        assertThat(usage.enabled(), is(true));
+
+        XContentSource source;
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            source = new XContentSource(builder);
+            assertThat(source.getValue("jobs"), equalTo(Collections.emptyMap()));
+            assertThat(source.getValue("datafeeds"), equalTo(Collections.emptyMap()));
+        }
+    }
+
     private void givenJobs(List<Job> jobs, List<GetJobsStatsAction.Response.JobStats> jobsStats) {
         MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
         for (Job job : jobs) {

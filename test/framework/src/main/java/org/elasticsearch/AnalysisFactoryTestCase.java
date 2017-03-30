@@ -396,6 +396,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
             }
         }
         expected.remove(Void.class);
+        expected.remove(MovedToAnalysisCommon.class);
         expected.remove(Deprecated.class);
 
         Collection<Class<?>> actual = new HashSet<>();

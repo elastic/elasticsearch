@@ -37,16 +37,6 @@ public class QueryStringWithAnalyzersTests extends ESIntegTestCase {
         return Arrays.asList(CommonAnalysisPlugin.class);
     }
 
-    @Override
-    protected int maximumNumberOfShards() {
-        return 7;
-    }
-
-    @Override
-    protected int maximumNumberOfReplicas() {
-        return Math.min(2, cluster().numDataNodes() - 1);
-    }
-
     /**
      * Validates that we properly split fields using the word delimiter filter in query_string.
      */

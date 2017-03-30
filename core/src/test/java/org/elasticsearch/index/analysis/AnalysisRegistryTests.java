@@ -177,11 +177,10 @@ public class AnalysisRegistryTests extends ESTestCase {
                     return new MockTokenFilter(tokenStream, MockTokenFilter.ENGLISH_STOPSET);
                 }
             }
+
             @Override
             public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
-                Map<String, AnalysisProvider<TokenFilterFactory>> filters = new HashMap<>();
-                filters.put("mock", MockFactory::new);
-                return filters;
+                return singletonMap("mock", MockFactory::new);
             }
         };
         IndexAnalyzers indexAnalyzers = new AnalysisModule(new Environment(settings), singletonList(plugin)).getAnalysisRegistry()

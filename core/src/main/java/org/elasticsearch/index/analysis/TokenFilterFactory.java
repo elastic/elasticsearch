@@ -20,13 +20,18 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 
 public interface TokenFilterFactory {
-
     String name();
 
     TokenStream create(TokenStream tokenStream);
 
+    /**
+     * Does this analyzer mess up the {@link OffsetAttribute}s in such as way as to break the
+     * {@link FastVectorHighlighter}? If this is {@code true} then the
+     * {@linkplain FastVectorHighlighter} will attempt to work around the broken offsets.
+     */
     default boolean breaksFastVectorHighlighter() {
         return false;
     }

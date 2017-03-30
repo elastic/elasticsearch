@@ -55,7 +55,7 @@ grant {
 
   // For reading the keytab file
   // Expected that the user specifies the location of the keytab file by setting "krb5.keytab" system property
-  permission java.io.FilePermission "/etc/krb5.keytab", "read";
+  permission java.io.FilePermission "${krb5.keytab}", "read";
 
   // com.sun.security.auth.module.Krb5LoginModule.commit()
   permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
@@ -81,4 +81,8 @@ grant {
 
   // hdfs client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";
+
+  // client binds to the address returned from the host name of any principal set up as a service principal
+  // org.apache.hadoop.ipc.Client.Connection.setupConnection
+  permission java.net.SocketPermission "localhost:0", "listen,resolve";
 };

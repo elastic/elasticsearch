@@ -19,7 +19,9 @@
 package org.elasticsearch.repositories.hdfs;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -174,13 +176,42 @@ public final class HdfsRepository extends BlobStoreRepository {
         // UserGroupInformation (UGI) instance is just a Hadoop specific wrapper around a Java Subject
         try {
             if (UserGroupInformation.isSecurityEnabled()) {
+                String principal = preparePrincipal(kerberosPrincipal);
                 String keytab = locateKeytabFile();
-                LOGGER.debug("Using kerberos principal [{}] and keytab located at [{}]", kerberosPrincipal, keytab);
-                UserGroupInformation.loginUserFromKeytab(kerberosPrincipal, keytab);
+                LOGGER.debug("Using kerberos principal [{}] and keytab located at [{}]", principal, keytab);
+                UserGroupInformation.loginUserFromKeytab(principal, keytab);
             }
             return UserGroupInformation.getCurrentUser();
         } catch (IOException e) {
             throw new RuntimeException("Could not retrieve the current user information", e);
+        }
+    }
+
+    // Convert principals of the format 'service/_HOST@REALM' by subbing in the local address for '_HOST'.
+    private static String preparePrincipal(String originalPrincipal) {
+        String finalPrincipal = originalPrincipal;
+        // Don't worry about host name resolution if they don't have the _HOST pattern in the name.
+        if (originalPrincipal.contains("_HOST")) {
+            try {
+                finalPrincipal = SecurityUtil.getServerPrincipal(originalPrincipal, findHostName());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+            if (originalPrincipal.equals(finalPrincipal) == false) {
+                LOGGER.debug("Found service principal. Converted original principal name [{}] to server principal [{}]",
+                    originalPrincipal, finalPrincipal);
+            }
+        }
+        return finalPrincipal;
+    }
+
+    @SuppressForbidden(reason = "InetAddress.getLocalHost()")
+    private static String findHostName() {
+        try {
+            return InetAddress.getLocalHost().getCanonicalHostName();
+        } catch (UnknownHostException e) {
+            throw new RuntimeException("Could not locate host information", e);
         }
     }
 

@@ -122,7 +122,7 @@ setup:
           datafeed_id: "datafeed-1"
           start: 0
     - do:
-        catch: /cannot start datafeed \[datafeed-1\] because job \[datafeed-job\] hasn't been opened/
+        catch: /cannot start datafeed \[datafeed-1\] because job \[datafeed-job\] is not open/
         xpack.ml.start_datafeed:
           datafeed_id: "datafeed-1"
           start: 0

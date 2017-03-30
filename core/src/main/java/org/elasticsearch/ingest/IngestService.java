@@ -40,11 +40,12 @@ public class IngestService {
     private final PipelineStore pipelineStore;
     private final PipelineExecutionService pipelineExecutionService;
 
-    public IngestService(Settings settings, ThreadPool threadPool,
-                         Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,
+    public IngestService(Settings settings, ThreadPool threadPool, Environment env,
+                         org.elasticsearch.script.TemplateService esTemplateService,
+                         ScriptService scriptService, AnalysisRegistry analysisRegistry,
                          List<IngestPlugin> ingestPlugins) {
 
-        final TemplateService templateService = new InternalTemplateService(scriptService);
+        final TemplateService templateService = new InternalTemplateService(esTemplateService);
         Processor.Parameters parameters = new Processor.Parameters(env, scriptService, templateService,
             analysisRegistry, threadPool.getThreadContext());
         Map<String, Processor.Factory> processorFactories = new HashMap<>();

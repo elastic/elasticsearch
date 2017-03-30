@@ -53,7 +53,7 @@ public class NodeService extends AbstractComponent implements Closeable {
     private final CircuitBreakerService circuitBreakerService;
     private final IngestService ingestService;
     private final SettingsFilter settingsFilter;
-    private ScriptService scriptService;
+    private final ScriptService scriptService;
     private final HttpServerTransport httpServerTransport;
 
 

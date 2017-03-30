@@ -16,10 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.script.mustache;
+package org.elasticsearch.script.mustache.stored;
 
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
-import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
@@ -38,44 +36,51 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestGetSearchTemplateAction extends BaseRestHandler {
+public class RestGetStoredTemplateAction extends BaseRestHandler {
 
     public static final ParseField _ID_PARSE_FIELD = new ParseField("_id");
 
     public static final ParseField FOUND_PARSE_FIELD = new ParseField("found");
 
-    public RestGetSearchTemplateAction(Settings settings, RestController controller) {
+    public RestGetStoredTemplateAction(Settings settings, RestController controller) {
         super(settings);
 
         controller.registerHandler(GET, "/_search/template/{id}", this);
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client)
+            throws IOException {
         String id = request.param("id");
 
-        GetStoredScriptRequest getRequest = new GetStoredScriptRequest(id, Script.DEFAULT_TEMPLATE_LANG);
+        GetStoredTemplateRequest getRequest = new GetStoredTemplateRequest(id);
 
-        return channel -> client.admin().cluster().getStoredScript(getRequest, new RestBuilderListener<GetStoredScriptResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(GetStoredScriptResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                builder.field(_ID_PARSE_FIELD.getPreferredName(), id);
+        return channel -> client.execute(GetStoredTemplateAction.INSTANCE, getRequest,
+                new RestBuilderListener<GetStoredTemplateResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(GetStoredTemplateResponse response,
+                            XContentBuilder builder) throws Exception {
+                        builder.startObject();
+                        builder.field("_id", id);
 
-                builder.field(StoredScriptSource.LANG_PARSE_FIELD.getPreferredName(), Script.DEFAULT_TEMPLATE_LANG);
+                        builder.field(StoredScriptSource.LANG_PARSE_FIELD.getPreferredName(),
+                                Script.DEFAULT_TEMPLATE_LANG);
 
-                StoredScriptSource source = response.getSource();
-                boolean found = source != null;
-                builder.field(FOUND_PARSE_FIELD.getPreferredName(), found);
+                        StoredScriptSource source = response.getSource();
+                        boolean found = source != null;
+                        builder.field("found", found);
 
-                if (found) {
-                    builder.field(StoredScriptSource.TEMPLATE_PARSE_FIELD.getPreferredName(), source.getCode());
-                }
+                        if (found) {
+                            builder.field(
+                                    StoredScriptSource.TEMPLATE_PARSE_FIELD.getPreferredName(),
+                                    source.getCode());
+                        }
 
-                builder.endObject();
+                        builder.endObject();
 
-                return new BytesRestResponse(found ? RestStatus.OK : RestStatus.NOT_FOUND, builder);
-            }
-        });
+                        return new BytesRestResponse(found ? RestStatus.OK : RestStatus.NOT_FOUND,
+                                builder);
+                    }
+                });
     }
 }

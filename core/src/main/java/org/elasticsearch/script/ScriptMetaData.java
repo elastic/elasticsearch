@@ -182,7 +182,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
      * Convenience method to build and return a new
      * {@link ScriptMetaData} adding the specified stored script.
      */
-    static ScriptMetaData putStoredScript(ScriptMetaData previous, String id, StoredScriptSource source) {
+    public static ScriptMetaData putStoredScript(ScriptMetaData previous, String id, StoredScriptSource source) {
         Builder builder = new Builder(previous);
         builder.storeScript(id, source);
 
@@ -193,7 +193,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
      * Convenience method to build and return a new
      * {@link ScriptMetaData} deleting the specified stored script.
      */
-    static ScriptMetaData deleteStoredScript(ScriptMetaData previous, String id, String lang) {
+    public static ScriptMetaData deleteStoredScript(ScriptMetaData previous, String id, String lang) {
         Builder builder = new ScriptMetaData.Builder(previous);
         builder.deleteScript(id, lang);
 
@@ -425,7 +425,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
      * Otherwise, returns a stored script from the deprecated namespace.  Either
      * way an id is required.
      */
-    StoredScriptSource getStoredScript(String id, String lang) {
+    public StoredScriptSource getStoredScript(String id, String lang) {
         if (lang == null) {
             return scripts.get(id);
         } else {

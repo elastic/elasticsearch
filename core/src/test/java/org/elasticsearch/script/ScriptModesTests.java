@@ -21,24 +21,24 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ScriptPermitsTests.MockTemplateBackend;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.containsString;
 
-// TODO: this needs to be a base test class, and all scripting engines extend it
 public class ScriptModesTests extends ESTestCase {
     ScriptSettings scriptSettings;
     ScriptContextRegistry scriptContextRegistry;
@@ -65,10 +65,11 @@ public class ScriptModesTests extends ESTestCase {
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
         scriptEngines = buildScriptEnginesByLangMap(newHashSet(
                 //add the native engine just to make sure it gets filtered out
-                new NativeScriptEngineService(Settings.EMPTY, Collections.<String, NativeScriptFactory>emptyMap()),
+                new NativeScriptEngineService(Settings.EMPTY, emptyMap()),
                 new CustomScriptEngineService()));
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngines.values());
-        scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        scriptSettings = new ScriptSettings(scriptEngineRegistry, new MockTemplateBackend(),
+                scriptContextRegistry);
         checkedSettings = new HashSet<>();
         assertAllSettingsWereChecked = true;
         assertScriptModesNonNull = true;
@@ -87,6 +88,7 @@ public class ScriptModesTests extends ESTestCase {
             assertThat(scriptModes, notNullValue());
             int numberOfSettings = ScriptType.values().length * scriptContextRegistry.scriptContexts().size();
             numberOfSettings += 3; // for top-level inline/store/file settings
+            numberOfSettings *= 2; // Once for the script engine, once for the template engine
             assertThat(scriptModes.scriptEnabled.size(), equalTo(numberOfSettings));
             if (assertAllSettingsWereChecked) {
                 assertThat(checkedSettings.size(), equalTo(numberOfSettings));
@@ -96,8 +98,10 @@ public class ScriptModesTests extends ESTestCase {
 
     public void testDefaultSettings() {
         this.scriptModes = new ScriptModes(scriptSettings, Settings.EMPTY);
-        assertScriptModesAllOps(true, ScriptType.FILE);
-        assertScriptModesAllOps(false, ScriptType.STORED, ScriptType.INLINE);
+        assertScriptModesAllOps("custom", true, ScriptType.FILE);
+        assertScriptModesAllOps("custom", false, ScriptType.STORED, ScriptType.INLINE);
+        assertScriptModesAllOps("mock_template", true, ScriptType.FILE, ScriptType.STORED,
+                ScriptType.INLINE);
     }
 
     public void testMissingSetting() {
@@ -130,16 +134,20 @@ public class ScriptModesTests extends ESTestCase {
         this.scriptModes = new ScriptModes(scriptSettings, builder.build());
 
         for (int i = 0; i < randomInt; i++) {
-            assertScriptModesAllOps(randomScriptModes[i], randomScriptTypes[i]);
+            assertScriptModesAllOps("custom", randomScriptModes[i], randomScriptTypes[i]);
+            assertScriptModesAllOps("mock_template", randomScriptModes[i], randomScriptTypes[i]);
         }
         if (randomScriptTypesSet.contains(ScriptType.FILE) == false) {
-            assertScriptModesAllOps(true, ScriptType.FILE);
+            assertScriptModesAllOps("custom", true, ScriptType.FILE);
+            assertScriptModesAllOps("mock_template", true, ScriptType.FILE);
         }
         if (randomScriptTypesSet.contains(ScriptType.STORED) == false) {
-            assertScriptModesAllOps(false, ScriptType.STORED);
+            assertScriptModesAllOps("custom", false, ScriptType.STORED);
+            assertScriptModesAllOps("mock_template", true, ScriptType.STORED);
         }
         if (randomScriptTypesSet.contains(ScriptType.INLINE) == false) {
-            assertScriptModesAllOps(false, ScriptType.INLINE);
+            assertScriptModesAllOps("custom", false, ScriptType.INLINE);
+            assertScriptModesAllOps("mock_template", true, ScriptType.INLINE);
         }
     }
 
@@ -162,12 +170,14 @@ public class ScriptModesTests extends ESTestCase {
         this.scriptModes = new ScriptModes(scriptSettings, builder.build());
 
         for (int i = 0; i < randomInt; i++) {
-            assertScriptModesAllTypes(randomScriptModes[i], randomScriptContexts[i]);
+            assertScriptModesAllTypes("custom", randomScriptModes[i], randomScriptContexts[i]);
+            assertScriptModesAllTypes("mock_template", randomScriptModes[i], randomScriptContexts[i]);
         }
 
         ScriptContext[] complementOf = complementOf(randomScriptContexts);
-        assertScriptModes(true, new ScriptType[]{ScriptType.FILE}, complementOf);
-        assertScriptModes(false, new ScriptType[]{ScriptType.STORED, ScriptType.INLINE}, complementOf);
+        assertScriptModes("custom", true, new ScriptType[] {ScriptType.FILE}, complementOf);
+        assertScriptModes("custom", false, new ScriptType[] {ScriptType.STORED, ScriptType.INLINE}, complementOf);
+        assertScriptModes("mock_template", true, ScriptType.values(), complementOf);
     }
 
     public void testConflictingScriptTypeAndOpGenericSettings() {
@@ -178,29 +188,36 @@ public class ScriptModesTests extends ESTestCase {
                 .put("script.inline", "true");
         //operations generic settings have precedence over script type generic settings
         this.scriptModes = new ScriptModes(scriptSettings, builder.build());
-        assertScriptModesAllTypes(false, scriptContext);
+        assertScriptModesAllTypes("custom", false, scriptContext);
+        assertScriptModesAllTypes("mock_template", false, scriptContext);
         ScriptContext[] complementOf = complementOf(scriptContext);
-        assertScriptModes(true, new ScriptType[]{ScriptType.FILE, ScriptType.STORED}, complementOf);
-        assertScriptModes(true, new ScriptType[]{ScriptType.INLINE}, complementOf);
+        assertScriptModes("custom", true, new ScriptType[] {ScriptType.FILE, ScriptType.STORED}, complementOf);
+        assertScriptModes("custom", true, new ScriptType[] {ScriptType.INLINE}, complementOf);
+        assertScriptModes("mock_template", true, ScriptType.values(), complementOf);
     }
 
-    private void assertScriptModesAllOps(boolean expectedScriptEnabled, ScriptType... scriptTypes) {
-        assertScriptModes(expectedScriptEnabled, scriptTypes, scriptContexts);
+    private void assertScriptModesAllOps(String lang, boolean expectedScriptEnabled,
+            ScriptType... scriptTypes) {
+        assertScriptModes(lang, expectedScriptEnabled, scriptTypes, scriptContexts);
     }
 
-    private void assertScriptModesAllTypes(boolean expectedScriptEnabled, ScriptContext... scriptContexts) {
-        assertScriptModes(expectedScriptEnabled, ScriptType.values(), scriptContexts);
+    private void assertScriptModesAllTypes(String lang, boolean expectedScriptEnabled,
+            ScriptContext... scriptContexts) {
+        assertScriptModes(lang, expectedScriptEnabled, ScriptType.values(), scriptContexts);
     }
 
-    private void assertScriptModes(boolean expectedScriptEnabled, ScriptType[] scriptTypes, ScriptContext... scriptContexts) {
+    private void assertScriptModes(String lang, boolean expectedScriptEnabled,
+            ScriptType[] scriptTypes, ScriptContext... scriptContexts) {
         assert scriptTypes.length > 0;
         assert scriptContexts.length > 0;
         for (ScriptType scriptType : scriptTypes) {
-            checkedSettings.add("script.engine.custom." + scriptType);
+            checkedSettings.add("script.engine." + lang + "." + scriptType);
             for (ScriptContext scriptContext : scriptContexts) {
-                assertThat("custom." + scriptType + "." + scriptContext.getKey() + " doesn't have the expected value",
-                        scriptModes.getScriptEnabled("custom", scriptType, scriptContext), equalTo(expectedScriptEnabled));
-                checkedSettings.add("custom." + scriptType + "." + scriptContext);
+                assertEquals(lang + "." + scriptType + "." + scriptContext.getKey()
+                                + " doesn't have the expected value",
+                        expectedScriptEnabled,
+                        scriptModes.getScriptEnabled(lang, scriptType, scriptContext));
+                checkedSettings.add(lang + "." + scriptType + "." + scriptContext);
             }
         }
     }

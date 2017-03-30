@@ -13,7 +13,7 @@
     - match:  { nodes.$master.modules.0.name: lang-mustache  }
 
 ---
-"Indexed template":
+"Stored template":
 
   - do:
       put_template:

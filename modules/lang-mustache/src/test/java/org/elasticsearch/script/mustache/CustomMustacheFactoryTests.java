@@ -20,8 +20,8 @@
 package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.Mustache;
+
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
@@ -52,7 +52,7 @@ public class CustomMustacheFactoryTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("No encoder found for MIME type [test]"));
 
         assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.JSON_MIME_TYPE_WITH_CHARSET),
-            instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class));
+                instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class));
         assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.JSON_MIME_TYPE),
                 instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class));
         assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.PLAIN_TEXT_MIME_TYPE),

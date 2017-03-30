@@ -23,14 +23,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptMetrics;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.Arrays;
-import java.util.Collections;
+import static java.util.Collections.emptyList;
 
 public abstract class AbstractScriptTestCase extends ESTestCase {
 
@@ -42,13 +42,16 @@ public abstract class AbstractScriptTestCase extends ESTestCase {
             .put("path.home", createTempDir())
             .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
             .build();
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(new MustacheScriptEngineService()));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(emptyList());
+        MustacheScriptEngineService mustache = new MustacheScriptEngineService();
+        ScriptSettings scriptSettings = new ScriptSettings(new ScriptEngineRegistry(emptyList()),
+                mustache, scriptContextRegistry);
 
-        ScriptService scriptService = new ScriptService(settings, new Environment(settings), null,
-                scriptEngineRegistry, scriptContextRegistry, scriptSettings);
-        templateService = new InternalTemplateService(scriptService);
+        org.elasticsearch.script.TemplateService esTemplateService =
+                new org.elasticsearch.script.TemplateService(settings, new Environment(settings),
+                        null, mustache, scriptContextRegistry,
+                        scriptSettings, new ScriptMetrics());
+        templateService = new InternalTemplateService(esTemplateService);
     }
 
 }

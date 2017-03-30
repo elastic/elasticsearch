@@ -57,7 +57,7 @@ public final class ScriptContextRegistry {
     /**
      * @return a list that contains all the supported {@link ScriptContext}s, both standard ones and registered via plugins
      */
-    Collection<ScriptContext> scriptContexts() {
+    public Collection<ScriptContext> scriptContexts() {
         return scriptContexts.values();
     }
 
@@ -71,10 +71,12 @@ public final class ScriptContextRegistry {
     //script contexts can be used in fine-grained settings, we need to be careful with what we allow here
     private void validateScriptContext(ScriptContext.Plugin scriptContext) {
         if (RESERVED_SCRIPT_CONTEXTS.contains(scriptContext.getPluginName())) {
-            throw new IllegalArgumentException("[" + scriptContext.getPluginName() + "] is a reserved name, it cannot be registered as a custom script context");
+            throw new IllegalArgumentException("[" + scriptContext.getPluginName()
+                + "] is a reserved name, it cannot be registered as a custom script context");
         }
         if (RESERVED_SCRIPT_CONTEXTS.contains(scriptContext.getOperation())) {
-            throw new IllegalArgumentException("[" + scriptContext.getOperation() + "] is a reserved name, it cannot be registered as a custom script context");
+            throw new IllegalArgumentException("[" + scriptContext.getOperation()
+                + "] is a reserved name, it cannot be registered as a custom script context");
         }
     }
 

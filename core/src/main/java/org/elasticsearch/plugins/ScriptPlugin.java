@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.TemplateService;
 
 import java.util.Collections;
 import java.util.List;
@@ -35,6 +36,15 @@ public interface ScriptPlugin {
      * Returns a {@link ScriptEngineService} instance or <code>null</code> if this plugin doesn't add a new script engine
      */
     default ScriptEngineService getScriptEngineService(Settings settings) {
+        return null;
+    }
+
+    /**
+     * Returns a {@link TemplateService.Backend} if this plugin implements a template backend or null if it doesn't. Note that Elasticsearch
+     * will refuse to start if there is more than one template backend and it is bundled with Mustache. To replace that backend you'd have
+     * to remove the Mustache module which is super untested.
+     */
+    default TemplateService.Backend getTemplateBackend() {
         return null;
     }
 

@@ -117,6 +117,7 @@ import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -332,9 +333,12 @@ public class Node implements Closeable {
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool,
                 localNodeFactory::getNode);
             clusterService.addListener(scriptModule.getScriptService());
+            clusterService.addListener(scriptModule.getTemplateService());
             resourcesToClose.add(clusterService);
-            final IngestService ingestService = new IngestService(settings, threadPool, this.environment,
-                scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(), pluginsService.filterPlugins(IngestPlugin.class));
+            final IngestService ingestService = new IngestService(settings, threadPool,
+                    this.environment, scriptModule.getTemplateService(),
+                    scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(),
+                    pluginsService.filterPlugins(IngestPlugin.class));
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
 
             ModulesBuilder modules = new ModulesBuilder();
@@ -389,12 +393,14 @@ public class Node implements Closeable {
                 settingsModule.getClusterSettings(), analysisModule.getAnalysisRegistry(),
                 clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
                 threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays, scriptModule.getScriptService(),
-                clusterService, client, metaStateService);
+                scriptModule.getTemplateService(), client, metaStateService);
 
-            Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
-                .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
-                                                 scriptModule.getScriptService(), xContentRegistry).stream())
-                .collect(Collectors.toList());
+            Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class)
+                    .stream()
+                    .flatMap(p -> p.createComponents(client, clusterService, threadPool,
+                            resourceWatcherService, scriptModule.getScriptService(),
+                            scriptModule.getTemplateService(), xContentRegistry).stream())
+                    .collect(Collectors.toList());
             Collection<UnaryOperator<Map<String, MetaData.Custom>>> customMetaDataUpgraders =
                 pluginsService.filterPlugins(Plugin.class).stream()
                 .map(Plugin::getCustomMetaDataUpgrader)
@@ -439,6 +445,7 @@ public class Node implements Closeable {
                     b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
                     b.bind(BigArrays.class).toInstance(bigArrays);
                     b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
+                    b.bind(TemplateService.class).toInstance(scriptModule.getTemplateService());
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                     b.bind(IngestService.class).toInstance(ingestService);
                     b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);

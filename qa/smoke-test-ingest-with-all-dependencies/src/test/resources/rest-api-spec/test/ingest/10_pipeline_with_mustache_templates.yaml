@@ -349,4 +349,4 @@
           }
   - match: { error.header.processor_type: "set" }
   - match: { error.type: "general_script_exception" }
-  - match: { error.reason: "Failed to compile inline script [{{#join}}{{/join}}] using lang [mustache]" }
+  - match: { error.reason: "Failed to compile [{{#join}}{{/join}}]" }

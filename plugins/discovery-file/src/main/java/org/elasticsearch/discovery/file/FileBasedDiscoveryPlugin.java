@@ -35,6 +35,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -72,6 +73,7 @@ public class FileBasedDiscoveryPlugin extends Plugin implements DiscoveryPlugin 
             ThreadPool threadPool,
             ResourceWatcherService resourceWatcherService,
             ScriptService scriptService,
+            TemplateService templateService,
             NamedXContentRegistry xContentRegistry) {
         final int concurrentConnects = UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[file_based_discovery_resolve]");

@@ -36,6 +36,7 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptMetrics;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.ScriptType;
@@ -158,15 +159,15 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS);
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(scriptEngine));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, null, scriptContextRegistry);
         ScriptService scriptService;
         try {
-            scriptService =  new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry,
-                    scriptSettings);
+            scriptService = new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry,
+                    scriptSettings, new ScriptMetrics());
         } catch (IOException e) {
             throw new ElasticsearchException(e);
         }
-        return new QueryShardContext(0, idxSettings, null, null, null, null, scriptService, xContentRegistry(),
+        return new QueryShardContext(0, idxSettings, null, null, null, null, scriptService, null, xContentRegistry(),
                 null, null, System::currentTimeMillis);
     }
 }

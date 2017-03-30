@@ -33,7 +33,16 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.TemplateService.Backend;
+import org.elasticsearch.script.mustache.stored.DeleteStoredTemplateAction;
+import org.elasticsearch.script.mustache.stored.GetStoredTemplateAction;
+import org.elasticsearch.script.mustache.stored.PutStoredTemplateAction;
+import org.elasticsearch.script.mustache.stored.RestDeleteStoredTemplateAction;
+import org.elasticsearch.script.mustache.stored.RestGetStoredTemplateAction;
+import org.elasticsearch.script.mustache.stored.RestPutStoredTemplateAction;
+import org.elasticsearch.script.mustache.stored.TransportDeleteStoredTemplateAction;
+import org.elasticsearch.script.mustache.stored.TransportGetStoredTemplateAction;
+import org.elasticsearch.script.mustache.stored.TransportPutStoredSearchTemplateAction;
 
 import java.util.Arrays;
 import java.util.List;
@@ -42,16 +51,19 @@ import java.util.function.Supplier;
 import static java.util.Collections.singletonList;
 
 public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin, SearchPlugin {
-
     @Override
-    public ScriptEngineService getScriptEngineService(Settings settings) {
+    public Backend getTemplateBackend() {
         return new MustacheScriptEngineService();
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(new ActionHandler<>(SearchTemplateAction.INSTANCE, TransportSearchTemplateAction.class),
-                new ActionHandler<>(MultiSearchTemplateAction.INSTANCE, TransportMultiSearchTemplateAction.class));
+        return Arrays.asList(
+                new ActionHandler<>(SearchTemplateAction.INSTANCE, TransportSearchTemplateAction.class),
+                new ActionHandler<>(MultiSearchTemplateAction.INSTANCE, TransportMultiSearchTemplateAction.class),
+                new ActionHandler<>(DeleteStoredTemplateAction.INSTANCE, TransportDeleteStoredTemplateAction.class),
+                new ActionHandler<>(GetStoredTemplateAction.INSTANCE, TransportGetStoredTemplateAction.class),
+                new ActionHandler<>(PutStoredTemplateAction.INSTANCE, TransportPutStoredSearchTemplateAction.class));
     }
 
     @Override
@@ -66,9 +78,9 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
         return Arrays.asList(
                 new RestSearchTemplateAction(settings, restController),
                 new RestMultiSearchTemplateAction(settings, restController),
-                new RestGetSearchTemplateAction(settings, restController),
-                new RestPutSearchTemplateAction(settings, restController),
-                new RestDeleteSearchTemplateAction(settings, restController),
+                new RestGetStoredTemplateAction(settings, restController),
+                new RestPutStoredTemplateAction(settings, restController),
+                new RestDeleteStoredTemplateAction(settings, restController),
                 new RestRenderSearchTemplateAction(settings, restController));
     }
 }

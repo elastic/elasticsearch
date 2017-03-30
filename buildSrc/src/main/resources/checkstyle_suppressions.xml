@@ -2983,7 +2983,6 @@
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ingest[/\\]IngestDocumentTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ingest[/\\]IngestMetadataTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ingest[/\\]IngestProcessorNotInstalledOnAllNodesIT.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ingest[/\\]IngestServiceTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ingest[/\\]IngestStatsTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ingest[/\\]PipelineConfigurationTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]ingest[/\\]PipelineExecutionServiceTests.java" checks="LineLength" />
@@ -3042,7 +3041,6 @@
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]ScriptMetaDataTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]ScriptModesTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]ScriptServiceTests.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]ScriptSettingsTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]ScriptTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]StoredScriptTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]StoredScriptsIT.java" checks="LineLength" />

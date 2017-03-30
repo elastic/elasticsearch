@@ -40,7 +40,7 @@ public class MockSearchServiceTests extends ESTestCase {
     public void testAssertNoInFlightContext() {
         final long nowInMillis = randomNonNegativeLong();
         SearchContext s = new TestSearchContext(new QueryShardContext(0,
-            new IndexSettings(EMPTY_INDEX_METADATA, Settings.EMPTY), null, null, null, null, null, xContentRegistry(),
+            new IndexSettings(EMPTY_INDEX_METADATA, Settings.EMPTY), null, null, null, null, null, null, xContentRegistry(),
             null, null, () -> nowInMillis)) {
 
             @Override

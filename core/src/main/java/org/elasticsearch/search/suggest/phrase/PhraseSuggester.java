@@ -103,20 +103,19 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             response.addTerm(resultEntry);
 
             final BytesRefBuilder byteSpare = new BytesRefBuilder();
-            final Function<Map<String, Object>, ExecutableScript> collateScript = suggestion.getCollateQueryScript();
-            final boolean collatePrune = (collateScript != null) && suggestion.collatePrune();
+            final boolean collatePrune =
+                    suggestion.getCollateQuery() != null && suggestion.collatePrune();
             for (int i = 0; i < checkerResult.corrections.length; i++) {
                 Correction correction = checkerResult.corrections[i];
                 spare.copyUTF8Bytes(correction.join(SEPARATOR, byteSpare, null, null));
                 boolean collateMatch = true;
-                if (collateScript != null) {
+                if (suggestion.getCollateQuery() != null) {
                     // Checks if the template query collateScript yields any documents
                     // from the index for a correction, collateMatch is updated
                     final Map<String, Object> vars = suggestion.getCollateScriptParams();
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
                     QueryShardContext shardContext = suggestion.getShardContext();
-                    final ExecutableScript executable = collateScript.apply(vars);
-                    final BytesReference querySource = (BytesReference) executable.run();
+                    final BytesReference querySource = suggestion.getCollateQuery().apply(vars);
                     try (XContentParser parser = XContentFactory.xContent(querySource).createParser(shardContext.getXContentRegistry(),
                             querySource)) {
                         QueryBuilder innerQueryBuilder = shardContext.newParseContext(parser).parseInnerQueryBuilder();

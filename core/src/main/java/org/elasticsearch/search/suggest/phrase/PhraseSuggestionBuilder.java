@@ -37,7 +37,6 @@ import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
@@ -54,7 +53,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * Defines the actual suggest command for phrase suggestions ( <tt>phrase</tt>).
@@ -630,9 +628,9 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         }
 
         if (this.collateQuery != null) {
-            Function<Map<String, Object>, ExecutableScript> compiledScript = context.getLazyExecutableScript(this.collateQuery,
-                ScriptContext.Standard.SEARCH);
-            suggestionContext.setCollateQueryScript(compiledScript);
+            suggestionContext.setCollateQuery(
+                    context.getTemplateService().template(collateQuery.getIdOrCode(),
+                            collateQuery.getType(), ScriptContext.Standard.SEARCH, null));
             if (this.collateParams != null) {
                 suggestionContext.setCollateScriptParams(this.collateParams);
             }

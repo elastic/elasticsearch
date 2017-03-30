@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 public class ScriptSettings {
@@ -48,11 +49,13 @@ public class ScriptSettings {
     private final Map<ScriptContext, Setting<Boolean>> scriptContextSettingMap;
     private final List<Setting<Boolean>> scriptLanguageSettings;
 
-    public ScriptSettings(ScriptEngineRegistry scriptEngineRegistry, ScriptContextRegistry scriptContextRegistry) {
+    public ScriptSettings(ScriptEngineRegistry scriptEngineRegistry, TemplateService.Backend templateBackend,
+            ScriptContextRegistry scriptContextRegistry) {
         Map<ScriptContext, Setting<Boolean>> scriptContextSettingMap = contextSettings(scriptContextRegistry);
         this.scriptContextSettingMap = Collections.unmodifiableMap(scriptContextSettingMap);
 
-        List<Setting<Boolean>> scriptLanguageSettings = languageSettings(SCRIPT_TYPE_SETTING_MAP, scriptContextSettingMap, scriptEngineRegistry, scriptContextRegistry);
+        List<Setting<Boolean>> scriptLanguageSettings = languageSettings(SCRIPT_TYPE_SETTING_MAP, scriptContextSettingMap,
+                scriptEngineRegistry, templateBackend, scriptContextRegistry);
         this.scriptLanguageSettings = Collections.unmodifiableList(scriptLanguageSettings);
     }
 
@@ -68,18 +71,13 @@ public class ScriptSettings {
     private static List<Setting<Boolean>> languageSettings(Map<ScriptType, Setting<Boolean>> scriptTypeSettingMap,
                                                               Map<ScriptContext, Setting<Boolean>> scriptContextSettingMap,
                                                               ScriptEngineRegistry scriptEngineRegistry,
+                                                              TemplateService.Backend templateBackend,
                                                               ScriptContextRegistry scriptContextRegistry) {
         final List<Setting<Boolean>> scriptModeSettings = new ArrayList<>();
 
-        for (final Class<? extends ScriptEngineService> scriptEngineService : scriptEngineRegistry.getRegisteredScriptEngineServices()) {
-            if (scriptEngineService == NativeScriptEngineService.class) {
-                // native scripts are always enabled, and their settings can not be changed
-                continue;
-            }
-            final String language = scriptEngineRegistry.getLanguage(scriptEngineService);
+        BiConsumer<String, Boolean> populate = (language, defaultNonFileScriptMode) -> { 
             for (final ScriptType scriptType : ScriptType.values()) {
                 // Top level, like "script.engine.groovy.inline"
-                final boolean defaultNonFileScriptMode = scriptEngineRegistry.getDefaultInlineScriptEnableds().get(language);
                 boolean defaultLangAndType = defaultNonFileScriptMode;
                 // Files are treated differently because they are never default-deny
                 if (ScriptType.FILE == scriptType) {
@@ -141,6 +139,16 @@ public class ScriptSettings {
                     scriptModeSettings.add(setting);
                 }
             }
+        };
+        for (Class<? extends ScriptEngineService> c : scriptEngineRegistry.getRegisteredScriptEngineServices()) {
+            if (c != NativeScriptEngineService.class) {
+                // native scripts are always enabled, and their settings can not be changed
+                String language = scriptEngineRegistry.getLanguage(c);
+                populate.accept(language, scriptEngineRegistry.getDefaultInlineScriptEnableds().get(language));
+            }
+        }
+        if (templateBackend != null) {
+            populate.accept(templateBackend.getType(), true); // Templates are enabled by default
         }
         return scriptModeSettings;
     }

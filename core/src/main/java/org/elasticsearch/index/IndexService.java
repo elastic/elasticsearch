@@ -28,7 +28,6 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -68,6 +67,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -118,7 +118,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final BigArrays bigArrays;
     private final AsyncGlobalCheckpointTask globalCheckpointTask;
     private final ScriptService scriptService;
-    private final ClusterService clusterService;
+    private final TemplateService templateService;
     private final Client client;
 
     public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
@@ -131,7 +131,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         BigArrays bigArrays,
                         ThreadPool threadPool,
                         ScriptService scriptService,
-                        ClusterService clusterService,
+                        TemplateService templateService,
                         Client client,
                         QueryCache queryCache,
                         IndexStore indexStore,
@@ -158,7 +158,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
-        this.clusterService = clusterService;
+        this.templateService = templateService;
         this.client = client;
         this.eventListener = eventListener;
         this.nodeEnv = nodeEnv;
@@ -473,7 +473,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public QueryShardContext newQueryShardContext(int shardId, IndexReader indexReader, LongSupplier nowInMillis) {
         return new QueryShardContext(
             shardId, indexSettings, indexCache.bitsetFilterCache(), indexFieldData, mapperService(),
-                similarityService(), scriptService, xContentRegistry,
+                similarityService(), scriptService, templateService, xContentRegistry,
                 client, indexReader,
             nowInMillis);
     }
@@ -497,6 +497,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      */
     public ScriptService getScriptService() {
         return scriptService;
+    }
+
+    /**
+     * The {@link TemplateService} to use for this index.
+     */
+    public TemplateService getTemplateService() {
+        return templateService;
     }
 
     List<IndexingOperationListener> getIndexOperationListeners() { // pkg private for testing

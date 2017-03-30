@@ -16,9 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.script.mustache;
+package org.elasticsearch.script.mustache.stored;
 
-import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -26,16 +25,15 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
-import org.elasticsearch.script.Script;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-public class RestPutSearchTemplateAction extends BaseRestHandler {
+public class RestPutStoredTemplateAction extends BaseRestHandler {
 
-    public RestPutSearchTemplateAction(Settings settings, RestController controller) {
+    public RestPutStoredTemplateAction(Settings settings, RestController controller) {
         super(settings);
 
         controller.registerHandler(POST, "/_search/template/{id}", this);
@@ -43,11 +41,14 @@ public class RestPutSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
+            throws IOException {
         String id = request.param("id");
         BytesReference content = request.content();
 
-        PutStoredScriptRequest put = new PutStoredScriptRequest(id, Script.DEFAULT_TEMPLATE_LANG, content, request.getXContentType());
-        return channel -> client.admin().cluster().putStoredScript(put, new AcknowledgedRestListener<>(channel));
+        PutStoredTemplateRequest put = new PutStoredTemplateRequest(id, content,
+                request.getXContentType());
+        return channel -> client.execute(PutStoredTemplateAction.INSTANCE, put,
+                new AcknowledgedRestListener<>(channel));
     }
 }

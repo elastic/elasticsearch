@@ -21,7 +21,6 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Setting;
@@ -50,6 +49,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -320,20 +320,19 @@ public final class IndexModule {
     }
 
     public IndexService newIndexService(
-        NodeEnvironment environment,
-        NamedXContentRegistry xContentRegistry,
-        IndexService.ShardStoreDeleter shardStoreDeleter,
-        CircuitBreakerService circuitBreakerService,
-        BigArrays bigArrays,
-        ThreadPool threadPool,
-        ScriptService scriptService,
-        ClusterService clusterService,
-        Client client,
-        IndicesQueryCache indicesQueryCache,
-        MapperRegistry mapperRegistry,
-        Consumer<ShardId> globalCheckpointSyncer,
-        IndicesFieldDataCache indicesFieldDataCache)
-        throws IOException {
+                NodeEnvironment environment,
+                NamedXContentRegistry xContentRegistry,
+                IndexService.ShardStoreDeleter shardStoreDeleter,
+                CircuitBreakerService circuitBreakerService,
+                BigArrays bigArrays,
+                ThreadPool threadPool,
+                ScriptService scriptService,
+                TemplateService templateService,
+                Client client,
+                IndicesQueryCache indicesQueryCache,
+                MapperRegistry mapperRegistry,
+                Consumer<ShardId> globalCheckpointSyncer,
+                IndicesFieldDataCache indicesFieldDataCache) throws IOException {
         final IndexEventListener eventListener = freeze();
         IndexSearcherWrapperFactory searcherWrapperFactory = indexSearcherWrapper.get() == null
             ? (shard) -> null : indexSearcherWrapper.get();
@@ -365,7 +364,7 @@ public final class IndexModule {
         }
         return new IndexService(indexSettings, environment, xContentRegistry, new SimilarityService(indexSettings, similarities),
                 shardStoreDeleter, analysisRegistry, engineFactory.get(), circuitBreakerService, bigArrays, threadPool, scriptService,
-                clusterService, client, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry,
+                templateService, client, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry,
                 indicesFieldDataCache, globalCheckpointSyncer, searchOperationListeners, indexOperationListeners);
     }
 

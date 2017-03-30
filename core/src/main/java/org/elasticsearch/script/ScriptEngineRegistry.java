@@ -19,12 +19,11 @@
 
 package org.elasticsearch.script;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import org.elasticsearch.common.Strings;
 
 public class ScriptEngineRegistry {
 
@@ -59,7 +58,7 @@ public class ScriptEngineRegistry {
         this.defaultInlineScriptEnableds = Collections.unmodifiableMap(inlineScriptEnableds);
     }
 
-    Iterable<Class<? extends ScriptEngineService>> getRegisteredScriptEngineServices() {
+    Collection<Class<? extends ScriptEngineService>> getRegisteredScriptEngineServices() {
         return registeredScriptEngineServices.keySet();
     }
 

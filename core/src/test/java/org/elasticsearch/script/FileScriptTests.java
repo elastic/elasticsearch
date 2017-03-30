@@ -46,8 +46,9 @@ public class FileScriptTests extends ESTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap(scriptSource, script -> "1"));
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singleton(scriptEngine));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        return new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, null, scriptContextRegistry);
+        return new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry, scriptSettings,
+                new ScriptMetrics());
     }
 
     public void testFileScriptFound() throws Exception {

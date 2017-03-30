@@ -19,16 +19,17 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -39,12 +40,10 @@ import java.util.stream.Collectors;
  * Manages building {@link ScriptService} and {@link ScriptSettings} from a list of plugins.
  */
 public class ScriptModule {
-    private final ScriptSettings scriptSettings;
-    private final ScriptService scriptService;
-
     /**
      * Build from {@linkplain ScriptPlugin}s. Convenient for normal use but not great for tests. See
-     * {@link ScriptModule#ScriptModule(Settings, Environment, ResourceWatcherService, List, List)} for easier use in tests.
+     * {@link ScriptModule#ScriptModule(Settings, Environment, ResourceWatcherService, List, List, TemplateService.Backend)}
+     * for easier use in tests.
      */
     public static ScriptModule create(Settings settings, Environment environment,
                                       ResourceWatcherService resourceWatcherService, List<ScriptPlugin> scriptPlugins) {
@@ -56,23 +55,54 @@ public class ScriptModule {
         scriptEngineServices.add(nativeScriptEngineService);
         List<ScriptContext.Plugin> plugins = scriptPlugins.stream().map(x -> x.getCustomScriptContexts()).filter(Objects::nonNull)
                 .collect(Collectors.toList());
-        return new ScriptModule(settings, environment, resourceWatcherService, scriptEngineServices, plugins);
+        List<TemplateService.Backend> templateBackends = scriptPlugins.stream().map(x -> x.getTemplateBackend())
+                .filter(Objects::nonNull).collect(Collectors.toList());
+        TemplateService.Backend templateBackend;
+        switch (templateBackends.size()) {
+        case 0:
+            templateBackend = null;
+            break;
+        case 1:
+            templateBackend = templateBackends.get(0);
+            break;
+        default:
+            throw new IllegalArgumentException("Elasticsearch only supports a single template backend but was started with ["
+                    + templateBackends + "]");
+        }
+        return new ScriptModule(settings, environment, resourceWatcherService, scriptEngineServices, plugins, templateBackend);
     }
+
+    private final ScriptSettings scriptSettings;
+    private final ScriptService scriptService;
+    private final TemplateService templateService;
 
     /**
      * Build {@linkplain ScriptEngineService} and {@linkplain ScriptContext.Plugin}.
      */
     public ScriptModule(Settings settings, Environment environment,
                         ResourceWatcherService resourceWatcherService, List<ScriptEngineService> scriptEngineServices,
-                        List<ScriptContext.Plugin> customScriptContexts) {
+                        List<ScriptContext.Plugin> customScriptContexts, @Nullable TemplateService.Backend templateBackend) {
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customScriptContexts);
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngineServices);
-        scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        ScriptMetrics scriptMetrics = new ScriptMetrics();
+        // Note that if templateBackend is null this won't register any settings for it
+        scriptSettings = new ScriptSettings(scriptEngineRegistry, templateBackend, scriptContextRegistry);
+
         try {
             scriptService = new ScriptService(settings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry,
-                    scriptSettings);
+                    scriptSettings, scriptMetrics);
         } catch (IOException e) {
-            throw new RuntimeException("Couldn't setup ScriptService", e);
+            throw new ElasticsearchException("Couldn't setup ScriptService", e);
+        }
+
+        if (templateBackend == null) {
+            templateBackend = new TemplatesUnsupportedBackend();
+        }
+        try {
+            templateService = new TemplateService(settings, environment, resourceWatcherService, templateBackend,
+                    scriptContextRegistry, scriptSettings, scriptMetrics);
+        } catch (IOException e) {
+            throw new ElasticsearchException("Couldn't setup TemplateService", e);
         }
     }
 
@@ -91,9 +121,55 @@ public class ScriptModule {
     }
 
     /**
+     * The service responsible for managing templates.
+     */
+    public TemplateService getTemplateService() {
+        return templateService;
+    }
+
+    /**
      * Allow the script service to register any settings update handlers on the cluster settings
      */
     public void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
         scriptService.registerClusterSettingsListeners(clusterSettings);
+    }
+
+    /**
+     * Template backend that refuses to compile templates. Useful for starting Elasticsearch without
+     * the {@code lang-mustache} module. Which we do frequently during testing. Technically it'd be
+     * used if you started Elasticsearch without {@code lang-mustache} installed but that isn't a
+     * supported deployment.
+     */
+    private static class TemplatesUnsupportedBackend implements TemplateService.Backend {
+        @Override
+        public String getType() {
+            throw new UnsupportedOperationException("no template backend installed");
+        }
+
+        @Override
+        public String getExtension() {
+            throw new UnsupportedOperationException("no template backend installed");
+        }
+
+        @Override
+        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+            throw new UnsupportedOperationException("no template backend installed");
+        }
+
+        @Override
+        public ExecutableScript executable(CompiledScript compiledScript,
+                Map<String, Object> vars) {
+            throw new UnsupportedOperationException("no template backend installed");
+        }
+
+        @Override
+        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup,
+                Map<String, Object> vars) {
+            throw new UnsupportedOperationException("no template backend installed");
+        }
+
+        @Override
+        public void close() throws IOException {
+        }
     }
 }

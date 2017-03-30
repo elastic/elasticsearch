@@ -197,7 +197,6 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertEquals(scroll, Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
     }
 
-
     public void testClearScrollEntity() throws IOException {
         String scroll = randomAsciiOfLength(30);
         HttpEntity entity = clearScrollEntity(scroll, Version.V_5_0_0);

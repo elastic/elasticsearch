@@ -284,6 +284,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .build();
         launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTPS, null, -1, null,
             null, null, 10, false, 50000);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{S3Repository.Repositories.MAX_RETRIES_SETTING});
     }
 
     public void testRepositoryMaxRetries() {

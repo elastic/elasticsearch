@@ -107,6 +107,7 @@ public class S3Repository extends BlobStoreRepository {
      * Global S3 repositories settings. Starting with: repositories.s3
      * NOTE: These are legacy settings. Use the named client config settings above.
      */
+    @Deprecated
     public interface Repositories {
         /**
          * repositories.s3.access_key: AWS Access key specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.access_key.
@@ -143,13 +144,13 @@ public class S3Repository extends BlobStoreRepository {
         /**
          * repositories.s3.bucket: The name of the bucket to be used for snapshots.
          */
-        Setting<String> BUCKET_SETTING = Setting.simpleString("repositories.s3.bucket", Property.NodeScope);
+        Setting<String> BUCKET_SETTING = Setting.simpleString("repositories.s3.bucket", Property.NodeScope, Property.Deprecated);
         /**
          * repositories.s3.server_side_encryption: When set to true files are encrypted on server side using AES256 algorithm.
          * Defaults to false.
          */
         Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING =
-            Setting.boolSetting("repositories.s3.server_side_encryption", false, Property.NodeScope);
+            Setting.boolSetting("repositories.s3.server_side_encryption", false, Property.NodeScope, Property.Deprecated);
 
         /**
          * Default is to use 100MB (S3 defaults) for heaps above 2GB and 5% of
@@ -171,41 +172,41 @@ public class S3Repository extends BlobStoreRepository {
          */
         Setting<ByteSizeValue> BUFFER_SIZE_SETTING =
             Setting.byteSizeSetting("repositories.s3.buffer_size", DEFAULT_BUFFER_SIZE,
-                new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB), Property.NodeScope);
+                new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB), Property.NodeScope, Property.Deprecated);
         /**
          * repositories.s3.max_retries: Number of retries in case of S3 errors. Defaults to 3.
          */
-        Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("repositories.s3.max_retries", 3, Property.NodeScope);
+        Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("repositories.s3.max_retries", 3, Property.NodeScope, Property.Deprecated);
         /**
          * repositories.s3.use_throttle_retries: Set to `true` if you want to throttle retries. Defaults to AWS SDK default value (`false`).
          */
         Setting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.boolSetting("repositories.s3.use_throttle_retries",
-            ClientConfiguration.DEFAULT_THROTTLE_RETRIES, Property.NodeScope);
+            ClientConfiguration.DEFAULT_THROTTLE_RETRIES, Property.NodeScope, Property.Deprecated);
         /**
          * repositories.s3.chunk_size: Big files can be broken down into chunks during snapshotting if needed. Defaults to 1g.
          */
         Setting<ByteSizeValue> CHUNK_SIZE_SETTING =
             Setting.byteSizeSetting("repositories.s3.chunk_size", new ByteSizeValue(1, ByteSizeUnit.GB),
-                new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB), Property.NodeScope);
+                new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB), Property.NodeScope, Property.Deprecated);
         /**
          * repositories.s3.compress: When set to true metadata files are stored in compressed format. This setting doesn’t affect index
          * files that are already compressed by default. Defaults to false.
          */
-        Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("repositories.s3.compress", false, Property.NodeScope);
+        Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("repositories.s3.compress", false, Property.NodeScope, Property.Deprecated);
         /**
          * repositories.s3.storage_class: Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
          * standard_ia. Defaults to standard.
          */
-        Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("repositories.s3.storage_class", Property.NodeScope);
+        Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("repositories.s3.storage_class", Property.NodeScope, Property.Deprecated);
         /**
          * repositories.s3.canned_acl: The S3 repository supports all S3 canned ACLs : private, public-read, public-read-write,
          * authenticated-read, log-delivery-write, bucket-owner-read, bucket-owner-full-control. Defaults to private.
          */
-        Setting<String> CANNED_ACL_SETTING = Setting.simpleString("repositories.s3.canned_acl", Property.NodeScope);
+        Setting<String> CANNED_ACL_SETTING = Setting.simpleString("repositories.s3.canned_acl", Property.NodeScope, Property.Deprecated);
         /**
          * repositories.s3.base_path: Specifies the path within bucket to repository data. Defaults to root directory.
          */
-        Setting<String> BASE_PATH_SETTING = Setting.simpleString("repositories.s3.base_path", Property.NodeScope);
+        Setting<String> BASE_PATH_SETTING = Setting.simpleString("repositories.s3.base_path", Property.NodeScope, Property.Deprecated);
         /**
          * repositories.s3.path_style_access: When set to true configures the client to use path-style access for all requests.
          Amazon S3 supports virtual-hosted-style and path-style access in all Regions. The path-style syntax, however,
@@ -214,7 +215,8 @@ public class S3Repository extends BlobStoreRepository {
          in path-style access) and the bucket being accessed (some buckets are not valid DNS names). Setting this flag
          will result in path-style access being used for all requests.
          */
-        Setting<Boolean> PATH_STYLE_ACCESS_SETTING = Setting.boolSetting("repositories.s3.path_style_access", false, Property.NodeScope);
+        Setting<Boolean> PATH_STYLE_ACCESS_SETTING = Setting.boolSetting("repositories.s3.path_style_access", false, Property.NodeScope,
+            Property.Deprecated);
     }
 
     /**

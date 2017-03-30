@@ -47,3 +47,9 @@ requests.
 Refresh requests that are broadcast to multiple shards that can have one or more
 shards fail during the request now return a 500 response instead of a 200
 response in the event there is at least one failure.
+
+=== Delete by Query API requires an explicit query
+
+In previous versions of Elasticsearch, delete by query requests without an explicit query
+were accepted, match_all was used as the default query and all documents were deleted
+as a result. From version 6.0.0, delete by query requests require an explicit query.

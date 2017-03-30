@@ -2304,7 +2304,6 @@
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]bulk[/\\]RetryTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]bulk[/\\]TransportBulkActionIngestTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]bulk[/\\]TransportBulkActionTookTests.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]bulk[/\\]TransportShardBulkActionTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]bulk[/\\]byscroll[/\\]AsyncBulkByScrollActionTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]bulk[/\\]byscroll[/\\]BulkByScrollParallelizationHelperTests.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]bulk[/\\]byscroll[/\\]BulkByScrollResponseTests.java" checks="LineLength" />
@@ -3947,7 +3946,6 @@
   <suppress files="qa[/\\]evil-tests[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugins[/\\]RemovePluginCommandTests.java" checks="LineLength" />
   <suppress files="qa[/\\]evil-tests[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]tribe[/\\]TribeUnitTests.java" checks="LineLength" />
   <suppress files="qa[/\\]smoke-test-client[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]smoketest[/\\]ESSmokeClientTestCase.java" checks="LineLength" />
-  <suppress files="qa[/\\]smoke-test-client[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]smoketest[/\\]SmokeTestClientIT.java" checks="LineLength" />
   <suppress files="qa[/\\]smoke-test-http[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]http[/\\]ContextAndHeaderTransportIT.java" checks="LineLength" />
   <suppress files="qa[/\\]smoke-test-http[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]http[/\\]CorsRegexIT.java" checks="LineLength" />
   <suppress files="qa[/\\]smoke-test-http[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]http[/\\]DeprecationHttpIT.java" checks="LineLength" />

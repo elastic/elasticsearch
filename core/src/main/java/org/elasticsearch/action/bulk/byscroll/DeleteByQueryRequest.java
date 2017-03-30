@@ -74,6 +74,8 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         }
         if (getSearchRequest() == null || getSearchRequest().source() == null) {
             e = addValidationError("source is missing", e);
+        } else if (getSearchRequest().source().query() == null) {
+            e = addValidationError("query is missing", e);
         }
         return e;
     }

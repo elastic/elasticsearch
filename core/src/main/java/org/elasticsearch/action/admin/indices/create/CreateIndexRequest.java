@@ -383,6 +383,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     @SuppressWarnings("unchecked")
     public CreateIndexRequest source(Map<String, ?> source) {
         boolean found = false;
+        String unsupportedKey = null;
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
             if (name.equals("settings")) {
@@ -407,12 +408,22 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
                     } catch (IOException e) {
                         throw new ElasticsearchParseException("failed to parse custom metadata for [{}]", name);
                     }
+                } else {
+                    // found a key which is neither custom defined nor one of the supported ones
+                    if (unsupportedKey == null) {
+                        unsupportedKey = name;
+                    }
                 }
             }
-        }
+        }   
         if (!found) {
             // the top level are settings, use them
             settings(source);
+        }
+        if (found && unsupportedKey != null) {
+            throw new ElasticsearchParseException(
+                    "unknown key [{}] for a [{}], expected [settings], [mappings] or [aliases]",
+                    unsupportedKey, XContentParser.Token.START_OBJECT);
         }
         return this;
     }

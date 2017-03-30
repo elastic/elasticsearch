@@ -936,7 +936,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private final static class DeletionPlan {
+    private static final class DeletionPlan {
         // of a rare double delete
         final boolean deleteFromLucene;
         final boolean currentlyDeleted;

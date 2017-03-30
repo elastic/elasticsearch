@@ -48,7 +48,7 @@ import java.io.IOException;
  */
 public final class TermsSliceQuery extends SliceQuery {
     // Fixed seed for computing term hashCode
-    private static final int SEED = 7919;
+    public static final int SEED = 7919;
 
     public TermsSliceQuery(String field, int id, int max) {
         super(field, id, max);

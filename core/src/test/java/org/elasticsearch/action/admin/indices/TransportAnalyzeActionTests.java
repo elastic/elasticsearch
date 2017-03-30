@@ -162,7 +162,6 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     public void testWithIndexAnalyzers() throws IOException {
         AnalyzeRequest request = new AnalyzeRequest();
         request.text("the quick brown fox");
-
         request.analyzer("custom_analyzer");
         AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers, registry, environment);
         List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
@@ -180,6 +179,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals("brown", tokens.get(2).getTerm());
         assertEquals("fox", tokens.get(3).getTerm());
 
+        // Switch the analyzer out for just a tokenizer
         request.analyzer(null);
         request.tokenizer("standard");
         analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers, registry, environment);
@@ -190,6 +190,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals("brown", tokens.get(2).getTerm());
         assertEquals("fox", tokens.get(3).getTerm());
 
+        // Now try applying our token filter
         request.addTokenFilter("mock");
         analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers, registry, environment);
         tokens = analyze.getTokens();

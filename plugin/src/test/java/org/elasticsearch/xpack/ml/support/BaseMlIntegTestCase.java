@@ -248,6 +248,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         for (DatafeedConfig datafeed : mlMetadata.getDatafeeds().values()) {
             String datafeedId = datafeed.getId();
             try {
+                logger.info("Closing datafeed [{}]", datafeedId);
                 StopDatafeedAction.Response stopResponse =
                         client.execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request(datafeedId)).get();
                 assertTrue(stopResponse.isStopped());
@@ -289,6 +290,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             try {
                 CloseJobAction.Request closeRequest = new CloseJobAction.Request(jobId);
                 closeRequest.setTimeout(TimeValue.timeValueSeconds(30L));
+                logger.info("Closing job [{}]", jobId);
                 CloseJobAction.Response response =
                         client.execute(CloseJobAction.INSTANCE, closeRequest).get();
                 assertTrue(response.isClosed());

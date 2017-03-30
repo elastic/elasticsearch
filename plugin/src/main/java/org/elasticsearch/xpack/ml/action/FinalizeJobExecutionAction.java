@@ -142,6 +142,7 @@ public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionActio
                                        ActionListener<Response> listener) throws Exception {
             String jobId = request.getJobId();
             String source = "finalize_job_execution [" + jobId + "]";
+            logger.debug("finalizing job [{}]", request.getJobId());
             clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -165,6 +166,7 @@ public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionActio
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState,
                                                   ClusterState newState) {
+                    logger.debug("finalized job [{}]", request.getJobId());
                     listener.onResponse(new Response(true));
                 }
             });

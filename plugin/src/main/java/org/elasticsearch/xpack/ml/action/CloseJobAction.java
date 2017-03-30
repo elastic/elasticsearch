@@ -298,6 +298,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
                 if (e != null) {
                     listener.onFailure(e);
                 } else {
+                    logger.debug("finalizing job [{}]", request.getJobId());
                     FinalizeJobExecutionAction.Request finalizeRequest =
                             new FinalizeJobExecutionAction.Request(request.getJobId());
                     client.execute(FinalizeJobExecutionAction.INSTANCE, finalizeRequest,

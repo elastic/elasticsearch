@@ -18,11 +18,6 @@ integTest {
 
 integTestRunner {
   systemProperty 'tests.rest.blacklist', [
-    // Remove tests that need privileges beyond those in the standard ML roles - in
-    // particular, these two tests need cluster:admin/persistent/remove to directly
-    // remove persistent tasks
-    'ml/jobs_crud/Test force close job',
-    'ml/start_stop_datafeed/Test force stop datafeed',
     // Remove tests that are expected to throw an exception, because we cannot then
     // know whether to expect an authorization exception or a validation exception
     'ml/datafeeds_crud/Test delete datafeed with missing id',

@@ -40,14 +40,16 @@ import static org.elasticsearch.test.ESTestCase.createTestAnalysis;
 
 public class MapperTestUtils {
 
-    public static MapperService newMapperService(NamedXContentRegistry xContentRegistry, Path tempDir, Settings indexSettings)
-            throws IOException {
+    public static MapperService newMapperService(NamedXContentRegistry xContentRegistry,
+                                                 Path tempDir,
+                                                 Settings indexSettings,
+                                                 String indexName) throws IOException {
         IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
-        return newMapperService(xContentRegistry, tempDir, indexSettings, indicesModule);
+        return newMapperService(xContentRegistry, tempDir, indexSettings, indicesModule, indexName);
     }
 
     public static MapperService newMapperService(NamedXContentRegistry xContentRegistry, Path tempDir, Settings settings,
-            IndicesModule indicesModule) throws IOException {
+                                                 IndicesModule indicesModule, String indexName) throws IOException {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
             .put(settings);
@@ -56,7 +58,7 @@ public class MapperTestUtils {
         }
         Settings finalSettings = settingsBuilder.build();
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", finalSettings);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexName, finalSettings);
         IndexAnalyzers indexAnalyzers = createTestAnalysis(indexSettings, finalSettings).indexAnalyzers;
         SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
         return new MapperService(indexSettings,

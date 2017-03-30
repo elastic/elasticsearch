@@ -45,6 +45,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -57,9 +58,18 @@ import org.elasticsearch.action.bulk.MappingUpdatePerformer;
 import org.elasticsearch.action.bulk.BulkItemResultHolder;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class TransportShardBulkActionTests extends IndexShardTestCase {
 
@@ -72,7 +82,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
     private IndexMetaData indexMetaData() throws IOException {
         return IndexMetaData.builder("index")
-                .putMapping("type", "{\"properties\": {\"foo\": {\"type\": \"text\"}}}")
+                .putMapping("type",
+                        "{\"properties\":{\"foo\":{\"type\":\"text\",\"fields\":" +
+                                "{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}")
                 .settings(idxSettings)
                 .primaryTerm(0, 1).build();
     }
@@ -93,7 +105,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         request = new BulkItemRequest(0, writeRequest);
         request.setPrimaryResponse(
                 new BulkItemResponse(0, DocWriteRequest.OpType.INDEX,
-                        new BulkItemResponse.Failure("test", "type", "id",
+                        new BulkItemResponse.Failure("index", "type", "id",
                                                      new IllegalArgumentException("i died"))));
         assertFalse(TransportShardBulkAction.shouldExecuteReplicaItem(request, 0));
 
@@ -503,6 +515,70 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
     }
 
+    public void testMappingUpdateParsesCorrectNumberOfTimes() throws Exception {
+        IndexMetaData metaData = indexMetaData();
+        logger.info("--> metadata.getIndex(): {}", metaData.getIndex());
+        final IndexShard shard = spy(newStartedShard(true));
+
+        IndexRequest request = new IndexRequest("index", "type", "id")
+                .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
+
+        final AtomicInteger updateCalled = new AtomicInteger(0);
+        final AtomicInteger verifyCalled = new AtomicInteger(0);
+        TransportShardBulkAction.executeIndexRequestOnPrimary(request, shard,
+                new MappingUpdatePerformer() {
+                    @Override
+                    public void updateMappings(Mapping update, ShardId shardId,
+                                               String type) throws Exception {
+                        // There should indeed be a mapping update
+                        assertNotNull(update);
+                        updateCalled.incrementAndGet();
+                    }
+
+                    @Override
+                    public void verifyMappings(Engine.Index operation,
+                                               ShardId shardId) throws Exception {
+                        // No-op, will be called
+                        logger.info("--> verifying mappings noop");
+                        verifyCalled.incrementAndGet();
+                    }
+        });
+
+        assertThat("mappings were \"updated\" once", updateCalled.get(), equalTo(1));
+        assertThat("mappings were \"verified\" once", verifyCalled.get(), equalTo(1));
+
+        // Verify that the shard "prepared" the operation twice
+        verify(shard, times(2)).prepareIndexOnPrimary(any(), anyLong(), any(),
+                anyLong(), anyBoolean());
+
+        // Update the mapping, so the next mapping updater doesn't do anything
+        final MapperService mapperService = shard.mapperService();
+        logger.info("--> mapperService.index(): {}", mapperService.index());
+        mapperService.updateMapping(metaData);
+
+        TransportShardBulkAction.executeIndexRequestOnPrimary(request, shard,
+                new MappingUpdatePerformer() {
+                    @Override
+                    public void updateMappings(Mapping update, ShardId shardId,
+                                               String type) throws Exception {
+                        fail("should not have had to update the mappings");
+                    }
+
+                    @Override
+                    public void verifyMappings(Engine.Index operation,
+                                               ShardId shardId) throws Exception {
+                        fail("should not have had to update the mappings");
+                    }
+        });
+
+        // Verify that the shard "prepared" the operation only once (2 for previous invocations plus
+        // 1 for this execution)
+        verify(shard, times(3)).prepareIndexOnPrimary(any(), anyLong(), any(),
+                anyLong(), anyBoolean());
+
+        closeShards(shard);
+    }
+
     public class IndexResultWithLocation extends Engine.IndexResult {
         private final Translog.Location location;
         public IndexResultWithLocation(long version, long seqNo, boolean created,
@@ -557,9 +633,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
     /** Doesn't perform any mapping updates */
     public static class NoopMappingUpdatePerformer implements MappingUpdatePerformer {
-        public void updateMappingsIfNeeded(Engine.Index operation,
-                                           ShardId shardId,
-                                           String type) throws Exception {
+        public void updateMappings(Mapping update, ShardId shardId, String type) throws Exception {
         }
 
         public void verifyMappings(Engine.Index operation, ShardId shardId) throws Exception {
@@ -573,9 +647,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             this.e = e;
         }
 
-        public void updateMappingsIfNeeded(Engine.Index operation,
-                                           ShardId shardId,
-                                           String type) throws Exception {
+        public void updateMappings(Mapping update, ShardId shardId, String type) throws Exception {
             throw e;
         }
 
@@ -591,9 +663,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             this.e = e;
         }
 
-        public void updateMappingsIfNeeded(Engine.Index operation,
-                                           ShardId shardId,
-                                           String type) throws Exception {
+        public void updateMappings(Mapping update, ShardId shardId, String type) throws Exception {
         }
 
         public void verifyMappings(Engine.Index operation, ShardId shardId) throws Exception {

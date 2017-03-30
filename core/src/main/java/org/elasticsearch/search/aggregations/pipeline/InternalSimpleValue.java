@@ -33,7 +33,7 @@ import java.util.Objects;
 
 public class InternalSimpleValue extends InternalNumericMetricsAggregation.SingleValue implements SimpleValue {
     public static final String NAME = "simple_value";
-    private final double value;
+    protected final double value;
 
     public InternalSimpleValue(String name, double value, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
@@ -88,13 +88,12 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(value, format.getWriteableName());
+        return Objects.hash(value);
     }
 
     @Override
     protected boolean doEquals(Object obj) {
         InternalSimpleValue other = (InternalSimpleValue) obj;
-        return Objects.equals(value, other.value)
-                && Objects.equals(format.getWriteableName(), other.format.getWriteableName());
+        return Objects.equals(value, other.value);
     }
 }

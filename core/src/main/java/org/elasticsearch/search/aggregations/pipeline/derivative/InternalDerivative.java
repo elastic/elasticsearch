@@ -93,14 +93,13 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(normalizationFactor, super.doHashCode());
+        return Objects.hash(normalizationFactor, value);
     }
 
     @Override
     protected boolean doEquals(Object obj) {
         InternalDerivative other = (InternalDerivative) obj;
-        return Objects.equals(getValue(), other.getValue())
-                && Objects.equals(normalizationFactor, other.normalizationFactor)
-                && Objects.equals(format.getWriteableName(), other.format.getWriteableName());
+        return Objects.equals(value, other.value)
+                && Objects.equals(normalizationFactor, other.normalizationFactor);
     }
 }

@@ -40,7 +40,8 @@ import java.util.List;
 import static java.util.Collections.singletonList;
 
 /**
- * More "intense" version of a unit test with the same name that is in core. This one has access to the analyzers in this module.
+ * More "intense" version of a unit test with the same name that is in core. This one has access to
+ * the analyzers in this module.
  */
 public class TransportAnalyzeActionTests extends ESTestCase {
     private IndexAnalyzers indexAnalyzers;

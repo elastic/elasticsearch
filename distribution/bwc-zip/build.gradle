@@ -29,20 +29,25 @@ import org.elasticsearch.gradle.LoggedExec
 
 apply plugin: 'distribution'
 
-// TODO: generate this, by introspecting Version.java for last previous minor
-String BWC_VERSION = "5.4.0-SNAPSHOT"
-
-String checkoutDir = "${buildDir}/bwc/checkout-5.x"
+File checkoutDir = file("${buildDir}/bwc/checkout-5.x")
 task createClone(type: LoggedExec) {
-  onlyIf { new File(checkoutDir).exists() == false }
+  onlyIf { checkoutDir.exists() == false }
   commandLine = ['git', 'clone', rootDir, checkoutDir]
 }
 
-task findUpstream(type: LoggedExec) {
+// we use regular Exec here to ensure we always get output, regardless of logging level
+task findUpstream(type: Exec) {
   dependsOn createClone
   workingDir = checkoutDir
   commandLine = ['git', 'remote', '-v']
+  ignoreExitValue = true
+  ByteArrayOutputStream output = new ByteArrayOutputStream()
+  standardOutput = output
   doLast {
+    if (execResult.exitValue != 0) {
+      output.toString('UTF-8').eachLine { line -> logger.error(line) }
+      execResult.assertNormalExitValue()
+    }
     project.ext.upstreamExists = false
     output.toString('UTF-8').eachLine {
       if (it.contains("upstream")) {
@@ -71,7 +76,7 @@ task checkoutBwcBranch(type: LoggedExec) {
   commandLine = ['git', 'checkout', 'upstream/5.x']
 }
 
-File bwcZip = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${BWC_VERSION}.zip")
+File bwcZip = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${bwcVersion}.zip")
 task buildBwcVersion(type: GradleBuild) {
   dependsOn checkoutBwcBranch
   dir = checkoutDir

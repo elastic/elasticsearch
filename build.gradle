@@ -18,15 +18,17 @@
  */
 
 import java.nio.file.Path
+import java.util.regex.Matcher
 import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.lib.RepositoryBuilder
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.VersionProperties
 
 // common maven publishing configuration
 subprojects {
   group = 'org.elasticsearch'
-  version = org.elasticsearch.gradle.VersionProperties.elasticsearch
+  version = VersionProperties.elasticsearch
   description = "Elasticsearch subproject ${project.path}"
 }
 
@@ -59,12 +61,26 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
   }
 }
 
+int prevMajor = Integer.parseInt(VersionProperties.elasticsearch.split('\\.')[0]) - 1
+String prevSnapshot = VersionProperties.elasticsearch.contains('alpha') ? '-SNAPSHOT' : ''
+File versionFile = file('core/src/main/java/org/elasticsearch/Version.java')
+List<String> versionLines = versionFile.readLines('UTF-8')
+int prevMinor = 0
+for (String line : versionLines) {
+  Matcher match = line =~ /\W+public static final Version V_${prevMajor}_(\d+)_.*/
+  if (match.matches()) {
+    prevMinor = Math.max(Integer.parseInt(match.group(1)), prevMinor)
+  }
+}
+
+// injecting groovy property variables into all projects
 allprojects {
-  // injecting groovy property variables into all projects
   project.ext {
     // for ide hacks...
     isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
     isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
+    // for backcompat testing
+    bwcVersion = "${prevMajor}.${prevMinor}.0${prevSnapshot}"
   }
 }
 
@@ -112,8 +128,7 @@ subprojects {
     "org.elasticsearch.client:transport:${version}": ':client:transport',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
     "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:integ-test-zip',
-    // TODO: don't use a hardcoded version here, introspect it from Version.java
-    "org.elasticsearch.distribution.zip:elasticsearch:5.4.0-SNAPSHOT": ':distribution:bwc-zip',
+    "org.elasticsearch.distribution.zip:elasticsearch:${bwcVersion}": ':distribution:bwc-zip',
     "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',
     "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:tar',
     "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:rpm',

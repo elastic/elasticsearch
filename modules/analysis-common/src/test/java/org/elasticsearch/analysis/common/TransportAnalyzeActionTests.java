@@ -59,9 +59,11 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 .put("index.analysis.filter.wordDelimiter.type", "word_delimiter")
                 .put("index.analysis.filter.wordDelimiter.split_on_numerics", false)
                 .put("index.analysis.analyzer.custom_analyzer.tokenizer", "whitespace")
-                .putArray("index.analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter")
+                .putArray("index.analysis.analyzer.custom_analyzer.filter",
+                        "lowercase", "wordDelimiter")
                 .put("index.analysis.analyzer.custom_analyzer.tokenizer", "whitespace")
-                .putArray("index.analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter")
+                .putArray("index.analysis.analyzer.custom_analyzer.filter",
+                        "lowercase", "wordDelimiter")
                 .put("index.analysis.tokenizer.trigram.type", "ngram")
                 .put("index.analysis.tokenizer.trigram.min_gram", 3)
                 .put("index.analysis.tokenizer.trigram.max_gram", 3)
@@ -72,7 +74,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 .put("index.analysis.filter.synonym.max_gram", 3).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
         environment = new Environment(settings);
-        registry = new AnalysisModule(environment, singletonList(new CommonAnalysisPlugin())).getAnalysisRegistry();
+        registry = new AnalysisModule(environment, singletonList(new CommonAnalysisPlugin()))
+                .getAnalysisRegistry();
         indexAnalyzers = registry.build(idxSettings);
     }
 
@@ -80,7 +83,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         AnalyzeRequest request = new AnalyzeRequest();
         request.analyzer("standard");
         request.text("the quick brown fox");
-        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, null, registry, environment);
+        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null,
+                null, registry, environment);
         List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
 
@@ -89,8 +93,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.addTokenFilter("lowercase");
         request.addTokenFilter("word_delimiter");
         request.text("the qu1ck brown fox");
-        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, randomBoolean() ? indexAnalyzers : null, registry,
-                environment);
+        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null,
+                randomBoolean() ? indexAnalyzers : null, registry, environment);
         tokens = analyze.getTokens();
         assertEquals(6, tokens.size());
         assertEquals("qu", tokens.get(1).getTerm());
@@ -103,8 +107,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.addTokenFilter("lowercase");
         request.addTokenFilter("word_delimiter");
         request.text("<p>the qu1ck brown fox</p>");
-        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, randomBoolean() ? indexAnalyzers : null, registry,
-                environment);
+        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null,
+                randomBoolean() ? indexAnalyzers : null, registry, environment);
         tokens = analyze.getTokens();
         assertEquals(6, tokens.size());
         assertEquals("the", tokens.get(0).getTerm());
@@ -119,7 +123,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         AnalyzeRequest request = new AnalyzeRequest();
         request.analyzer("standard");
         request.text("the 1 brown fox");
-        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, null, registry, environment);
+        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null,
+                null, registry, environment);
         List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
         assertEquals("the", tokens.get(0).getTerm());
@@ -154,19 +159,22 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.text("the quick brown fox");
         request.analyzer("custom_analyzer");
         request.text("the qu1ck brown fox");
-        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers, registry, environment);
+        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null,
+                indexAnalyzers, registry, environment);
         List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
 
         request.analyzer("whitespace");
         request.text("the qu1ck brown fox-dog");
-        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers, registry, environment);
+        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers,
+                registry, environment);
         tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
 
         request.analyzer("custom_analyzer");
         request.text("the qu1ck brown fox-dog");
-        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers, registry, environment);
+        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers,
+                registry, environment);
         tokens = analyze.getTokens();
         assertEquals(5, tokens.size());
 
@@ -175,7 +183,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.addTokenFilter("lowercase");
         request.addTokenFilter("wordDelimiter");
         request.text("the qu1ck brown fox-dog");
-        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers, registry, environment);
+        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers,
+                registry, environment);
         tokens = analyze.getTokens();
         assertEquals(5, tokens.size());
         assertEquals("the", tokens.get(0).getTerm());
@@ -188,7 +197,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.tokenizer("trigram");
         request.addTokenFilter("synonym");
         request.text("kimchy");
-        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers, registry, environment);
+        analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers,
+                registry, environment);
         tokens = analyze.getTokens();
         assertEquals(2, tokens.size());
         assertEquals("sha", tokens.get(0).getTerm());
@@ -212,7 +222,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 new AnalyzeRequest()
                     .analyzer("foobar")
                     .text("the qu1ck brown fox"),
-                AllFieldMapper.NAME, null, notGlobal ? indexAnalyzers : null, registry, environment));
+                AllFieldMapper.NAME, null, notGlobal ? indexAnalyzers : null,
+                registry, environment));
         if (notGlobal) {
             assertEquals(e.getMessage(), "failed to find analyzer [foobar]");
         } else {
@@ -224,7 +235,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 new AnalyzeRequest()
                     .tokenizer("foobar")
                     .text("the qu1ck brown fox"),
-                AllFieldMapper.NAME, null, notGlobal ? indexAnalyzers : null, registry, environment));
+                AllFieldMapper.NAME, null, notGlobal ? indexAnalyzers : null,
+                registry, environment));
         if (notGlobal) {
             assertEquals(e.getMessage(), "failed to find tokenizer under [foobar]");
         } else {
@@ -237,7 +249,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                     .tokenizer("whitespace")
                     .addTokenFilter("foobar")
                     .text("the qu1ck brown fox"),
-                AllFieldMapper.NAME, null, notGlobal ? indexAnalyzers : null, registry, environment));
+                AllFieldMapper.NAME, null, notGlobal ? indexAnalyzers : null,
+                registry, environment));
         if (notGlobal) {
             assertEquals(e.getMessage(), "failed to find token filter under [foobar]");
         } else {
@@ -251,7 +264,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                     .addTokenFilter("lowercase")
                     .addCharFilter("foobar")
                     .text("the qu1ck brown fox"),
-                AllFieldMapper.NAME, null, notGlobal ? indexAnalyzers : null, registry, environment));
+                AllFieldMapper.NAME, null, notGlobal ? indexAnalyzers : null,
+                registry, environment));
         if (notGlobal) {
             assertEquals(e.getMessage(), "failed to find char filter under [foobar]");
         } else {
@@ -264,12 +278,13 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.tokenizer("whitespace");
         request.addTokenFilter("min_hash");
         request.text("the quick brown fox");
-        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers, registry, environment);
+        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null,
+                indexAnalyzers, registry, environment);
         List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
         int default_hash_count = 1;
         int default_bucket_size = 512;
         int default_hash_set_size = 1;
-        assertEquals(default_hash_count * default_bucket_size * default_hash_set_size, tokens.size());
-
+        assertEquals(default_hash_count * default_bucket_size * default_hash_set_size,
+                tokens.size());
     }
 }

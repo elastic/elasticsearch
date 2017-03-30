@@ -88,7 +88,6 @@ public class BulkProcessor implements Closeable {
         private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
         private final Listener listener;
 
-        private String name;
         private int concurrentRequests = 1;
         private int bulkActions = 1000;
         private ByteSizeValue bulkSize = new ByteSizeValue(5, ByteSizeUnit.MB);
@@ -105,14 +104,6 @@ public class BulkProcessor implements Closeable {
             this.consumer = consumer;
             this.listener = listener;
             this.settings = settings;
-        }
-
-        /**
-         * Sets an optional name to identify this bulk processor.
-         */
-        public Builder setName(String name) {
-            this.name = name;
-            return this;
         }
 
         /**
@@ -174,7 +165,7 @@ public class BulkProcessor implements Closeable {
          * Builds a new bulk processor.
          */
         public BulkProcessor build() {
-            return new BulkProcessor(consumer, backoffPolicy, listener, name, concurrentRequests, bulkActions, bulkSize, flushInterval, threadPool, settings);
+            return new BulkProcessor(consumer, backoffPolicy, listener, concurrentRequests, bulkActions, bulkSize, flushInterval, threadPool, settings);
         }
     }
 
@@ -189,7 +180,6 @@ public class BulkProcessor implements Closeable {
     private final long bulkSize;
 
 
-    private final ScheduledExecutorService schedulerToStop;
     private final Runnable cancelTask;
 
     private final AtomicLong executionIdGen = new AtomicLong();
@@ -200,24 +190,14 @@ public class BulkProcessor implements Closeable {
     private volatile boolean closed = false;
 
     BulkProcessor(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, Listener listener,
-                  @Nullable String name, int concurrentRequests, int bulkActions, ByteSizeValue bulkSize, @Nullable TimeValue flushInterval,
+                  int concurrentRequests, int bulkActions, ByteSizeValue bulkSize, @Nullable TimeValue flushInterval,
                   @Nullable ThreadPool threadPool, Settings settings) {
         this.bulkActions = bulkActions;
         this.bulkSize = bulkSize.getBytes();
         this.bulkRequest = new BulkRequest();
 
         BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduleFn;
-        if (threadPool == null) {
-            ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, (name != null ? "[" + name + "]" : "") + "bulk_processor");
-            ScheduledThreadPoolExecutor scheduledExecutor = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, threadFactory);
-            scheduledExecutor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
-            scheduledExecutor.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-            this.schedulerToStop = scheduledExecutor;
-            scheduleFn = Retry.fromScheduledExecutorService(scheduledExecutor);
-        } else {
-            this.schedulerToStop = null;
-            scheduleFn = Retry.fromThreadPool(threadPool);
-        }
+        scheduleFn = Retry.fromThreadPool(threadPool);
 
         if (concurrentRequests == 0) {
             this.bulkRequestHandler = BulkRequestHandler.syncHandler(consumer, backoffPolicy, listener, settings, scheduleFn);
@@ -261,9 +241,6 @@ public class BulkProcessor implements Closeable {
 
         this.cancelTask.run();
 
-        if (schedulerToStop != null) {
-            this.schedulerToStop.shutdown();
-        }
         if (bulkRequest.numberOfActions() > 0) {
             execute();
         }
@@ -336,13 +313,8 @@ public class BulkProcessor implements Closeable {
             return () -> {};
         }
 
-        if (this.schedulerToStop == null) {
-            ThreadPool.Cancellable cancellable = threadPool.scheduleWithFixedDelay(new Flush(), flushInterval, ThreadPool.Names.SAME);
-            return cancelTask(cancellable);
-        } else {
-            ScheduledFuture<?> scheduledFuture = this.schedulerToStop.scheduleWithFixedDelay(new Flush(), flushInterval.millis(), flushInterval.millis(), TimeUnit.MILLISECONDS);
-            return cancelTask(scheduledFuture);
-        }
+        ThreadPool.Cancellable cancellable = threadPool.scheduleWithFixedDelay(new Flush(), flushInterval, ThreadPool.Names.SAME);
+        return cancelTask(cancellable);
     }
 
     private void executeIfNeeded() {
@@ -374,10 +346,6 @@ public class BulkProcessor implements Closeable {
 
     private Runnable cancelTask(ThreadPool.Cancellable cancellable) {
         return cancellable::cancel;
-    }
-
-    private Runnable cancelTask(ScheduledFuture<?> future) {
-        return () -> FutureUtils.cancel(future);
     }
 
     /**

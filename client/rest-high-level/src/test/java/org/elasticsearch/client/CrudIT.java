@@ -633,16 +633,15 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                     processor.add(deleteRequest);
 
                 } else {
-                    BytesReference source = XContentBuilder.builder(xContentType.xContent()).startObject().field("id", i).endObject().bytes();
                     if (opType == DocWriteRequest.OpType.INDEX) {
-                        IndexRequest indexRequest = new IndexRequest("index", "test", id).source(source, xContentType);
+                        IndexRequest indexRequest = new IndexRequest("index", "test", id).source(xContentType, "id", i);
                         if (erroneous) {
                             indexRequest.version(12L);
                         }
                         processor.add(indexRequest);
 
                     } else if (opType == DocWriteRequest.OpType.CREATE) {
-                        IndexRequest createRequest = new IndexRequest("index", "test", id).source(source, xContentType).create(true);
+                        IndexRequest createRequest = new IndexRequest("index", "test", id).source(xContentType, "id", i).create(true);
                         if (erroneous) {
                             assertEquals(RestStatus.CREATED, highLevelClient().index(createRequest).status());
                         }
@@ -650,7 +649,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
                     } else if (opType == DocWriteRequest.OpType.UPDATE) {
                         UpdateRequest updateRequest = new UpdateRequest("index", "test", id)
-                            .doc(new IndexRequest().source(source, xContentType));
+                            .doc(new IndexRequest().source(xContentType, "id", i));
                         if (erroneous == false) {
                             assertEquals(RestStatus.CREATED,
                                 highLevelClient().index(new IndexRequest("index", "test", id).source("field", -1)).status());

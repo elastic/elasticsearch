@@ -71,11 +71,6 @@ public class Retry {
         return this;
     }
 
-    public Retry using(ScheduledExecutorService scheduledExecutorService) {
-        this.scheduleFn = fromScheduledExecutorService(scheduledExecutorService);
-        return this;
-    }
-
     public Retry using(BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduler) {
         this.scheduleFn = scheduler;
         return this;
@@ -83,21 +78,20 @@ public class Retry {
 
     /**
      * Invokes #apply(BulkRequest, ActionListener). Backs off on the provided exception and delegates results to the
-     * provided listener. Retries will be attempted on the provided thread pool.
+     * provided listener. Retries will be attempted using the provided schedule function
      * @param consumer The consumer to which apply the request and listener
      * @param bulkRequest The bulk request that should be executed.
      * @param listener A listener that is invoked when the bulk request finishes or completes with an exception. The listener is not
      * @param settings settings
      */
     public void withAsyncBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Settings settings) {
-        ensureScheduler(settings);
         RetryHandler r = new RetryHandler(retryOnThrowable, backoffPolicy, consumer, listener, settings, scheduleFn);
         r.execute(bulkRequest);
     }
 
     /**
-     * Invokes #apply(BulkRequest, ActionListener). Backs off on the provided exception. Retries will be attempted on the provided thread
-     * pool.
+     * Invokes #apply(BulkRequest, ActionListener). Backs off on the provided exception. Retries will be attempted using
+     * the provided schedule function.
      *
      * @param consumer The consumer to which apply the request and listener
      * @param bulkRequest The bulk request that should be executed.
@@ -107,27 +101,13 @@ public class Retry {
      */
     public BulkResponse withSyncBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, Settings settings) throws Exception {
         PlainActionFuture<BulkResponse> actionFuture = PlainActionFuture.newFuture();
-        ensureScheduler(settings);
         RetryHandler r = new RetryHandler(retryOnThrowable, backoffPolicy, consumer, actionFuture, settings, scheduleFn);
         r.execute(bulkRequest);
         return actionFuture.actionGet();
     }
 
-    private void ensureScheduler(Settings settings) {
-        if (scheduleFn == null) {
-            ScheduledThreadPoolExecutor stpe = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(settings, "retry_handler"));
-            stpe.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
-            stpe.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-            scheduleFn = fromScheduledExecutorService(stpe);
-        }
-    }
-
     static BiFunction<TimeValue, Runnable, ScheduledFuture<?>> fromThreadPool(ThreadPool threadPool) {
         return (tv, r) -> threadPool.schedule(tv, ThreadPool.Names.SAME, threadPool.getThreadContext().preserveContext(r));
-    }
-
-    static BiFunction<TimeValue, Runnable, ScheduledFuture<?>> fromScheduledExecutorService(ScheduledExecutorService ses) {
-        return (tv, r) -> ses.schedule(r, tv.getMillis(), TimeUnit.MILLISECONDS);
     }
 
     static class RetryHandler implements ActionListener<BulkResponse> {

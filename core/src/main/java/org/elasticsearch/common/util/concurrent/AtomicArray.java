@@ -40,7 +40,7 @@ public class AtomicArray<E> {
     }
 
     private final AtomicReferenceArray<E> array;
-    private volatile List<Entry<E>> nonNullList;
+    private volatile List<E> nonNullList;
 
     public AtomicArray(int size) {
         array = new AtomicReferenceArray<>(size);
@@ -87,19 +87,18 @@ public class AtomicArray<E> {
     }
 
     /**
-     * Returns the it as a non null list, with an Entry wrapping each value allowing to
-     * retain its index.
+     * Returns the it as a non null list.
      */
-    public List<Entry<E>> asList() {
+    public List<E> asList() {
         if (nonNullList == null) {
             if (array == null || array.length() == 0) {
                 nonNullList = Collections.emptyList();
             } else {
-                List<Entry<E>> list = new ArrayList<>(array.length());
+                List<E> list = new ArrayList<>(array.length());
                 for (int i = 0; i < array.length(); i++) {
                     E e = array.get(i);
                     if (e != null) {
-                        list.add(new Entry<>(i, e));
+                        list.add(e);
                     }
                 }
                 nonNullList = list;
@@ -119,24 +118,5 @@ public class AtomicArray<E> {
             a[i] = array.get(i);
         }
         return a;
-    }
-
-    /**
-     * An entry within the array.
-     */
-    public static class Entry<E> {
-        /**
-         * The original index of the value within the array.
-         */
-        public final int index;
-        /**
-         * The value.
-         */
-        public final E value;
-
-        public Entry(int index, E value) {
-            this.index = index;
-            this.value = value;
-        }
     }
 }

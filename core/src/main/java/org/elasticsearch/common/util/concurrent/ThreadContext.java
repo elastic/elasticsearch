@@ -72,9 +72,9 @@ public final class ThreadContext implements Closeable, Writeable {
     public static final String PREFIX = "request.headers";
     public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", Property.NodeScope);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
-    private static final String INTERNAL_EXECUTION_HEADER = "transient.header.internal_execution";
     private final Map<String, String> defaultHeader;
     private final ContextThreadLocal threadLocal;
+    private boolean isSystemContext;
 
     /**
      * Creates a new ThreadContext instance
@@ -322,16 +322,14 @@ public final class ThreadContext implements Closeable, Writeable {
      * by the system itself rather than by a user action.
      */
     public void markAsSystemContext() {
-        if (isSystemContext() == false) {
-            putTransient(INTERNAL_EXECUTION_HEADER, Boolean.TRUE);
-        }
+        threadLocal.set(threadLocal.get().setSystemContext());
     }
 
     /**
      * Returns <code>true</code> iff this context is a system context
      */
     public boolean isSystemContext() {
-        return getTransient(INTERNAL_EXECUTION_HEADER) != null;
+        return threadLocal.get().isSystemContext;
     }
 
     /**
@@ -355,6 +353,7 @@ public final class ThreadContext implements Closeable, Writeable {
         private final Map<String, String> requestHeaders;
         private final Map<String, Object> transientHeaders;
         private final Map<String, List<String>> responseHeaders;
+        private final boolean isSystemContext;
 
         private ThreadContextStruct(StreamInput in) throws IOException {
             final int numRequest = in.readVInt();
@@ -366,27 +365,36 @@ public final class ThreadContext implements Closeable, Writeable {
             this.requestHeaders = requestHeaders;
             this.responseHeaders = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
             this.transientHeaders = Collections.emptyMap();
+            isSystemContext = false; // we never serialize this it's a transient flag
+        }
+
+        private ThreadContextStruct setSystemContext() {
+            if (isSystemContext) {
+                return this;
+            }
+            return new ThreadContextStruct(requestHeaders, responseHeaders, transientHeaders, true);
         }
 
         private ThreadContextStruct(Map<String, String> requestHeaders,
                                     Map<String, List<String>> responseHeaders,
-                                    Map<String, Object> transientHeaders) {
+                                    Map<String, Object> transientHeaders, boolean isSystemContext) {
             this.requestHeaders = requestHeaders;
             this.responseHeaders = responseHeaders;
             this.transientHeaders = transientHeaders;
+            this.isSystemContext = isSystemContext;
         }
 
         /**
          * This represents the default context and it should only ever be called by {@link #DEFAULT_CONTEXT}.
          */
         private ThreadContextStruct() {
-            this(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+            this(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), false);
         }
 
         private ThreadContextStruct putRequest(String key, String value) {
             Map<String, String> newRequestHeaders = new HashMap<>(this.requestHeaders);
             putSingleHeader(key, value, newRequestHeaders);
-            return new ThreadContextStruct(newRequestHeaders, responseHeaders, transientHeaders);
+            return new ThreadContextStruct(newRequestHeaders, responseHeaders, transientHeaders, isSystemContext);
         }
 
         private void putSingleHeader(String key, String value, Map<String, String> newHeaders) {
@@ -404,7 +412,7 @@ public final class ThreadContext implements Closeable, Writeable {
                     putSingleHeader(entry.getKey(), entry.getValue(), newHeaders);
                 }
                 newHeaders.putAll(this.requestHeaders);
-                return new ThreadContextStruct(newHeaders, responseHeaders, transientHeaders);
+                return new ThreadContextStruct(newHeaders, responseHeaders, transientHeaders, isSystemContext);
             }
         }
 
@@ -425,7 +433,7 @@ public final class ThreadContext implements Closeable, Writeable {
                     newResponseHeaders.put(key, entry.getValue());
                 }
             }
-            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders);
+            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext);
         }
 
         private ThreadContextStruct putResponse(final String key, final String value, final Function<String, String> uniqueValue) {
@@ -449,7 +457,7 @@ public final class ThreadContext implements Closeable, Writeable {
                 newResponseHeaders.put(key, Collections.singletonList(value));
             }
 
-            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders);
+            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext);
         }
 
         private ThreadContextStruct putTransient(String key, Object value) {
@@ -457,7 +465,7 @@ public final class ThreadContext implements Closeable, Writeable {
             if (newTransient.putIfAbsent(key, value) != null) {
                 throw new IllegalArgumentException("value for key [" + key + "] already present");
             }
-            return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient);
+            return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, isSystemContext);
         }
 
         boolean isEmpty() {

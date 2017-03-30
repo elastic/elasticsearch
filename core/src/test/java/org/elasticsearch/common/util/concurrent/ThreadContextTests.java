@@ -430,11 +430,21 @@ public class ThreadContextTests extends ESTestCase {
             // create a abstract runnable, add headers and transient objects and verify in the methods
             try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                 threadContext.putHeader("foo", "bar");
+                boolean systemContext = randomBoolean();
+                if (systemContext) {
+                    threadContext.markAsSystemContext();
+                }
                 threadContext.putTransient("foo", "bar_transient");
                 withContext = threadContext.preserveContext(new AbstractRunnable() {
 
                     @Override
                     public void onAfter() {
+                        if (systemContext) {
+                            assertTrue(threadContext.isSystemContext());
+                        } else {
+                            assertFalse(threadContext.isSystemContext());
+                        }
+
                         assertEquals("bar", threadContext.getHeader("foo"));
                         assertEquals("bar_transient", threadContext.getTransient("foo"));
                         assertNotNull(threadContext.getTransient("failure"));
@@ -445,6 +455,11 @@ public class ThreadContextTests extends ESTestCase {
 
                     @Override
                     public void onFailure(Exception e) {
+                        if (systemContext) {
+                            assertTrue(threadContext.isSystemContext());
+                        } else {
+                            assertFalse(threadContext.isSystemContext());
+                        }
                         assertEquals("exception from doRun", e.getMessage());
                         assertEquals("bar", threadContext.getHeader("foo"));
                         assertEquals("bar_transient", threadContext.getTransient("foo"));
@@ -454,6 +469,11 @@ public class ThreadContextTests extends ESTestCase {
 
                     @Override
                     protected void doRun() throws Exception {
+                        if (systemContext) {
+                            assertTrue(threadContext.isSystemContext());
+                        } else {
+                            assertFalse(threadContext.isSystemContext());
+                        }
                         assertEquals("bar", threadContext.getHeader("foo"));
                         assertEquals("bar_transient", threadContext.getTransient("foo"));
                         assertFalse(threadContext.isDefaultContext());

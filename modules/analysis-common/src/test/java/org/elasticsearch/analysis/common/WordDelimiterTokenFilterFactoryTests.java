@@ -35,14 +35,18 @@ public class WordDelimiterTokenFilterFactoryTests extends BaseWordDelimiterToken
         super("word_delimiter");
     }
 
-    /** Correct offset order when doing both parts and concatenation: PowerShot is a synonym of Power */
+    /**
+     * Correct offset order when doing both parts and concatenation: PowerShot is a synonym of Power
+     */
     public void testPartsAndCatenate() throws IOException {
-        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put("index.analysis.filter.my_word_delimiter.type", type)
-            .put("index.analysis.filter.my_word_delimiter.catenate_words", "true")
-            .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "true")
-            .build(), new CommonAnalysisPlugin());
+        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+                Settings.builder()
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                    .put("index.analysis.filter.my_word_delimiter.type", type)
+                    .put("index.analysis.filter.my_word_delimiter.catenate_words", "true")
+                    .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "true")
+                    .build(),
+                new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot";
         String[] expected = new String[]{"Power", "PowerShot", "Shot" };

@@ -48,7 +48,8 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 
 /**
- * Tests for {@link TransportAnalyzeAction}. See the more "intense" version of this test in the {@code common-analysis} module.
+ * Tests for {@link TransportAnalyzeAction}. See the more "intense" version of this test in the
+ * {@code common-analysis} module.
  */
 public class TransportAnalyzeActionTests extends ESTestCase {
 

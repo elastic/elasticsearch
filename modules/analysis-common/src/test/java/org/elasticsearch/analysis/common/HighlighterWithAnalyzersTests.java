@@ -73,11 +73,13 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
                         .put("analysis.filter.wordDelimiter.type", "word_delimiter")
                         .putArray("analysis.filter.wordDelimiter.type_table",
                                 "& => ALPHANUM", "| => ALPHANUM", "! => ALPHANUM",
-                                "? => ALPHANUM", ". => ALPHANUM", "- => ALPHANUM", "# => ALPHANUM", "% => ALPHANUM",
-                                "+ => ALPHANUM", ", => ALPHANUM", "~ => ALPHANUM", ": => ALPHANUM", "/ => ALPHANUM",
-                                "^ => ALPHANUM", "$ => ALPHANUM", "@ => ALPHANUM", ") => ALPHANUM", "( => ALPHANUM",
-                                "] => ALPHANUM", "[ => ALPHANUM", "} => ALPHANUM", "{ => ALPHANUM")
-
+                                "? => ALPHANUM", ". => ALPHANUM", "- => ALPHANUM",
+                                "# => ALPHANUM", "% => ALPHANUM", "+ => ALPHANUM",
+                                ", => ALPHANUM", "~ => ALPHANUM", ": => ALPHANUM",
+                                "/ => ALPHANUM", "^ => ALPHANUM", "$ => ALPHANUM",
+                                "@ => ALPHANUM", ") => ALPHANUM", "( => ALPHANUM",
+                                "] => ALPHANUM", "[ => ALPHANUM", "} => ALPHANUM",
+                                "{ => ALPHANUM")
                         .put("analysis.filter.wordDelimiter.type.split_on_numerics", false)
                         .put("analysis.filter.wordDelimiter.generate_word_parts", true)
                         .put("analysis.filter.wordDelimiter.generate_number_parts", false)
@@ -86,16 +88,19 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
                         .put("analysis.filter.wordDelimiter.catenate_all", false)
 
                         .put("analysis.analyzer.autocomplete.tokenizer", "autocomplete")
-                        .putArray("analysis.analyzer.autocomplete.filter", "lowercase", "wordDelimiter")
+                        .putArray("analysis.analyzer.autocomplete.filter",
+                                "lowercase", "wordDelimiter")
                         .put("analysis.analyzer.search_autocomplete.tokenizer", "whitespace")
-                        .putArray("analysis.analyzer.search_autocomplete.filter", "lowercase", "wordDelimiter")));
+                        .putArray("analysis.analyzer.search_autocomplete.filter",
+                                "lowercase", "wordDelimiter")));
         client().prepareIndex("test", "test", "1")
             .setSource("name", "ARCOTEL Hotels Deutschland").get();
         refresh();
         SearchResponse search = client().prepareSearch("test").setTypes("test")
                 .setQuery(matchQuery("name.autocomplete", "deut tel").operator(Operator.OR))
-                .highlighter(new HighlightBuilder().field("name.autocomplete")).execute().actionGet();
-        assertHighlight(search, 0, "name.autocomplete", 0, equalTo("ARCO<em>TEL</em> Ho<em>tel</em>s <em>Deut</em>schland"));
+                .highlighter(new HighlightBuilder().field("name.autocomplete")).get();
+        assertHighlight(search, 0, "name.autocomplete", 0,
+                equalTo("ARCO<em>TEL</em> Ho<em>tel</em>s <em>Deut</em>schland"));
     }
 
     public void testMultiPhraseCutoff() throws IOException {
@@ -104,8 +109,8 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
          * query. We cut off and extract terms if there are more than 16 terms in the query
          */
         assertAcked(prepareCreate("test")
-                .addMapping("test",
-                        "body", "type=text,analyzer=custom_analyzer,search_analyzer=custom_analyzer,term_vector=with_positions_offsets")
+                .addMapping("test", "body", "type=text,analyzer=custom_analyzer,"
+                        + "search_analyzer=custom_analyzer,term_vector=with_positions_offsets")
                 .setSettings(
                         Settings.builder().put(indexSettings())
                                 .put("analysis.filter.wordDelimiter.type", "word_delimiter")
@@ -116,28 +121,34 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
                                 .put("analysis.filter.wordDelimiter.catenate_numbers", true)
                                 .put("analysis.filter.wordDelimiter.catenate_all", false)
                                 .put("analysis.analyzer.custom_analyzer.tokenizer", "whitespace")
-                                .putArray("analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter"))
+                                .putArray("analysis.analyzer.custom_analyzer.filter",
+                                        "lowercase", "wordDelimiter"))
         );
 
         ensureGreen();
         client().prepareIndex("test", "test", "1")
-            .setSource("body", "Test: http://www.facebook.com http://elasticsearch.org http://xing.com "
-                    + "http://cnn.com http://quora.com http://twitter.com this is a test for highlighting feature Test: "
-                    + "http://www.facebook.com http://elasticsearch.org http://xing.com http://cnn.com http://quora.com "
+            .setSource("body", "Test: http://www.facebook.com http://elasticsearch.org "
+                    + "http://xing.com http://cnn.com http://quora.com http://twitter.com this is "
+                    + "a test for highlighting feature Test: http://www.facebook.com "
+                    + "http://elasticsearch.org http://xing.com http://cnn.com http://quora.com "
                     + "http://twitter.com this is a test for highlighting feature")
             .get();
         refresh();
-        SearchResponse search = client().prepareSearch().setQuery(matchPhraseQuery("body", "Test: http://www.facebook.com "))
-                .highlighter(new HighlightBuilder().field("body")).execute().actionGet();
+        SearchResponse search = client().prepareSearch()
+                .setQuery(matchPhraseQuery("body", "Test: http://www.facebook.com "))
+                .highlighter(new HighlightBuilder().field("body")).get();
         assertHighlight(search, 0, "body", 0, startsWith("<em>Test: http://www.facebook.com</em>"));
         search = client()
                 .prepareSearch()
-                .setQuery(matchPhraseQuery("body", "Test: http://www.facebook.com http://elasticsearch.org http://xing.com "
-                        + "http://cnn.com http://quora.com http://twitter.com this is a test for highlighting feature Test: "
-                        + "http://www.facebook.com http://elasticsearch.org http://xing.com http://cnn.com http://quora.com "
-                        + "http://twitter.com this is a test for highlighting feature"))
+                .setQuery(matchPhraseQuery("body", "Test: http://www.facebook.com "
+                        + "http://elasticsearch.org http://xing.com http://cnn.com "
+                        + "http://quora.com http://twitter.com this is a test for highlighting "
+                        + "feature Test: http://www.facebook.com http://elasticsearch.org "
+                        + "http://xing.com http://cnn.com http://quora.com http://twitter.com this "
+                        + "is a test for highlighting feature"))
                 .highlighter(new HighlightBuilder().field("body")).execute().actionGet();
-        assertHighlight(search, 0, "body", 0, equalTo("<em>Test</em>: <em>http://www.facebook.com</em> "
-                + "<em>http://elasticsearch.org</em> <em>http://xing.com</em> <em>http://cnn.com</em> http://quora.com"));
+        assertHighlight(search, 0, "body", 0, equalTo("<em>Test</em>: "
+                + "<em>http://www.facebook.com</em> <em>http://elasticsearch.org</em> "
+                + "<em>http://xing.com</em> <em>http://cnn.com</em> http://quora.com"));
     }
 }

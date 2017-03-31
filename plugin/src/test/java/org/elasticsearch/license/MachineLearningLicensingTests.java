@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.TestXPackTransportClient;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -38,6 +39,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
+@TestLogging("org.elasticsearch.xpack.ml.action:DEBUG")
 public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
 
     @Before

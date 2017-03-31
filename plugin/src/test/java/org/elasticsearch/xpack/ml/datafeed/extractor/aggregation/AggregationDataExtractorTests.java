@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -120,6 +121,93 @@ public class AggregationDataExtractorTests extends ESTestCase {
                 stringContainsInOrder(Arrays.asList("aggregations", "histogram", "time", "terms", "airline", "avg", "responsetime")));
     }
 
+    public void testExtractionGivenMultipleBatches() throws IOException {
+        // Each bucket is 2 key-value pairs, thus 1200 buckets will be 2400
+        // key-value pairs. They should be processed in 3 batches.
+        int buckets = 1200;
+        List<Histogram.Bucket> histogramBuckets = new ArrayList<>(buckets);
+        long timestamp = 1000;
+        for (int i = 0; i < buckets; i++) {
+            histogramBuckets.add(createHistogramBucket(timestamp, 3));
+            timestamp += 1000L;
+        }
+
+        TestDataExtractor extractor = new TestDataExtractor(1000L, timestamp + 1);
+
+        SearchResponse response = createSearchResponse("time", histogramBuckets);
+        extractor.setNextResponse(response);
+
+        assertThat(extractor.hasNext(), is(true));
+        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(500L));
+        assertThat(extractor.hasNext(), is(true));
+        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(500L));
+        assertThat(extractor.hasNext(), is(true));
+        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(200L));
+        assertThat(extractor.hasNext(), is(false));
+
+        assertThat(capturedSearchRequests.size(), equalTo(1));
+    }
+
+    public void testExtractionGivenResponseHasNullAggs() throws IOException {
+        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
+
+        SearchResponse response = createSearchResponse(null);
+        extractor.setNextResponse(response);
+
+        assertThat(extractor.hasNext(), is(true));
+        assertThat(extractor.next().isPresent(), is(false));
+        assertThat(extractor.hasNext(), is(false));
+
+        assertThat(capturedSearchRequests.size(), equalTo(1));
+    }
+
+    public void testExtractionGivenResponseHasEmptyAggs() throws IOException {
+        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
+
+        Aggregations emptyAggs = mock(Aggregations.class);
+        when(emptyAggs.asList()).thenReturn(Collections.emptyList());
+        SearchResponse response = createSearchResponse(emptyAggs);
+        extractor.setNextResponse(response);
+
+        assertThat(extractor.hasNext(), is(true));
+        assertThat(extractor.next().isPresent(), is(false));
+        assertThat(extractor.hasNext(), is(false));
+
+        assertThat(capturedSearchRequests.size(), equalTo(1));
+    }
+
+    public void testExtractionGivenResponseHasInvalidTopLevelAgg() throws IOException {
+        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
+
+        Terms termsAgg = mock(Terms.class);
+        Aggregations emptyAggs = mock(Aggregations.class);
+        when(emptyAggs.asList()).thenReturn(Collections.singletonList(termsAgg));
+        SearchResponse response = createSearchResponse(emptyAggs);
+        extractor.setNextResponse(response);
+
+        assertThat(extractor.hasNext(), is(true));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> extractor.next());
+        assertThat(e.getMessage(), containsString("Top level aggregation should be [histogram]"));
+    }
+
+    public void testExtractionGivenResponseHasMultipleTopLevelAggs() throws IOException {
+        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
+
+        Histogram histogram1 = mock(Histogram.class);
+        when(histogram1.getName()).thenReturn("hist_1");
+        Histogram histogram2 = mock(Histogram.class);
+        when(histogram2.getName()).thenReturn("hist_2");
+
+        Aggregations emptyAggs = mock(Aggregations.class);
+        when(emptyAggs.asList()).thenReturn(Arrays.asList(histogram1, histogram2));
+        SearchResponse response = createSearchResponse(emptyAggs);
+        extractor.setNextResponse(response);
+
+        assertThat(extractor.hasNext(), is(true));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> extractor.next());
+        assertThat(e.getMessage(), containsString("Multiple top level aggregations not supported; found: [hist_1, hist_2]"));
+    }
+
     public void testExtractionGivenCancelBeforeNext() throws IOException {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 4000L);
         SearchResponse response = createSearchResponse("time", Collections.emptyList());
@@ -127,6 +215,34 @@ public class AggregationDataExtractorTests extends ESTestCase {
 
         extractor.cancel();
         assertThat(extractor.hasNext(), is(false));
+    }
+
+    public void testExtractionGivenCancelHalfWay() throws IOException {
+        int buckets = 1200;
+        List<Histogram.Bucket> histogramBuckets = new ArrayList<>(buckets);
+        long timestamp = 1000;
+        for (int i = 0; i < buckets; i++) {
+            histogramBuckets.add(createHistogramBucket(timestamp, 3));
+            timestamp += 1000L;
+        }
+
+        TestDataExtractor extractor = new TestDataExtractor(1000L, timestamp + 1);
+
+        SearchResponse response = createSearchResponse("time", histogramBuckets);
+        extractor.setNextResponse(response);
+
+        assertThat(extractor.hasNext(), is(true));
+        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(500L));
+        assertThat(extractor.hasNext(), is(true));
+        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(500L));
+        assertThat(extractor.hasNext(), is(true));
+
+        extractor.cancel();
+
+        assertThat(extractor.hasNext(), is(false));
+        assertThat(extractor.isCancelled(), is(true));
+
+        assertThat(capturedSearchRequests.size(), equalTo(1));
     }
 
     public void testExtractionGivenSearchResponseHasError() throws IOException {
@@ -159,17 +275,20 @@ public class AggregationDataExtractorTests extends ESTestCase {
     }
 
     private SearchResponse createSearchResponse(String histogramName, List<Histogram.Bucket> histogramBuckets) {
-        SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.status()).thenReturn(RestStatus.OK);
-        when(searchResponse.getScrollId()).thenReturn(randomAsciiOfLength(1000));
-
         Histogram histogram = mock(Histogram.class);
         when(histogram.getName()).thenReturn(histogramName);
         when(histogram.getBuckets()).thenReturn(histogramBuckets);
 
         Aggregations searchAggs = mock(Aggregations.class);
         when(searchAggs.asList()).thenReturn(Arrays.asList(histogram));
-        when(searchResponse.getAggregations()).thenReturn(searchAggs);
+        return createSearchResponse(searchAggs);
+    }
+
+    private SearchResponse createSearchResponse(Aggregations aggregations) {
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.status()).thenReturn(RestStatus.OK);
+        when(searchResponse.getScrollId()).thenReturn(randomAsciiOfLength(1000));
+        when(searchResponse.getAggregations()).thenReturn(aggregations);
         return searchResponse;
     }
 
@@ -199,5 +318,9 @@ public class AggregationDataExtractorTests extends ESTestCase {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
             return reader.lines().collect(Collectors.joining("\n"));
         }
+    }
+
+    private static long countMatches(char c, String text) {
+        return text.chars().filter(current -> current == c).count();
     }
 }

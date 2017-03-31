@@ -35,36 +35,31 @@ class AggregationToJsonProcessor implements Releasable {
     private final boolean includeDocCount;
     private final XContentBuilder jsonBuilder;
     private final Map<String, Object> keyValuePairs;
+    private long keyValueWrittenCount;
 
     AggregationToJsonProcessor(boolean includeDocCount, OutputStream outputStream) throws IOException {
         this.includeDocCount = includeDocCount;
         jsonBuilder = new XContentBuilder(JsonXContent.jsonXContent, outputStream);
         keyValuePairs = new LinkedHashMap<>();
+        keyValueWrittenCount = 0;
     }
 
     /**
-     * Processes an {@link Aggregation} and writes a flat JSON document for each of its leaf aggregations.
-     * It expects aggregations to have 0..1 sub-aggregations.
-     * It expects the top level aggregation to be {@link Histogram}.
-     * It expects that all sub-aggregations of the top level are either {@link Terms} or {@link NumericMetricsAggregation.SingleValue}.
+     * Processes a {@link Histogram.Bucket} and writes a flat JSON document for each of its leaf aggregations.
+     * Supported sub-aggregations include:
+     *   <ul>
+     *       <li>{@link Terms}</li>
+     *       <li>{@link NumericMetricsAggregation.SingleValue}</li>
+     *       <li>{@link Percentiles}</li>
+     *   </ul>
      */
-    public void process(Aggregation aggregation) throws IOException {
-        if (aggregation instanceof Histogram) {
-            processHistogram((Histogram) aggregation);
-        } else {
-            throw new IllegalArgumentException("Top level aggregation should be [histogram]");
+    public void process(String timeField, Histogram.Bucket bucket) throws IOException {
+        Object timestamp = bucket.getKey();
+        if (timestamp instanceof BaseDateTime) {
+            timestamp = ((BaseDateTime) timestamp).getMillis();
         }
-    }
-
-    private void processHistogram(Histogram histogram) throws IOException {
-        for (Histogram.Bucket bucket : histogram.getBuckets()) {
-            Object timestamp = bucket.getKey();
-            if (timestamp instanceof BaseDateTime) {
-                timestamp = ((BaseDateTime) timestamp).getMillis();
-            }
-            keyValuePairs.put(histogram.getName(), timestamp);
-            processNestedAggs(bucket.getDocCount(), bucket.getAggregations());
-        }
+        keyValuePairs.put(timeField, timestamp);
+        processNestedAggs(bucket.getDocCount(), bucket.getAggregations());
     }
 
     private void processNestedAggs(long docCount, Aggregations subAggs) throws IOException {
@@ -121,9 +116,11 @@ class AggregationToJsonProcessor implements Releasable {
             jsonBuilder.startObject();
             for (Map.Entry<String, Object> keyValue : keyValuePairs.entrySet()) {
                 jsonBuilder.field(keyValue.getKey(), keyValue.getValue());
+                keyValueWrittenCount++;
             }
             if (includeDocCount) {
                 jsonBuilder.field(DatafeedConfig.DOC_COUNT, docCount);
+                keyValueWrittenCount++;
             }
             jsonBuilder.endObject();
         }
@@ -132,5 +129,12 @@ class AggregationToJsonProcessor implements Releasable {
     @Override
     public void close() {
         jsonBuilder.close();
+    }
+
+    /**
+     * The key-value pairs that have been written so far
+     */
+    public long getKeyValueCount() {
+        return keyValueWrittenCount;
     }
 }

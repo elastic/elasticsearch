@@ -74,14 +74,9 @@ final class PerThreadIDAndVersionLookup {
             throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME +
                 "] field");
         }
-        boolean assertionsOn = false;
-        assert (assertionsOn = true);
-        if (assertionsOn) {
-            readerKey = reader.getCoreCacheKey();
-        } else {
-            readerKey = null;
-        }
-
+        Object readerKey = null;
+        assert (readerKey = reader.getCoreCacheKey()) != null;
+        this.readerKey = readerKey;
     }
 
     /** Return null if id is not found. */

@@ -541,7 +541,7 @@ public class InternalEngine extends Engine {
                  *  if A arrives on the shard first we use addDocument since maxUnsafeAutoIdTimestamp is < 10. A` will then just be skipped or calls
                  *  updateDocument.
                  */
-                final IndexingPlan plan;
+                final IndexingStrategy plan;
 
                 if (index.origin() == Operation.Origin.PRIMARY) {
                     plan = planIndexingAsPrimary(index);
@@ -583,13 +583,13 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private IndexingPlan planIndexingAsNonPrimary(Index index) throws IOException {
-        final IndexingPlan plan;
+    private IndexingStrategy planIndexingAsNonPrimary(Index index) throws IOException {
+        final IndexingStrategy plan;
         if (canOptimizeAddDocument(index) && mayHaveBeenIndexedBefore(index) == false) {
             // no need to deal with out of order delivery - we never saw this one
             assert index.version() == 1L :
                 "can optimize on replicas but incoming version is [" + index.version() + "]";
-            plan = IndexingPlan.optimizedAppendOnly(index.seqNo());
+            plan = IndexingStrategy.optimizedAppendOnly(index.seqNo());
         } else {
             // drop out of order operations
             assert index.versionType().versionTypeForReplicationAndRecovery() == index.versionType() :
@@ -600,10 +600,9 @@ public class InternalEngine extends Engine {
             // a delete state and return false for the created flag in favor of code simplicity
             final LuceneDocStatus luceneOpStatus = checkLuceneDocStatusBasedOnVersions(index);
             if (luceneOpStatus == LuceneDocStatus.NEWER_OR_EQUAL) {
-                plan = IndexingPlan.processButSkipLucene(
-                    luceneOpStatus == LuceneDocStatus.NOT_FOUND, index.seqNo(), index.version());
+                plan = IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
             } else {
-                plan = IndexingPlan.processNormally(
+                plan = IndexingStrategy.processNormally(
                     luceneOpStatus == LuceneDocStatus.NOT_FOUND, index.seqNo(), index.version()
                 );
             }
@@ -611,16 +610,16 @@ public class InternalEngine extends Engine {
         return plan;
     }
 
-    private IndexingPlan planIndexingAsPrimary(Index index) throws IOException {
+    private IndexingStrategy planIndexingAsPrimary(Index index) throws IOException {
         assert index.origin() == Operation.Origin.PRIMARY :
             "planing as primary but origin isn't. got " + index.origin();
-        final IndexingPlan plan;
+        final IndexingStrategy plan;
         // resolve an external operation into an internal one which is safe to replay
         if (canOptimizeAddDocument(index)) {
             if (mayHaveBeenIndexedBefore(index)) {
-                plan = IndexingPlan.overrideExistingAsIfNotThere(seqNoService().generateSeqNo(), 1L);
+                plan = IndexingStrategy.overrideExistingAsIfNotThere(seqNoService().generateSeqNo(), 1L);
             } else {
-                plan = IndexingPlan.optimizedAppendOnly(seqNoService().generateSeqNo());
+                plan = IndexingStrategy.optimizedAppendOnly(seqNoService().generateSeqNo());
             }
         } else {
             // resolves incoming version
@@ -636,12 +635,12 @@ public class InternalEngine extends Engine {
             }
             if (index.versionType().isVersionConflictForWrites(
                 currentVersion, index.version(), currentNotFoundOrDeleted)) {
-                plan = IndexingPlan.skipDueToVersionConflict(
+                plan = IndexingStrategy.skipDueToVersionConflict(
                     new VersionConflictEngineException(shardId, index, currentVersion,
                         currentNotFoundOrDeleted),
                     currentNotFoundOrDeleted, currentVersion);
             } else {
-                plan = IndexingPlan.processNormally(currentNotFoundOrDeleted,
+                plan = IndexingStrategy.processNormally(currentNotFoundOrDeleted,
                     seqNoService().generateSeqNo(),
                     index.versionType().updateVersion(currentVersion, index.version())
                 );
@@ -650,7 +649,7 @@ public class InternalEngine extends Engine {
         return plan;
     }
 
-    private IndexResult indexIntoLucene(Index index, IndexingPlan plan)
+    private IndexResult indexIntoLucene(Index index, IndexingStrategy plan)
         throws IOException {
         assert assertSequenceNumberBeforeIndexing(index.origin(), plan.seqNoForIndexing);
         assert plan.versionForIndexing >= 0 : "version must be set. got " + plan.versionForIndexing;
@@ -729,7 +728,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private static final class IndexingPlan {
+    private static final class IndexingStrategy {
         final boolean currentNotFoundOrDeleted;
         final boolean useLuceneUpdateDocument;
         final long seqNoForIndexing;
@@ -737,9 +736,9 @@ public class InternalEngine extends Engine {
         final boolean indexIntoLucene;
         final Optional<IndexResult> earlyResultOnPreFlightError;
 
-        private IndexingPlan(boolean currentNotFoundOrDeleted, boolean useLuceneUpdateDocument,
-                             boolean indexIntoLucene, long seqNoForIndexing,
-                             long versionForIndexing, IndexResult earlyResultOnPreFlightError) {
+        private IndexingStrategy(boolean currentNotFoundOrDeleted, boolean useLuceneUpdateDocument,
+                                 boolean indexIntoLucene, long seqNoForIndexing,
+                                 long versionForIndexing, IndexResult earlyResultOnPreFlightError) {
             assert useLuceneUpdateDocument == false || indexIntoLucene :
                 "use lucene update is set to true, but we're not indexing into lucene";
             assert (indexIntoLucene && earlyResultOnPreFlightError != null) == false :
@@ -756,32 +755,32 @@ public class InternalEngine extends Engine {
                     Optional.of(earlyResultOnPreFlightError);
         }
 
-        static IndexingPlan optimizedAppendOnly(long seqNoForIndexing) {
-            return new IndexingPlan(true, false, true, seqNoForIndexing, 1, null);
+        static IndexingStrategy optimizedAppendOnly(long seqNoForIndexing) {
+            return new IndexingStrategy(true, false, true, seqNoForIndexing, 1, null);
         }
 
-        static IndexingPlan skipDueToVersionConflict(VersionConflictEngineException e,
-                                                     boolean currentNotFoundOrDeleted,
-                                                     long currentVersion) {
-            return new IndexingPlan(currentNotFoundOrDeleted, false,
+        static IndexingStrategy skipDueToVersionConflict(VersionConflictEngineException e,
+                                                         boolean currentNotFoundOrDeleted,
+                                                         long currentVersion) {
+            return new IndexingStrategy(currentNotFoundOrDeleted, false,
                 false, SequenceNumbersService.UNASSIGNED_SEQ_NO, Versions.NOT_FOUND,
                 new IndexResult(e, currentVersion));
         }
 
-        static IndexingPlan processNormally(boolean currentNotFoundOrDeleted,
-                                            long seqNoForIndexing, long versionForIndexing) {
-            return new IndexingPlan(currentNotFoundOrDeleted, currentNotFoundOrDeleted == false,
+        static IndexingStrategy processNormally(boolean currentNotFoundOrDeleted,
+                                                long seqNoForIndexing, long versionForIndexing) {
+            return new IndexingStrategy(currentNotFoundOrDeleted, currentNotFoundOrDeleted == false,
                 true, seqNoForIndexing, versionForIndexing, null);
         }
 
-        static IndexingPlan overrideExistingAsIfNotThere(
+        static IndexingStrategy overrideExistingAsIfNotThere(
             long seqNoForIndexing, long versionForIndexing) {
-            return new IndexingPlan(true, true, true, seqNoForIndexing, versionForIndexing, null);
+            return new IndexingStrategy(true, true, true, seqNoForIndexing, versionForIndexing, null);
         }
 
-        static IndexingPlan processButSkipLucene(boolean currentNotFoundOrDeleted,
-                                                 long seqNoForIndexing, long versionForIndexing) {
-            return new IndexingPlan(currentNotFoundOrDeleted, false,
+        static IndexingStrategy processButSkipLucene(boolean currentNotFoundOrDeleted,
+                                                     long seqNoForIndexing, long versionForIndexing) {
+            return new IndexingStrategy(currentNotFoundOrDeleted, false,
                 false, seqNoForIndexing, versionForIndexing, null);
         }
     }
@@ -823,7 +822,7 @@ public class InternalEngine extends Engine {
         try (ReleasableLock ignored = readLock.acquire(); Releasable ignored2 = acquireLock(delete.uid())) {
             ensureOpen();
             lastWriteNanos = delete.startTime();
-            final DeletionPlan plan;
+            final DeletionStrategy plan;
             if (delete.origin() == Operation.Origin.PRIMARY) {
                 plan = planDeletionAsPrimary(delete);
             } else {
@@ -861,7 +860,7 @@ public class InternalEngine extends Engine {
         return deleteResult;
     }
 
-    private DeletionPlan planDeletionAsNonPrimary(Delete delete) throws IOException {
+    private DeletionStrategy planDeletionAsNonPrimary(Delete delete) throws IOException {
         assert delete.origin() != Operation.Origin.PRIMARY : "planing as primary but got "
             + delete.origin();
         // drop out of order operations
@@ -873,18 +872,18 @@ public class InternalEngine extends Engine {
         // a delete state and return true for the found flag in favor of code simplicity
         final LuceneDocStatus luceneOpStatus = checkLuceneDocStatusBasedOnVersions(delete);
 
-        final DeletionPlan plan;
+        final DeletionStrategy plan;
         if (luceneOpStatus == LuceneDocStatus.NEWER_OR_EQUAL) {
-            plan = DeletionPlan.processButSkipLucene(luceneOpStatus == LuceneDocStatus.NOT_FOUND,
+            plan = DeletionStrategy.processButSkipLucene(luceneOpStatus == LuceneDocStatus.NOT_FOUND,
                 delete.seqNo(), delete.version());
         } else {
-            plan = DeletionPlan.processNormally(luceneOpStatus == LuceneDocStatus.NOT_FOUND,
+            plan = DeletionStrategy.processNormally(luceneOpStatus == LuceneDocStatus.NOT_FOUND,
                 delete.seqNo(), delete.version());
         }
         return plan;
     }
 
-    private DeletionPlan planDeletionAsPrimary(Delete delete) throws IOException {
+    private DeletionStrategy planDeletionAsPrimary(Delete delete) throws IOException {
         assert delete.origin() == Operation.Origin.PRIMARY : "planing as primary but got "
             + delete.origin();
         // resolve operation from external to internal
@@ -899,20 +898,20 @@ public class InternalEngine extends Engine {
             currentVersion = versionValue.getVersion();
             currentlyDeleted = versionValue.isDelete();
         }
-        final DeletionPlan plan;
+        final DeletionStrategy plan;
         if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
-            plan = DeletionPlan.skipDueToVersionConflict(
+            plan = DeletionStrategy.skipDueToVersionConflict(
                 new VersionConflictEngineException(shardId, delete, currentVersion, currentlyDeleted),
                 currentVersion, currentlyDeleted);
         } else {
-            plan = DeletionPlan.processNormally(currentlyDeleted,
+            plan = DeletionStrategy.processNormally(currentlyDeleted,
                 seqNoService().generateSeqNo(),
                 delete.versionType().updateVersion(currentVersion, delete.version()));
         }
         return plan;
     }
 
-    private DeleteResult deleteInLucene(Delete delete, DeletionPlan plan)
+    private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan)
         throws IOException {
         try {
             if (plan.currentlyDeleted == false) {
@@ -936,7 +935,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private static final class DeletionPlan {
+    private static final class DeletionStrategy {
         // of a rare double delete
         final boolean deleteFromLucene;
         final boolean currentlyDeleted;
@@ -944,9 +943,9 @@ public class InternalEngine extends Engine {
         final long versionOfDeletion;
         final Optional<DeleteResult> earlyResultOnPreflightError;
 
-        private DeletionPlan(boolean deleteFromLucene, boolean currentlyDeleted,
-                             long seqNoOfDeletion, long versionOfDeletion,
-                             DeleteResult earlyResultOnPreflightError) {
+        private DeletionStrategy(boolean deleteFromLucene, boolean currentlyDeleted,
+                                 long seqNoOfDeletion, long versionOfDeletion,
+                                 DeleteResult earlyResultOnPreflightError) {
             assert (deleteFromLucene && earlyResultOnPreflightError != null) == false :
                 "can only delete from lucene or have a preflight result but not both." +
                     "deleteFromLucene: " + deleteFromLucene
@@ -959,25 +958,25 @@ public class InternalEngine extends Engine {
                 Optional.empty() : Optional.of(earlyResultOnPreflightError);
         }
 
-        static DeletionPlan skipDueToVersionConflict(VersionConflictEngineException e,
-                                                     long currentVersion, boolean currentlyDeleted) {
-            return new DeletionPlan(false, currentlyDeleted,
+        static DeletionStrategy skipDueToVersionConflict(VersionConflictEngineException e,
+                                                         long currentVersion, boolean currentlyDeleted) {
+            return new DeletionStrategy(false, currentlyDeleted,
                 SequenceNumbersService.UNASSIGNED_SEQ_NO, Versions.NOT_FOUND,
                 new DeleteResult(e, currentVersion, SequenceNumbersService.UNASSIGNED_SEQ_NO,
                     currentlyDeleted == false));
         }
 
-        static DeletionPlan processNormally(boolean currentlyDeleted,
-                                            long seqNoOfDeletion, long versionOfDeletion) {
-            return new DeletionPlan(true, currentlyDeleted, seqNoOfDeletion, versionOfDeletion,
+        static DeletionStrategy processNormally(boolean currentlyDeleted,
+                                                long seqNoOfDeletion, long versionOfDeletion) {
+            return new DeletionStrategy(true, currentlyDeleted, seqNoOfDeletion, versionOfDeletion,
                 null);
 
         }
 
-        public static DeletionPlan processButSkipLucene(boolean currentlyDeleted,
-                                                        long seqNoOfDeletion,
-                                                        long versionOfDeletion) {
-            return new DeletionPlan(false, currentlyDeleted, seqNoOfDeletion, versionOfDeletion,
+        public static DeletionStrategy processButSkipLucene(boolean currentlyDeleted,
+                                                            long seqNoOfDeletion,
+                                                            long versionOfDeletion) {
+            return new DeletionStrategy(false, currentlyDeleted, seqNoOfDeletion, versionOfDeletion,
                 null);
         }
     }

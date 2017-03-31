@@ -419,7 +419,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             PlainListenableActionFuture<CloseJobAction.Response> listener = new PlainListenableActionFuture<>(client.threadPool());
             CloseJobAction.Request request = new CloseJobAction.Request("foo");
-            request.setTimeout(TimeValue.timeValueSeconds(30));
+            request.setCloseTimeout(TimeValue.timeValueSeconds(20));
             if (invalidLicense) {
                 // the close due to invalid license happens async, so check if the job turns into closed state:
                 assertBusy(() -> {

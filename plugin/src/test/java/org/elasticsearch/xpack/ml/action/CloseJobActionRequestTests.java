@@ -33,7 +33,7 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
     protected Request createTestInstance() {
         Request request = new Request(randomAsciiOfLengthBetween(1, 20));
         if (randomBoolean()) {
-            request.setTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
+            request.setCloseTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
             request.setForce(randomBoolean());

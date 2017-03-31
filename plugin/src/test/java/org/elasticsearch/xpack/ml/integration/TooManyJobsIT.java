@@ -92,7 +92,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
 
                 // close the first job and check if the latest job gets opened:
                 CloseJobAction.Request closeRequest = new CloseJobAction.Request("1");
-                closeRequest.setTimeout(TimeValue.timeValueSeconds(30L));
+                closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(20L));
                 CloseJobAction.Response closeResponse = client().execute(CloseJobAction.INSTANCE, closeRequest).actionGet();
                 assertTrue(closeResponse.isClosed());
                 client().execute(OpenJobAction.INSTANCE, openJobRequest).get();

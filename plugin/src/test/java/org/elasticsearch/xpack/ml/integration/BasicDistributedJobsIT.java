@@ -42,7 +42,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE;
 
-@TestLogging("org.elasticsearch.xpack.ml:DEBUG")
+@TestLogging("org.elasticsearch.xpack.ml.action::DEBUG")
 public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
     public void testFailOverBasics() throws Exception {

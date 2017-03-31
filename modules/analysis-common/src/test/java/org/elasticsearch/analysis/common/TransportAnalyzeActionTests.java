@@ -21,7 +21,6 @@ package org.elasticsearch.analysis.common;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
-import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -154,7 +153,6 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     }
 
     public void testWithIndexAnalyzers() throws IOException {
-
         AnalyzeRequest request = new AnalyzeRequest();
         request.analyzer("standard");
         request.text("the quick brown fox");

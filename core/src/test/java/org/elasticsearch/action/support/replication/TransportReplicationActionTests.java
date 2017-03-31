@@ -116,20 +116,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportReplicationActionTests extends ESTestCase {
-
-    /**
-     * takes a request that was sent by a {@link TransportReplicationAction} and captured
-     * and returns the underlying request if it's wrapped or the original (cast to the expected type).
-     *
-     * This will throw a {@link ClassCastException} if the request is of the wrong type.
-     */
-    public static <R extends ReplicationRequest> R resolveRequest(TransportRequest requestOrWrappedRequest) {
-        if (requestOrWrappedRequest instanceof TransportReplicationAction.ConcreteShardRequest) {
-            requestOrWrappedRequest = ((TransportReplicationAction.ConcreteShardRequest<?>)requestOrWrappedRequest).getRequest();
-        }
-        return (R) requestOrWrappedRequest;
-    }
-
     private static ThreadPool threadPool;
 
     private ClusterService clusterService;

@@ -151,7 +151,10 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
 
     private List<AnalyzeToken> tokens;
 
-    AnalyzeResponse() {
+    /**
+     * For deserialization.
+     */
+    public AnalyzeResponse() {
     }
 
     public AnalyzeResponse(List<AnalyzeToken> tokens, DetailAnalyzeResponse detail) {

@@ -102,15 +102,6 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-
-        assertThrows(client().admin().indices().prepareAnalyze("test", "this is a test"),
-                ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
-        );
-
-        assertThrows(client().admin().indices().prepareAnalyze("no_index", "this is a test"),
-                ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
-        );
-
         assertThrows(client().prepareSearch("test").setSize(0),
                 ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );

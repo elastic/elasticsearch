@@ -111,7 +111,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
                 invokedType,
                 LAMBDA_BOOTSTRAP_HANDLE,
                 interfaceType,
-                captured.type.clazz.getName()                                    ,
+                ref.owner                                    ,
                 ref.tag,
                 call,
                 samMethodType

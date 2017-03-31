@@ -31,7 +31,6 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.node.SFunction.FunctionReserved;
 import org.objectweb.asm.Opcodes;
 
-import java.lang.invoke.LambdaMetafactory;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -39,9 +38,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import static jdk.internal.org.objectweb.asm.Opcodes.H_INVOKESTATIC;
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
+import static org.objectweb.asm.Opcodes.H_INVOKESTATIC;
 
 /**
  * Lambda expression node.

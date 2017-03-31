@@ -29,11 +29,9 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Type;
 
-import java.lang.invoke.LambdaMetafactory;
 import java.util.Objects;
 import java.util.Set;
 
-import static jdk.internal.org.objectweb.asm.Opcodes.H_INVOKESTATIC;
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 

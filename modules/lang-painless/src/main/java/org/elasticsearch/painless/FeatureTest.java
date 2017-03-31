@@ -72,7 +72,7 @@ public class FeatureTest {
         return f.apply(g.apply(x));
     }
 
-    public void listInput(List list) {
+    public void listInput(List<Object> list) {
 
     }
 }

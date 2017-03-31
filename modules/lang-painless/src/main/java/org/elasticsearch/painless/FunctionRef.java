@@ -50,6 +50,7 @@ public class FunctionRef {
     /** ASM "Handle" to the method, for the constant pool */
     public final Handle implMethodASM;
     public final int tag;
+    public final String owner;
 
     /**
      * Creates a new FunctionRef, which will resolve {@code type::call} from the whitelist.
@@ -89,7 +90,6 @@ public class FunctionRef {
         } else {
             tag = Opcodes.H_INVOKEVIRTUAL;
         }
-        final String owner;
         final boolean ownerIsInterface;
         if (impl.owner == null) {
             // owner == null: script class itself
@@ -126,6 +126,7 @@ public class FunctionRef {
         interfaceMethodType = method.getMethodType().dropParameterTypes(0, 1);
 
         implMethod = impl;
+        owner = method.owner.clazz.getName();
 
         implMethodASM = null;
         tag = H_INVOKESTATIC;

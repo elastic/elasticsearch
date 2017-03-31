@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -544,7 +545,7 @@ public class ClusterStatsNodes implements ToXContent {
         private final Map<String, AtomicInteger> transportTypes;
         private final Map<String, AtomicInteger> httpTypes;
 
-        private NetworkTypes(final List<NodeInfo> nodeInfos) {
+        NetworkTypes(final List<NodeInfo> nodeInfos) {
             final Map<String, AtomicInteger> transportTypes = new HashMap<>();
             final Map<String, AtomicInteger> httpTypes = new HashMap<>();
             for (final NodeInfo nodeInfo : nodeInfos) {
@@ -553,8 +554,12 @@ public class ClusterStatsNodes implements ToXContent {
                     settings.get(NetworkModule.TRANSPORT_TYPE_KEY, NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.get(settings));
                 final String httpType =
                     settings.get(NetworkModule.HTTP_TYPE_KEY, NetworkModule.HTTP_DEFAULT_TYPE_SETTING.get(settings));
-                transportTypes.computeIfAbsent(transportType, k -> new AtomicInteger()).incrementAndGet();
-                httpTypes.computeIfAbsent(httpType, k -> new AtomicInteger()).incrementAndGet();
+                if (Strings.hasText(transportType)) {
+                    transportTypes.computeIfAbsent(transportType, k -> new AtomicInteger()).incrementAndGet();
+                }
+                if (Strings.hasText(httpType)) {
+                    httpTypes.computeIfAbsent(httpType, k -> new AtomicInteger()).incrementAndGet();
+                }
             }
             this.transportTypes = Collections.unmodifiableMap(transportTypes);
             this.httpTypes = Collections.unmodifiableMap(httpTypes);

@@ -38,6 +38,7 @@ import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initi
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchParams;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchPath;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.scrollEntity;
+import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.clearScrollEntity;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.scrollParams;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -188,9 +189,27 @@ public class RemoteRequestBuildersTests extends ESTestCase {
 
     public void testScrollEntity() throws IOException {
         String scroll = randomAsciiOfLength(30);
-        HttpEntity entity = scrollEntity(scroll);
+        HttpEntity entity = scrollEntity(scroll, Version.V_5_0_0);
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
         assertThat(Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)),
             containsString("\"" + scroll + "\""));
+
+        // Test with version < 2.0.0
+        entity = scrollEntity(scroll, Version.fromId(1070499));
+        assertEquals(ContentType.TEXT_PLAIN.toString(), entity.getContentType().getValue());
+        assertEquals(scroll, Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+    }
+
+    public void testClearScrollEntity() throws IOException {
+        String scroll = randomAsciiOfLength(30);
+        HttpEntity entity = clearScrollEntity(scroll, Version.V_5_0_0);
+        assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
+        assertThat(Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)),
+            containsString("\"" + scroll + "\""));
+
+        // Test with version < 2.0.0
+        entity = clearScrollEntity(scroll, Version.fromId(1070499));
+        assertEquals(ContentType.TEXT_PLAIN.toString(), entity.getContentType().getValue());
+        assertEquals(scroll, Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
     }
 }

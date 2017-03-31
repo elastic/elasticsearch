@@ -38,7 +38,7 @@ import java.util.Objects;
 
 public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobAction.Response, UpdateJobAction.RequestBuilder> {
     public static final UpdateJobAction INSTANCE = new UpdateJobAction();
-    public static final String NAME = "cluster:admin/ml/job/update";
+    public static final String NAME = "cluster:admin/xpack/ml/job/update";
 
     private UpdateJobAction() {
         super(NAME);

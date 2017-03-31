@@ -57,7 +57,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class GetFiltersAction extends Action<GetFiltersAction.Request, GetFiltersAction.Response, GetFiltersAction.RequestBuilder> {
 
     public static final GetFiltersAction INSTANCE = new GetFiltersAction();
-    public static final String NAME = "cluster:admin/ml/filters/get";
+    public static final String NAME = "cluster:admin/xpack/ml/filters/get";
 
     private GetFiltersAction() {
         super(NAME);

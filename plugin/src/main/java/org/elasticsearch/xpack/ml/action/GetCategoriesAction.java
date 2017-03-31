@@ -44,7 +44,7 @@ public class GetCategoriesAction extends
 Action<GetCategoriesAction.Request, GetCategoriesAction.Response, GetCategoriesAction.RequestBuilder> {
 
     public static final GetCategoriesAction INSTANCE = new GetCategoriesAction();
-    public static final String NAME = "cluster:monitor/ml/job/results/categories/get";
+    public static final String NAME = "cluster:monitor/xpack/ml/job/results/categories/get";
 
     private GetCategoriesAction() {
         super(NAME);

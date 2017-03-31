@@ -51,7 +51,7 @@ public class PreviewDatafeedAction extends Action<PreviewDatafeedAction.Request,
         PreviewDatafeedAction.RequestBuilder> {
 
     public static final PreviewDatafeedAction INSTANCE = new PreviewDatafeedAction();
-    public static final String NAME = "cluster:admin/ml/datafeeds/preview";
+    public static final String NAME = "cluster:admin/xpack/ml/datafeeds/preview";
 
     private PreviewDatafeedAction() {
         super(NAME);

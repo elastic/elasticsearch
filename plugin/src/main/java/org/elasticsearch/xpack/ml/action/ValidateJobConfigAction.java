@@ -35,7 +35,7 @@ public class ValidateJobConfigAction
 extends Action<ValidateJobConfigAction.Request, ValidateJobConfigAction.Response, ValidateJobConfigAction.RequestBuilder> {
 
     public static final ValidateJobConfigAction INSTANCE = new ValidateJobConfigAction();
-    public static final String NAME = "cluster:admin/ml/job/validate";
+    public static final String NAME = "cluster:admin/xpack/ml/job/validate";
 
     protected ValidateJobConfigAction() {
         super(NAME);

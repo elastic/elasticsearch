@@ -24,7 +24,7 @@ public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
     public void test() throws IOException {
         AssertionError ae = expectThrows(AssertionError.class, super::test);
         assertThat(ae.getMessage(),
-                either(containsString("action [cluster:monitor/ml")).or(containsString("action [cluster:admin/ml")));
+                either(containsString("action [cluster:monitor/xpack/ml")).or(containsString("action [cluster:admin/xpack/ml")));
         assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
         assertThat(ae.getMessage(), containsString("is unauthorized for user [no_ml]"));
     }

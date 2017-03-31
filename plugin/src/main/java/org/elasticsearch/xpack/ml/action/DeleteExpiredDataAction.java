@@ -37,7 +37,7 @@ public class DeleteExpiredDataAction extends Action<DeleteExpiredDataAction.Requ
         DeleteExpiredDataAction.RequestBuilder> {
 
     public static final DeleteExpiredDataAction INSTANCE = new DeleteExpiredDataAction();
-    public static final String NAME = "cluster:admin/ml/delete_expired_data";
+    public static final String NAME = "cluster:admin/xpack/ml/delete_expired_data";
 
     private DeleteExpiredDataAction() {
         super(NAME);

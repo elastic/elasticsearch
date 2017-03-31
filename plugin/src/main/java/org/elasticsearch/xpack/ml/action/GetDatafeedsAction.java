@@ -43,7 +43,7 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDa
         GetDatafeedsAction.RequestBuilder> {
 
     public static final GetDatafeedsAction INSTANCE = new GetDatafeedsAction();
-    public static final String NAME = "cluster:monitor/ml/datafeeds/get";
+    public static final String NAME = "cluster:monitor/xpack/ml/datafeeds/get";
 
     public static final String ALL = "_all";
 

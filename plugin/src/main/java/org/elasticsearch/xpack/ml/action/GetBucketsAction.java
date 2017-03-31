@@ -45,7 +45,7 @@ import java.util.Objects;
 public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucketsAction.Response, GetBucketsAction.RequestBuilder> {
 
     public static final GetBucketsAction INSTANCE = new GetBucketsAction();
-    public static final String NAME = "cluster:monitor/ml/job/results/buckets/get";
+    public static final String NAME = "cluster:monitor/xpack/ml/job/results/buckets/get";
 
     private GetBucketsAction() {
         super(NAME);

@@ -37,7 +37,7 @@ public class FinalizeJobExecutionAction extends Action<FinalizeJobExecutionActio
         FinalizeJobExecutionAction.Response,FinalizeJobExecutionAction.RequestBuilder> {
 
     public static final FinalizeJobExecutionAction INSTANCE = new FinalizeJobExecutionAction();
-    public static final String NAME = "cluster:internal/ml/job/finalize_job_execution";
+    public static final String NAME = "cluster:internal/xpack/ml/job/finalize_job_execution";
 
     private FinalizeJobExecutionAction() {
         super(NAME);

@@ -70,7 +70,7 @@ import static org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProces
 public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.Response, OpenJobAction.RequestBuilder> {
 
     public static final OpenJobAction INSTANCE = new OpenJobAction();
-    public static final String NAME = "cluster:admin/ml/job/open";
+    public static final String NAME = "cluster:admin/xpack/ml/job/open";
 
     private OpenJobAction() {
         super(NAME);

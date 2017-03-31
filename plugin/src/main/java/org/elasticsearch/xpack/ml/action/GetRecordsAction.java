@@ -45,7 +45,7 @@ import java.util.Objects;
 public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecordsAction.Response, GetRecordsAction.RequestBuilder> {
 
     public static final GetRecordsAction INSTANCE = new GetRecordsAction();
-    public static final String NAME = "cluster:monitor/ml/job/results/records/get";
+    public static final String NAME = "cluster:monitor/xpack/ml/job/results/records/get";
 
     private GetRecordsAction() {
         super(NAME);

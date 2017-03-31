@@ -46,7 +46,7 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
         UpdateModelSnapshotAction.Response, UpdateModelSnapshotAction.RequestBuilder> {
 
     public static final UpdateModelSnapshotAction INSTANCE = new UpdateModelSnapshotAction();
-    public static final String NAME = "cluster:admin/ml/job/model_snapshots/update";
+    public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/update";
 
     private UpdateModelSnapshotAction() {
         super(NAME);

@@ -36,7 +36,7 @@ public class UpdateProcessAction extends
         Action<UpdateProcessAction.Request, UpdateProcessAction.Response, UpdateProcessAction.RequestBuilder> {
 
     public static final UpdateProcessAction INSTANCE = new UpdateProcessAction();
-    public static final String NAME = "cluster:internal/ml/job/update/process";
+    public static final String NAME = "cluster:internal/xpack/ml/job/update/process";
 
     private UpdateProcessAction() {
         super(NAME);

@@ -75,7 +75,7 @@ public class StartDatafeedAction
     public static final ParseField TIMEOUT = new ParseField("timeout");
 
     public static final StartDatafeedAction INSTANCE = new StartDatafeedAction();
-    public static final String NAME = "cluster:admin/ml/datafeeds/start";
+    public static final String NAME = "cluster:admin/xpack/ml/datafeeds/start";
 
     private StartDatafeedAction() {
         super(NAME);

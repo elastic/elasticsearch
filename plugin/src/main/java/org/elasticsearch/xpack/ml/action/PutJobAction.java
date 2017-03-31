@@ -45,7 +45,7 @@ import java.util.Objects;
 public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Response, PutJobAction.RequestBuilder> {
 
     public static final PutJobAction INSTANCE = new PutJobAction();
-    public static final String NAME = "cluster:admin/ml/job/put";
+    public static final String NAME = "cluster:admin/xpack/ml/job/put";
 
     private PutJobAction() {
         super(NAME);

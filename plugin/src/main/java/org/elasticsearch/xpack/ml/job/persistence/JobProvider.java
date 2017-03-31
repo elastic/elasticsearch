@@ -1038,7 +1038,7 @@ public class JobProvider {
      *
      * gets mapped to:
      *
-     * action [cluster:monitor/ml/anomaly_detectors/results/buckets/get] is unauthorized for user [ml_test] for job [farequote]
+     * action [cluster:monitor/xpack/ml/anomaly_detectors/results/buckets/get] is unauthorized for user [ml_test] for job [farequote]
      *
      * Exceptions that are not related to authorization are returned unaltered.
      * @param e An exception that occurred while getting ML data

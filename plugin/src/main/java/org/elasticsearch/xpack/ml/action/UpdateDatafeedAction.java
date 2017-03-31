@@ -41,7 +41,7 @@ public class UpdateDatafeedAction extends Action<UpdateDatafeedAction.Request, P
         UpdateDatafeedAction.RequestBuilder> {
 
     public static final UpdateDatafeedAction INSTANCE = new UpdateDatafeedAction();
-    public static final String NAME = "cluster:admin/ml/datafeeds/update";
+    public static final String NAME = "cluster:admin/xpack/ml/datafeeds/update";
 
     private UpdateDatafeedAction() {
         super(NAME);

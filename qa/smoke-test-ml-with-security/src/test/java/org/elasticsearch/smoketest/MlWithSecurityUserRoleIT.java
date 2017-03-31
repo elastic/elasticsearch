@@ -40,7 +40,7 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
             }
         } catch (AssertionError ae) {
             assertThat(ae.getMessage(),
-                    either(containsString("action [cluster:monitor/ml")).or(containsString("action [cluster:admin/ml")));
+                    either(containsString("action [cluster:monitor/xpack/ml")).or(containsString("action [cluster:admin/xpack/ml")));
             assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
             assertThat(ae.getMessage(), containsString("is unauthorized for user [ml_user]"));
         }

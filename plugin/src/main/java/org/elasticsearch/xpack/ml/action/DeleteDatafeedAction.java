@@ -41,7 +41,7 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Request, D
         DeleteDatafeedAction.RequestBuilder> {
 
     public static final DeleteDatafeedAction INSTANCE = new DeleteDatafeedAction();
-    public static final String NAME = "cluster:admin/ml/datafeeds/delete";
+    public static final String NAME = "cluster:admin/xpack/ml/datafeeds/delete";
 
     private DeleteDatafeedAction() {
         super(NAME);

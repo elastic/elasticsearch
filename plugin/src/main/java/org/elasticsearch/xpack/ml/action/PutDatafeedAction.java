@@ -56,7 +56,7 @@ import java.util.Objects;
 public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutDatafeedAction.Response, PutDatafeedAction.RequestBuilder> {
 
     public static final PutDatafeedAction INSTANCE = new PutDatafeedAction();
-    public static final String NAME = "cluster:admin/ml/datafeeds/put";
+    public static final String NAME = "cluster:admin/xpack/ml/datafeeds/put";
 
     private PutDatafeedAction() {
         super(NAME);

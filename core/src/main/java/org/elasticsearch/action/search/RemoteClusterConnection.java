@@ -35,6 +35,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -59,7 +60,6 @@ import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
@@ -373,10 +373,19 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                             // here we pass on the connection since we can only close it once the sendRequest returns otherwise
                             // due to the async nature (it will return before it's actually sent) this can cause the request to fail
                             // due to an already closed connection.
-                            transportService.sendRequest(connection,
-                                ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
+                            ThreadPool threadPool = transportService.getThreadPool();
+                            ThreadContext threadContext = threadPool.getThreadContext();
+                            TransportService.ContextRestoreResponseHandler<ClusterStateResponse> responseHandler = new TransportService
+                                .ContextRestoreResponseHandler<>(threadContext.newRestorableContext(false),
                                 new SniffClusterStateResponseHandler(transportService, connection, listener, seedNodes,
                                     cancellableThreads));
+                            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                                // we stash any context here since this is an internal execution and should not leak any
+                                // existing context information.
+                                threadContext.markAsSystemContext();
+                                transportService.sendRequest(connection, ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
+                                    responseHandler);
+                            }
                             success = true;
                         } finally {
                             if (success == false) {
@@ -445,6 +454,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
 
             @Override
             public void handleResponse(ClusterStateResponse response) {
+                assert transportService.getThreadPool().getThreadContext().isSystemContext() == false : "context is a system context";
                 try {
                     try (Closeable theConnection = connection) { // the connection is unused - see comment in #collectRemoteNodes
                         // we have to close this connection before we notify listeners - this is mainly needed for test correctness
@@ -483,6 +493,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
 
             @Override
             public void handleException(TransportException exp) {
+                assert transportService.getThreadPool().getThreadContext().isSystemContext() == false : "context is a system context";
                 logger.warn((Supplier<?>)
                     () -> new ParameterizedMessage("fetching nodes from external cluster {} failed", clusterAlias),
                     exp);

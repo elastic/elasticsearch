@@ -36,7 +36,7 @@ public class FunctionRefTests extends ScriptTestCase {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         assertEquals(1, exec("List l = new ArrayList(); l.add(2); l.add(1); l.sort(Integer::compare); return l.get(0);"));
     }
-    
+
     public void testStaticMethodReferenceDef() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         assertEquals(1, exec("def l = new ArrayList(); l.add(2); l.add(1); l.sort(Integer::compare); return l.get(0);"));
@@ -46,7 +46,7 @@ public class FunctionRefTests extends ScriptTestCase {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         assertEquals(2, exec("List l = new ArrayList(); l.add(1); l.add(1); return l.stream().mapToInt(Integer::intValue).sum();"));
     }
-    
+
     public void testVirtualMethodReferenceDef() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         assertEquals(2, exec("def l = new ArrayList(); l.add(1); l.add(1); return l.stream().mapToInt(Integer::intValue).sum();"));
@@ -82,39 +82,39 @@ public class FunctionRefTests extends ScriptTestCase {
 
     public void testCtorMethodReference() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
-        assertEquals(3.0D, 
-                exec("List l = new ArrayList(); l.add(1.0); l.add(2.0); " + 
-                        "DoubleStream doubleStream = l.stream().mapToDouble(Double::doubleValue);" + 
+        assertEquals(3.0D,
+                exec("List l = new ArrayList(); l.add(1.0); l.add(2.0); " +
+                        "DoubleStream doubleStream = l.stream().mapToDouble(Double::doubleValue);" +
                         "DoubleSummaryStatistics stats = doubleStream.collect(DoubleSummaryStatistics::new, " +
                         "DoubleSummaryStatistics::accept, " +
-                        "DoubleSummaryStatistics::combine); " + 
+                        "DoubleSummaryStatistics::combine); " +
                         "return stats.getSum()"));
     }
-    
+
     public void testCtorMethodReferenceDef() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
-        assertEquals(3.0D, 
-            exec("def l = new ArrayList(); l.add(1.0); l.add(2.0); " + 
-                 "def doubleStream = l.stream().mapToDouble(Double::doubleValue);" + 
+        assertEquals(3.0D,
+            exec("def l = new ArrayList(); l.add(1.0); l.add(2.0); " +
+                 "def doubleStream = l.stream().mapToDouble(Double::doubleValue);" +
                  "def stats = doubleStream.collect(DoubleSummaryStatistics::new, " +
                                                   "DoubleSummaryStatistics::accept, " +
-                                                  "DoubleSummaryStatistics::combine); " + 
+                                                  "DoubleSummaryStatistics::combine); " +
                  "return stats.getSum()"));
     }
 
     public void testArrayCtorMethodRef() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
-        assertEquals(1.0D, 
-                exec("List l = new ArrayList(); l.add(1.0); l.add(2.0); " + 
-                     "def[] array = l.stream().toArray(Double[]::new);" + 
+        assertEquals(1.0D,
+                exec("List l = new ArrayList(); l.add(1.0); l.add(2.0); " +
+                     "def[] array = l.stream().toArray(Double[]::new);" +
                      "return array[0];"));
     }
 
     public void testArrayCtorMethodRefDef() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
-        assertEquals(1.0D, 
-                exec("def l = new ArrayList(); l.add(1.0); l.add(2.0); " + 
-                     "def[] array = l.stream().toArray(Double[]::new);" + 
+        assertEquals(1.0D,
+                exec("def l = new ArrayList(); l.add(1.0); l.add(2.0); " +
+                     "def[] array = l.stream().toArray(Double[]::new);" +
                      "return array[0];"));
     }
 
@@ -123,67 +123,67 @@ public class FunctionRefTests extends ScriptTestCase {
         assertEquals("5", exec("Integer x = Integer.valueOf(5); return Optional.empty().orElseGet(x::toString);"));
         assertEquals("[]", exec("List l = new ArrayList(); return Optional.empty().orElseGet(l::toString);"));
     }
-    
+
     public void testCapturingMethodReferenceDefImpl() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         assertEquals("5", exec("def x = Integer.valueOf(5); return Optional.empty().orElseGet(x::toString);"));
         assertEquals("[]", exec("def l = new ArrayList(); return Optional.empty().orElseGet(l::toString);"));
     }
-    
+
     public void testCapturingMethodReferenceDefInterface() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         assertEquals("5", exec("Integer x = Integer.valueOf(5); def opt = Optional.empty(); return opt.orElseGet(x::toString);"));
         assertEquals("[]", exec("List l = new ArrayList(); def opt = Optional.empty(); return opt.orElseGet(l::toString);"));
     }
-    
+
     public void testCapturingMethodReferenceDefEverywhere() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         assertEquals("5", exec("def x = Integer.valueOf(5); def opt = Optional.empty(); return opt.orElseGet(x::toString);"));
         assertEquals("[]", exec("def l = new ArrayList(); def opt = Optional.empty(); return opt.orElseGet(l::toString);"));
     }
-    
+
     public void testCapturingMethodReferenceMultipleLambdas() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         assertEquals("testingcdefg", exec(
                 "String x = 'testing';" +
-                "String y = 'abcdefg';" + 
-                "org.elasticsearch.painless.FeatureTest test = new org.elasticsearch.painless.FeatureTest(2,3);" + 
+                "String y = 'abcdefg';" +
+                "org.elasticsearch.painless.FeatureTest test = new org.elasticsearch.painless.FeatureTest(2,3);" +
                 "return test.twoFunctionsOfX(x::concat, y::substring);"));
     }
-    
+
     public void testCapturingMethodReferenceMultipleLambdasDefImpls() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         assertEquals("testingcdefg", exec(
                 "def x = 'testing';" +
-                "def y = 'abcdefg';" + 
-                "org.elasticsearch.painless.FeatureTest test = new org.elasticsearch.painless.FeatureTest(2,3);" + 
+                "def y = 'abcdefg';" +
+                "org.elasticsearch.painless.FeatureTest test = new org.elasticsearch.painless.FeatureTest(2,3);" +
                 "return test.twoFunctionsOfX(x::concat, y::substring);"));
     }
-    
+
     public void testCapturingMethodReferenceMultipleLambdasDefInterface() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         assertEquals("testingcdefg", exec(
                 "String x = 'testing';" +
-                "String y = 'abcdefg';" + 
-                "def test = new org.elasticsearch.painless.FeatureTest(2,3);" + 
+                "String y = 'abcdefg';" +
+                "def test = new org.elasticsearch.painless.FeatureTest(2,3);" +
                 "return test.twoFunctionsOfX(x::concat, y::substring);"));
     }
-    
+
     public void testCapturingMethodReferenceMultipleLambdasDefEverywhere() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         assertEquals("testingcdefg", exec(
                 "def x = 'testing';" +
-                "def y = 'abcdefg';" + 
-                "def test = new org.elasticsearch.painless.FeatureTest(2,3);" + 
+                "def y = 'abcdefg';" +
+                "def test = new org.elasticsearch.painless.FeatureTest(2,3);" +
                 "return test.twoFunctionsOfX(x::concat, y::substring);"));
     }
-    
+
     public void testOwnStaticMethodReference() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         assertEquals(2, exec("int mycompare(int i, int j) { j - i } " +
                              "List l = new ArrayList(); l.add(2); l.add(1); l.sort(this::mycompare); return l.get(0);"));
     }
-    
+
     public void testOwnStaticMethodReferenceDef() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         assertEquals(2, exec("int mycompare(int i, int j) { j - i } " +
@@ -192,13 +192,13 @@ public class FunctionRefTests extends ScriptTestCase {
 
     public void testInterfaceDefaultMethod() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
-        assertEquals("bar", exec("String f(BiFunction function) { function.apply('foo', 'bar') }" + 
+        assertEquals("bar", exec("String f(BiFunction function) { function.apply('foo', 'bar') }" +
                                  "Map map = new HashMap(); f(map::getOrDefault)"));
     }
-    
+
     public void testInterfaceDefaultMethodDef() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
-        assertEquals("bar", exec("String f(BiFunction function) { function.apply('foo', 'bar') }" + 
+        assertEquals("bar", exec("String f(BiFunction function) { function.apply('foo', 'bar') }" +
                                  "def map = new HashMap(); f(map::getOrDefault)"));
     }
 
@@ -250,7 +250,7 @@ public class FunctionRefTests extends ScriptTestCase {
             exec("List l = new ArrayList(); l.add(2); l.add(1); l.sort(String::startsWith); return l.get(0);");
         });
     }
-    
+
     public void testWrongArity() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
@@ -258,7 +258,7 @@ public class FunctionRefTests extends ScriptTestCase {
         });
         assertThat(expected.getMessage(), containsString("Unknown reference"));
     }
-    
+
     public void testWrongArityNotEnough() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
@@ -266,7 +266,7 @@ public class FunctionRefTests extends ScriptTestCase {
         });
         assertTrue(expected.getMessage().contains("Unknown reference"));
     }
-    
+
     public void testWrongArityDef() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
@@ -274,7 +274,7 @@ public class FunctionRefTests extends ScriptTestCase {
         });
         assertThat(expected.getMessage(), containsString("Unknown reference"));
     }
-    
+
     public void testWrongArityNotEnoughDef() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
@@ -286,7 +286,7 @@ public class FunctionRefTests extends ScriptTestCase {
     public void testReturnVoid() {
         assumeFalse("JDK is JDK 9", Constants.JRE_IS_MINIMUM_JAVA9);
         Throwable expected = expectScriptThrows(BootstrapMethodError.class, () -> {
-            exec("StringBuilder b = new StringBuilder(); List l = [1, 2]; l.stream().mapToLong(b::setLength);");
+            Object value = exec("StringBuilder b = new StringBuilder(); List l = [1, 2]; l.stream().mapToLong(b::setLength).sum();");
         });
         assertThat(expected.getCause().getMessage(),
                 containsString("Type mismatch for lambda expected return: void is not convertible to long"));

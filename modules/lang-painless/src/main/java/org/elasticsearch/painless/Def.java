@@ -37,6 +37,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 /**
@@ -288,6 +289,7 @@ public final class Def {
                                                       interfaceType,
                                                       type,
                                                       call,
+                         "this".equals(type) ? CLASS_NAME : Definition.getType(type).clazz.getName(),
                                                       captures);
                  } else if (signature.charAt(0) == 'D') {
                      // the interface type is now known, but we need to get the implementation.
@@ -330,12 +332,12 @@ public final class Def {
          }
          int arity = interfaceMethod.arguments.size();
          Method implMethod = lookupMethodInternal(receiverClass, name, arity);
-         return lookupReferenceInternal(lookup, interfaceType, implMethod.owner.name, implMethod.name, receiverClass);
+         return lookupReferenceInternal(lookup, interfaceType, implMethod.owner.name, implMethod.name, receiverClass.getName(), receiverClass);
      }
 
      /** Returns a method handle to an implementation of clazz, given method reference signature. */
      private static MethodHandle lookupReferenceInternal(Lookup lookup, Definition.Type clazz, String type,
-                                                         String call, Class<?>... captures) throws Throwable {
+                                                         String call, String receiver, Class<?>... captures) throws Throwable {
          final FunctionRef ref;
          if ("this".equals(type)) {
              // user written method
@@ -365,10 +367,13 @@ public final class Def {
              // whitelist lookup
              ref = new FunctionRef(clazz, type, call, captures.length);
          }
-         final CallSite callSite = LambdaBootstrap.bootstrap(lookup,
+         final CallSite callSite = LambdaBootstrap.bootstrap(
+             lookup,
              ref.invokedName,
              ref.invokedType,
              ref.interfaceMethodType,
+             "this".equals(type) ? CLASS_NAME : receiver,
+             ref.tag,
              call,
              ref.samMethodType
          );

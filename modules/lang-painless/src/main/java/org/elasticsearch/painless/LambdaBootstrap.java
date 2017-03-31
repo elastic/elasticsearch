@@ -22,20 +22,22 @@ package org.elasticsearch.painless;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.Handle;
-import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.GeneratorAdapter;
 import org.objectweb.asm.commons.Method;
 
 import java.lang.invoke.CallSite;
 import java.lang.invoke.ConstantCallSite;
+import java.lang.invoke.LambdaConversionException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static jdk.internal.org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
 import static org.elasticsearch.painless.WriterConstants.CLASS_VERSION;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE2;
 import static org.objectweb.asm.Opcodes.ACC_FINAL;
@@ -44,8 +46,14 @@ import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
 import static org.objectweb.asm.Opcodes.ACC_STATIC;
 import static org.objectweb.asm.Opcodes.ACC_SUPER;
 import static org.objectweb.asm.Opcodes.ACC_SYNTHETIC;
+import static org.objectweb.asm.Opcodes.H_INVOKEINTERFACE;
+import static org.objectweb.asm.Opcodes.H_INVOKESPECIAL;
+import static org.objectweb.asm.Opcodes.H_INVOKESTATIC;
+import static org.objectweb.asm.Opcodes.H_INVOKEVIRTUAL;
 
 public class LambdaBootstrap {
+    private static final AtomicInteger COUNTER = new AtomicInteger(0);
+
     public static CallSite bootstrap2(MethodHandles.Lookup lookup, String lambdaName, MethodType delegateMethodType, MethodHandle lambdaMethodHandle) {
         try {
             return new ConstantCallSite(lambdaMethodHandle.asType(delegateMethodType));
@@ -54,11 +62,15 @@ public class LambdaBootstrap {
         }
     }
 
-    public static CallSite bootstrap(MethodHandles.Lookup lookup, String name, MethodType type, MethodType delegateMethodType, String lambdaName,
-                                     MethodType lambdaMethodType) {
+    public static CallSite bootstrap(MethodHandles.Lookup lookup, String name, MethodType type, MethodType delegateMethodType, String className, int callType,
+                                     String lambdaName, MethodType lambdaMethodType) throws LambdaConversionException {
         try {
+            if (delegateMethodType.returnType() != void.class && lambdaMethodType.returnType() == void.class) {
+                throw new LambdaConversionException("Type mismatch for lambda expected return: void is not convertible to " + delegateMethodType.returnType());
+            }
+
             String baseClassName = "java/lang/Object";
-            String lambdaClassName = lookup.lookupClass().getName().replace('.', '/') + "$$" + lambdaName.replace('l', 'L');
+            String lambdaClassName = lookup.lookupClass().getName().replace('.', '/') + "$$Lambda" + COUNTER.getAndIncrement();
             String lambdaInterfaceName = type.returnType().getName().replace('.', '/');
             ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
             cw.visit(CLASS_VERSION, ACC_PUBLIC | ACC_STATIC | ACC_SUPER | ACC_FINAL | ACC_SYNTHETIC, lambdaClassName, null, baseClassName, new String[]{lambdaInterfaceName});
@@ -107,19 +119,48 @@ public class LambdaBootstrap {
             MethodWriter delegate = new MethodWriter(ACC_PUBLIC, delegateMethod, cw, null, null);
             delegate.visitCode();
 
-            for (int paramCount = 0; paramCount < type.parameterCount(); ++paramCount) {
-                String argName = "arg$" + paramCount;
-                Type argType = Type.getType(type.parameterType(paramCount));
-                delegate.loadThis();
-                delegate.getField(lambdaType, argName, argType);
+            if (callType == H_NEWINVOKESPECIAL) {
+                Type newType = Type.getType(lambdaMethodType.returnType());
+                delegate.newInstance(Type.getType(lambdaMethodType.returnType()));
+                delegate.dup();
+                delegate.invokeConstructor(newType, new Method("<init>", "()V"));
+            } else {
+
+                for (int paramCount = 0; paramCount < type.parameterCount(); ++paramCount) {
+                    String argName = "arg$" + paramCount;
+                    Type argType = Type.getType(type.parameterType(paramCount));
+                    delegate.loadThis();
+                    delegate.getField(lambdaType, argName, argType);
+                }
+
+                boolean iface = false;
+
+                if (callType == H_INVOKESTATIC) {
+                    lambdaMethodType = lambdaMethodType.insertParameterTypes(0, type.parameterArray());
+                    delegateMethodType = delegateMethodType.insertParameterTypes(0, type.parameterArray());
+                } else if (callType == H_INVOKEVIRTUAL || callType == H_INVOKEINTERFACE) {
+                    if (type.parameterCount() == 0) {
+                        Class c = lambdaMethodType.parameterType(0);
+                        className = c.getName();
+                        lambdaMethodType = lambdaMethodType.dropParameterTypes(0, 1).insertParameterTypes(0, type.parameterArray());
+                        delegateMethodType = delegateMethodType.insertParameterTypes(0, type.parameterArray());
+                    } else if (type.parameterCount() == 1) {
+                        Class c = type.parameterType(0);
+                        className = c.getName();
+                        delegateMethodType = delegateMethodType.insertParameterTypes(0, c);
+                    } else {
+                        throw new RuntimeException("unexpected number of captures: " + type.parameterCount());
+                    }
+                }
+
+                delegate.loadArgs();
+                Handle lambdaHandle =
+                    new Handle(callType, className.replace('.', '/'),
+                        lambdaName, lambdaMethodType.toMethodDescriptorString(), callType == H_INVOKEINTERFACE);
+                delegate.invokeDynamic(lambdaName, Type.getMethodType(delegateMethodType.toMethodDescriptorString()).getDescriptor(), LAMBDA_BOOTSTRAP_HANDLE2,
+                    lambdaHandle);
             }
 
-            delegate.loadArgs();
-            Handle lambdaHandle =
-                new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(lookup.lookupClass()),
-                    lambdaName, lambdaMethodType.insertParameterTypes(0, type.parameterArray()).toMethodDescriptorString(), false);
-            delegate.invokeDynamic(lambdaName, Type.getMethodType(delegateMethodType.insertParameterTypes(0, type.parameterArray()).toMethodDescriptorString()).getDescriptor(), LAMBDA_BOOTSTRAP_HANDLE2,
-                lambdaHandle);
             delegate.returnValue();
             delegate.endMethod();
 
@@ -131,7 +172,7 @@ public class LambdaBootstrap {
                 new PrivilegedAction<Class<?>>() {
                     @Override
                     public Class<?> run() {
-                        Compiler.Loader loader = (Compiler.Loader)lookup.lookupClass().getClassLoader();
+                        Compiler.Loader loader = (Compiler.Loader) lookup.lookupClass().getClassLoader();
                         return loader.defineLambda(lambdaClassName.replace('/', '.'), classBytes);
                     }
                 });
@@ -154,6 +195,8 @@ public class LambdaBootstrap {
             } else {
                 return new ConstantCallSite(lookup.findStatic(lambdaClass, facName, type));
             }
+        } catch (LambdaConversionException lce) {
+            throw lce;
         } catch (Exception exception) {
             throw new RuntimeException(exception);
         }

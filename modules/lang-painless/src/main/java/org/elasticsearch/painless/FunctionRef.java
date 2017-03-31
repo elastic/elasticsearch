@@ -27,6 +27,8 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 
+import static org.objectweb.asm.Opcodes.H_INVOKESTATIC;
+
 /**
  * Reference to a function or lambda.
  * <p>
@@ -47,6 +49,7 @@ public class FunctionRef {
 
     /** ASM "Handle" to the method, for the constant pool */
     public final Handle implMethodASM;
+    public final int tag;
 
     /**
      * Creates a new FunctionRef, which will resolve {@code type::call} from the whitelist.
@@ -77,11 +80,10 @@ public class FunctionRef {
         // e.g. (Object,Object)int
         interfaceMethodType = method.getMethodType().dropParameterTypes(0, 1);
 
-        final int tag;
         if ("<init>".equals(impl.name)) {
             tag = Opcodes.H_NEWINVOKESPECIAL;
         } else if (Modifier.isStatic(impl.modifiers)) {
-            tag = Opcodes.H_INVOKESTATIC;
+            tag = H_INVOKESTATIC;
         } else if (impl.owner.clazz.isInterface()) {
             tag = Opcodes.H_INVOKEINTERFACE;
         } else {
@@ -126,6 +128,7 @@ public class FunctionRef {
         implMethod = impl;
 
         implMethodASM = null;
+        tag = H_INVOKESTATIC;
 
         // remove any prepended captured arguments for the 'natural' signature.
         samMethodType = adapt(interfaceMethodType, impl.type().dropParameterTypes(0, numCaptures));

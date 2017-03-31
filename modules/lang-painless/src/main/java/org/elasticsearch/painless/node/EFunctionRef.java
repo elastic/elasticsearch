@@ -33,6 +33,8 @@ import java.lang.invoke.LambdaMetafactory;
 import java.util.Objects;
 import java.util.Set;
 
+import static jdk.internal.org.objectweb.asm.Opcodes.H_INVOKESTATIC;
+import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 /**
@@ -96,25 +98,16 @@ public final class EFunctionRef extends AExpression implements ILambda {
             String invokedType = ref.invokedType.toMethodDescriptorString();
             Type samMethodType = Type.getMethodType(ref.samMethodType.toMethodDescriptorString());
             Type interfaceType = Type.getMethodType(ref.interfaceMethodType.toMethodDescriptorString());
-            if (ref.needsBridges()) {
-                writer.invokeDynamic(ref.invokedName,
-                                     invokedType,
-                                     LAMBDA_BOOTSTRAP_HANDLE,
-                                     samMethodType,
-                                     ref.implMethodASM,
-                                     samMethodType,
-                                     LambdaMetafactory.FLAG_BRIDGES,
-                                     1,
-                                     interfaceType);
-            } else {
-                writer.invokeDynamic(ref.invokedName,
-                                     invokedType,
-                                     LAMBDA_BOOTSTRAP_HANDLE,
-                                     samMethodType,
-                                     ref.implMethodASM,
-                                     samMethodType,
-                                     0);
-            }
+            writer.invokeDynamic(
+                ref.invokedName,
+                invokedType,
+                LAMBDA_BOOTSTRAP_HANDLE,
+                interfaceType,
+                "this".equals(type) ? CLASS_NAME : Definition.getType(type).clazz.getName()                                    ,
+                ref.tag,
+                call,
+                samMethodType
+            );
         } else {
             // TODO: don't do this: its just to cutover :)
             writer.push((String)null);

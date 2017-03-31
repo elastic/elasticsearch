@@ -155,4 +155,5 @@ class org.elasticsearch.painless.FeatureTest -> org.elasticsearch.painless.Featu
   boolean overloadedStatic()
   boolean overloadedStatic(boolean)
   Object twoFunctionsOfX(Function,Function)
+  void listInput(List)
 }

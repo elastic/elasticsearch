@@ -39,6 +39,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static jdk.internal.org.objectweb.asm.Opcodes.H_INVOKESTATIC;
+import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 /**
@@ -212,6 +214,8 @@ public final class ELambda extends AExpression implements ILambda {
                                  invokedType,
                                  LAMBDA_BOOTSTRAP_HANDLE,
                                  interfaceType,
+                CLASS_NAME,
+                H_INVOKESTATIC,
                                  name,
                                  samMethodType
                                  );

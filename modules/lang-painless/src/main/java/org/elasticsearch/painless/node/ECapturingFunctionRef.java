@@ -34,6 +34,7 @@ import java.lang.invoke.LambdaMetafactory;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 /**
@@ -105,25 +106,16 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
             String invokedType = ref.invokedType.toMethodDescriptorString();
             Type samMethodType = Type.getMethodType(ref.samMethodType.toMethodDescriptorString());
             Type interfaceType = Type.getMethodType(ref.interfaceMethodType.toMethodDescriptorString());
-            if (ref.needsBridges()) {
-                writer.invokeDynamic(ref.invokedName,
-                                     invokedType,
-                                     LAMBDA_BOOTSTRAP_HANDLE,
-                                     samMethodType,
-                                     ref.implMethodASM,
-                                     samMethodType,
-                                     LambdaMetafactory.FLAG_BRIDGES,
-                                     1,
-                                     interfaceType);
-            } else {
-                writer.invokeDynamic(ref.invokedName,
-                                     invokedType,
-                                     LAMBDA_BOOTSTRAP_HANDLE,
-                                     samMethodType,
-                                     ref.implMethodASM,
-                                     samMethodType,
-                                     0);
-            }
+            writer.invokeDynamic(
+                ref.invokedName,
+                invokedType,
+                LAMBDA_BOOTSTRAP_HANDLE,
+                interfaceType,
+                captured.type.clazz.getName()                                    ,
+                ref.tag,
+                call,
+                samMethodType
+            );
         }
     }
 

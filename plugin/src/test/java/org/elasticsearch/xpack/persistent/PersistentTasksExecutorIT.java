@@ -6,12 +6,13 @@
 package org.elasticsearch.xpack.persistent;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
+import org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
 import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestRequest;
 import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestTasksRequestBuilder;
@@ -20,12 +21,10 @@ import org.junit.After;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
@@ -50,7 +49,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         assertNoRunningTasks();
     }
 
-    public static class PersistentTaskOperationFuture extends BaseFuture<Long> implements PersistentTaskOperationListener {
+    public static class PersistentTaskOperationFuture extends BaseFuture<Long> implements WaitForPersistentTaskStatusListener {
 
         @Override
         public void onResponse(long taskId) {
@@ -152,7 +151,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         PersistentTaskOperationFuture future = new PersistentTaskOperationFuture();
         persistentTasksService.createPersistentActionTask(TestPersistentTasksExecutor.NAME, new TestRequest("Blah"), future);
-        future.get();
+        long taskId = future.get();
 
         assertBusy(() -> {
             // Wait for the task to start
@@ -175,20 +174,30 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
                     .get().getTasks().size(), equalTo(1));
 
             int finalI = i;
-            assertBusy(() -> {
-                PersistentTasksCustomMetaData tasks = internalCluster().clusterService().state().getMetaData()
-                        .custom(PersistentTasksCustomMetaData.TYPE);
-                assertThat(tasks.tasks().size(), equalTo(1));
-                assertThat(tasks.tasks().iterator().next().getStatus(), notNullValue());
-                assertThat(tasks.tasks().iterator().next().getStatus().toString(), equalTo("{\"phase\":\"phase " + (finalI + 1) + "\"}"));
-            });
-
+            PersistentTaskOperationFuture future1 = new PersistentTaskOperationFuture();
+            persistentTasksService.waitForPersistentTaskStatus(taskId,
+                    task -> task != null && task.isCurrentStatus()&& task.getStatus().toString() != null &&
+                            task.getStatus().toString().equals("{\"phase\":\"phase " + (finalI + 1) + "\"}"),
+                    TimeValue.timeValueSeconds(10), future1);
+            assertThat(future1.get(), equalTo(taskId));
         }
+
+        PersistentTaskOperationFuture future1 = new PersistentTaskOperationFuture();
+        persistentTasksService.waitForPersistentTaskStatus(taskId,
+                task -> false, TimeValue.timeValueMillis(10), future1);
+
+        expectThrows(Exception.class, future1::get);
+
+        // Wait for the task to disappear
+        PersistentTaskOperationFuture future2 = new PersistentTaskOperationFuture();
+        persistentTasksService.waitForPersistentTaskStatus(taskId, Objects::isNull, TimeValue.timeValueSeconds(10), future2);
 
         logger.info("Completing the running task");
         // Complete the running task and make sure it finishes properly
         assertThat(new TestTasksRequestBuilder(client()).setOperation("finish").setTaskId(firstRunningTask.getTaskId())
                 .get().getTasks().size(), equalTo(1));
+
+        assertThat(future2.get(), equalTo(taskId));
     }
 
 

@@ -8,12 +8,21 @@ package org.elasticsearch.xpack.persistent;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
+
+import java.util.function.Predicate;
 
 /**
  * This service is used by persistent actions to propagate changes in the action state and notify about completion
@@ -22,11 +31,13 @@ public class PersistentTasksService extends AbstractComponent {
 
     private final Client client;
     private final ClusterService clusterService;
+    private final ThreadPool threadPool;
 
-    public PersistentTasksService(Settings settings, ClusterService clusterService, Client client) {
+    public PersistentTasksService(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
         super(settings);
         this.client = client;
         this.clusterService = clusterService;
+        this.threadPool = threadPool;
     }
 
     /**
@@ -102,15 +113,33 @@ public class PersistentTasksService extends AbstractComponent {
     }
 
     /**
-     * Starts a persistent task
+     * Waits for the persistent task with giving id (taskId) to achieve the desired status.
      */
-    public void startTask(long taskId, PersistentTaskOperationListener listener) {
-        StartPersistentTaskAction.Request startRequest = new StartPersistentTaskAction.Request(taskId);
-        try {
-            client.execute(StartPersistentTaskAction.INSTANCE, startRequest, ActionListener.wrap(o -> listener.onResponse(taskId),
-                    listener::onFailure));
-        } catch (Exception e) {
-            listener.onFailure(e);
+    public void waitForPersistentTaskStatus(long taskId, Predicate<PersistentTask<?>> predicate, @Nullable TimeValue timeout,
+                                            WaitForPersistentTaskStatusListener listener) {
+        ClusterStateObserver stateObserver = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
+        stateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                listener.onResponse(taskId);
+            }
+
+            @Override
+            public void onClusterServiceClose() {
+                listener.onFailure(new NodeClosedException(clusterService.localNode()));
+
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                listener.onTimeout(timeout);
+            }
+        }, clusterState -> predicate.test(PersistentTasksCustomMetaData.getTaskWithId(clusterState, taskId)));
+    }
+
+    public interface WaitForPersistentTaskStatusListener extends PersistentTaskOperationListener {
+        default void onTimeout(TimeValue timeout) {
+            onFailure(new IllegalStateException("timed out after " + timeout));
         }
     }
 

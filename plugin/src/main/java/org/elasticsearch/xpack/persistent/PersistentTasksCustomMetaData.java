@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.persistent;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -169,6 +170,15 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         return PERSISTENT_TASKS_PARSER.parse(parser, null).build();
     }
 
+    @SuppressWarnings("unchecked")
+    public static <Request extends PersistentTaskRequest> PersistentTask<Request> getTaskWithId(ClusterState clusterState, long taskId) {
+        PersistentTasksCustomMetaData tasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        if (tasks != null) {
+            return (PersistentTask<Request>)tasks.getTask(taskId);
+        }
+        return null;
+    }
+
     public static class Assignment {
         @Nullable
         private final String executorNode;
@@ -214,8 +224,6 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
     }
 
     public static final Assignment INITIAL_ASSIGNMENT = new Assignment(null, "waiting for initial assignment");
-
-    public static final Assignment FINISHED_TASK_ASSIGNMENT = new Assignment(null, "task has finished");
 
     /**
      * A record that represents a single running persistent task

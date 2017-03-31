@@ -88,7 +88,6 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
 
         verify(bulkBuilder, times(1)).persistBucket(bucket);
         verify(bulkBuilder, times(1)).executeRequest();
-        verify(persister, times(1)).bulkPersisterBuilder(JOB_ID);
         verify(persister, never()).deleteInterimResults(JOB_ID);
         verifyNoMoreInteractions(persister);
     }
@@ -108,7 +107,6 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         verify(bulkBuilder, times(1)).persistBucket(bucket);
         verify(bulkBuilder, times(1)).executeRequest();
         verify(persister, times(1)).deleteInterimResults(JOB_ID);
-        verify(persister, times(1)).bulkPersisterBuilder(JOB_ID);
         verifyNoMoreInteractions(persister);
         assertFalse(context.deleteInterimRequired);
     }

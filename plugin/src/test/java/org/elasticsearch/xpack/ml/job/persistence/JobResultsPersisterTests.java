@@ -157,6 +157,23 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertTrue(s.matches(".*influencer_score.:16\\.0.*"));
     }
 
+    public void testExecuteRequest_ClearsBulkRequest() {
+        ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
+        Client client = mockClient(captor);
+        JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
+
+        List<Influencer> influencers = new ArrayList<>();
+        Influencer inf = new Influencer(JOB_ID, "infName1", "infValue1", new Date(), 600, 1);
+        inf.setInfluencerScore(16);
+        inf.setInitialInfluencerScore(55.5);
+        inf.setProbability(0.4);
+        influencers.add(inf);
+
+        JobResultsPersister.Builder builder = persister.bulkPersisterBuilder(JOB_ID);
+        builder.persistInfluencers(influencers).executeRequest();
+        assertEquals(0, builder.getBulkRequest().numberOfActions());
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     private Client mockClient(ArgumentCaptor<BulkRequest> captor) {
         Client client = mock(Client.class);

@@ -24,6 +24,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -40,10 +41,8 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
-public final class QuerySearchResult extends QuerySearchResultProvider {
+public final class QuerySearchResult extends SearchPhaseResult {
 
-    private long id;
-    private SearchShardTarget shardTarget;
     private int from;
     private int size;
     private TopDocs topDocs;
@@ -61,8 +60,8 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
     }
 
     public QuerySearchResult(long id, SearchShardTarget shardTarget) {
-        this.id = id;
-        this.shardTarget = shardTarget;
+        this.requestId = id;
+        setSearchShardTarget(shardTarget);
     }
 
     @Override
@@ -70,20 +69,6 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
         return this;
     }
 
-    @Override
-    public long id() {
-        return this.id;
-    }
-
-    @Override
-    public SearchShardTarget shardTarget() {
-        return shardTarget;
-    }
-
-    @Override
-    public void shardTarget(SearchShardTarget shardTarget) {
-        this.shardTarget = shardTarget;
-    }
 
     public void searchTimedOut(boolean searchTimedOut) {
         this.searchTimedOut = searchTimedOut;
@@ -230,7 +215,7 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
     }
 
     public void readFromWithId(long id, StreamInput in) throws IOException {
-        this.id = id;
+        this.requestId = id;
         from = in.readVInt();
         size = in.readVInt();
         int numSortFieldsPlus1 = in.readVInt();
@@ -260,7 +245,7 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(id);
+        out.writeLong(requestId);
         writeToNoId(out);
     }
 

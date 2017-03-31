@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -38,7 +39,11 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         this.responseMap = responseMap;
     }
 
+    /**
+     * Used for serialization
+     */
     FieldCapabilitiesResponse() {
+        this.responseMap = Collections.emptyMap();
     }
 
     /**

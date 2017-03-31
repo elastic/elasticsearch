@@ -36,7 +36,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -87,11 +86,11 @@ public class TransportFieldCapabilitiesIndexAction
     }
 
     @Override
-    protected FieldCapabilitiesIndexResponse
-    shardOperation(final FieldCapabilitiesIndexRequest request,
-                   ShardId shardId) {
+    protected FieldCapabilitiesIndexResponse shardOperation(
+        final FieldCapabilitiesIndexRequest request,
+        ShardId shardId) {
         MapperService mapperService =
-            indicesService.indexService(shardId.getIndex()).mapperService();
+            indicesService.indexServiceSafe(shardId.getIndex()).mapperService();
         Set<String> fieldNames = new HashSet<>();
         for (String field : request.fields()) {
             fieldNames.addAll(mapperService.simpleMatchToIndexNames(field));

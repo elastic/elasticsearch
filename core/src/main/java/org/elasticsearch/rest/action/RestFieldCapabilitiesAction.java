@@ -78,9 +78,6 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
             public RestResponse buildResponse(FieldCapabilitiesResponse response,
                                               XContentBuilder builder) throws Exception {
                 RestStatus status = OK;
-                if (response.get().isEmpty()) {
-                    status = NOT_FOUND;
-                }
                 builder.startObject();
                 response.toXContent(builder, request);
                 builder.endObject();

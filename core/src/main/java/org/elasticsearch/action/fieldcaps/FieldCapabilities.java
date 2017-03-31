@@ -26,9 +26,11 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Arrays;
-import java.util.Set;
-import java.util.HashSet;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Comparator;
 
 /**
  * Describes the capabilities of a field optionally merged across multiple indices.
@@ -51,8 +53,7 @@ public class FieldCapabilities implements Writeable, ToXContent {
      * @param isAggregatable Whether this field can be aggregated on.
      */
     FieldCapabilities(String name, String type, boolean isSearchable, boolean isAggregatable) {
-        this(name, type, isSearchable, isAggregatable,
-            null, null, null);
+        this(name, type, isSearchable, isAggregatable, null, null, null);
     }
 
     /**
@@ -61,9 +62,17 @@ public class FieldCapabilities implements Writeable, ToXContent {
      * @param type The type associated with the field.
      * @param isSearchable Whether this field is indexed for search.
      * @param isAggregatable Whether this field can be aggregated on.
+     * @param indices The list of indices where this field name is defined as {@code type},
+     *                or null if all indices have the same {@code type} for the field.
+     * @param nonSearchableIndices The list of indices where this field is not searchable,
+     *                             or null if the field is searchable in all indices.
+     * @param nonAggregatableIndices The list of indices where this field is not aggregatable,
+     *                               or null if the field is aggregatable in all indices.
      */
-    FieldCapabilities(String name, String type, boolean isSearchable, boolean isAggregatable,
-                      String[] indices, String[] nonSearchableIndices,
+    FieldCapabilities(String name, String type,
+                      boolean isSearchable, boolean isAggregatable,
+                      String[] indices,
+                      String[] nonSearchableIndices,
                       String[] nonAggregatableIndices) {
         this.name = name;
         this.type = type;
@@ -136,15 +145,15 @@ public class FieldCapabilities implements Writeable, ToXContent {
     }
 
     /**
-     * The types of the field.
+     * The type of the field.
      */
     public String getType() {
         return type;
     }
 
     /**
-     * The list of indices where this field has the same definition,
-     * or null if all indices have the same definition for the field.
+     * The list of indices where this field name is defined as {@code type},
+     * or null if all indices have the same {@code type} for the field.
      */
     public String[] indices() {
         return indices;
@@ -152,7 +161,7 @@ public class FieldCapabilities implements Writeable, ToXContent {
 
     /**
      * The list of indices where this field is not searchable,
-     * or null if all indices have the same definition for the field.
+     * or null if the field is searchable in all indices.
      */
     public String[] nonSearchableIndices() {
         return nonSearchableIndices;
@@ -160,7 +169,7 @@ public class FieldCapabilities implements Writeable, ToXContent {
 
     /**
      * The list of indices where this field is not aggregatable,
-     * or null if all indices have the same definition for the field.
+     * or null if the field is aggregatable in all indices.
      */
     public String[] nonAggregatableIndices() {
         return nonAggregatableIndices;
@@ -199,48 +208,73 @@ public class FieldCapabilities implements Writeable, ToXContent {
         private String type;
         private boolean isSearchable;
         private boolean isAggregatable;
-        private Set<String> indiceSet;
-        private Set<String> nonSearchableIndiceSet;
-        private Set<String> nonAggregatableIndiceSet;
+        private List<IndexCaps> indiceList;
 
         Builder(String name, String type) {
             this.name = name;
             this.type = type;
             this.isSearchable = true;
             this.isAggregatable = true;
-            this.indiceSet = new HashSet<>();
-            this.nonSearchableIndiceSet = new HashSet<>();
-            this.nonAggregatableIndiceSet = new HashSet<>();
+            this.indiceList = new ArrayList<>();
         }
 
-        void add(String index, boolean isS, boolean isA) {
-            indiceSet.add(index);
-            if (isS == false) {
-                nonSearchableIndiceSet.add(index);
-            }
-            if (isA == false) {
-                nonAggregatableIndiceSet.add(index);
-            }
-            this.isSearchable &= isS;
-            this.isAggregatable &= isA;
+        void add(String index, boolean search, boolean agg) {
+            IndexCaps indexCaps = new IndexCaps(index, search, agg);
+            indiceList.add(indexCaps);
+            this.isSearchable &= search;
+            this.isAggregatable &= agg;
         }
 
         FieldCapabilities build(boolean withIndices) {
-            String[] indices = null;
+            final String[] indices;
+            Collections.sort(indiceList, Comparator.comparing(o -> o.name));
             if (withIndices) {
-                indices = indiceSet.toArray(new String[0]);
+                indices = indiceList.stream()
+                    .map(caps -> caps.name)
+                    .toArray(String[]::new);
+            } else {
+                indices = null;
             }
-            String[] nonSearchableIndices = null;
-            if (isSearchable == false && nonSearchableIndiceSet.size() < indiceSet.size()) {
-                nonSearchableIndices = nonSearchableIndiceSet.toArray(new String[0]);
+
+            final String[] nonSearchableIndices;
+            if (isSearchable == false &&
+                indiceList.stream().anyMatch((caps) -> caps.isSearchable)) {
+                // Iff this field is searchable in some indices AND non-searchable in others
+                // we record the list of non-searchable indices
+                nonSearchableIndices = indiceList.stream()
+                    .filter((caps) -> caps.isSearchable == false)
+                    .map(caps -> caps.name)
+                    .toArray(String[]::new);
+            } else {
+                nonSearchableIndices = null;
             }
-            String[] nonAggregatableeIndices = null;
-            if (isAggregatable == false && nonAggregatableIndiceSet.size() < indiceSet.size()) {
-                nonAggregatableeIndices = nonAggregatableIndiceSet.toArray(new String[0]);
+
+            final String[] nonAggregatableIndices;
+            if (isAggregatable == false &&
+                indiceList.stream().anyMatch((caps) -> caps.isAggregatable)) {
+                // Iff this field is aggregatable in some indices AND non-searchable in others
+                // we keep the list of non-aggregatable indices
+                nonAggregatableIndices = indiceList.stream()
+                    .filter((caps) -> caps.isAggregatable == false)
+                    .map(caps -> caps.name)
+                    .toArray(String[]::new);
+            } else {
+                nonAggregatableIndices = null;
             }
             return new FieldCapabilities(name, type, isSearchable, isAggregatable,
-                indices, nonSearchableIndices, nonAggregatableeIndices);
+                indices, nonSearchableIndices, nonAggregatableIndices);
+        }
+    }
 
+    private static class IndexCaps {
+        final String name;
+        final boolean isSearchable;
+        final boolean isAggregatable;
+
+        IndexCaps(String name, boolean isSearchable, boolean isAggregatable) {
+            this.name = name;
+            this.isSearchable = isSearchable;
+            this.isAggregatable = isAggregatable;
         }
     }
 }

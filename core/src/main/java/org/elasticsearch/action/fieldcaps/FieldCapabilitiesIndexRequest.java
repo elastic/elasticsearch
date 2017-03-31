@@ -25,22 +25,21 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 
 public class FieldCapabilitiesIndexRequest
     extends SingleShardRequest<FieldCapabilitiesIndexRequest> {
 
     private String[] fields;
 
+    // For serialization
     FieldCapabilitiesIndexRequest() {}
 
-    FieldCapabilitiesIndexRequest(FieldCapabilitiesRequest request, String index) {
+    FieldCapabilitiesIndexRequest(String[] fields, String index) {
         super(index);
-        Set<String> fields = new HashSet<>();
-        fields.addAll(Arrays.asList(request.fields()));
-        this.fields = fields.toArray(new String[fields.size()]);
+        if (fields == null || fields.length == 0) {
+            throw new IllegalArgumentException("specified fields can't be null or empty");
+        }
+        this.fields = fields;
     }
 
     public String[] fields() {

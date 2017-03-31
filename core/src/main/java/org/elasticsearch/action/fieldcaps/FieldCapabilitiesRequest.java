@@ -33,6 +33,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 
@@ -43,7 +45,8 @@ public class FieldCapabilitiesRequest extends ActionRequest implements IndicesRe
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
     private String[] fields = Strings.EMPTY_ARRAY;
 
-    private static ObjectParser<FieldCapabilitiesRequest, Void> PARSER = new ObjectParser<>(NAME);
+    private static ObjectParser<FieldCapabilitiesRequest, Void> PARSER =
+        new ObjectParser<>(NAME, FieldCapabilitiesRequest::new);
 
     static {
         PARSER.declareStringArray(fromList(String.class, FieldCapabilitiesRequest::fields),
@@ -61,7 +64,7 @@ public class FieldCapabilitiesRequest extends ActionRequest implements IndicesRe
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeStringArrayNullable(fields);
+        out.writeStringArray(fields);
     }
 
     public static FieldCapabilitiesRequest parseFields(XContentParser parser) throws IOException {
@@ -75,7 +78,8 @@ public class FieldCapabilitiesRequest extends ActionRequest implements IndicesRe
         if (fields == null || fields.length == 0) {
             throw new IllegalArgumentException("specified fields can't be null or empty");
         }
-        this.fields = fields;
+        Set<String> fieldSet = new HashSet<>(Arrays.asList(fields));
+        this.fields = fieldSet.toArray(new String[0]);
         return this;
     }
 

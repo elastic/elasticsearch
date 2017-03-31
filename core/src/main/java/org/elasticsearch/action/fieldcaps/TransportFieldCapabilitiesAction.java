@@ -30,9 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -68,9 +66,9 @@ public class TransportFieldCapabilitiesAction
         if (concreteIndices.length == 0) {
             listener.onResponse(new FieldCapabilitiesResponse());
         } else {
-            for (final String index : concreteIndices) {
+            for (String index : concreteIndices) {
                 FieldCapabilitiesIndexRequest indexRequest =
-                    new FieldCapabilitiesIndexRequest(request, index);
+                    new FieldCapabilitiesIndexRequest(request.fields(), index);
                 shardAction.execute(indexRequest,
                     new ActionListener<FieldCapabilitiesIndexResponse> () {
                     @Override
@@ -83,8 +81,7 @@ public class TransportFieldCapabilitiesAction
 
                     @Override
                     public void onFailure(Exception e) {
-                        int index = indexCounter.getAndIncrement();
-                        indexResponses.set(index, e);
+                        indexResponses.set(indexCounter.getAndIncrement(), e);
                         if (completionCounter.decrementAndGet() == 0) {
                             listener.onResponse(merge(indexResponses));
                         }
@@ -99,6 +96,7 @@ public class TransportFieldCapabilitiesAction
         for (int i = 0; i < indexResponses.length(); i++) {
             Object element = indexResponses.get(i);
             if (element instanceof FieldCapabilitiesIndexResponse == false) {
+                assert element instanceof Exception;
                 continue;
             }
             FieldCapabilitiesIndexResponse response = (FieldCapabilitiesIndexResponse) element;
@@ -123,10 +121,10 @@ public class TransportFieldCapabilitiesAction
         for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry :
             responseMapBuilder.entrySet()) {
             Map<String, FieldCapabilities> typeMap = new HashMap<>();
-            boolean multi = entry.getValue().size() > 1;
+            boolean multiTypes = entry.getValue().size() > 1;
             for (Map.Entry<String, FieldCapabilities.Builder> fieldEntry :
                 entry.getValue().entrySet()) {
-                typeMap.put(fieldEntry.getKey(), fieldEntry.getValue().build(multi));
+                typeMap.put(fieldEntry.getKey(), fieldEntry.getValue().build(multiTypes));
             }
             responseMap.put(entry.getKey(), typeMap);
         }

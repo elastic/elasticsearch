@@ -73,7 +73,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             if (frequently()) {
                 // make sure we have more than one segment to test the merge
-                indexWriter.commit();
+                indexWriter.getReader().close();
             }
             int value = randomInt(maxTerm-1);
             expectedBucketCount[value] += 1;

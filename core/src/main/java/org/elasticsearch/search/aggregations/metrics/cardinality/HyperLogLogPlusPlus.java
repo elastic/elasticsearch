@@ -433,7 +433,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
             }
         } else {
             for (long i = 0; i < runLens.size(); i++) {
-                values.add(runLens.get(i));
+                values.add(runLens.get((bucket << p) + i));
             }
         }
         return values;
@@ -445,8 +445,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
 
     public boolean equals(long bucket, HyperLogLogPlusPlus other) {
         return Objects.equals(p, other.p) &&
-                Objects.equals(algorithm.get(bucket), other.algorithm.get(bucket))
-                &&
+                Objects.equals(algorithm.get(bucket), other.algorithm.get(bucket)) &&
                 Objects.equals(getComparableData(bucket), getComparableData(bucket));
     }
 
@@ -607,23 +606,6 @@ public final class HyperLogLogPlusPlus implements Releasable {
         void clear(long bit) {
             ensureCapacity(bit);
             impl.clear(bit);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(impl);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            OpenBitSet other = (OpenBitSet) obj;
-            return Objects.equals(impl, other.impl);
         }
     }
 

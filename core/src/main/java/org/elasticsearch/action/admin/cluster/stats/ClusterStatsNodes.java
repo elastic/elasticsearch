@@ -558,10 +558,14 @@ public class ClusterStatsNodes implements ToXContent {
                 final String httpType =
                     settings.get(NetworkModule.HTTP_TYPE_KEY,
                             NetworkModule.HTTP_DEFAULT_TYPE_SETTING.get(settings));
-                transportTypes.computeIfAbsent(transportType,
-                        k -> new AtomicInteger()).incrementAndGet();
-                httpTypes.computeIfAbsent(httpType,
-                        k -> new AtomicInteger()).incrementAndGet();
+                if (Strings.hasText(transportType)) {
+                    transportTypes.computeIfAbsent(transportType,
+                            k -> new AtomicInteger()).incrementAndGet();
+                }
+                if (Strings.hasText(httpType)) {
+                    httpTypes.computeIfAbsent(httpType,
+                            k -> new AtomicInteger()).incrementAndGet();
+                }
             }
             this.transportTypes = Collections.unmodifiableMap(transportTypes);
             this.httpTypes = Collections.unmodifiableMap(httpTypes);
@@ -571,16 +575,12 @@ public class ClusterStatsNodes implements ToXContent {
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             builder.startObject("transport_types");
             for (final Map.Entry<String, AtomicInteger> entry : transportTypes.entrySet()) {
-                if (Strings.hasText(entry.getKey())) {
-                    builder.field(entry.getKey(), entry.getValue().get());
-                }
+                builder.field(entry.getKey(), entry.getValue().get());
             }
             builder.endObject();
             builder.startObject("http_types");
             for (final Map.Entry<String, AtomicInteger> entry : httpTypes.entrySet()) {
-                if (Strings.hasText(entry.getKey())) {
-                    builder.field(entry.getKey(), entry.getValue().get());
-                }
+                builder.field(entry.getKey(), entry.getValue().get());
             }
             builder.endObject();
             return builder;

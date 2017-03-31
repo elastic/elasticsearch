@@ -62,7 +62,7 @@ public class DataStreamDiagnostics {
     
     public DataStreamDiagnostics(Job job) {
         bucketSpan = job.getAnalysisConfig().getBucketSpan().seconds();
-        latency = job.getAnalysisConfig().getLatency().seconds();
+        latency = job.getAnalysisConfig().getLatency() == null ? 0 : job.getAnalysisConfig().getLatency().seconds();
     }
 
     /**

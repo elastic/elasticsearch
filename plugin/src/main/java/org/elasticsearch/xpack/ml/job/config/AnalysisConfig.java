@@ -380,7 +380,9 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
         if (categorizationFilters != null) {
             builder.field(CATEGORIZATION_FILTERS.getPreferredName(), categorizationFilters);
         }
-        builder.field(LATENCY.getPreferredName(), latency.getStringRep());
+        if (latency != null) {
+            builder.field(LATENCY.getPreferredName(), latency.getStringRep());
+        }
         if (period != null) {
             builder.field(PERIOD.getPreferredName(), period);
         }
@@ -446,7 +448,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
         private List<Detector> detectors;
         private TimeValue bucketSpan = DEFAULT_BUCKET_SPAN;
         private TimeValue batchSpan;
-        private TimeValue latency = TimeValue.ZERO;
+        private TimeValue latency;
         private Long period;
         private String categorizationFieldName;
         private List<String> categorizationFilters;
@@ -554,7 +556,9 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
             if (batchSpan != null) {
                 TimeUtils.checkPositiveMultiple(batchSpan, TimeUnit.SECONDS, BATCH_SPAN);
             }
-            TimeUtils.checkNonNegativeMultiple(latency, TimeUnit.SECONDS, LATENCY);
+            if (latency != null) {
+                TimeUtils.checkNonNegativeMultiple(latency, TimeUnit.SECONDS, LATENCY);
+            }
             checkFieldIsNotNegativeIfSpecified(PERIOD.getPreferredName(), period);
 
             verifyDetectorAreDefined(detectors);

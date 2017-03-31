@@ -58,7 +58,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         this.analysisConfig = Objects.requireNonNull(analysisConfig);
         this.dataCountsReporter = Objects.requireNonNull(dataCountsReporter);
         this.logger = Objects.requireNonNull(logger);
-        this.latencySeconds = analysisConfig.getLatency().seconds();
+        this.latencySeconds = analysisConfig.getLatency() == null ? 0 : analysisConfig.getLatency().seconds();
 
         Date date = dataCountsReporter.getLatestRecordTime();
         latestEpochMsThisUpload = 0;

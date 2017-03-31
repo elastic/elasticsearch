@@ -71,11 +71,6 @@ public class Retry {
         return this;
     }
 
-    public Retry using(BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduler) {
-        this.scheduleFn = scheduler;
-        return this;
-    }
-
     /**
      * Invokes #apply(BulkRequest, ActionListener). Backs off on the provided exception and delegates results to the
      * provided listener. Retries will be attempted using the provided schedule function

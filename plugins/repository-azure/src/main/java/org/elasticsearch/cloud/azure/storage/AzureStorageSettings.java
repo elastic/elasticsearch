@@ -25,14 +25,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.node.Node;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 public final class AzureStorageSettings {
     private static final Setting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(Storage.PREFIX, "timeout",
@@ -160,26 +158,5 @@ public final class AzureStorageSettings {
             }
         }
         return Collections.unmodifiableMap(secondaries);
-    }
-
-    public static <T> T getValue(Settings repositorySettings,
-                                 Settings globalSettings,
-                                 Setting<T> repositorySetting,
-                                 Setting<T> repositoriesSetting) {
-        if (repositorySetting.exists(repositorySettings)) {
-            return repositorySetting.get(repositorySettings);
-        } else {
-            return repositoriesSetting.get(globalSettings);
-        }
-    }
-
-    public static <T> Setting<T> getEffectiveSetting(Settings repositorySettings,
-                                              Setting<T> repositorySetting,
-                                              Setting<T> repositoriesSetting) {
-        if (repositorySetting.exists(repositorySettings)) {
-            return repositorySetting;
-        } else {
-            return repositoriesSetting;
-        }
     }
 }

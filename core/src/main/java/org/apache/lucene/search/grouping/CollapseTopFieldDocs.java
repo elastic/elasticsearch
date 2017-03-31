@@ -90,7 +90,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
         final int firstShardIndex = first.getShardIndex(firstDoc);
         final int secondShardIndex = second.getShardIndex(secondDoc);
         // Tie break: earlier shard wins
-        if (firstShardIndex< secondShardIndex) {
+        if (firstShardIndex < secondShardIndex) {
             return true;
         } else if (firstShardIndex > secondShardIndex) {
             return false;

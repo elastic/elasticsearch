@@ -149,6 +149,9 @@ import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.TransportExplainAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesIndexAction;
 import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.action.fieldstats.TransportFieldStatsAction;
 import org.elasticsearch.action.get.GetAction;
@@ -205,6 +208,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
 import org.elasticsearch.rest.action.RestFieldStatsAction;
 import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCancelTasksAction;
@@ -480,6 +484,8 @@ public class ActionModule extends AbstractModule {
         actions.register(DeleteStoredScriptAction.INSTANCE, TransportDeleteStoredScriptAction.class);
 
         actions.register(FieldStatsAction.INSTANCE, TransportFieldStatsAction.class);
+        actions.register(FieldCapabilitiesAction.INSTANCE, TransportFieldCapabilitiesAction.class,
+            TransportFieldCapabilitiesIndexAction.class);
 
         actions.register(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
         actions.register(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);
@@ -589,6 +595,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestDeleteStoredScriptAction(settings, restController));
 
         registerHandler.accept(new RestFieldStatsAction(settings, restController));
+        registerHandler.accept(new RestFieldCapabilitiesAction(settings, restController));
 
         // Tasks API
         registerHandler.accept(new RestListTasksAction(settings, restController, nodesInCluster));

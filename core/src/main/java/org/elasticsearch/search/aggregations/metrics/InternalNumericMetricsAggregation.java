@@ -18,7 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -27,6 +30,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.LongSupplier;
 
 public abstract class InternalNumericMetricsAggregation extends InternalAggregation {
 
@@ -35,6 +39,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
     protected DocValueFormat format = DEFAULT_FORMAT;
 
     public abstract static class SingleValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.SingleValue {
+
         protected SingleValue(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
             super(name, pipelineAggregators, metaData);
         }
@@ -59,6 +64,14 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
                 return value();
             } else {
                 throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
+            }
+        }
+
+        protected static double parseValue(XContentParser parser, double nullValue) throws IOException {
+            if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                return parser.doubleValue();
+            } else {
+                return nullValue;
             }
         }
 
@@ -121,5 +134,50 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
         InternalNumericMetricsAggregation other = (InternalNumericMetricsAggregation) obj;
         return super.equals(obj) &&
                 Objects.equals(format, other.format);
+    }
+
+    protected static DocValueFormat wrapStringsInFormatter(final Map<Object, String> valuesAsStrings) {
+        return new DocValueFormat() {
+
+            @Override
+            public String getWriteableName() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String format(long value) {
+                return valuesAsStrings.get(value);
+            }
+
+            @Override
+            public String format(double value) {
+                return valuesAsStrings.get(value);
+            }
+
+            @Override
+            public String format(BytesRef value) {
+                return valuesAsStrings.get(value);
+            }
+
+            @Override
+            public long parseLong(String value, boolean roundUp, LongSupplier now) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public double parseDouble(String value, boolean roundUp, LongSupplier now) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public BytesRef parseBytesRef(String value) {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 }

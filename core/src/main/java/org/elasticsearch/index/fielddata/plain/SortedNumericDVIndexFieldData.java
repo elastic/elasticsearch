@@ -80,9 +80,14 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
                 source = new LongValuesComparatorSource(this, missingValue, sortMode, nested);
                 break;
         }
+
+        /**
+         * Check if we can use a simple {@link SortedNumericSortField} compatible with index sorting and
+         * returns a custom sort field otherwise.
+         */
         if (nested != null
-            || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MAX)
-            || numericType == NumericType.HALF_FLOAT) {
+                || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
+                || numericType == NumericType.HALF_FLOAT) {
             return new SortField(fieldName, source, reverse);
         }
         final SortField sortField;

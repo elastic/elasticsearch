@@ -25,8 +25,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedSetSelector;
-import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
@@ -132,17 +130,8 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
-        XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
-        if (nested != null ||
-            (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN) ||
-            (source.sortMissingFirst(missingValue) == false && source.sortMissingLast(missingValue) == false)) {
-            return new SortField(getFieldName(), source, reverse);
-        }
-        SortField sortField = new SortedSetSortField(getFieldName(), reverse,
-            sortMode == MultiValueMode.MAX ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN);
-        sortField.setMissingValue(source.sortMissingLast(missingValue) ^ reverse ?
-            SortedSetSortField.STRING_LAST : SortedSetSortField.STRING_FIRST);
-        return sortField;
+        final XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+        return new SortField(getFieldName(), source, reverse);
     }
 
     @Override

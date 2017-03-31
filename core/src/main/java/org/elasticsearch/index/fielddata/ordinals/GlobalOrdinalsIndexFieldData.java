@@ -70,7 +70,7 @@ public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponen
 
     @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-        return null;
+        throw new UnsupportedOperationException("no global ordinals sorting yet");
     }
 
     @Override

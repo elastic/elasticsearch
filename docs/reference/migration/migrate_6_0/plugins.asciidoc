@@ -25,3 +25,11 @@ the region of the configured bucket.
 
 * The container an azure repository is configured with will no longer be created automatically.
 It must exist before the azure repository is created.
+
+* Global repositories settings you are able to set in elasticsearch config file under `repositories.azure`
+name space have been removed. This includes `repositories.azure.account`, `repositories.azure.container`,
+`repositories.azure.base_path`, `repositories.azure.location_mode`, `repositories.azure.chunk_size` and
+`repositories.azure.compress`.
+You must set those settings per repository instead. Respectively `account`, `container`, `base_path`,
+`location_mode`, `chunk_size` and `compress`.
+See {plugins}/repository-azure-usage.html#repository-azure-repository-settings[Azure Repository settings].

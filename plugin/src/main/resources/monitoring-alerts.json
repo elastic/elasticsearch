@@ -1,5 +1,5 @@
 {
-  "template": ".monitoring-alerts-${monitoring.template.version}",
+  "index_patterns": ".monitoring-alerts-${monitoring.template.version}",
   "settings": {
     "index": {
       "number_of_shards": 1,
@@ -54,5 +54,5 @@
       }
     }
   },
-  "version": 50400
+  "version": 60000
 }

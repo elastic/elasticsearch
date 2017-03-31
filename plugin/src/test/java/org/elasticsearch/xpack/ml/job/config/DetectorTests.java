@@ -623,6 +623,49 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         detector.build();
     }
 
+    public void testVerify_GivenSameByAndPartition() {
+        Detector.Builder detector = new Detector.Builder("count", "");
+        detector.setByFieldName("x");
+        detector.setPartitionFieldName("x");
+        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, detector::build);
+
+        assertEquals("partition_field_name and by_field_name cannot be the same: 'x'", e.getMessage());
+    }
+
+    public void testVerify_GivenSameByAndOver() {
+        Detector.Builder detector = new Detector.Builder("count", "");
+        detector.setByFieldName("x");
+        detector.setOverFieldName("x");
+        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, detector::build);
+
+        assertEquals("by_field_name and over_field_name cannot be the same: 'x'", e.getMessage());
+    }
+
+    public void testVerify_GivenSameOverAndPartition() {
+        Detector.Builder detector = new Detector.Builder("count", "");
+        detector.setOverFieldName("x");
+        detector.setPartitionFieldName("x");
+        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, detector::build);
+
+        assertEquals("partition_field_name and over_field_name cannot be the same: 'x'", e.getMessage());
+    }
+
+    public void testVerify_GivenByIsCount() {
+        Detector.Builder detector = new Detector.Builder("count", "");
+        detector.setByFieldName("count");
+        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, detector::build);
+
+        assertEquals("'count' is not a permitted value for by_field_name", e.getMessage());
+    }
+
+    public void testVerify_GivenOverIsCount() {
+        Detector.Builder detector = new Detector.Builder("count", "");
+        detector.setOverFieldName("count");
+        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, detector::build);
+
+        assertEquals("'count' is not a permitted value for over_field_name", e.getMessage());
+    }
+
     public void testExcludeFrequentForString() {
         assertEquals(Detector.ExcludeFrequent.ALL, Detector.ExcludeFrequent.forString("all"));
         assertEquals(Detector.ExcludeFrequent.ALL, Detector.ExcludeFrequent.forString("ALL"));

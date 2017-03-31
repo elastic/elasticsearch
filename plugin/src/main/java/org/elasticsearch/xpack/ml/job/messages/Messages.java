@@ -113,6 +113,10 @@ public final class Messages {
     public static final String JOB_CONFIG_UNKNOWN_FUNCTION = "Unknown function ''{0}''";
     public static final String JOB_CONFIG_UPDATE_ANALYSIS_LIMITS_MODEL_MEMORY_LIMIT_CANNOT_BE_DECREASED =
             "Invalid update value for analysis_limits: model_memory_limit cannot be decreased; existing is {0}, update had {1}";
+    public static final String JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME =
+            "{0} and {1} cannot be the same: ''{2}''";
+    public static final String JOB_CONFIG_DETECTOR_COUNT_DISALLOWED =
+            "''count'' is not a permitted value for {0}";
 
     public static final String JOB_DATA_CONCURRENT_USE_CLOSE = "Cannot close job {0} while the job is processing another request";
     public static final String JOB_DATA_CONCURRENT_USE_FLUSH = "Cannot flush job {0} while the job is processing another request";

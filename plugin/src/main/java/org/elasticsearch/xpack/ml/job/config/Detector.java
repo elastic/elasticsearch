@@ -596,6 +596,7 @@ public class Detector extends ToXContentToBytes implements Writeable {
             boolean emptyField = Strings.isEmpty(fieldName);
             boolean emptyByField = Strings.isEmpty(byFieldName);
             boolean emptyOverField = Strings.isEmpty(overFieldName);
+            boolean emptyPartitionField = Strings.isEmpty(partitionFieldName);
             if (Detector.ANALYSIS_FUNCTIONS.contains(function) == false) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_UNKNOWN_FUNCTION, function));
             }
@@ -652,6 +653,37 @@ public class Detector extends ToXContentToBytes implements Writeable {
                 for (DetectionRule rule : detectorRules) {
                     checkScoping(rule);
                 }
+            }
+
+            // partition, by and over field names cannot be duplicates
+            if (!emptyPartitionField) {
+                if (partitionFieldName.equals(byFieldName)) {
+                    throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME,
+                            PARTITION_FIELD_NAME_FIELD.getPreferredName(), BY_FIELD_NAME_FIELD.getPreferredName(),
+                            partitionFieldName));
+                }
+                if (partitionFieldName.equals(overFieldName)) {
+                    throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME,
+                            PARTITION_FIELD_NAME_FIELD.getPreferredName(), OVER_FIELD_NAME_FIELD.getPreferredName(),
+                            partitionFieldName));
+                }
+            }
+            if (!emptyByField && byFieldName.equals(overFieldName)) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME,
+                        BY_FIELD_NAME_FIELD.getPreferredName(), OVER_FIELD_NAME_FIELD.getPreferredName(),
+                        byFieldName));
+            }
+
+            // by/over field names cannot be "count" - this requirement dates back to the early
+            // days of the Splunk app and could be removed now BUT ONLY IF THE C++ CODE IS CHANGED
+            // FIRST - see https://github.com/elastic/x-pack-elasticsearch/issues/858
+            if (COUNT.equals(byFieldName)) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_COUNT_DISALLOWED,
+                        BY_FIELD_NAME_FIELD.getPreferredName()));
+            }
+            if (COUNT.equals(overFieldName)) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_COUNT_DISALLOWED,
+                        OVER_FIELD_NAME_FIELD.getPreferredName()));
             }
 
             return new Detector(detectorDescription, function, fieldName, byFieldName, overFieldName, partitionFieldName,

@@ -55,6 +55,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonMap;
@@ -614,7 +615,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             }
         };
 
-        try(BulkProcessor processor = new BulkProcessor.Builder(highLevelClient()::bulkAsync, listener, new ThreadPool(Settings.EMPTY))
+        ThreadPool threadPool = new ThreadPool(Settings.builder().put("node.name", getClass().getName()).build());
+        try(BulkProcessor processor = new BulkProcessor.Builder(highLevelClient()::bulkAsync, listener, threadPool)
             .setConcurrentRequests(0)
             .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.GB))
             .setBulkActions(nbItems + 1)
@@ -673,6 +675,9 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         assertNull(error.get());
 
         validateBulkResponses(nbItems, errors, bulkResponse, bulkRequest);
+
+        threadPool.shutdown();
+        threadPool.awaitTermination(1, TimeUnit.SECONDS);
     }
 
     private void validateBulkResponses(int nbItems, boolean[] errors, BulkResponse bulkResponse, BulkRequest bulkRequest) {

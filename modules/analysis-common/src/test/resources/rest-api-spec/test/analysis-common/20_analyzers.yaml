@@ -6,6 +6,6 @@
           body:
             text:     Foo Bar!
             analyzer: whitespace
-    - length:    { tokens: 2 }
-    - match:     { tokens.0.token: Foo }
-    - match:     { tokens.1.token: Bar! }
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: Foo }
+    - match:  { tokens.1.token: Bar! }

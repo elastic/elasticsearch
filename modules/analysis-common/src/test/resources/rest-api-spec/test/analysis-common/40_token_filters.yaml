@@ -1,5 +1,16 @@
 ## Smoke tests for token filters included in the analysis-common module
 
+"asciifolding":
+    - do:
+        indices.analyze:
+          body:
+            text:      Musée d'Orsay
+            tokenizer: keyword
+            filter:    [asciifolding]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: Musee d'Orsay }
+
+---
 "lowercase":
     - do:
         indices.analyze:
@@ -7,5 +18,63 @@
             text:      Foo Bar!
             tokenizer: keyword
             filter:    [lowercase]
-    - length:    { tokens: 2 }
-    - match:     { tokens.0.token: foo bar! }
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: foo bar! }
+
+---
+"word_delimiter":
+    - do:
+        indices.analyze:
+          body:
+            text:      the qu1ck brown fox
+            tokenizer: standard
+            filter:    [word_delimiter]
+    - length: { tokens: 5 }
+    - match:  { tokens.0.token: the }
+    - match:  { tokens.1.token: qu }
+    - match:  { tokens.2.token: ck }
+    - match:  { tokens.3.token: brown }
+    - match:  { tokens.4.token: fox }
+
+    - do:
+        indices.analyze:
+          body:
+            text:      the qu1ck brown fox
+            tokenizer: standard
+            filter:
+              - type: word_delimiter
+                split_on_numeric: false
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: the }
+    - match:  { tokens.1.token: qu1ck }
+    - match:  { tokens.2.token: brown }
+    - match:  { tokens.3.token: fox }
+
+---
+"word_delimiter_graph":
+    - do:
+        indices.analyze:
+          body:
+            text:      the qu1ck brown fox
+            tokenizer: standard
+            filter:    [word_delimiter_graph]
+    - length: { tokens: 5 }
+    - match:  { tokens.0.token: the }
+    - match:  { tokens.1.token: qu }
+    - match:  { tokens.2.token: ck }
+    - match:  { tokens.3.token: brown }
+    - match:  { tokens.4.token: fox }
+
+    - do:
+        indices.analyze:
+          body:
+            text:      the qu1ck brown fox
+            tokenizer: standard
+            filter:
+              - type: word_delimiter_graph
+                split_on_numeric: false
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: the }
+    - match:  { tokens.1.token: qu1ck }
+    - match:  { tokens.2.token: brown }
+    - match:  { tokens.3.token: fox }

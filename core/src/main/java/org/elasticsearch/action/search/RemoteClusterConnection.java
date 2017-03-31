@@ -375,9 +375,8 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                             // due to an already closed connection.
                             ThreadPool threadPool = transportService.getThreadPool();
                             ThreadContext threadContext = threadPool.getThreadContext();
-                            TransportService.ContextRestoreResponseHandler responseHandler = new TransportService
-                                .ContextRestoreResponseHandler(threadContext
-                                .newRestorableContext(false),
+                            TransportService.ContextRestoreResponseHandler<ClusterStateResponse> responseHandler = new TransportService
+                                .ContextRestoreResponseHandler<>(threadContext.newRestorableContext(false),
                                 new SniffClusterStateResponseHandler(transportService, connection, listener, seedNodes,
                                     cancellableThreads));
                             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {

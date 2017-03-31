@@ -224,7 +224,8 @@ final class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
 
     private void finishHim(SearchPhaseController.ReducedQueryPhase queryPhase) {
         try {
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(true, sortedShardDocs, queryPhase, fetchResults);
+            final InternalSearchResponse internalResponse = searchPhaseController.merge(true, sortedShardDocs, queryPhase,
+                fetchResults.asList(), fetchResults::get);
             String scrollId = null;
             if (request.scroll() != null) {
                 scrollId = request.scrollId();

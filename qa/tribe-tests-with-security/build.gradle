@@ -10,6 +10,7 @@ dependencies {
     testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
 }
 
+task setupClusterOne {}
 ClusterConfiguration configOne = new ClusterConfiguration(project)
 configOne.clusterName = 'cluster1'
 configOne.setting('node.name', 'cluster1-node1')
@@ -28,8 +29,9 @@ configOne.waitCondition = { node, ant ->
             retries: 10)
     return tmpFile.exists()
 }
-List<NodeInfo> cluster1Nodes = ClusterFormationTasks.setup(project, 'clusterOne', integTestRunner, configOne)
+List<NodeInfo> cluster1Nodes = ClusterFormationTasks.setup(project, 'clusterOne', setupClusterOne, configOne)
 
+task setupClusterTwo {}
 ClusterConfiguration configTwo = new ClusterConfiguration(project)
 configTwo.clusterName = 'cluster2'
 configTwo.setting('node.name', 'cluster2-node1')
@@ -48,7 +50,7 @@ configTwo.waitCondition = { node, ant ->
             retries: 10)
     return tmpFile.exists()
     }
-List<NodeInfo> cluster2Nodes = ClusterFormationTasks.setup(project, 'clusterTwo', integTestRunner, configTwo)
+List<NodeInfo> cluster2Nodes = ClusterFormationTasks.setup(project, 'clusterTwo', setupClusterTwo, configTwo)
 
 integTestCluster {
     plugin ':x-pack-elasticsearch:plugin'
@@ -79,7 +81,10 @@ integTestCluster {
 }
 
 integTestRunner {
+    dependsOn(setupClusterOne, setupClusterTwo)
     systemProperty 'tests.cluster', "${-> cluster1Nodes.get(0).transportUri()}"
     systemProperty 'tests.cluster2', "${-> cluster2Nodes.get(0).transportUri()}"
     systemProperty 'tests.tribe', "${-> integTest.nodes.get(0).transportUri()}"
+    finalizedBy 'clusterOne#stop'
+    finalizedBy 'clusterTwo#stop'
 }

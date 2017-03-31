@@ -11,6 +11,7 @@ dependencies {
 }
 
 
+task setupClusterOne {}
 ClusterConfiguration cluster1Config = new ClusterConfiguration(project)
 cluster1Config.clusterName = 'cluster1'
 cluster1Config.setting('node.name', 'cluster1-node1')
@@ -22,8 +23,9 @@ cluster1Config.setting('xpack.watcher.enabled', false)
 cluster1Config.setting('xpack.graph.enabled', false)
 cluster1Config.setting('xpack.ml.enabled', false)
 
-List<NodeInfo> cluster1Nodes = ClusterFormationTasks.setup(project, 'clusterOne', integTestRunner, cluster1Config)
+List<NodeInfo> cluster1Nodes = ClusterFormationTasks.setup(project, 'clusterOne', setupClusterOne, cluster1Config)
 
+task setupClusterTwo {}
 ClusterConfiguration cluster2Config = new ClusterConfiguration(project)
 cluster2Config.clusterName = 'cluster2'
 cluster2Config.setting('node.name', 'cluster2-node1')
@@ -36,7 +38,7 @@ cluster2Config.setting('xpack.watcher.enabled', false)
 cluster2Config.setting('xpack.graph.enabled', false)
 cluster2Config.setting('xpack.ml.enabled', false)
 
-List<NodeInfo> cluster2Nodes = ClusterFormationTasks.setup(project, 'clusterTwo', integTestRunner, cluster2Config)
+List<NodeInfo> cluster2Nodes = ClusterFormationTasks.setup(project, 'clusterTwo', setupClusterTwo, cluster2Config)
 
 integTestCluster {
   setting 'node.name', 'tribe-node'
@@ -70,7 +72,10 @@ integTestCluster {
 }
 
 integTestRunner {
+  dependsOn(setupClusterOne, setupClusterTwo)
   systemProperty 'tests.cluster', "${-> cluster1Nodes.get(0).transportUri()}"
   systemProperty 'tests.cluster2', "${-> cluster2Nodes.get(0).transportUri()}"
   systemProperty 'tests.tribe', "${-> integTest.nodes.get(0).transportUri()}"
+  finalizedBy 'clusterOne#stop'
+  finalizedBy 'clusterTwo#stop'
 }

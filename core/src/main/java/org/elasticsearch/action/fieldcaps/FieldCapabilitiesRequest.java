@@ -38,7 +38,8 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 
-public class FieldCapabilitiesRequest extends ActionRequest implements IndicesRequest {
+public class FieldCapabilitiesRequest extends ActionRequest
+    implements IndicesRequest.Replaceable {
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
     public static final String NAME = "field_caps_request";
     private String[] indices = Strings.EMPTY_ARRAY;
@@ -91,7 +92,7 @@ public class FieldCapabilitiesRequest extends ActionRequest implements IndicesRe
      *
      * The list of indices to lookup
      */
-    public FieldCapabilitiesRequest indices(String[] indices) {
+    public FieldCapabilitiesRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }

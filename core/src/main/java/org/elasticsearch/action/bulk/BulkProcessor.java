@@ -80,21 +80,22 @@ public class BulkProcessor implements Closeable {
 
         private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
         private final Listener listener;
+        private final ThreadPool threadPool;
 
         private int concurrentRequests = 1;
         private int bulkActions = 1000;
         private ByteSizeValue bulkSize = new ByteSizeValue(5, ByteSizeUnit.MB);
         private TimeValue flushInterval = null;
         private BackoffPolicy backoffPolicy = BackoffPolicy.exponentialBackoff();
-        private ThreadPool threadPool;
 
         /**
          * Creates a builder of bulk processor with the client to use and the listener that will be used
          * to be notified on the completion of bulk requests.
          */
-        public Builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener) {
+        public Builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener, ThreadPool threadPool) {
             this.consumer = consumer;
             this.listener = listener;
+            this.threadPool = threadPool;
         }
 
         /**
@@ -136,14 +137,6 @@ public class BulkProcessor implements Closeable {
             return this;
         }
 
-        /**
-         * Sets an optional thread pool on which to schedules flush actions and request retries
-         */
-        public Builder setThreadPool(ThreadPool threadPool) {
-            this.threadPool = threadPool;
-            return this;
-        }
-
         public Builder setBackoffPolicy(BackoffPolicy backoffPolicy) {
             if (backoffPolicy == null) {
                 throw new NullPointerException("'backoffPolicy' must not be null. To disable backoff, pass BackoffPolicy.noBackoff()");
@@ -164,7 +157,7 @@ public class BulkProcessor implements Closeable {
         Objects.requireNonNull(client, "client");
         Objects.requireNonNull(listener, "listener");
 
-        return new Builder(client::bulk, listener).setThreadPool(client.threadPool());
+        return new Builder(client::bulk, listener, client.threadPool());
     }
 
     private final int bulkActions;

@@ -39,6 +39,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -49,6 +50,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -612,7 +614,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             }
         };
 
-        try(BulkProcessor processor = new BulkProcessor.Builder(highLevelClient()::bulkAsync, listener)
+        try(BulkProcessor processor = new BulkProcessor.Builder(highLevelClient()::bulkAsync, listener, new ThreadPool(Settings.EMPTY))
             .setConcurrentRequests(0)
             .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.GB))
             .setBulkActions(nbItems + 1)

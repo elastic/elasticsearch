@@ -6,7 +6,7 @@
           body:
             text:      Foo Bar!
             tokenizer: keyword
-    - length:    { tokens: 2 }
+    - length:    { tokens: 1 }
     - match:     { tokens.0.token: Foo Bar! }
 
 ---
@@ -14,11 +14,11 @@
     - do:
         indices.analyze:
           body:
-            text: good,
+            text: good
             explain: true
             tokenizer:
-              type: nGram,
-              min_gram: 2,
+              type: nGram
+              min_gram: 2
               max_gram: 2
     - length: { detail.tokenizer.tokens: 3 }
     - match:  { detail.tokenizer.name: _anonymous_tokenizer }

@@ -4,10 +4,10 @@
     - do:
         indices.analyze:
           body:
-            text: jeff quit phish,
-            tokenzier: keyword
+            text: jeff quit phish
+            tokenizer: keyword
             char_filter:
-              - type: mapping,
+              - type: mapping
                 mappings: ["ph => f", "qu => q"]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: "jeff qit fish" }

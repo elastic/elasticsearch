@@ -29,12 +29,13 @@
             text:      the qu1ck brown fox
             tokenizer: standard
             filter:    [word_delimiter]
-    - length: { tokens: 5 }
+    - length: { tokens: 6 }
     - match:  { tokens.0.token: the }
     - match:  { tokens.1.token: qu }
-    - match:  { tokens.2.token: ck }
-    - match:  { tokens.3.token: brown }
-    - match:  { tokens.4.token: fox }
+    - match:  { tokens.2.token: "1" }
+    - match:  { tokens.3.token: ck }
+    - match:  { tokens.4.token: brown }
+    - match:  { tokens.5.token: fox }
 
     - do:
         indices.analyze:
@@ -43,7 +44,7 @@
             tokenizer: standard
             filter:
               - type: word_delimiter
-                split_on_numeric: false
+                split_on_numerics: false
     - length: { tokens: 4 }
     - match:  { tokens.0.token: the }
     - match:  { tokens.1.token: qu1ck }
@@ -58,12 +59,13 @@
             text:      the qu1ck brown fox
             tokenizer: standard
             filter:    [word_delimiter_graph]
-    - length: { tokens: 5 }
+    - length: { tokens: 6 }
     - match:  { tokens.0.token: the }
     - match:  { tokens.1.token: qu }
-    - match:  { tokens.2.token: ck }
-    - match:  { tokens.3.token: brown }
-    - match:  { tokens.4.token: fox }
+    - match:  { tokens.2.token: "1" }
+    - match:  { tokens.3.token: ck }
+    - match:  { tokens.4.token: brown }
+    - match:  { tokens.5.token: fox }
 
     - do:
         indices.analyze:
@@ -72,7 +74,7 @@
             tokenizer: standard
             filter:
               - type: word_delimiter_graph
-                split_on_numeric: false
+                split_on_numerics: false
     - length: { tokens: 4 }
     - match:  { tokens.0.token: the }
     - match:  { tokens.1.token: qu1ck }

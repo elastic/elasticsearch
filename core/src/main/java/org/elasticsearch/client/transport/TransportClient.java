@@ -26,8 +26,6 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.GenericAction;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -47,8 +45,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -193,17 +191,8 @@ public abstract class TransportClient extends AbstractClient {
             final TransportClientNodesService nodesService =
                 new TransportClientNodesService(settings, transportService, threadPool, failureListner == null
                     ? (t, e) -> {} : failureListner);
-
-            @SuppressWarnings("rawtypes")
-            List<GenericAction> actionsToProxy = new ArrayList<>();
-            actionsToProxy.addAll(actionModule.getActions().values().stream()
-                    .map(x -> x.getAction())
-                    .collect(toList()));
-            /* TransportAnalyzeAction lives in analysis-common but we still want it exposed over the
-             * core transport client. To do this we need sneak AnalyzeAction into the proxy list. */
-            actionsToProxy.add(AnalyzeAction.INSTANCE);
-            final TransportProxyClient proxy = new TransportProxyClient(settings, transportService,
-                    nodesService, actionsToProxy);
+            final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService,
+                actionModule.getActions().values().stream().map(x -> x.getAction()).collect(Collectors.toList()));
 
             List<LifecycleComponent> pluginLifecycleComponents = new ArrayList<>();
             pluginLifecycleComponents.addAll(pluginsService.getGuiceServiceClasses().stream()

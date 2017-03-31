@@ -19,6 +19,9 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
@@ -63,8 +66,8 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.replication.TransportReplicationActionTests;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
@@ -74,29 +77,51 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 
 @ClusterScope(scope = Scope.SUITE, numClientNodes = 1, minNumDataNodes = 2)
-public class IndicesRequestIT extends IndicesRequestTestCase {
+public class IndicesRequestIT extends ESIntegTestCase {
+
+    private final List<String> indices = new ArrayList<>();
+
     @Override
     protected int minimumNumberOfShards() {
         //makes sure that a reduce is always needed when searching
@@ -121,10 +146,7 @@ public class IndicesRequestIT extends IndicesRequestTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>();
-        plugins.addAll(super.nodePlugins());
-        plugins.add(CustomScriptPlugin.class);
-        return plugins;
+        return Arrays.asList(InterceptingTransportService.TestPlugin.class, CustomScriptPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -134,6 +156,24 @@ public class IndicesRequestIT extends IndicesRequestTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             return Collections.singletonMap("ctx.op='delete'", vars -> ((Map<String, Object>) vars.get("ctx")).put("op", "delete"));
         }
+    }
+
+    @Before
+    public void setup() {
+        int numIndices = iterations(1, 5);
+        for (int i = 0; i < numIndices; i++) {
+            indices.add("test" + i);
+        }
+        for (String index : indices) {
+            assertAcked(prepareCreate(index).addAlias(new Alias(index + "-alias")));
+        }
+        ensureGreen();
+    }
+
+    @After
+    public void cleanUp() {
+        assertAllRequestsHaveBeenConsumed();
+        indices.clear();
     }
 
     public void testGetFieldMappings() {
@@ -146,6 +186,18 @@ public class IndicesRequestIT extends IndicesRequestTestCase {
 
         clearInterceptedActions();
         assertSameIndices(getFieldMappingsRequest, getFieldMappingsShardAction);
+    }
+
+    public void testAnalyze() {
+        String analyzeShardAction = AnalyzeAction.NAME + "[s]";
+        interceptTransportActions(analyzeShardAction);
+
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest(randomIndexOrAlias());
+        analyzeRequest.text("text");
+        internalCluster().coordOnlyNodeClient().admin().indices().analyze(analyzeRequest).actionGet();
+
+        clearInterceptedActions();
+        assertSameIndices(analyzeRequest, analyzeShardAction);
     }
 
     public void testIndex() {
@@ -526,5 +578,192 @@ public class IndicesRequestIT extends IndicesRequestTestCase {
                 SearchTransportService.FETCH_ID_ACTION_NAME);
         //free context messages are not necessarily sent, but if they are, check their indices
         assertSameIndicesOptionalRequests(searchRequest, SearchTransportService.FREE_CONTEXT_ACTION_NAME);
+    }
+
+    private static void assertSameIndices(IndicesRequest originalRequest, String... actions) {
+        assertSameIndices(originalRequest, false, actions);
+    }
+
+    private static void assertSameIndicesOptionalRequests(IndicesRequest originalRequest, String... actions) {
+        assertSameIndices(originalRequest, true, actions);
+    }
+
+    private static void assertSameIndices(IndicesRequest originalRequest, boolean optional, String... actions) {
+        for (String action : actions) {
+            List<TransportRequest> requests = consumeTransportRequests(action);
+            if (!optional) {
+                assertThat("no internal requests intercepted for action [" + action + "]", requests.size(), greaterThan(0));
+            }
+            for (TransportRequest internalRequest : requests) {
+                IndicesRequest indicesRequest = convertRequest(internalRequest);
+                assertThat(internalRequest.getClass().getName(), indicesRequest.indices(), equalTo(originalRequest.indices()));
+                assertThat(indicesRequest.indicesOptions(), equalTo(originalRequest.indicesOptions()));
+            }
+        }
+    }
+    private static void assertIndicesSubset(List<String> indices, String... actions) {
+        //indices returned by each bulk shard request need to be a subset of the original indices
+        for (String action : actions) {
+            List<TransportRequest> requests = consumeTransportRequests(action);
+            assertThat("no internal requests intercepted for action [" + action + "]", requests.size(), greaterThan(0));
+            for (TransportRequest internalRequest : requests) {
+                IndicesRequest indicesRequest = convertRequest(internalRequest);
+                for (String index : indicesRequest.indices()) {
+                    assertThat(indices, hasItem(index));
+                }
+            }
+        }
+    }
+
+    static IndicesRequest convertRequest(TransportRequest request) {
+        final IndicesRequest indicesRequest;
+        if (request instanceof IndicesRequest) {
+            indicesRequest = (IndicesRequest) request;
+        } else {
+            indicesRequest = TransportReplicationActionTests.resolveRequest(request);
+        }
+        return indicesRequest;
+    }
+
+    private String randomIndexOrAlias() {
+        String index = randomFrom(indices);
+        if (randomBoolean()) {
+            return index + "-alias";
+        } else {
+            return index;
+        }
+    }
+
+    private String[] randomIndicesOrAliases() {
+        int count = randomIntBetween(1, indices.size() * 2); //every index has an alias
+        String[] indices = new String[count];
+        for (int i = 0; i < count; i++) {
+            indices[i] = randomIndexOrAlias();
+        }
+        return indices;
+    }
+
+    private String[] randomUniqueIndicesOrAliases() {
+        Set<String> uniqueIndices = new HashSet<>();
+        int count = randomIntBetween(1, this.indices.size());
+        while (uniqueIndices.size() < count) {
+            uniqueIndices.add(randomFrom(this.indices));
+        }
+        String[] indices = new String[count];
+        int i = 0;
+        for (String index : uniqueIndices) {
+            indices[i++] = randomBoolean() ? index + "-alias" : index;
+        }
+        return indices;
+    }
+
+    private static void assertAllRequestsHaveBeenConsumed() {
+        Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
+        for (PluginsService pluginsService : pluginsServices) {
+            Set<Map.Entry<String, List<TransportRequest>>> entries =
+                pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).stream().findFirst().get()
+                .instance.requests.entrySet();
+            assertThat(entries, emptyIterable());
+
+        }
+    }
+
+    private static void clearInterceptedActions() {
+        Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
+        for (PluginsService pluginsService : pluginsServices) {
+            pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).stream().findFirst().get()
+                .instance.clearInterceptedActions();
+        }
+    }
+
+    private static void interceptTransportActions(String... actions) {
+        Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
+        for (PluginsService pluginsService : pluginsServices) {
+            pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).stream().findFirst().get()
+                .instance.interceptTransportActions(actions);
+        }
+    }
+
+    private static List<TransportRequest> consumeTransportRequests(String action) {
+        List<TransportRequest> requests = new ArrayList<>();
+
+        Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
+        for (PluginsService pluginsService : pluginsServices) {
+            List<TransportRequest> transportRequests = pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class)
+                .stream().findFirst().get().instance.consumeRequests(action);
+            if (transportRequests != null) {
+                requests.addAll(transportRequests);
+            }
+        }
+        return requests;
+    }
+
+    public static class InterceptingTransportService implements TransportInterceptor {
+
+        public static class TestPlugin extends Plugin implements NetworkPlugin {
+            public final InterceptingTransportService instance = new InterceptingTransportService();
+            @Override
+            public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
+                                                                       ThreadContext threadContext) {
+                return Collections.singletonList(instance);
+            }
+        }
+
+        private final Set<String> actions = new HashSet<>();
+
+        private final Map<String, List<TransportRequest>> requests = new HashMap<>();
+
+        @Override
+        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+                                                                                        boolean forceExecution,
+                                                                                        TransportRequestHandler<T> actualHandler) {
+            return new InterceptingRequestHandler<>(action, actualHandler);
+        }
+
+        synchronized List<TransportRequest> consumeRequests(String action) {
+            return requests.remove(action);
+        }
+
+        synchronized void interceptTransportActions(String... actions) {
+            Collections.addAll(this.actions, actions);
+        }
+
+        synchronized void clearInterceptedActions() {
+            actions.clear();
+        }
+
+
+        private class InterceptingRequestHandler<T extends TransportRequest> implements TransportRequestHandler<T> {
+
+            private final TransportRequestHandler<T> requestHandler;
+            private final String action;
+
+            InterceptingRequestHandler(String action, TransportRequestHandler<T> requestHandler) {
+                this.requestHandler = requestHandler;
+                this.action = action;
+            }
+
+            @Override
+            public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
+                synchronized (InterceptingTransportService.this) {
+                    if (actions.contains(action)) {
+                        List<TransportRequest> requestList = requests.get(action);
+                        if (requestList == null) {
+                            requestList = new ArrayList<>();
+                            requestList.add(request);
+                            requests.put(action, requestList);
+                        } else {
+                            requestList.add(request);
+                        }
+                    }
+                }
+                requestHandler.messageReceived(request, channel, task);
+            }
+
+            @Override
+            public void messageReceived(T request, TransportChannel channel) throws Exception {
+                messageReceived(request, channel, null);
+            }
+        }
     }
 }

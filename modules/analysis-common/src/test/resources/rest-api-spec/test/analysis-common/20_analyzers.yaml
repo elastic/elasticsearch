@@ -1,0 +1,11 @@
+## Smoke tests for analyzers included in the analysis-common module
+
+"whitespace":
+    - do:
+        indices.analyze:
+          body:
+            text:     Foo Bar!
+            analyzer: whitespace
+    - length:    { tokens: 2 }
+    - match:     { tokens.0.token: Foo }
+    - match:     { tokens.1.token: Bar! }

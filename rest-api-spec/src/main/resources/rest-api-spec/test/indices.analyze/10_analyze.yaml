@@ -1,0 +1,113 @@
+"Basic test":
+    - do:
+        indices.analyze:
+          body:
+            text: Foo Bar
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: foo }
+    - match:  { tokens.1.token: bar }
+
+---
+"Index and field":
+    - do:
+        indices.create:
+          index: test
+          body:
+            mappings:
+              test:
+                properties:
+                  text:
+                    type:     text
+                    analyzer: standard
+
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            field: text
+            text: Foo Bar!
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: Foo }
+    - match:  { tokens.1.token: Bar }
+
+---
+"Array text":
+    - do:
+        indices.analyze:
+          body:
+            text: ["Foo Bar", "Baz"]
+            tokenizer: standard
+    - length: {tokens: 2 }
+    - match:  { tokens.0.token: foo }
+    - match:  { tokens.1.token: bar }
+    - match:  { tokens.1.token: baz }
+
+---
+"Detail response with Analyzer":
+    - do:
+        indices.analyze:
+          body:
+            text: This is troubled
+            analyzer: standard
+            explain: true
+    - length: { detail.analyzer.tokens: 3 }
+    - match:  { detail.analyzer.name: standard }
+    - match:  { detail.analyzer.tokens.0.token: this }
+    - match:  { detail.analyzer.tokens.1.token: is }
+    - match:  { detail.analyzer.tokens.2.token: troubled }
+
+---
+"Detail response with attribute":
+    - do:
+        indices.analyze:
+          body:
+            text: This is troubled
+            analyzer: standard
+            explain: true
+            attributes: ["keyword"]
+    - length: { detail.analyzer.tokens: 3 }
+    - match:  { detail.analyzer.name: standard }
+    - match:  { detail.analyzer.tokens.0.token: this }
+    - match:  { detail.analyzer.tokens.0.keyword: false }
+    - match:  { detail.analyzer.tokens.1.token: is }
+    - match:  { detail.analyzer.tokens.1.keyword: false }
+    - match:  { detail.analyzer.tokens.2.token: troubled }
+    - match:  { detail.analyzer.tokens.2.keyword: false }
+
+---
+"Detail output spcified attribute":
+    - do:
+        indices.analyze:
+          body: {"text": "<text>This is troubled</text>", "char_filter": ["html_strip"], "filter": ["snowball"], "tokenizer": standard, "explain": true, "attributes": ["keyword"]}
+    - length: { detail.charfilters: 1 }
+    - length: { detail.tokenizer.tokens: 3 }
+    - length: { detail.tokenfilters.0.tokens: 3 }
+    - match:     { detail.tokenizer.name: standard }
+    - match:     { detail.tokenizer.tokens.0.token: This }
+    - match:     { detail.tokenizer.tokens.1.token: is }
+    - match:     { detail.tokenizer.tokens.2.token: troubled }
+    - match:     { detail.tokenfilters.0.name: snowball }
+    - match:     { detail.tokenfilters.0.tokens.0.token: This }
+    - match:     { detail.tokenfilters.0.tokens.1.token: is }
+    - match:     { detail.tokenfilters.0.tokens.2.token: troubl }
+    - match:     { detail.tokenfilters.0.tokens.2.keyword: false }
+
+---
+"Custom filter in request":
+    - do:
+        indices.analyze:
+          body:
+            text: Foo Bar Buzz
+            tokenizer: standard
+            explain: true
+            filter:
+             - type: stop
+               stopwords: ["foo", "buzz"]
+    - length: {detail.tokenizer.tokens: 3 }
+    - length: {detail.tokenfilters.0.tokens: 1 }
+    - match:  { detail.tokenizer.name: standard }
+    - match:  { detail.tokenizer.tokens.0.token: Foo }
+    - match:  { detail.tokenizer.tokens.1.token: Bar }
+    - match:  { detail.tokenizer.tokens.2.token: Buzz }
+    - match:  { detail.tokenfilters.0.name: "_anonymous_tokenfilter_[1]" }
+    - match:  { detail.tokenfilters.0.tokens.0.token: bar }

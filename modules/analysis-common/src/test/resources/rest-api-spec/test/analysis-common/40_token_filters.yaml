@@ -1,0 +1,11 @@
+## Smoke tests for token filters included in the analysis-common module
+
+"lowercase":
+    - do:
+        indices.analyze:
+          body:
+            text:      Foo Bar!
+            tokenizer: keyword
+            filter:    [lowercase]
+    - length:    { tokens: 2 }
+    - match:     { tokens.0.token: foo bar! }

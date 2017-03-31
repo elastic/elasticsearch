@@ -31,8 +31,10 @@ import javax.security.auth.PrivateCredentialPermission;
 import javax.security.auth.kerberos.ServicePermission;
 
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.Loggers;
 
 /**
  * Oversees all the security specific logic for the HDFS Repository plugin.
@@ -41,6 +43,8 @@ import org.elasticsearch.common.io.PathUtils;
  * permissions to grant the blob store restricted execution methods.
  */
 public class HdfsSecurityContext {
+
+    private static final Logger LOGGER = Loggers.getLogger(HdfsSecurityContext.class);
 
     private static final Permission[] SIMPLE_AUTH_PERMISSIONS;
     private static final Permission[] KERBEROS_AUTH_PERMISSIONS;
@@ -86,8 +90,8 @@ public class HdfsSecurityContext {
     private static String getKeytabFileName() {
         String keytabLocation = System.getProperty(PROP_KRB5_KEYTAB);
         if (keytabLocation == null) {
-            throw new RuntimeException("Keytab file location is not set in the [" + PROP_KRB5_KEYTAB +
-                "] system property.");
+            LOGGER.error("Keytab file location is not set in the [{}] system property.", PROP_KRB5_KEYTAB);
+            throw new RuntimeException("Could not locate keytab");
         }
         return keytabLocation;
     }
@@ -101,12 +105,15 @@ public class HdfsSecurityContext {
         try {
             Path keytabPath = PathUtils.get(keytabLocation);
             if (Files.exists(keytabPath) == false) {
-                throw new RuntimeException("Could not locate keytab file at [" + keytabLocation + "]. " +
-                    "Check that the [" + PROP_KRB5_KEYTAB + "] system property is correct.");
+                LOGGER.error("Could not locate keytab file at [{}]. Check that the [{}] system property is correct.",
+                    keytabLocation, PROP_KRB5_KEYTAB);
+                throw new RuntimeException("Could not locate keytab");
             }
         } catch (SecurityException se) {
-            throw new RuntimeException("Plugin is denied access to keytab file at [" + keytabLocation + "]. " +
-                "Check that the [" + PROP_KRB5_KEYTAB + "] system property is correct.", se);
+            LOGGER.error("Denied access to keytab file at [{}]. Check that the [{}] system property is correct.",
+                keytabLocation, PROP_KRB5_KEYTAB);
+            LOGGER.error("Could not access keytab", se);
+            throw new RuntimeException("Could not locate keytab");
         }
         return keytabLocation;
     }

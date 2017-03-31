@@ -30,6 +30,10 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
 import org.elasticsearch.action.explain.ExplainResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequestBuilder;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldstats.FieldStatsRequest;
 import org.elasticsearch.action.fieldstats.FieldStatsRequestBuilder;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
@@ -457,6 +461,21 @@ public interface Client extends ElasticsearchClient, Releasable {
     ActionFuture<FieldStatsResponse> fieldStats(FieldStatsRequest request);
 
     void fieldStats(FieldStatsRequest request, ActionListener<FieldStatsResponse> listener);
+
+    /**
+     * Builder for the field capabilities request.
+     */
+    FieldCapabilitiesRequestBuilder prepareFieldCaps();
+
+    /**
+     * An action that returns the field capabilities from the provided request
+     */
+    ActionFuture<FieldCapabilitiesResponse> fieldCaps(FieldCapabilitiesRequest request);
+
+    /**
+     * An action that returns the field capabilities from the provided request
+     */
+    void fieldCaps(FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener);
 
     /**
      * Returns this clients settings

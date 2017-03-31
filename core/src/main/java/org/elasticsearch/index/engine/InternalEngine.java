@@ -407,10 +407,13 @@ public class InternalEngine extends Engine {
      * the status of the current doc version in lucene, compared to the version in an incoming
      * operation
      */
-    enum LuceneDocStatus {
-        NEWER_OR_EQUAL,
-        OLDER,
-        NOT_FOUND
+    enum OpVsLuceneDocStatus {
+        /** the op is more recent than the one that last modified the doc found in lucene*/
+        OP_NEWER,
+        /** the op is older or the same as the one that last modified the doc found in lucene*/
+        OP_STALE_OR_EQUAL,
+        /** no doc was found in lucene */
+        LUCENE_DOC_NOT_FOUND
     }
 
     /** resolves the current version of the document, returning null if not found */
@@ -431,15 +434,15 @@ public class InternalEngine extends Engine {
         return versionValue;
     }
 
-    private LuceneDocStatus checkLuceneDocStatusBasedOnVersions(final Operation op)
+    private OpVsLuceneDocStatus compareOpToLuceneDocBasedOnVersions(final Operation op)
         throws IOException {
         assert op.version() >= 0 : "versions should be non-negative. got " + op.version();
         final VersionValue versionValue = resolveDocVersion(op);
         if (versionValue == null) {
-            return LuceneDocStatus.NOT_FOUND;
+            return OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
         } else {
             return op.version() > versionValue.getVersion() ?
-                LuceneDocStatus.OLDER : LuceneDocStatus.NEWER_OR_EQUAL;
+                OpVsLuceneDocStatus.OP_NEWER : OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
         }
     }
 
@@ -598,12 +601,12 @@ public class InternalEngine extends Engine {
             // unlike the primary, replicas don't really care to about creation status of documents
             // this allows to ignore the case where a document was found in the live version maps in
             // a delete state and return false for the created flag in favor of code simplicity
-            final LuceneDocStatus luceneOpStatus = checkLuceneDocStatusBasedOnVersions(index);
-            if (luceneOpStatus == LuceneDocStatus.NEWER_OR_EQUAL) {
+            final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnVersions(index);
+            if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
                 plan = IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
             } else {
                 plan = IndexingStrategy.processNormally(
-                    luceneOpStatus == LuceneDocStatus.NOT_FOUND, index.seqNo(), index.version()
+                    opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, index.seqNo(), index.version()
                 );
             }
         }
@@ -870,14 +873,14 @@ public class InternalEngine extends Engine {
         // unlike the primary, replicas don't really care to about found status of documents
         // this allows to ignore the case where a document was found in the live version maps in
         // a delete state and return true for the found flag in favor of code simplicity
-        final LuceneDocStatus luceneOpStatus = checkLuceneDocStatusBasedOnVersions(delete);
+        final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnVersions(delete);
 
         final DeletionStrategy plan;
-        if (luceneOpStatus == LuceneDocStatus.NEWER_OR_EQUAL) {
-            plan = DeletionStrategy.processButSkipLucene(luceneOpStatus == LuceneDocStatus.NOT_FOUND,
-                delete.seqNo(), delete.version());
+        if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
+            plan = DeletionStrategy.processButSkipLucene(false, delete.seqNo(), delete.version());
         } else {
-            plan = DeletionStrategy.processNormally(luceneOpStatus == LuceneDocStatus.NOT_FOUND,
+            plan = DeletionStrategy.processNormally(
+                opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND,
                 delete.seqNo(), delete.version());
         }
         return plan;

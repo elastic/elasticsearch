@@ -99,7 +99,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/mapping/fields/all-field.asciidoc',
   'reference/mapping/params/analyzer.asciidoc',
   'reference/mapping/types/binary.asciidoc',
-  'reference/mapping/types/geo-shape.asciidoc',
   'reference/mapping/types/ip.asciidoc',
   'reference/mapping/types/nested.asciidoc',
   'reference/mapping/types/object.asciidoc',
@@ -108,7 +107,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/modules/scripting/using.asciidoc',
   'reference/modules/cross-cluster-search.asciidoc', // this is hard to test since we need 2 clusters -- maybe we can trick it into referencing itself...
   'reference/query-dsl/function-score-query.asciidoc',
-  'reference/query-dsl/geo-shape-query.asciidoc',
   'reference/search/field-stats.asciidoc',
   'reference/search/profile.asciidoc',
   'reference/search/request/highlighting.asciidoc',

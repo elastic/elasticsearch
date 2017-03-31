@@ -160,7 +160,14 @@ public class CancelTests extends ReindexTestCase {
         });
 
         // And check the status of the response
-        BulkByScrollResponse response = future.get();
+        BulkByScrollResponse response;
+        try {
+            response = future.get(30, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            String tasks = client().admin().cluster().prepareListTasks().setParentTaskId(mainTask.getTaskId())
+                        .setDetailed(true).get().toString();
+            throw new RuntimeException("Exception while waiting for the response. Running tasks: " + tasks, e);
+        }
         assertThat(response.getReasonCancelled(), equalTo("by user request"));
         assertThat(response.getBulkFailures(), emptyIterable());
         assertThat(response.getSearchFailures(), emptyIterable());

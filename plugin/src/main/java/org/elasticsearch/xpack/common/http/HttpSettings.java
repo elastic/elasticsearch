@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.common.http;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
 
@@ -32,6 +34,12 @@ public class HttpSettings {
     static final Setting<String> PROXY_HOST = Setting.simpleString(PROXY_HOST_KEY, Setting.Property.NodeScope);
     static final Setting<Integer> PROXY_PORT = Setting.intSetting(PROXY_PORT_KEY, 0, 0, 0xFFFF, Setting.Property.NodeScope);
 
+    static final Setting<ByteSizeValue> MAX_HTTP_RESPONSE_SIZE = Setting.byteSizeSetting("xpack.http.max_response_size",
+            new ByteSizeValue(10, ByteSizeUnit.MB),   // default
+            new ByteSizeValue(1, ByteSizeUnit.BYTES), // min
+            new ByteSizeValue(50, ByteSizeUnit.MB),   // max
+            Setting.Property.NodeScope);
+
     private static final SSLConfigurationSettings SSL = SSLConfigurationSettings.withPrefix(SSL_KEY_PREFIX);
 
     public static List<? extends Setting<?>> getSettings() {
@@ -41,6 +49,7 @@ public class HttpSettings {
         settings.add(CONNECTION_TIMEOUT);
         settings.add(PROXY_HOST);
         settings.add(PROXY_PORT);
+        settings.add(MAX_HTTP_RESPONSE_SIZE);
         return settings;
     }
 

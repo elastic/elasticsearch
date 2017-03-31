@@ -10,6 +10,8 @@ import org.apache.http.client.ClientProtocolException;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.mocksocket.MockServerSocket;
@@ -50,6 +52,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.Is.is;
 
 public class HttpClientTests extends ESTestCase {
@@ -427,5 +430,21 @@ public class HttpClientTests extends ESTestCase {
         HttpResponse response = httpClient.execute(request);
         assertThat(response.status(), is(noContentStatusCode));
         assertThat(response.body(), is(nullValue()));
+    }
+
+    public void testMaxHttpResponseSize() throws Exception {
+        int randomBytesLength = scaledRandomIntBetween(2, 100);
+        String data = randomAsciiOfLength(randomBytesLength);
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(data));
+
+        Settings settings = Settings.builder()
+                .put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), new ByteSizeValue(randomBytesLength - 1, ByteSizeUnit.BYTES))
+                .build();
+        HttpClient httpClient = new HttpClient(settings, authRegistry, new SSLService(environment.settings(), environment));
+
+        HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort()).method(HttpMethod.GET).path("/");
+
+        IOException e = expectThrows(IOException.class, () -> httpClient.execute(requestBuilder.build()));
+        assertThat(e.getMessage(), startsWith("Maximum limit of"));
     }
 }

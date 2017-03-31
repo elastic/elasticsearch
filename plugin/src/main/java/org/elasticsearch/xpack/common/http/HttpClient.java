@@ -34,6 +34,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -64,12 +65,14 @@ public class HttpClient extends AbstractComponent {
     private final String proxyHost;
     private final TimeValue defaultConnectionTimeout;
     private final TimeValue defaultReadTimeout;
+    private final ByteSizeValue maxResponseSize;
 
     public HttpClient(Settings settings, HttpAuthRegistry httpAuthRegistry, SSLService sslService) {
         super(settings);
         this.httpAuthRegistry = httpAuthRegistry;
         this.defaultConnectionTimeout = HttpSettings.CONNECTION_TIMEOUT.get(settings);
         this.defaultReadTimeout = HttpSettings.READ_TIMEOUT.get(settings);
+        this.maxResponseSize = HttpSettings.MAX_HTTP_RESPONSE_SIZE.get(settings);
 
         // proxy setup
         this.proxyHost = HttpSettings.PROXY_HOST.get(settings);
@@ -191,7 +194,7 @@ public class HttpClient extends AbstractComponent {
                 body = new byte[0];
             } else {
                 try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-                    try (InputStream is = response.getEntity().getContent()) {
+                    try (InputStream is = new SizeLimitInputStream(maxResponseSize, response.getEntity().getContent())) {
                         Streams.copy(is, outputStream);
                     }
                     body = outputStream.toByteArray();
@@ -233,4 +236,5 @@ public class HttpClient extends AbstractComponent {
             return methodName;
         }
     }
+
 }

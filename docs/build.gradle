@@ -24,8 +24,6 @@ apply plugin: 'elasticsearch.docs-test'
  * only remove entries from this list. When it is empty we'll remove it
  * entirely and have a party! There will be cake and everything.... */
 buildRestTests.expectedUnconvertedCandidates = [
-  'reference/aggregations/bucket/geodistance-aggregation.asciidoc',
-  'reference/aggregations/bucket/geohashgrid-aggregation.asciidoc',
   'reference/aggregations/bucket/iprange-aggregation.asciidoc',
   'reference/aggregations/bucket/missing-aggregation.asciidoc',
   'reference/aggregations/bucket/nested-aggregation.asciidoc',
@@ -36,8 +34,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/matrix/stats-aggregation.asciidoc',
   'reference/aggregations/metrics/cardinality-aggregation.asciidoc',
   'reference/aggregations/metrics/extendedstats-aggregation.asciidoc',
-  'reference/aggregations/metrics/geobounds-aggregation.asciidoc',
-  'reference/aggregations/metrics/geocentroid-aggregation.asciidoc',
   'reference/aggregations/metrics/percentile-aggregation.asciidoc',
   'reference/aggregations/metrics/percentile-rank-aggregation.asciidoc',
   'reference/aggregations/metrics/scripted-metric-aggregation.asciidoc',
@@ -73,15 +69,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/analysis/tokenfilters/keyword-repeat-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/limit-token-count-tokenfilter.asciidoc',
   'reference/analysis/tokenfilters/lowercase-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/pattern-capture-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/snowball-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/stemmer-override-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/stemmer-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/stop-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/synonym-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/synonym-graph-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/word-delimiter-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/word-delimiter-graph-tokenfilter.asciidoc',
   'reference/cat/snapshots.asciidoc',
   'reference/cat/templates.asciidoc',
   'reference/cat/thread_pool.asciidoc',
@@ -112,7 +99,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/mapping/fields/all-field.asciidoc',
   'reference/mapping/params/analyzer.asciidoc',
   'reference/mapping/types/binary.asciidoc',
-  'reference/mapping/types/geo-point.asciidoc',
   'reference/mapping/types/geo-shape.asciidoc',
   'reference/mapping/types/ip.asciidoc',
   'reference/mapping/types/nested.asciidoc',
@@ -121,7 +107,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/modules/scripting/security.asciidoc',
   'reference/modules/scripting/using.asciidoc',
   'reference/modules/cross-cluster-search.asciidoc', // this is hard to test since we need 2 clusters -- maybe we can trick it into referencing itself...
-  'reference/query-dsl/exists-query.asciidoc',
   'reference/query-dsl/function-score-query.asciidoc',
   'reference/query-dsl/geo-shape-query.asciidoc',
   'reference/search/field-stats.asciidoc',
@@ -145,6 +130,8 @@ integTestCluster {
   configFile 'scripts/my_map_script.painless'
   configFile 'scripts/my_combine_script.painless'
   configFile 'scripts/my_reduce_script.painless'
+  configFile 'analysis/synonym.txt'
+  configFile 'analysis/stemmer_override.txt'
   configFile 'userdict_ja.txt'
   configFile 'KeywordTokenizer.rbbi'
   // Whitelist reindexing from the local node so we can test it.

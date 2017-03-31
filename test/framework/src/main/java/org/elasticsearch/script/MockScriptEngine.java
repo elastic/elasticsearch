@@ -32,6 +32,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyMap;
+
 /**
  * A mocked script engine that can be used for testing purpose.
  *
@@ -215,4 +217,9 @@ public class MockScriptEngine implements ScriptEngineService {
             return true;
         }
     }
+
+    public static Script mockInlineScript(final String script) {
+        return new Script(ScriptType.INLINE, "mock", script, emptyMap());
+    }
+
 }

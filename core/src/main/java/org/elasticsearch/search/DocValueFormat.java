@@ -393,5 +393,22 @@ public interface DocValueFormat extends NamedWriteable {
         public BytesRef parseBytesRef(String value) {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pattern);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (obj.getClass() != getClass()) {
+                return false;
+            }
+            Decimal other = (Decimal) obj;
+            return Objects.equals(pattern, other.pattern);
+        }
     }
 }

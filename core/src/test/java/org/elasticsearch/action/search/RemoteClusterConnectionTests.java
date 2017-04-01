@@ -36,6 +36,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -81,23 +82,33 @@ public class RemoteClusterConnectionTests extends ESTestCase {
     }
 
     public static MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes, Version version, ThreadPool threadPool) {
+        return startTransport(id, knownNodes, version, threadPool, Settings.EMPTY);
+    }
+
+    public static MockTransportService startTransport(
+            final String id,
+            final List<DiscoveryNode> knownNodes,
+            final Version version,
+            final ThreadPool threadPool,
+            final Settings settings) {
         boolean success = false;
-        MockTransportService newService = MockTransportService.createNewService(Settings.EMPTY, version, threadPool, null);
+        final Settings s = Settings.builder().put(settings).put("node.name", id).build();
+        MockTransportService newService = MockTransportService.createNewService(s, version, threadPool, null);
         try {
             newService.registerRequestHandler(ClusterSearchShardsAction.NAME, ClusterSearchShardsRequest::new, ThreadPool.Names.SAME,
-                (request, channel) -> {
-                    channel.sendResponse(new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
-                        knownNodes.toArray(new DiscoveryNode[0]), Collections.emptyMap()));
-                });
+                    (request, channel) -> {
+                        channel.sendResponse(new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
+                                knownNodes.toArray(new DiscoveryNode[0]), Collections.emptyMap()));
+                    });
             newService.registerRequestHandler(ClusterStateAction.NAME, ClusterStateRequest::new, ThreadPool.Names.SAME,
-                (request, channel) -> {
-                    DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-                    for (DiscoveryNode node : knownNodes) {
-                        builder.add(node);
-                    }
-                    ClusterState build = ClusterState.builder(ClusterName.DEFAULT).nodes(builder.build()).build();
-                    channel.sendResponse(new ClusterStateResponse(ClusterName.DEFAULT, build, 0L));
-                });
+                    (request, channel) -> {
+                        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+                        for (DiscoveryNode node : knownNodes) {
+                            builder.add(node);
+                        }
+                        ClusterState build = ClusterState.builder(ClusterName.DEFAULT).nodes(builder.build()).build();
+                        channel.sendResponse(new ClusterStateResponse(ClusterName.DEFAULT, build, 0L));
+                    });
             newService.start();
             newService.acceptIncomingRequests();
             success = true;

@@ -138,7 +138,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
                 // nodes can be tagged with node.attr.remote_gateway: true to allow a node to be a gateway node for
                 // cross cluster search
                 String attribute = REMOTE_NODE_ATTRIBUTE.get(settings);
-                nodePredicate = nodePredicate.and((node) -> Booleans.isTrue(node.getAttributes().getOrDefault(attribute, "false")));
+                nodePredicate = nodePredicate.and((node) -> Booleans.parseBoolean(node.getAttributes().getOrDefault(attribute, "false")));
             }
             remoteClusters.putAll(this.remoteClusters);
             for (Map.Entry<String, List<DiscoveryNode>> entry : seeds.entrySet()) {

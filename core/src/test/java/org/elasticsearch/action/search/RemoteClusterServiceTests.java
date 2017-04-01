@@ -317,14 +317,14 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             "cluster_2",
                             Arrays.asList(c2N1Address, c2N2Address),
                             connectionListener(secondLatch));
-
+                    secondLatch.await();
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     assertFalse(service.isRemoteNodeConnected("cluster_1", c1N1Node));
                     assertTrue(service.isRemoteNodeConnected("cluster_1", c1N2Node));
                     assertTrue(service.isRemoteClusterRegistered("cluster_2"));
-                    assertFalse(service.isRemoteNodeConnected("cluster_1", c2N1Node));
-                    assertTrue(service.isRemoteNodeConnected("cluster_1", c1N2Node));
+                    assertFalse(service.isRemoteNodeConnected("cluster_2", c2N1Node));
+                    assertTrue(service.isRemoteNodeConnected("cluster_2", c2N2Node));
                 }
             }
         }

@@ -53,7 +53,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/pipeline/serial-diff-aggregation.asciidoc',
   'reference/aggregations/pipeline/stats-bucket-aggregation.asciidoc',
   'reference/aggregations/pipeline/sum-bucket-aggregation.asciidoc',
-  'reference/analysis/analyzers/lang-analyzer.asciidoc',
   'reference/analysis/analyzers/pattern-analyzer.asciidoc',
   'reference/analysis/charfilters/htmlstrip-charfilter.asciidoc',
   'reference/analysis/charfilters/pattern-replace-charfilter.asciidoc',

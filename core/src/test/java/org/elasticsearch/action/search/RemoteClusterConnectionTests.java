@@ -72,28 +72,38 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    private MockTransportService startTransport(List<DiscoveryNode> knownNodes, Version version) {
-        return startTransport(knownNodes, version, threadPool);
+    private MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes, Version version) {
+        return startTransport(id, knownNodes, version, threadPool);
     }
 
-    public static MockTransportService startTransport(List<DiscoveryNode> knownNodes, Version version, ThreadPool threadPool) {
+    public static MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes, Version version, ThreadPool threadPool) {
+        return startTransport(id, knownNodes, version, threadPool, Settings.EMPTY);
+    }
+
+    public static MockTransportService startTransport(
+            final String id,
+            final List<DiscoveryNode> knownNodes,
+            final Version version,
+            final ThreadPool threadPool,
+            final Settings settings) {
         boolean success = false;
-        MockTransportService newService = MockTransportService.mockTcp(Settings.EMPTY, version, threadPool, null);
+        final Settings s = Settings.builder().put(settings).put("node.name", id).build();
+        MockTransportService newService = MockTransportService.mockTcp(s, version, threadPool, null);
         try {
             newService.registerRequestHandler(ClusterSearchShardsAction.NAME, ClusterSearchShardsRequest::new, ThreadPool.Names.SAME,
-                (request, channel) -> {
-                    channel.sendResponse(new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
-                        knownNodes.toArray(new DiscoveryNode[0]), Collections.emptyMap()));
-                });
+                    (request, channel) -> {
+                        channel.sendResponse(new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
+                                knownNodes.toArray(new DiscoveryNode[0]), Collections.emptyMap()));
+                    });
             newService.registerRequestHandler(ClusterStateAction.NAME, ClusterStateRequest::new, ThreadPool.Names.SAME,
-                (request, channel) -> {
-                    DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-                    for (DiscoveryNode node : knownNodes) {
-                        builder.add(node);
-                    }
-                    ClusterState build = ClusterState.builder(ClusterName.DEFAULT).nodes(builder.build()).build();
-                    channel.sendResponse(new ClusterStateResponse(ClusterName.DEFAULT, build));
-                });
+                    (request, channel) -> {
+                        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+                        for (DiscoveryNode node : knownNodes) {
+                            builder.add(node);
+                        }
+                        ClusterState build = ClusterState.builder(ClusterName.DEFAULT).nodes(builder.build()).build();
+                        channel.sendResponse(new ClusterStateResponse(ClusterName.DEFAULT, build));
+                    });
             newService.start();
             newService.acceptIncomingRequests();
             success = true;
@@ -107,8 +117,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     public void testDiscoverSingleNode() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport(knownNodes, Version.CURRENT);
-             MockTransportService discoverableTransport = startTransport(knownNodes, Version.CURRENT)) {
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             DiscoveryNode discoverableNode = discoverableTransport.getLocalDiscoNode();
             knownNodes.add(seedTransport.getLocalDiscoNode());
@@ -131,9 +141,9 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     public void testDiscoverSingleNodeWithIncompatibleSeed() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport(knownNodes, Version.CURRENT);
-             MockTransportService incomaptibleTransport = startTransport(knownNodes, Version.fromString("2.0.0"));
-             MockTransportService discoverableTransport = startTransport(knownNodes, Version.CURRENT)) {
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService incomaptibleTransport = startTransport("incompat_seed_node", knownNodes, Version.fromString("2.0.0"));
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             DiscoveryNode discoverableNode = discoverableTransport.getLocalDiscoNode();
             DiscoveryNode incompatibleSeedNode = incomaptibleTransport.getLocalDiscoNode();
@@ -161,9 +171,9 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     public void testNodeDisconnected() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport(knownNodes, Version.CURRENT);
-             MockTransportService discoverableTransport = startTransport(knownNodes, Version.CURRENT);
-             MockTransportService spareTransport = startTransport(knownNodes, Version.CURRENT)) {
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT);
+             MockTransportService spareTransport = startTransport("spare_node", knownNodes, Version.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             DiscoveryNode discoverableNode = discoverableTransport.getLocalDiscoNode();
             DiscoveryNode spareNode = spareTransport.getLocalDiscoNode();
@@ -211,8 +221,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     public void testFilterDiscoveredNodes() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport(knownNodes, Version.CURRENT);
-             MockTransportService discoverableTransport = startTransport(knownNodes, Version.CURRENT)) {
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             DiscoveryNode discoverableNode = discoverableTransport.getLocalDiscoNode();
             knownNodes.add(seedTransport.getLocalDiscoNode());
@@ -255,7 +265,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     public void testConnectWithIncompatibleTransports() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport(knownNodes, Version.fromString("2.0.0"))) {
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.fromString("2.0.0"))) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             knownNodes.add(seedTransport.getLocalDiscoNode());
 
@@ -328,8 +338,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
     public void testFetchShards() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
 
-        try (MockTransportService seedTransport = startTransport(knownNodes, Version.CURRENT);
-             MockTransportService discoverableTransport = startTransport(knownNodes, Version.CURRENT)) {
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             knownNodes.add(seedTransport.getLocalDiscoNode());
             knownNodes.add(discoverableTransport.getLocalDiscoNode());
@@ -370,9 +380,9 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     public void testTriggerUpdatesConcurrently() throws IOException, InterruptedException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport(knownNodes, Version.CURRENT);
-             MockTransportService seedTransport1 = startTransport(knownNodes, Version.CURRENT);
-             MockTransportService discoverableTransport = startTransport(knownNodes, Version.CURRENT)) {
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService seedTransport1 = startTransport("seed_node_1", knownNodes, Version.CURRENT);
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             DiscoveryNode discoverableNode = discoverableTransport.getLocalDiscoNode();
             DiscoveryNode seedNode1 = seedTransport1.getLocalDiscoNode();
@@ -437,9 +447,9 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     public void testCloseWhileConcurrentlyConnecting() throws IOException, InterruptedException, BrokenBarrierException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport(knownNodes, Version.CURRENT);
-             MockTransportService seedTransport1 = startTransport(knownNodes, Version.CURRENT);
-             MockTransportService discoverableTransport = startTransport(knownNodes, Version.CURRENT)) {
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService seedTransport1 = startTransport("seed_node_1", knownNodes, Version.CURRENT);
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             DiscoveryNode seedNode1 = seedTransport1.getLocalDiscoNode();
             knownNodes.add(seedTransport.getLocalDiscoNode());

@@ -45,3 +45,5 @@ java.net.Socket#connect(java.net.SocketAddress)
 java.net.Socket#connect(java.net.SocketAddress, int)
 java.nio.channels.SocketChannel#open(java.net.SocketAddress)
 java.nio.channels.SocketChannel#connect(java.net.SocketAddress)
+
+java.lang.Boolean.getBoolean(String) @ this method is misleading, use Booleans#parseBoolean(String) on the result of System#getProperty(String)) instead if you intended to parse a system property as a boolean

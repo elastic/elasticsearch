@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class AllocatedPersistentTask extends CancellableTask {
     private long persistentTaskId;
+    private long allocationId;
 
     private final AtomicReference<State> state;
     @Nullable
@@ -70,16 +71,17 @@ public class AllocatedPersistentTask extends CancellableTask {
      * This doesn't affect the status of this allocated task.
      */
     public void updatePersistentStatus(Task.Status status, PersistentTasksService.PersistentTaskOperationListener listener) {
-        persistentTasksService.updateStatus(persistentTaskId, status, listener);
+        persistentTasksService.updateStatus(persistentTaskId, allocationId, status, listener);
     }
 
     public long getPersistentTaskId() {
         return persistentTaskId;
     }
 
-    void init(PersistentTasksService persistentTasksService, long persistentTaskId) {
+    void init(PersistentTasksService persistentTasksService, long persistentTaskId, long allocationId) {
         this.persistentTasksService = persistentTasksService;
         this.persistentTaskId = persistentTaskId;
+        this.allocationId = allocationId;
     }
 
     public Exception getFailure() {

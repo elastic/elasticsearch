@@ -36,3 +36,12 @@ org.apache.lucene.document.FieldType#numericType()
 java.lang.invoke.MethodHandle#invoke(java.lang.Object[])
 java.lang.invoke.MethodHandle#invokeWithArguments(java.lang.Object[])
 java.lang.invoke.MethodHandle#invokeWithArguments(java.util.List)
+
+# This method is misleading, and uses lenient boolean parsing under the hood. If you intend to parse
+# a system property as a boolean, use
+# org.elasticsearch.common.Booleans#parseBoolean(java.lang.String) on the result of
+# java.lang.SystemProperty#getProperty(java.lang.String) instead. If you were not intending to parse
+# a system property as a boolean, but instead parse a string to a boolean, use
+# org.elasticsearch.common.Booleans#parseBoolean(java.lang.String) directly on the string.
+@defaultMessage use org.elasticsearch.common.Booleans#parseBoolean(java.lang.String)
+java.lang.Boolean#getBoolean(java.lang.String)

@@ -22,6 +22,7 @@ package org.elasticsearch.bootstrap;
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.SecureSM;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -115,7 +116,9 @@ public class BootstrapForTesting {
                     perms.add(new FilePermission(System.getProperty("tests.config"), "read,readlink"));
                 }
                 // jacoco coverage output file
-                if (Boolean.getBoolean("tests.coverage")) {
+                final boolean testsCoverage =
+                        Booleans.parseBoolean(System.getProperty("tests.coverage"));
+                if (testsCoverage) {
                     Path coverageDir = PathUtils.get(System.getProperty("tests.coverage.dir"));
                     perms.add(new FilePermission(coverageDir.resolve("jacoco.exec").toString(), "read,write"));
                     // in case we get fancy and use the -integration goals later:

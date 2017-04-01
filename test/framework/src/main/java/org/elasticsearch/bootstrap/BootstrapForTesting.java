@@ -121,7 +121,7 @@ public class BootstrapForTesting {
                 }
                 // jacoco coverage output file
                 final boolean testsCoverage =
-                        Booleans.parseBoolean(System.getProperty("tests.coverage"));
+                        Booleans.parseBoolean(System.getProperty("tests.coverage", "false"));
                 if (testsCoverage) {
                     Path coverageDir = PathUtils.get(System.getProperty("tests.coverage.dir"));
                     perms.add(new FilePermission(coverageDir.resolve("jacoco.exec").toString(), "read,write"));

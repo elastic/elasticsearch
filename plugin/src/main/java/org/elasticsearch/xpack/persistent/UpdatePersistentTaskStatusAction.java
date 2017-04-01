@@ -55,20 +55,27 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
     public static class Request extends MasterNodeRequest<Request> {
 
         private long taskId;
-        
+
+        private long allocationId;
+
         private Task.Status status;
 
         public Request() {
 
         }
 
-        public Request(long taskId, Task.Status status) {
+        public Request(long taskId, long allocationId, Task.Status status) {
             this.taskId = taskId;
+            this.allocationId = allocationId;
             this.status = status;
         }
 
         public void setTaskId(long taskId) {
             this.taskId = taskId;
+        }
+
+        public void setAllocationId(long allocationId) {
+            this.allocationId = allocationId;
         }
 
         public void setStatus(Task.Status status) {
@@ -79,6 +86,7 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             taskId = in.readLong();
+            allocationId = in.readLong();
             status = in.readOptionalNamedWriteable(Task.Status.class);
         }
 
@@ -86,6 +94,7 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeLong(taskId);
+            out.writeLong(allocationId);
             out.writeOptionalNamedWriteable(status);
         }
 
@@ -99,13 +108,13 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return taskId == request.taskId && 
+            return taskId == request.taskId && allocationId == request.allocationId &&
                     Objects.equals(status, request.status);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskId, status);
+            return Objects.hash(taskId, allocationId, status);
         }
     }
 
@@ -194,7 +203,8 @@ public class UpdatePersistentTaskStatusAction extends Action<UpdatePersistentTas
 
         @Override
         protected final void masterOperation(final Request request, ClusterState state, final ActionListener<Response> listener) {
-            persistentTasksClusterService.updatePersistentTaskStatus(request.taskId, request.status, new ActionListener<Empty>() {
+            persistentTasksClusterService.updatePersistentTaskStatus(request.taskId, request.allocationId, request.status,
+                    new ActionListener<Empty>() {
                 @Override
                 public void onResponse(Empty empty) {
                     listener.onResponse(new Response(true));

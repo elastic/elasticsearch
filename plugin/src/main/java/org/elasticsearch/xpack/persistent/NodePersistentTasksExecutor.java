@@ -12,6 +12,8 @@ import org.elasticsearch.transport.TransportResponse.Empty;
 
 /**
  * This component is responsible for execution of persistent tasks.
+ *
+ * It abstracts away the execution of tasks and greatly simplifies testing of PersistentTasksNodeService
  */
 public class NodePersistentTasksExecutor {
     private final ThreadPool threadPool;

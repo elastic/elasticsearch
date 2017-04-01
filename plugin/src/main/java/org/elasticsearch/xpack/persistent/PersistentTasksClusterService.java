@@ -178,18 +178,24 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
      * Update task status
      *
      * @param id       the id of a persistent task
+     * @param allocationId   the expected allocation id of the persistent task
      * @param status   new status
      * @param listener the listener that will be called when task is removed
      */
-    public void updatePersistentTaskStatus(long id, Task.Status status, ActionListener<Empty> listener) {
+    public void updatePersistentTaskStatus(long id, long allocationId, Task.Status status, ActionListener<Empty> listener) {
         clusterService.submitStateUpdateTask("update task status", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 PersistentTasksCustomMetaData.Builder tasksInProgress = builder(currentState);
-                if (tasksInProgress.hasTask(id)) {
+                if (tasksInProgress.hasTask(id, allocationId)) {
                     return update(currentState, tasksInProgress.updateTaskStatus(id, status));
                 } else {
-                    throw new ResourceNotFoundException("the task with id {} doesn't exist", id);
+                    if (tasksInProgress.hasTask(id)) {
+                        logger.warn("trying to update status on task {} with unexpected allocation id {}", id, allocationId);
+                    } else {
+                        logger.warn("trying to update status on non-existing task {}", id);
+                    }
+                    throw new ResourceNotFoundException("the task with id {} and allocation id {} doesn't exist", id, allocationId);
                 }
             }
 

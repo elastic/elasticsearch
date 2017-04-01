@@ -87,10 +87,14 @@ public class PersistentTasksService extends AbstractComponent {
     }
 
     /**
-     * Updates status of the persistent task
+     * Updates status of the persistent task.
+     *
+     * Persistent task implementers shouldn't call this method directly and use
+     * {@link AllocatedPersistentTask#updatePersistentStatus} instead
      */
-    public void updateStatus(long taskId, Task.Status status, PersistentTaskOperationListener listener) {
-        UpdatePersistentTaskStatusAction.Request updateStatusRequest = new UpdatePersistentTaskStatusAction.Request(taskId, status);
+    void updateStatus(long taskId, long allocationId, Task.Status status, PersistentTaskOperationListener listener) {
+        UpdatePersistentTaskStatusAction.Request updateStatusRequest =
+                new UpdatePersistentTaskStatusAction.Request(taskId, allocationId, status);
         try {
             client.execute(UpdatePersistentTaskStatusAction.INSTANCE, updateStatusRequest, ActionListener.wrap(
                     o -> listener.onResponse(taskId), listener::onFailure));

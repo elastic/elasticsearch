@@ -49,6 +49,7 @@ import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -351,9 +352,9 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
                         CountDownLatch latch = new CountDownLatch(1);
                         Status status = new Status("phase " + phase.incrementAndGet());
                         logger.info("updating the task status to {}", status);
-                        updatePersistentTaskStatus(task, status, new ActionListener<Empty>() {
+                        task.updatePersistentStatus(status, new PersistentTaskOperationListener() {
                             @Override
-                            public void onResponse(Empty empty) {
+                            public void onResponse(long taskId) {
                                 logger.info("updating was successful");
                                 latch.countDown();
                             }

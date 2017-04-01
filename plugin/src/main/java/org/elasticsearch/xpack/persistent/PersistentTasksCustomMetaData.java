@@ -622,6 +622,17 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         }
 
         /**
+         * Checks if the task is currently present in the list and has the right allocation id
+         */
+        public boolean hasTask(long taskId, long allocationId) {
+            PersistentTask<?> taskInProgress = tasks.get(taskId);
+            if (taskInProgress != null) {
+                return taskInProgress.getAllocationId() == allocationId;
+            }
+            return false;
+        }
+
+        /**
          * Returns the id of the last added task
          */
         public long getCurrentId() {

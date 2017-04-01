@@ -5,14 +5,16 @@
  */
 package org.elasticsearch.xpack.persistent;
 
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
+import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.Status;
 import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestRequest;
 import org.elasticsearch.xpack.persistent.TestPersistentTasksPlugin.TestTasksRequestBuilder;
@@ -23,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -49,16 +52,10 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         assertNoRunningTasks();
     }
 
-    public static class PersistentTaskOperationFuture extends BaseFuture<Long> implements WaitForPersistentTaskStatusListener {
-
+    public static class PersistentTaskOperationFuture extends PlainActionFuture<Long> implements WaitForPersistentTaskStatusListener {
         @Override
         public void onResponse(long taskId) {
             set(taskId);
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            setException(e);
         }
     }
 
@@ -186,7 +183,12 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         persistentTasksService.waitForPersistentTaskStatus(taskId,
                 task -> false, TimeValue.timeValueMillis(10), future1);
 
-        expectThrows(Exception.class, future1::get);
+        assertThrows(future1, IllegalStateException.class, "timed out after 10ms");
+
+        PersistentTaskOperationFuture failedUpdateFuture = new PersistentTaskOperationFuture();
+        persistentTasksService.updateStatus(taskId, -1, new Status("should fail"), failedUpdateFuture);
+        assertThrows(failedUpdateFuture, ResourceNotFoundException.class, "the task with id " + taskId +
+                " and allocation id -1 doesn't exist");
 
         // Wait for the task to disappear
         PersistentTaskOperationFuture future2 = new PersistentTaskOperationFuture();

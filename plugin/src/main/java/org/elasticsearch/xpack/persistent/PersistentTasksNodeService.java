@@ -118,7 +118,7 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
                 taskInProgress.getRequest());
         boolean processed = false;
         try {
-            task.init(persistentTasksService, taskInProgress.getId());
+            task.init(persistentTasksService, taskInProgress.getId(), taskInProgress.getAllocationId());
             PersistentTaskListener listener = new PersistentTaskListener(task);
             try {
                 runningTasks.put(new PersistentTaskId(taskInProgress.getId(), taskInProgress.getAllocationId()), task);

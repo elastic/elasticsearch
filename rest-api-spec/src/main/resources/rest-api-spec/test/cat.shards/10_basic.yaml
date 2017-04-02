@@ -273,7 +273,8 @@
         h: [index, docs]
         s: [docs]
 
-  - match: # don't use the store here it's cached and might be stale
+# don't use the store here it's cached and might be stale
+  - match:
       $body: |
             /^ foo \s+ 0\n
                bar \s+ 1\n

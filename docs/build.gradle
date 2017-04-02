@@ -53,18 +53,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/pipeline/serial-diff-aggregation.asciidoc',
   'reference/aggregations/pipeline/stats-bucket-aggregation.asciidoc',
   'reference/aggregations/pipeline/sum-bucket-aggregation.asciidoc',
-  'reference/analysis/tokenfilters/asciifolding-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/cjk-bigram-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/common-grams-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/compound-word-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/elision-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/hunspell-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/keep-types-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/keep-words-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/keyword-marker-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/keyword-repeat-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/limit-token-count-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/lowercase-tokenfilter.asciidoc',
   'reference/cat/snapshots.asciidoc',
   'reference/cat/templates.asciidoc',
   'reference/cat/thread_pool.asciidoc',
@@ -131,10 +119,14 @@ integTestCluster {
   configFile 'scripts/my_map_script.painless'
   configFile 'scripts/my_combine_script.painless'
   configFile 'scripts/my_reduce_script.painless'
+  configFile 'analysis/example_word_list.txt'
+  configFile 'analysis/hyphenation_patterns.xml'
   configFile 'analysis/synonym.txt'
   configFile 'analysis/stemmer_override.txt'
   configFile 'userdict_ja.txt'
   configFile 'KeywordTokenizer.rbbi'
+  extraConfigFile 'hunspell/en_US/en_US.aff', '../core/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff'
+  extraConfigFile 'hunspell/en_US/en_US.dic', '../core/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic'
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }

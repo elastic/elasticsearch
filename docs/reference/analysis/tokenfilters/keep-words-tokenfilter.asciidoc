@@ -20,17 +20,18 @@ keep_words_case:: a boolean indicating whether to lower case the words (defaults
 
 [source,js]
 --------------------------------------------------
+PUT /keep_words_example
 {
-    "index" : {
+    "settings" : {
         "analysis" : {
             "analyzer" : {
-                "my_analyzer" : {
+                "example_1" : {
                     "tokenizer" : "standard",
                     "filter" : ["standard", "lowercase", "words_till_three"]
                 },
-                "my_analyzer1" : {
+                "example_2" : {
                     "tokenizer" : "standard",
-                    "filter" : ["standard", "lowercase", "words_on_file"]
+                    "filter" : ["standard", "lowercase", "words_in_file"]
                 }
             },
             "filter" : {
@@ -38,12 +39,13 @@ keep_words_case:: a boolean indicating whether to lower case the words (defaults
                     "type" : "keep",
                     "keep_words" : [ "one", "two", "three"]
                 },
-                "words_on_file" : {
+                "words_in_file" : {
                     "type" : "keep",
-                    "keep_words_path" : "/path/to/word/file"
+                    "keep_words_path" : "analysis/example_word_list.txt"
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE

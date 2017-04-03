@@ -57,6 +57,8 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
+import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -555,7 +557,22 @@ public class Lucene {
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.DOUBLE);
             newSortField.setMissingValue(sortField.getMissingValue());
             sortField = newSortField;
+        } else if (sortField.getClass() == SortedSetSortField.class) {
+            // for multi-valued sort field, we replace the SortedSetSortField with a simple SortField.
+            // It works because the sort field is only used to merge results from different shards.
+            SortField newSortField = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
+            newSortField.setMissingValue(sortField.getMissingValue());
+            sortField = newSortField;
+        } else if (sortField.getClass() == SortedNumericSortField.class) {
+            // for multi-valued sort field, we replace the SortedSetSortField with a simple SortField.
+            // It works because the sort field is only used to merge results from different shards.
+            SortField newSortField = new SortField(sortField.getField(),
+                ((SortedNumericSortField) sortField).getNumericType(),
+                sortField.getReverse());
+            newSortField.setMissingValue(sortField.getMissingValue());
+            sortField = newSortField;
         }
+
         if (sortField.getClass() != SortField.class) {
             throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
         }

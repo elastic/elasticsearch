@@ -266,8 +266,8 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         final IndexFieldData indexFieldData = getForField("value");
         final String missingValue = values[1];
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
-        XFieldComparatorSource comparator = indexFieldData.comparatorSource(missingValue, MultiValueMode.MIN, null);
-        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(new SortField("value", comparator, reverse)));
+        SortField sortField = indexFieldData.sortField(missingValue, MultiValueMode.MIN, null, reverse);
+        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(sortField));
         assertEquals(numDocs, topDocs.totalHits);
         BytesRef previousValue = reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
@@ -320,8 +320,8 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         }
         final IndexFieldData indexFieldData = getForField("value");
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
-        XFieldComparatorSource comparator = indexFieldData.comparatorSource(first ? "_first" : "_last", MultiValueMode.MIN, null);
-        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(new SortField("value", comparator, reverse)));
+        SortField sortField = indexFieldData.sortField(first ? "_first" : "_last", MultiValueMode.MIN, null, reverse);
+        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(sortField));
         assertEquals(numDocs, topDocs.totalHits);
         BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {

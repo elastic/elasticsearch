@@ -24,7 +24,9 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
@@ -71,22 +73,22 @@ final class LegacyIpIndexFieldData implements IndexFieldData<AtomicFieldData> {
     @Override
     public AtomicFieldData load(LeafReaderContext context) {
         return new AtomicFieldData() {
-            
+
             @Override
             public void close() {
                 // no-op
             }
-            
+
             @Override
             public long ramBytesUsed() {
                 return 0;
             }
-            
+
             @Override
             public ScriptDocValues<?> getScriptValues() {
                 throw new UnsupportedOperationException("Cannot run scripts on ip fields");
             }
-            
+
             @Override
             public SortedBinaryDocValues getBytesValues() {
                 SortedNumericDocValues values;
@@ -115,12 +117,12 @@ final class LegacyIpIndexFieldData implements IndexFieldData<AtomicFieldData> {
                         byte[] encoded = InetAddressPoint.encode(inet);
                         return new BytesRef(encoded);
                     }
-                    
+
                     @Override
                     public void setDocument(int docId) {
                         values.setDocument(docId);
                     }
-                    
+
                     @Override
                     public int count() {
                         return values.count();
@@ -137,9 +139,11 @@ final class LegacyIpIndexFieldData implements IndexFieldData<AtomicFieldData> {
     }
 
     @Override
-    public IndexFieldData.XFieldComparatorSource comparatorSource(
-            Object missingValue, MultiValueMode sortMode, Nested nested) {
-        return new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode,
+                               Nested nested, boolean reverse) {
+        final XFieldComparatorSource source =
+            new BytesRefFieldComparatorSource(this, missingValue,
+                sortMode, nested);
+        return new SortField(getFieldName(), source, reverse);
     }
-
 }

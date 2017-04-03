@@ -21,6 +21,8 @@ package org.elasticsearch.search.searchafter;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -131,12 +133,23 @@ public class SearchAfterBuilder implements ToXContent, Writeable {
         return new FieldDoc(Integer.MAX_VALUE, 0, fieldValues);
     }
 
+    private static SortField.Type extractSortType(SortField sortField) {
+        if (sortField instanceof SortedSetSortField) {
+            return SortField.Type.STRING;
+        } else if (sortField instanceof SortedNumericSortField) {
+            return ((SortedNumericSortField) sortField).getNumericType();
+        } else {
+            return sortField.getType();
+        }
+    }
+
     private static Object convertValueFromSortField(Object value, SortField sortField, DocValueFormat format) {
         if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource) {
             IndexFieldData.XFieldComparatorSource cmpSource = (IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource();
             return convertValueFromSortType(sortField.getField(), cmpSource.reducedType(), value, format);
         }
-        return convertValueFromSortType(sortField.getField(), sortField.getType(), value, format);
+        SortField.Type sortType = extractSortType(sortField);
+        return convertValueFromSortType(sortField.getField(), sortType, value, format);
     }
 
     private static Object convertValueFromSortType(String fieldName, SortField.Type sortType, Object value, DocValueFormat format) {

@@ -169,9 +169,8 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
     public void testSorting() throws Exception {
         IndexFieldData indexFieldData = getForField(parentType);
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
-        IndexFieldData.XFieldComparatorSource comparator = indexFieldData.comparatorSource("_last", MultiValueMode.MIN, null);
-
-        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField(ParentFieldMapper.joinField(parentType), comparator, false)));
+        SortField sortField = indexFieldData.sortField("_last", MultiValueMode.MIN, null, false);
+        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
         assertThat(topDocs.totalHits, equalTo(8));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
@@ -191,7 +190,8 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
         assertThat(topDocs.scoreDocs[7].doc, equalTo(7));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[7]).fields[0]), equalTo(null));
 
-        topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField(ParentFieldMapper.joinField(parentType), comparator, true)));
+        sortField = indexFieldData.sortField("_last", MultiValueMode.MIN, null, true);
+        topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
         assertThat(topDocs.totalHits, equalTo(8));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(3));

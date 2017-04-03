@@ -39,7 +39,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     private List<Object> missingContent = Arrays.asList(
             "_last",
             "_first",
-            randomAsciiOfLength(10), randomUnicodeOfCodepointLengthBetween(5, 15),
+            Integer.toString(randomInt()),
             randomInt());
 
 

@@ -32,7 +32,7 @@ There are several thread pools, but the important ones include:
 `bulk`::
     For bulk operations. Thread pool type is `fixed`
     with a size of `# of available processors`,
-    queue_size of `50`.  The maximum size for this pool
+    queue_size of `200`.  The maximum size for this pool
     is `1 + # of available processors`.
 
 `snapshot`::
@@ -75,7 +75,7 @@ requests with a queue (optionally bounded) for pending requests that
 have no threads to service them.
 
 The `size` parameter controls the number of threads, and defaults to the
-number of cores times 5.
+number of cores.
 
 The `queue_size` allows to control the size of the queue of pending
 requests that have no threads to execute them. By default, it is set to

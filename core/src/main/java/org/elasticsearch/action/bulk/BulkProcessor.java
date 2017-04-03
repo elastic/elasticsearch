@@ -34,11 +34,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.Objects;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 
 /**
  * A bulk processor is a thread safe bulk processing class, allowing to easily set when to "flush" a new bulk request
@@ -137,6 +135,14 @@ public class BulkProcessor implements Closeable {
             return this;
         }
 
+        /**
+         * Sets a custom backoff policy. The backoff policy defines how the bulk processor should handle retries of bulk requests internally
+         * in case they have failed due to resource constraints (i.e. a thread pool was full).
+         *
+         * The default is to back off exponentially.
+         *
+         * @see org.elasticsearch.action.bulk.BackoffPolicy#exponentialBackoff()
+         */
         public Builder setBackoffPolicy(BackoffPolicy backoffPolicy) {
             if (backoffPolicy == null) {
                 throw new NullPointerException("'backoffPolicy' must not be null. To disable backoff, pass BackoffPolicy.noBackoff()");
@@ -163,8 +169,7 @@ public class BulkProcessor implements Closeable {
     private final int bulkActions;
     private final long bulkSize;
 
-
-    private final Runnable cancelTask;
+    private final ThreadPool.Cancellable cancellableFlushTask;
 
     private final AtomicLong executionIdGen = new AtomicLong();
 
@@ -175,7 +180,7 @@ public class BulkProcessor implements Closeable {
 
     BulkProcessor(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, Listener listener,
                   int concurrentRequests, int bulkActions, ByteSizeValue bulkSize, @Nullable TimeValue flushInterval,
-                  @Nullable ThreadPool threadPool) {
+                  ThreadPool threadPool) {
         this.bulkActions = bulkActions;
         this.bulkSize = bulkSize.getBytes();
         this.bulkRequest = new BulkRequest();
@@ -187,7 +192,7 @@ public class BulkProcessor implements Closeable {
         }
 
         // Start period flushing task after everything is setup
-        this.cancelTask = startFlush(flushInterval, threadPool);
+        this.cancellableFlushTask = startFlushTask(flushInterval, threadPool);
     }
 
     /**
@@ -220,7 +225,7 @@ public class BulkProcessor implements Closeable {
         }
         closed = true;
 
-        this.cancelTask.run();
+        this.cancellableFlushTask.cancel();
 
         if (bulkRequest.numberOfActions() > 0) {
             execute();
@@ -289,13 +294,20 @@ public class BulkProcessor implements Closeable {
         return this;
     }
 
-    private Runnable startFlush(TimeValue flushInterval, ThreadPool threadPool) {
+    private ThreadPool.Cancellable startFlushTask(TimeValue flushInterval, ThreadPool threadPool) {
         if (flushInterval == null) {
-            return () -> {};
+            return new ThreadPool.Cancellable() {
+                @Override
+                public void cancel() {}
+
+                @Override
+                public boolean isCancelled() {
+                    return true;
+                }
+            };
         }
 
-        ThreadPool.Cancellable cancellable = threadPool.scheduleWithFixedDelay(new Flush(), flushInterval, ThreadPool.Names.SAME);
-        return cancelTask(cancellable);
+        return threadPool.scheduleWithFixedDelay(new Flush(), flushInterval, ThreadPool.Names.SAME);
     }
 
     private void executeIfNeeded() {
@@ -323,10 +335,6 @@ public class BulkProcessor implements Closeable {
             return true;
         }
         return false;
-    }
-
-    private Runnable cancelTask(ThreadPool.Cancellable cancellable) {
-        return cancellable::cancel;
     }
 
     /**

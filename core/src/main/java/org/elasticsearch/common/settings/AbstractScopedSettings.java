@@ -388,6 +388,14 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     /**
+     * Returns <code>true</code> if the setting for the given key is final. Otherwise <code>false</code>.
+     */
+    public boolean hasFinalSetting(String key) {
+        final Setting<?> setting = get(key);
+        return setting != null && setting.isFinal();
+    }
+
+    /**
      * Returns a settings object that contains all settings that are not
      * already set in the given source. The diff contains either the default value for each
      * setting or the settings value in the given default settings.
@@ -465,11 +473,14 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         boolean changed = false;
         final Set<String> toRemove = new HashSet<>();
         Settings.Builder settingsBuilder = Settings.builder();
-        final Predicate<String> canUpdate = (key) -> (onlyDynamic == false && get(key) != null) || hasDynamicSetting(key);
-        final Predicate<String> canRemove = (key) ->( // we can delete if
-            onlyDynamic && hasDynamicSetting(key)  // it's a dynamicSetting and we only do dynamic settings
-            || get(key) == null && key.startsWith(ARCHIVED_SETTINGS_PREFIX) // the setting is not registered AND it's been archived
-            || (onlyDynamic == false && get(key) != null)); // if it's not dynamic AND we have a key
+        final Predicate<String> canUpdate = (key) -> (
+            hasFinalSetting(key) == false && // it's not a final setting
+                ((onlyDynamic == false && get(key) != null) || hasDynamicSetting(key)));
+        final Predicate<String> canRemove = (key) ->(// we can delete if
+            hasFinalSetting(key) == false && // it's not a final setting
+                (onlyDynamic && hasDynamicSetting(key)  // it's a dynamicSetting and we only do dynamic settings
+                || get(key) == null && key.startsWith(ARCHIVED_SETTINGS_PREFIX) // the setting is not registered AND it's been archived
+                || (onlyDynamic == false && get(key) != null))); // if it's not dynamic AND we have a key
         for (Map.Entry<String, String> entry : toApply.getAsMap().entrySet()) {
             if (entry.getValue() == null && (canRemove.test(entry.getKey()) || entry.getKey().endsWith("*"))) {
                 // this either accepts null values that suffice the canUpdate test OR wildcard expressions (key ends with *)
@@ -482,7 +493,11 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 updates.put(entry.getKey(), entry.getValue());
                 changed = true;
             } else {
-                throw new IllegalArgumentException(type + " setting [" + entry.getKey() + "], not dynamically updateable");
+                if (hasFinalSetting(entry.getKey())) {
+                    throw new IllegalArgumentException("final " + type + " setting [" + entry.getKey() + "], not updateable");
+                } else {
+                    throw new IllegalArgumentException(type + " setting [" + entry.getKey() + "], not dynamically updateable");
+                }
             }
         }
         changed |= applyDeletes(toRemove, target, canRemove);

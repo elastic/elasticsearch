@@ -96,6 +96,11 @@ public class Setting<T> extends ToXContentToBytes {
         Dynamic,
 
         /**
+         * mark this setting as final (the value cannot be updated)
+         */
+        Final,
+
+        /**
          * mark this setting as deprecated
          */
         Deprecated,
@@ -135,6 +140,9 @@ public class Setting<T> extends ToXContentToBytes {
             this.properties = EMPTY_PROPERTIES;
         } else {
             this.properties = EnumSet.copyOf(Arrays.asList(properties));
+            if (isDynamic() && isFinal()) {
+                throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
+            }
         }
     }
 
@@ -216,6 +224,13 @@ public class Setting<T> extends ToXContentToBytes {
      */
     public final boolean isDynamic() {
         return properties.contains(Property.Dynamic);
+    }
+
+    /**
+     * Returns <code>true</code> if this setting is final, otherwise <code>false</code>
+     */
+    public final boolean isFinal() {
+        return properties.contains(Property.Final);
     }
 
     /**

@@ -45,6 +45,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.startsWith;
 
@@ -259,6 +260,25 @@ public class ScopedSettingsTests extends ESTestCase {
         assertTrue(settings.hasDynamicSetting("transport.tracer.include." + randomIntBetween(1, 100)));
         assertFalse(settings.hasDynamicSetting("transport.tracer.include.BOOM"));
         assertTrue(settings.hasDynamicSetting("cluster.routing.allocation.require.value"));
+    }
+
+    public void testIsFinal() {
+        ClusterSettings settings =
+            new ClusterSettings(Settings.EMPTY,
+                new HashSet<>(Arrays.asList(Setting.intSetting("foo.int", 1, Property.Final, Property.NodeScope),
+                    Setting.groupSetting("foo.group.",  Property.Final, Property.NodeScope),
+                    Setting.groupSetting("foo.list.",  Property.Final, Property.NodeScope),
+                    Setting.intSetting("foo.int.baz", 1, Property.NodeScope))));
+
+        assertFalse(settings.hasFinalSetting("foo.int.baz"));
+        assertTrue(settings.hasFinalSetting("foo.int"));
+
+        assertFalse(settings.hasFinalSetting("foo.list"));
+        assertTrue(settings.hasFinalSetting("foo.list.0.key"));
+        assertTrue(settings.hasFinalSetting("foo.list.key"));
+
+        assertFalse(settings.hasFinalSetting("foo.group"));
+        assertTrue(settings.hasFinalSetting("foo.group.key"));
     }
 
     public void testDiff() throws IOException {
@@ -580,5 +600,36 @@ public class ScopedSettingsTests extends ESTestCase {
                 assertEquals("complex setting key: [foo.] overlaps existing setting key: [foo.bar]", e.getMessage());
             }
         }
+    }
+
+    public void testFinalSettingUpdateFail() {
+        Setting<Integer> finalSetting = Setting.intSetting("some.final.setting", 1, Property.Final, Property.NodeScope);
+        Setting<Settings> finalGroupSetting = Setting.groupSetting("some.final.group.", Property.Final, Property.NodeScope);
+        Settings currentSettings = Settings.builder()
+            .put("some.final.setting", 9)
+            .put("some.final.group.foo", 7)
+            .build();
+        ClusterSettings service = new ClusterSettings(currentSettings
+            , new HashSet<>(Arrays.asList(finalSetting, finalGroupSetting)));
+
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () ->
+            service.updateDynamicSettings(Settings.builder().put("some.final.setting", 8).build(),
+                Settings.builder().put(currentSettings), Settings.builder(), "node"));
+        assertThat(exc.getMessage(), containsString("final node setting [some.final.setting]"));
+
+        exc = expectThrows(IllegalArgumentException.class, () ->
+            service.updateDynamicSettings(Settings.builder().putNull("some.final.setting").build(),
+                Settings.builder().put(currentSettings), Settings.builder(), "node"));
+        assertThat(exc.getMessage(), containsString("final node setting [some.final.setting]"));
+
+        exc = expectThrows(IllegalArgumentException.class, () ->
+            service.updateSettings(Settings.builder().put("some.final.group.new", 8).build(),
+                Settings.builder().put(currentSettings), Settings.builder(), "node"));
+        assertThat(exc.getMessage(), containsString("final node setting [some.final.group.new]"));
+
+        exc = expectThrows(IllegalArgumentException.class, () ->
+            service.updateSettings(Settings.builder().put("some.final.group.foo", 5).build(),
+                Settings.builder().put(currentSettings), Settings.builder(), "node"));
+        assertThat(exc.getMessage(), containsString("final node setting [some.final.group.foo]"));
     }
 }

@@ -34,9 +34,6 @@ import org.elasticsearch.common.util.IntArray;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.HashSet;
-import java.util.Objects;
-import java.util.Set;
 
 /**
  * Hyperloglog++ counter, implemented based on pseudo code from
@@ -421,32 +418,6 @@ public final class HyperLogLogPlusPlus implements Releasable {
     @Override
     public void close() {
         Releasables.close(runLens, hashSet.sizes);
-    }
-
-    private Set<Object> getComparableData(long bucket) {
-        Set<Object> values = new HashSet<>();
-        if (algorithm.get(bucket) == LINEAR_COUNTING) {
-            try (IntArray hashSetValues = hashSet.values(bucket)) {
-                for (long i = 0; i < hashSetValues.size(); i++) {
-                    values.add(hashSetValues.get(i));
-                }
-            }
-        } else {
-            for (long i = 0; i < runLens.size(); i++) {
-                values.add(runLens.get((bucket << p) + i));
-            }
-        }
-        return values;
-    }
-
-    public int hashCode(long bucket) {
-        return Objects.hash(p, algorithm.get(bucket), getComparableData(bucket));
-    }
-
-    public boolean equals(long bucket, HyperLogLogPlusPlus other) {
-        return Objects.equals(p, other.p) &&
-                Objects.equals(algorithm.get(bucket), other.algorithm.get(bucket)) &&
-                Objects.equals(getComparableData(bucket), getComparableData(bucket));
     }
 
     /**

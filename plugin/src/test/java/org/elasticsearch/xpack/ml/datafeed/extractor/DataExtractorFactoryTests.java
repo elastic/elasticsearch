@@ -75,7 +75,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
         Job.Builder jobBuilder = DatafeedJobRunnerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
         DatafeedConfig.Builder datafeedConfig = DatafeedJobRunnerTests.createDatafeedConfig("datafeed1", "foo");
-        datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(AggregationBuilders.avg("a")));
+        datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
+                AggregationBuilders.histogram("time").interval(300000)));
 
         DataExtractorFactory dataExtractorFactory = DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build());
 
@@ -88,7 +89,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
         Job.Builder jobBuilder = DatafeedJobRunnerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
         DatafeedConfig.Builder datafeedConfig = DatafeedJobRunnerTests.createDatafeedConfig("datafeed1", "foo");
-        datafeedConfig.setAggregations(AggregatorFactories.builder());
+        datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
+                AggregationBuilders.histogram("time").interval(300000)));
         datafeedConfig.setChunkingConfig(ChunkingConfig.newAuto());
 
         DataExtractorFactory dataExtractorFactory = DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build());

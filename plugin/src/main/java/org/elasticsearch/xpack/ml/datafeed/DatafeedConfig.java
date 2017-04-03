@@ -11,6 +11,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -19,13 +20,17 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.MlStrings;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -200,6 +205,89 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
     public AggregatorFactories.Builder getAggregations() {
         return aggregations;
+    }
+
+    /**
+     * Returns the top level histogram's interval as epoch millis.
+     * The method expects a valid top level aggregation to exist.
+     */
+    public long getHistogramIntervalMillis() {
+        AggregationBuilder topLevelAgg = getTopLevelAgg();
+        if (topLevelAgg == null) {
+            throw new IllegalStateException("No aggregations exist");
+        }
+        if (topLevelAgg instanceof HistogramAggregationBuilder) {
+            return (long) ((HistogramAggregationBuilder) topLevelAgg).interval();
+        } else if (topLevelAgg instanceof DateHistogramAggregationBuilder) {
+            return validateAndGetDateHistogramInterval((DateHistogramAggregationBuilder) topLevelAgg);
+        } else {
+            throw new IllegalStateException("Invalid top level aggregation [" + topLevelAgg.getName() + "]");
+        }
+    }
+
+    private AggregationBuilder getTopLevelAgg() {
+        if (aggregations == null || aggregations.getAggregatorFactories().isEmpty()) {
+            return null;
+        }
+        return aggregations.getAggregatorFactories().get(0);
+    }
+
+    /**
+     * Returns the date histogram interval as epoch millis if valid, or throws
+     * an {@link IllegalArgumentException} with the validation error
+     */
+    private static long validateAndGetDateHistogramInterval(DateHistogramAggregationBuilder dateHistogram) {
+        if (dateHistogram.timeZone() != null && dateHistogram.timeZone().equals(DateTimeZone.UTC) == false) {
+            throw new IllegalArgumentException("ML requires date_histogram.time_zone to be UTC");
+        }
+
+        if (dateHistogram.dateHistogramInterval() != null) {
+            return validateAndGetCalendarInterval(dateHistogram.dateHistogramInterval().toString());
+        } else {
+            return (long) dateHistogram.interval();
+        }
+    }
+
+    private static long validateAndGetCalendarInterval(String calendarInterval) {
+        TimeValue interval;
+        DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(calendarInterval);
+        if (dateTimeUnit != null) {
+            switch (dateTimeUnit) {
+                case WEEK_OF_WEEKYEAR:
+                    interval = new TimeValue(7, TimeUnit.DAYS);
+                    break;
+                case DAY_OF_MONTH:
+                    interval = new TimeValue(1, TimeUnit.DAYS);
+                    break;
+                case HOUR_OF_DAY:
+                    interval = new TimeValue(1, TimeUnit.HOURS);
+                    break;
+                case MINUTES_OF_HOUR:
+                    interval = new TimeValue(1, TimeUnit.MINUTES);
+                    break;
+                case SECOND_OF_MINUTE:
+                    interval = new TimeValue(1, TimeUnit.SECONDS);
+                    break;
+                case MONTH_OF_YEAR:
+                case YEAR_OF_CENTURY:
+                case QUARTER:
+                    throw new IllegalArgumentException(invalidDateHistogramCalendarIntervalMessage(calendarInterval));
+                default:
+                    throw new IllegalArgumentException("Unexpected dateTimeUnit [" + dateTimeUnit + "]");
+            }
+        } else {
+            interval = TimeValue.parseTimeValue(calendarInterval, "date_histogram.interval");
+        }
+        if (interval.days() > 7) {
+            throw new IllegalArgumentException(invalidDateHistogramCalendarIntervalMessage(calendarInterval));
+        }
+        return interval.millis();
+    }
+
+    private static String invalidDateHistogramCalendarIntervalMessage(String interval) {
+        throw new IllegalArgumentException("When specifying a date_histogram calendar interval ["
+                + interval + "], ML does not accept intervals longer than a week because of " +
+                "variable lengths of periods greater than a week");
     }
 
     /**
@@ -442,11 +530,34 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (types == null || types.isEmpty() || types.contains(null) || types.contains("")) {
                 throw invalidOptionValue(TYPES.getPreferredName(), types);
             }
-            if (aggregations != null && (scriptFields != null && !scriptFields.isEmpty())) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
-            }
+            validateAggregations();
             return new DatafeedConfig(id, jobId, queryDelay, frequency, indexes, types, query, aggregations, scriptFields, scrollSize,
                     source, chunkingConfig);
+        }
+
+        private void validateAggregations() {
+            if (aggregations == null) {
+                return;
+            }
+            if (scriptFields != null && !scriptFields.isEmpty()) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
+            }
+            List<AggregationBuilder> aggregatorFactories = aggregations.getAggregatorFactories();
+            if (aggregatorFactories.isEmpty()) {
+                throw new IllegalArgumentException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
+            }
+            AggregationBuilder topLevelAgg = aggregatorFactories.get(0);
+            if (topLevelAgg instanceof HistogramAggregationBuilder) {
+                if (((HistogramAggregationBuilder) topLevelAgg).interval() <= 0) {
+                    throw new IllegalArgumentException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
+                }
+            } else if (topLevelAgg instanceof DateHistogramAggregationBuilder) {
+                if (validateAndGetDateHistogramInterval((DateHistogramAggregationBuilder) topLevelAgg) <= 0) {
+                    throw new IllegalArgumentException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
+                }
+            } else {
+                throw new IllegalArgumentException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
+            }
         }
 
         private static ElasticsearchException invalidOptionValue(String fieldName, Object value) {
@@ -454,5 +565,4 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             throw new IllegalArgumentException(msg);
         }
     }
-
 }

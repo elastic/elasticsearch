@@ -22,6 +22,12 @@ public final class Messages {
     public static final String DATAFEED_CONFIG_INVALID_OPTION_VALUE = "Invalid {0} value ''{1}'' in datafeed configuration";
     public static final String DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY = "A job configured with datafeed cannot support latency";
     public static final String DATAFEED_NOT_FOUND = "No datafeed with id [{0}] exists";
+    public static final String DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM =
+            "A top level date_histogram (or histogram) aggregation is required";
+    public static final String DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO =
+            "Aggregation interval must be greater than 0";
+    public static final String DATAFEED_AGGREGATIONS_INTERVAL_MUST_LESS_OR_EQUAL_TO_BUCKET_SPAN =
+            "Aggregation interval [{0}] must be less than or equal to the bucket_span [{1}]";
 
     public static final String INCONSISTENT_ID =
             "Inconsistent {0}; ''{1}'' specified in the body differs from ''{2}'' specified as a URL argument";
@@ -117,11 +123,6 @@ public final class Messages {
             "{0} and {1} cannot be the same: ''{2}''";
     public static final String JOB_CONFIG_DETECTOR_COUNT_DISALLOWED =
             "''count'' is not a permitted value for {0}";
-
-    public static final String JOB_DATA_CONCURRENT_USE_CLOSE = "Cannot close job {0} while the job is processing another request";
-    public static final String JOB_DATA_CONCURRENT_USE_FLUSH = "Cannot flush job {0} while the job is processing another request";
-    public static final String JOB_DATA_CONCURRENT_USE_UPDATE = "Cannot update job {0} while the job is processing another request";
-    public static final String JOB_DATA_CONCURRENT_USE_UPLOAD = "Cannot write to job {0} while the job is processing another request";
 
     public static final String JOB_UNKNOWN_ID = "No known job with id ''{0}''";
 

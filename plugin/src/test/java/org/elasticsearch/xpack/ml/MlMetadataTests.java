@@ -52,7 +52,8 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
             if (randomBoolean()) {
                 AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(job.getAnalysisConfig());
                 analysisConfig.setLatency(null);
-                DatafeedConfig datafeedConfig = DatafeedConfigTests.createRandomizedDatafeedConfig(job.getId());
+                DatafeedConfig datafeedConfig = DatafeedConfigTests.createRandomizedDatafeedConfig(
+                        job.getId(), job.getAnalysisConfig().getBucketSpan().millis());
                 if (datafeedConfig.hasAggregations()) {
                     analysisConfig.setSummaryCountFieldName("doc_count");
                 }

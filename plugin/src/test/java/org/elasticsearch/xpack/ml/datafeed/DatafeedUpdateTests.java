@@ -154,13 +154,15 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         DatafeedConfig datafeed = datafeedBuilder.build();
 
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeed.getId());
-        update.setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("a")));
+        update.setAggregations(new AggregatorFactories.Builder().addAggregator(
+                AggregationBuilders.histogram("a").interval(300000)));
 
         DatafeedConfig updatedDatafeed = update.build().apply(datafeed);
 
         assertThat(updatedDatafeed.getIndexes(), equalTo(Arrays.asList("i_1")));
         assertThat(updatedDatafeed.getTypes(), equalTo(Arrays.asList("t_1")));
         assertThat(updatedDatafeed.getAggregations(),
-                equalTo(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("a"))));
+                equalTo(new AggregatorFactories.Builder().addAggregator(
+                        AggregationBuilders.histogram("a").interval(300000))));
     }
 }

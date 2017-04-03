@@ -13,17 +13,22 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.TimeZone;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -35,6 +40,10 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     public static DatafeedConfig createRandomizedDatafeedConfig(String jobId) {
+        return createRandomizedDatafeedConfig(jobId, 3600000);
+    }
+
+    public static DatafeedConfig createRandomizedDatafeedConfig(String jobId, long bucketSpanMillis) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(randomValidDatafeedId(), jobId);
         builder.setIndexes(randomStringList(1, 10));
         builder.setTypes(randomStringList(1, 10));
@@ -56,7 +65,10 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             // the actual xcontent isn't the same and test fail.
             // Testing with a single agg is ok as we don't have special list writeable / xconent logic
             AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
-            aggs.addAggregator(AggregationBuilders.avg(randomAsciiOfLength(10)).field(randomAsciiOfLength(10)));
+            long interval = randomNonNegativeLong();
+            interval = interval > bucketSpanMillis ? bucketSpanMillis : interval;
+            interval = interval <= 0 ? 1 : interval;
+            aggs.addAggregator(AggregationBuilders.dateHistogram("time").interval(interval));
             builder.setAggregations(aggs);
         }
         if (randomBoolean()) {
@@ -115,89 +127,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         defaultedDatafeedConfig.setTypes(Arrays.asList("type"));
 
         assertEquals(expectedDatafeedConfig.build(), defaultedDatafeedConfig.build());
-    }
-
-    public void testEquals_GivenDifferentQueryDelay() {
-        DatafeedConfig.Builder b1 = createFullyPopulated();
-        DatafeedConfig.Builder b2 = createFullyPopulated();
-        b2.setQueryDelay(TimeValue.timeValueMinutes(2));
-
-        DatafeedConfig sc1 = b1.build();
-        DatafeedConfig sc2 = b2.build();
-        assertFalse(sc1.equals(sc2));
-        assertFalse(sc2.equals(sc1));
-    }
-
-    public void testEquals_GivenDifferentScrollSize() {
-        DatafeedConfig.Builder b1 = createFullyPopulated();
-        DatafeedConfig.Builder b2 = createFullyPopulated();
-        b2.setScrollSize(1);
-
-        DatafeedConfig sc1 = b1.build();
-        DatafeedConfig sc2 = b2.build();
-        assertFalse(sc1.equals(sc2));
-        assertFalse(sc2.equals(sc1));
-    }
-
-    public void testEquals_GivenDifferentFrequency() {
-        DatafeedConfig.Builder b1 = createFullyPopulated();
-        DatafeedConfig.Builder b2 = createFullyPopulated();
-        b2.setFrequency(TimeValue.timeValueSeconds(90));
-
-        DatafeedConfig sc1 = b1.build();
-        DatafeedConfig sc2 = b2.build();
-        assertFalse(sc1.equals(sc2));
-        assertFalse(sc2.equals(sc1));
-    }
-
-    public void testEquals_GivenDifferentIndexes() {
-        DatafeedConfig.Builder sc1 = createFullyPopulated();
-        DatafeedConfig.Builder sc2 = createFullyPopulated();
-        sc2.setIndexes(Arrays.asList("blah", "di", "blah"));
-
-        assertFalse(sc1.build().equals(sc2.build()));
-        assertFalse(sc2.build().equals(sc1.build()));
-    }
-
-    public void testEquals_GivenDifferentTypes() {
-        DatafeedConfig.Builder sc1 = createFullyPopulated();
-        DatafeedConfig.Builder sc2 = createFullyPopulated();
-        sc2.setTypes(Arrays.asList("blah", "di", "blah"));
-
-        assertFalse(sc1.build().equals(sc2.build()));
-        assertFalse(sc2.build().equals(sc1.build()));
-    }
-
-    public void testEquals_GivenDifferentQuery() {
-        DatafeedConfig.Builder b1 = createFullyPopulated();
-        DatafeedConfig.Builder b2 = createFullyPopulated();
-        b2.setQuery(QueryBuilders.termQuery("foo", "bar"));
-
-        DatafeedConfig sc1 = b1.build();
-        DatafeedConfig sc2 = b2.build();
-        assertFalse(sc1.equals(sc2));
-        assertFalse(sc2.equals(sc1));
-    }
-
-    public void testEquals_GivenDifferentAggregations() {
-        DatafeedConfig.Builder sc1 = createFullyPopulated();
-        DatafeedConfig.Builder sc2 = createFullyPopulated();
-        sc2.setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.count("foo")));
-
-        assertFalse(sc1.build().equals(sc2.build()));
-        assertFalse(sc2.build().equals(sc1.build()));
-    }
-
-    private static DatafeedConfig.Builder createFullyPopulated() {
-        DatafeedConfig.Builder sc = new DatafeedConfig.Builder("datafeed1", "job1");
-        sc.setIndexes(Arrays.asList("myIndex"));
-        sc.setTypes(Arrays.asList("myType1", "myType2"));
-        sc.setFrequency(TimeValue.timeValueSeconds(60));
-        sc.setScrollSize(5000);
-        sc.setQuery(QueryBuilders.matchAllQuery());
-        sc.setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("foo")));
-        sc.setQueryDelay(TimeValue.timeValueMillis(900));
-        return sc;
     }
 
     public void testCheckValid_GivenNullIndexes() throws IOException {
@@ -280,28 +209,115 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertThat(datafeedConfig.hasAggregations(), is(false));
     }
 
-    public void testHasAggregations_GivenEmpty() {
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        builder.setIndexes(Arrays.asList("myIndex"));
-        builder.setTypes(Arrays.asList("myType"));
-        builder.setAggregations(new AggregatorFactories.Builder());
-        DatafeedConfig datafeedConfig = builder.build();
-
-        assertThat(datafeedConfig.hasAggregations(), is(false));
-    }
-
     public void testHasAggregations_NonEmpty() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndexes(Arrays.asList("myIndex"));
         builder.setTypes(Arrays.asList("myType"));
-        builder.setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("foo")));
+        builder.setAggregations(new AggregatorFactories.Builder().addAggregator(
+                AggregationBuilders.dateHistogram("time").interval(300000)));
         DatafeedConfig datafeedConfig = builder.build();
 
         assertThat(datafeedConfig.hasAggregations(), is(true));
     }
 
+    public void testBuild_GivenEmptyAggregations() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndexes(Arrays.asList("myIndex"));
+        builder.setTypes(Arrays.asList("myType"));
+        builder.setAggregations(new AggregatorFactories.Builder());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.build());
+
+        assertThat(e.getMessage(), equalTo("A top level date_histogram (or histogram) aggregation is required"));
+    }
+
+    public void testBuild_GivenTopLevelAggIsTerms() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndexes(Arrays.asList("myIndex"));
+        builder.setTypes(Arrays.asList("myType"));
+        builder.setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.terms("foo")));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.build());
+
+        assertThat(e.getMessage(), equalTo("A top level date_histogram (or histogram) aggregation is required"));
+    }
+
+    public void testBuild_GivenHistogramWithDefaultInterval() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndexes(Arrays.asList("myIndex"));
+        builder.setTypes(Arrays.asList("myType"));
+        builder.setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.histogram("time")));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.build());
+
+        assertThat(e.getMessage(), equalTo("Aggregation interval must be greater than 0"));
+    }
+
+    public void testBuild_GivenDateHistogramWithInvalidTimeZone() {
+        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("time")
+                .interval(300000L).timeZone(DateTimeZone.forTimeZone(TimeZone.getTimeZone("EST")));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> createDatafeedWithDateHistogram(dateHistogram));
+
+        assertThat(e.getMessage(), equalTo("ML requires date_histogram.time_zone to be UTC"));
+    }
+
+    public void testBuild_GivenDateHistogramWithDefaultInterval() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> createDatafeedWithDateHistogram((String) null));
+
+        assertThat(e.getMessage(), equalTo("Aggregation interval must be greater than 0"));
+    }
+
+    public void testBuild_GivenValidDateHistogram() {
+        long millisInDay = 24 * 3600000L;
+
+        assertThat(createDatafeedWithDateHistogram("1s").getHistogramIntervalMillis(), equalTo(1000L));
+        assertThat(createDatafeedWithDateHistogram("2s").getHistogramIntervalMillis(), equalTo(2000L));
+        assertThat(createDatafeedWithDateHistogram("1m").getHistogramIntervalMillis(), equalTo(60000L));
+        assertThat(createDatafeedWithDateHistogram("2m").getHistogramIntervalMillis(), equalTo(120000L));
+        assertThat(createDatafeedWithDateHistogram("1h").getHistogramIntervalMillis(), equalTo(3600000L));
+        assertThat(createDatafeedWithDateHistogram("2h").getHistogramIntervalMillis(), equalTo(7200000L));
+        assertThat(createDatafeedWithDateHistogram("1d").getHistogramIntervalMillis(), equalTo(millisInDay));
+        assertThat(createDatafeedWithDateHistogram("7d").getHistogramIntervalMillis(), equalTo(7 * millisInDay));
+
+        assertThat(createDatafeedWithDateHistogram(7 * millisInDay + 1).getHistogramIntervalMillis(),
+                equalTo(7 * millisInDay + 1));
+    }
+
+    public void testBuild_GivenDateHistogramWithMoreThanCalendarWeek() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> createDatafeedWithDateHistogram("8d"));
+
+        assertThat(e.getMessage(), containsString("When specifying a date_histogram calendar interval [8d]"));
+    }
+
     public static String randomValidDatafeedId() {
         CodepointSetGenerator generator =  new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz".toCharArray());
         return generator.ofCodePointsLength(random(), 10, 10);
+    }
+
+    private static DatafeedConfig createDatafeedWithDateHistogram(String interval) {
+        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("time");
+        if (interval != null) {
+            dateHistogram.dateHistogramInterval(new DateHistogramInterval(interval));
+        }
+        return createDatafeedWithDateHistogram(dateHistogram);
+    }
+
+    private static DatafeedConfig createDatafeedWithDateHistogram(Long interval) {
+        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("time");
+        if (interval != null) {
+            dateHistogram.interval(interval);
+        }
+        return createDatafeedWithDateHistogram(dateHistogram);
+    }
+
+    private static DatafeedConfig createDatafeedWithDateHistogram(DateHistogramAggregationBuilder dateHistogram) {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndexes(Arrays.asList("myIndex"));
+        builder.setTypes(Arrays.asList("myType"));
+        builder.setAggregations(new AggregatorFactories.Builder().addAggregator(dateHistogram));
+        return builder.build();
     }
 }

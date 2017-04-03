@@ -379,7 +379,8 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             }
 
             ActionListener<Response> finalListener = listener;
-            listener = ActionListener.wrap(response -> gatherStatsForClosedJobs(request, response, finalListener), listener::onFailure);
+            listener = ActionListener.wrap(response -> gatherStatsForClosedJobs(mlMetadata,
+                    request, response, finalListener), listener::onFailure);
             super.doExecute(task, request, listener);
         }
 
@@ -428,8 +429,10 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
         // Up until now we gathered the stats for jobs that were open,
         // This method will fetch the stats for missing jobs, that was stored in the jobs index
-        void gatherStatsForClosedJobs(Request request, Response response, ActionListener<Response> listener) {
-            List<String> jobIds = determineJobIdsWithoutLiveStats(request.expandedJobsIds, response.jobsStats.results());
+        void gatherStatsForClosedJobs(MlMetadata mlMetadata, Request request, Response response,
+                                      ActionListener<Response> listener) {
+            List<String> jobIds = determineNonDeletedJobIdsWithoutLiveStats(mlMetadata,
+                    request.expandedJobsIds, response.jobsStats.results());
             if (jobIds.isEmpty()) {
                 listener.onResponse(response);
                 return;
@@ -477,9 +480,12 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             }
         }
 
-        static List<String> determineJobIdsWithoutLiveStats(List<String> requestedJobIds, List<Response.JobStats> stats) {
+        static List<String> determineNonDeletedJobIdsWithoutLiveStats(MlMetadata mlMetadata,
+                                                                      List<String> requestedJobIds,
+                                                                      List<Response.JobStats> stats) {
             Set<String> excludeJobIds = stats.stream().map(Response.JobStats::getJobId).collect(Collectors.toSet());
-            return requestedJobIds.stream().filter(jobId -> !excludeJobIds.contains(jobId)).collect(Collectors.toList());
+            return requestedJobIds.stream().filter(jobId -> !excludeJobIds.contains(jobId) &&
+                    !mlMetadata.isJobDeleted(jobId)).collect(Collectors.toList());
         }
     }
 }

@@ -452,7 +452,7 @@ public class NodeJoinController extends AbstractComponent {
             }
             // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
             // we have to reject nodes that don't support all indices we have in this cluster
-            MembershipAction.ensureIndexCompatibility(minNodeVersion.minimumIndexCompatibilityVersion(), currentState.getMetaData());
+            MembershipAction.ensureIndexCompatibility(minNodeVersion, currentState.getMetaData());
             if (nodesChanged) {
                 newState.nodes(nodesBuilder);
                 return results.build(allocationService.reroute(newState.build(), "node_join"));

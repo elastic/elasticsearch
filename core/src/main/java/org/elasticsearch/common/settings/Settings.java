@@ -469,7 +469,44 @@ public final class Settings implements ToXContent {
         return result.toArray(new String[result.size()]);
     }
 
-
+    /**
+     * The values associated with a setting prefix as an array. The settings array is in the format of:
+     * <tt>settingPrefix.[index]</tt>.
+     * <p>
+     *
+     * @param settingPrefix  The setting prefix to load the array by
+     * @param defaultArray   The default array to use if no value is specified
+     */
+    public Settings[] getAsGroupArray(String settingPrefix, Settings[] defaultArray) throws SettingsException {
+        int[] keys = getByPrefix(settingPrefix + ".").getAsStructuredMap().keySet().stream()
+            .mapToInt((key) -> {
+                try {
+                    return Integer.parseInt(key);
+                } catch (NumberFormatException ex) {
+                    throw new IllegalArgumentException("setting [" + settingPrefix + "] must be a list, " +
+                        "found a map [" + settingPrefix + "." + key + "]");
+                }
+            })
+            .toArray();
+        Arrays.sort(keys);
+        Settings[] values = new Settings[keys.length];
+        int counter = 0;
+        for (int num : keys) {
+            if (counter != num) {
+                throw new IllegalArgumentException("setting [" + settingPrefix + "] must be a dense list, " +
+                    "found a hole [" + settingPrefix + "." + counter + "]");
+            }
+            Settings value = getByPrefix(settingPrefix + '.' + counter + ".");
+            if (value.isEmpty()) {
+                break;
+            }
+            values[counter++] = value;
+        }
+        if (values.length == 0) {
+            return defaultArray;
+        }
+        return values;
+    }
 
     /**
      * Returns group settings for the given setting prefix.
@@ -892,6 +929,30 @@ public final class Settings implements ToXContent {
             }
             for (int i = 0; i < values.size(); i++) {
                 put(setting + "." + i, values.get(i));
+            }
+            return this;
+        }
+
+        /**
+         * Sets the setting with the provided setting key and a list of values.
+         *
+         * @param setting The setting key
+         * @param values  The values
+         * @return The builder
+         */
+        public Builder putGroupArray(String setting, List<Settings> values) {
+            Iterator<Map.Entry<String, String>> it = map.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, String> entry = it.next();
+                if (entry.getKey().startsWith(setting + ".")) {
+                    it.remove();
+                }
+            }
+            for (int i = 0; i < values.size(); i++) {
+                Map<String, Object> map = values.get(i).getAsStructuredMap();
+                for (String key : map.keySet()) {
+                    put(setting + "." + i + "." + key, map.get(key));
+                }
             }
             return this;
         }

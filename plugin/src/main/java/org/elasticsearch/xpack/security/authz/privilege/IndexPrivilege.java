@@ -37,8 +37,9 @@ import static org.elasticsearch.xpack.security.support.Automatons.unionAndMinimi
 
 public final class IndexPrivilege extends Privilege {
 
-    private static final Automaton ALL_AUTOMATON = patterns("indices:*");
+    private static final Automaton ALL_AUTOMATON = patterns("indices:*", "internal:transport/proxy/indices:*");
     private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*");
+    private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns("internal:transport/proxy/indices:data/read/*");
     private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*",
             PutMappingAction.NAME);
     private static final Automaton INDEX_AUTOMATON =
@@ -57,6 +58,7 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege NONE =                new IndexPrivilege("none",             Automatons.EMPTY);
     public static final IndexPrivilege ALL =                 new IndexPrivilege("all",              ALL_AUTOMATON);
     public static final IndexPrivilege READ =                new IndexPrivilege("read",                READ_AUTOMATON);
+    public static final IndexPrivilege READ_CROSS_CLUSTER =  new IndexPrivilege("read_cross_cluster",  READ_CROSS_CLUSTER_AUTOMATON);
     public static final IndexPrivilege CREATE =              new IndexPrivilege("create",              CREATE_AUTOMATON);
     public static final IndexPrivilege INDEX =               new IndexPrivilege("index",               INDEX_AUTOMATON);
     public static final IndexPrivilege DELETE =              new IndexPrivilege("delete",              DELETE_AUTOMATON);
@@ -80,6 +82,7 @@ public final class IndexPrivilege extends Privilege {
             .put("create", CREATE)
             .put("delete_index", DELETE_INDEX)
             .put("view_index_metadata", VIEW_METADATA)
+            .put("read_cross_cluster", READ_CROSS_CLUSTER)
             .immutableMap();
 
     public static final Predicate<String> ACTION_MATCHER = ALL.predicate();

@@ -86,6 +86,8 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(index, notNullValue());
         assertThat(index.predicate().test("indices:admin/mapping/delete"), is(true));
         assertThat(index.predicate().test("indices:admin/mapping/dele"), is(false));
+        assertThat(IndexPrivilege.READ_CROSS_CLUSTER.predicate()
+                .test("internal:transport/proxy/indices:data/read/query"), is(true));
     }
 
     public void testIndexCollapse() throws Exception {
@@ -120,5 +122,6 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(predicate.test("cluster:admin/whatever"), is(false));
         assertThat(predicate.test("indices:admin/mapping/put"), is(true));
         assertThat(predicate.test("indices:admin/mapping/whatever"), is(false));
+        assertThat(predicate.test("internal:transport/proxy/indices:data/read/query"), is(false));
     }
 }

@@ -1,0 +1,77 @@
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
+apply plugin: 'elasticsearch.standalone-test'
+
+dependencies {
+  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
+}
+
+task remoteClusterTest(type: RestIntegTestTask) {
+  mustRunAfter(precommit)
+}
+
+remoteClusterTestCluster {
+  distribution = 'zip'
+  numNodes = 2
+  clusterName = 'remote-cluster'
+  setting 'search.remote.connect', false
+  plugin ':x-pack-elasticsearch:plugin'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setupCommand 'setupDummyUser',
+          'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
+  waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
+            dest: tmpFile.toString(),
+            username: 'test_user',
+            password: 'changeme',
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
+  }
+}
+
+remoteClusterTestRunner {
+  systemProperty 'tests.rest.suite', 'remote_cluster'
+}
+
+task mixedClusterTest(type: RestIntegTestTask) {
+  dependsOn(remoteClusterTestRunner)
+}
+
+mixedClusterTestCluster {
+  plugin ':x-pack-elasticsearch:plugin'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setupCommand 'setupDummyUser',
+          'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
+  waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
+            dest: tmpFile.toString(),
+            username: 'test_user',
+            password: 'changeme',
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
+  }
+  distribution = 'zip'
+  setting 'search.remote.my_remote_cluster.seeds', "\"${-> remoteClusterTest.nodes.get(0).transportUri()}\""
+  setting 'search.remote.connections_per_cluster', 1
+  setting 'search.remote.connect', true
+}
+
+mixedClusterTestRunner {
+  systemProperty 'tests.rest.suite', 'multi_cluster'
+  finalizedBy 'remoteClusterTestCluster#node0.stop','remoteClusterTestCluster#node1.stop'
+}
+
+task integTest {
+  dependsOn = [mixedClusterTest]
+}
+
+test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
+check.dependsOn(integTest)

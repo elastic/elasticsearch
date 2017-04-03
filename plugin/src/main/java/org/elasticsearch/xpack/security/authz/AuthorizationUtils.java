@@ -38,7 +38,7 @@ public final class AuthorizationUtils {
      * @return true if the system user should be used to execute a request
      */
     public static boolean shouldReplaceUserWithSystem(ThreadContext threadContext, String action) {
-        if (isInternalAction(action) == false) {
+        if (threadContext.isSystemContext() == false && isInternalAction(action) == false) {
             return false;
         }
 

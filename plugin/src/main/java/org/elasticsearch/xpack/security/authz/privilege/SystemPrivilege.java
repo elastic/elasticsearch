@@ -14,13 +14,14 @@ public final class SystemPrivilege extends Privilege {
 
     public static SystemPrivilege INSTANCE = new SystemPrivilege();
 
-    private static final Predicate<String> PREDICATE = Automatons.predicate(
+    private static final Predicate<String> PREDICATE = Automatons.predicate(Automatons.
+            minusAndMinimize(Automatons.patterns(
             "internal:*",
             "indices:monitor/*", // added for monitoring
             "cluster:monitor/*",  // added for monitoring
             "cluster:admin/reroute", // added for DiskThresholdDecider.DiskListener
             "indices:admin/mapping/put" // needed for recovery and shrink api
-    );
+    ), Automatons.patterns("internal:transport/proxy/*"))); // no proxy actions for system user!
 
     private SystemPrivilege() {
         super(Collections.singleton("internal"));

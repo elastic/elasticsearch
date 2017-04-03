@@ -92,7 +92,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/migration/migrate_5_0/scripting.asciidoc',
   'reference/release-notes/5.0.0-alpha5.asciidoc',
   'reference/modules/scripting/security.asciidoc',
-  'reference/modules/scripting/using.asciidoc',
   'reference/modules/cross-cluster-search.asciidoc', // this is hart to test since we need 2 clusters -- maybe we can trick it into referencing itself...
   'reference/query-dsl/exists-query.asciidoc',
   'reference/query-dsl/function-score-query.asciidoc',
@@ -112,6 +111,7 @@ integTestCluster {
   Closure configFile = {
     extraConfigFile it, "src/test/cluster/config/$it"
   }
+  configFile 'scripts/calculate_score.painless'
   configFile 'scripts/my_script.js'
   configFile 'scripts/my_script.py'
   configFile 'scripts/my_script.painless'

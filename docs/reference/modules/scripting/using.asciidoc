@@ -12,6 +12,7 @@ the same pattern:
     "params": { ... } <3>
   }
 -------------------------------------
+// NOTCONSOLE
 <1> The language the script is written in, which defaults to `painless`.
 <2> The script itself which may be specified as `inline`, `stored`, or `file`.
 <3> Any named parameters that should be passed into the script.
@@ -89,6 +90,7 @@ multipliers, don't hard-code the multiplier into the script:
 ----------------------
   "inline": "doc['my_field'] * 2"
 ----------------------
+// NOTCONSOLE
 
 Instead, pass it in as a named parameter:
 
@@ -99,6 +101,7 @@ Instead, pass it in as a named parameter:
     "multiplier": 2
   }
 ----------------------
+// NOTCONSOLE
 
 The first version has to be recompiled every time the multiplier changes.  The
 second version is only compiled once.
@@ -134,7 +137,7 @@ the following example creates a Groovy script called `calculate-score`:
 
 [source,sh]
 --------------------------------------------------
-cat "log(_score * 2) + my_modifier" > config/scripts/calculate-score.groovy
+cat "Math.log(_score * 2) + params.my_modifier" > config/scripts/calculate_score.painless
 --------------------------------------------------
 
 This script can be used as follows:
@@ -146,8 +149,8 @@ GET my_index/_search
   "query": {
     "script": {
       "script": {
-        "lang":   "groovy", <1>
-        "file":   "calculate-score", <2>
+        "lang":   "painless", <1>
+        "file":   "calculate_score", <2>
         "params": {
           "my_modifier": 2
         }
@@ -156,6 +159,8 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 <1> The language of the script, which should correspond with the script file suffix.
 <2> The name of the script, which should be the name of the file.
 
@@ -206,16 +211,10 @@ delete and put requests.
 
 ==== Request Examples
 
-The following are examples of stored script requests:
+The following are examples of using a stored script that lives at
+`/_scripts/{id}`.
 
-[source,js]
------------------------------------
-/_scripts/{id} <1>
------------------------------------
-<1> The `id` is a unique identifier for the stored script.
-
-This example stores a Groovy script called `calculate-score` in the cluster
-state:
+First, create the script called `calculate-score` in the cluster state:
 
 [source,js]
 -----------------------------------

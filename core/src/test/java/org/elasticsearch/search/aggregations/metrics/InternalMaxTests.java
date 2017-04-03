@@ -39,6 +39,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
+
     @Override
     protected InternalMax createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         double value = frequently() ? randomDouble() : randomFrom(new Double[]{Double.NEGATIVE_INFINITY,Double.POSITIVE_INFINITY});
@@ -81,7 +82,7 @@ public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
         } else {
             // we write Double.NEGATIVE_INFINITY and Double.POSITIVE to xContent as 'null', so we
             // cannot differentiate between them. Also we cannot recreate the exact String representation
-            assertEquals(max.getValue(), Double.NEGATIVE_INFINITY, Double.MIN_VALUE);
+            assertEquals(parsed.getValue(), Double.NEGATIVE_INFINITY, Double.MIN_VALUE);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, params, humanReadable), xContentType);
     }

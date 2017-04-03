@@ -47,8 +47,8 @@ public class MembershipActionTests extends ESTestCase {
         Settings.builder().build();
         MetaData.Builder metaBuilder = MetaData.builder();
         IndexMetaData indexMetaData = IndexMetaData.builder("test")
-            .settings(settings(VersionUtils.getPreviousVersion(Version.CURRENT
-                .minimumIndexCompatibilityVersion())))
+            .settings(settings(Version.fromId(Version.CURRENT
+                .minimumIndexCompatibilityVersion().id - 1)))
             .numberOfShards(1)
             .numberOfReplicas(1).build();
         metaBuilder.put(indexMetaData, false);

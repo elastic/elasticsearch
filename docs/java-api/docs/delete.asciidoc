@@ -44,7 +44,7 @@ the result of a query:
 
 [source,java]
 --------------------------------------------------
-BulkIndexByScrollResponse response =
+BulkByScrollResponse response =
     DeleteByQueryAction.INSTANCE.newRequestBuilder(client)
         .filter(QueryBuilders.matchQuery("gender", "male")) <1>
         .source("persons")                                  <2>
@@ -65,9 +65,9 @@ and provide a listener like:
 DeleteByQueryAction.INSTANCE.newRequestBuilder(client)
     .filter(QueryBuilders.matchQuery("gender", "male"))                  <1>
     .source("persons")                                                   <2>
-    .execute(new ActionListener<BulkIndexByScrollResponse>() {           <3>
+    .execute(new ActionListener<BulkByScrollResponse>() {           <3>
         @Override
-        public void onResponse(BulkIndexByScrollResponse response) {
+        public void onResponse(BulkByScrollResponse response) {
             long deleted = response.getDeleted();                        <4>
         }
         @Override

@@ -9,7 +9,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -121,6 +120,9 @@ public class LocalBulk extends ExportBulk {
                 .forEach(exception::addExportException);
 
         if (exception.hasExportExceptions()) {
+            for (ExportException e : exception) {
+                logger.warn("unexpected error while indexing monitoring document", e);
+            }
             listener.onFailure(exception);
         } else {
             listener.onResponse(null);

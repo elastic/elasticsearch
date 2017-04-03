@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
@@ -49,6 +50,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.monitoring.MonitoredSystem.BEATS;
 import static org.elasticsearch.xpack.monitoring.MonitoredSystem.KIBANA;
@@ -186,9 +188,6 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
             assertThat(client().prepareSearch(".monitoring-es-2-*").setTypes("index_stats")
                     .get().getHits().getTotalHits(), greaterThan(0L));
 
-            assertEquals(0L, client().prepareSearch(".monitoring-es-2-*").setTypes("node_stats")
-                    .get().getHits().getTotalHits() % numNodes);
-
             assertThat(client().prepareSearch(".monitoring-es-2-*").setTypes("indices_stats")
                     .get().getHits().getTotalHits(), greaterThan(0L));
 
@@ -200,6 +199,21 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
 
             assertEquals(numNodes, client().prepareSearch(".monitoring-data-2").setTypes("node")
                     .get().getHits().getTotalHits());
+
+            SearchResponse response = client().prepareSearch(".monitoring-es-2-*")
+                    .setTypes("node_stats")
+                    .setSize(0)
+                    .addAggregation(terms("agg_nodes_ids").field("node_stats.node_id"))
+                    .get();
+
+            StringTerms aggregation = response.getAggregations().get("agg_nodes_ids");
+            assertEquals("Aggregation on node_id must return a bucket per node involved in test",
+                    numNodes, aggregation.getBuckets().size());
+
+            for (String nodeName : internalCluster().getNodeNames()) {
+                String nodeId = internalCluster().clusterService(nodeName).localNode().getId();
+                assertTrue(aggregation.getBucketByKey(nodeId).getDocCount() >= 1L);
+            }
 
         }, 30L, TimeUnit.SECONDS);
 

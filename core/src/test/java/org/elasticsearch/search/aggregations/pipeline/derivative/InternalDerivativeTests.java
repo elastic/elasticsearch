@@ -39,15 +39,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class InternalDerivativeTests extends InternalAggregationTestCase<InternalDerivative> {
 
+    Double[] valueEdgeCases = new Double[] {Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN};
+
     @Override
     protected InternalDerivative createTestInstance(String name,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         DocValueFormat formatter = randomFrom(new DocValueFormat.Decimal("###.##"),
                 DocValueFormat.BOOLEAN, DocValueFormat.RAW);
-        double value = randomDoubleBetween(0, 100000, true);
-        double normalizationFactor = randomDoubleBetween(0, 100000, true);
-        return new InternalDerivative(name, value, normalizationFactor, formatter,
-                pipelineAggregators, metaData);
+        double value = frequently() ? randomDoubleBetween(0, 100000, true) : randomFrom(valueEdgeCases);
+        double normalizationFactor = frequently() ? randomDoubleBetween(0, 100000, true) : randomFrom(valueEdgeCases);
+        return new InternalDerivative(name, value, normalizationFactor, formatter, pipelineAggregators, metaData);
     }
 
     @Override
@@ -88,10 +89,22 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
             assertNull(parser.nextToken());
         }
         assertEquals(derivative.getName(), parsed.getName());
-        assertEquals(derivative.getValue(), parsed.getValue(), Double.MIN_VALUE);
-        assertEquals(derivative.getValueAsString(), parsed.getValueAsString());
-        assertEquals(derivative.normalizedValue(), parsed.normalizedValue(), Double.MIN_VALUE);
-        assertToXContentEquivalent(originalBytes,
-                toXContent(parsed, xContentType, params, humanReadable), xContentType);
+        if (Double.isFinite(derivative.getValue())) {
+            assertEquals(derivative.getValue(), parsed.getValue(), Double.MIN_VALUE);
+            assertEquals(derivative.getValueAsString(), parsed.getValueAsString());
+        } else {
+            assertEquals(parsed.getValue(), Double.NaN, Double.MIN_VALUE);
+        }
+        if (Double.isFinite(derivative.normalizedValue())) {
+            assertEquals(derivative.normalizedValue(), parsed.normalizedValue(), Double.MIN_VALUE);
+            assertEquals(derivative.normalizedValueAsString(), parsed.normalizedValueAsString());
+        } else {
+            assertEquals(parsed.normalizedValue(), Double.NaN, Double.MIN_VALUE);
+        }
+        if (Double.isFinite(derivative.getValue())
+                && Double.isFinite(derivative.normalizedValue())) {
+            assertToXContentEquivalent(originalBytes,
+                    toXContent(parsed, xContentType, params, humanReadable), xContentType);
+        }
     }
 }

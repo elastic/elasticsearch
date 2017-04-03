@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
@@ -77,6 +76,11 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
     }
 
     @Override
+    public String normalizedValueAsString() {
+        return format.format(normalizationFactor > 0 ? (value() / normalizationFactor) : value());
+    }
+
+    @Override
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;
@@ -107,14 +111,15 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
 
     static {
         declareCommonField(PARSER);
-        PARSER.declareField((map, value) -> map.put(CommonFields.VALUE.getPreferredName(), value),
-                (p, c) -> InternalMax.parseValue(p, Double.NEGATIVE_INFINITY), CommonFields.VALUE,
-                ValueType.DOUBLE_OR_NULL);
+        PARSER.declareField(
+                (map, value) -> map.put(CommonFields.VALUE.getPreferredName(), value),
+                (parser, context) -> InternalDerivative.parseValue(parser, Double.NaN),
+                CommonFields.VALUE, ValueType.DOUBLE_OR_NULL);
         PARSER.declareString((map, valueAsString) -> map.put(CommonFields.VALUE_AS_STRING.getPreferredName(), valueAsString),
                 CommonFields.VALUE_AS_STRING);
         PARSER.declareField((map, value) -> map.put(NORMALIZED_VALUE.getPreferredName(), value),
-                (p, c) -> InternalMax.parseValue(p, Double.NEGATIVE_INFINITY), NORMALIZED_VALUE,
-                ValueType.DOUBLE_OR_NULL);
+                (parser, context) -> InternalDerivative.parseValue(parser, Double.NaN),
+                NORMALIZED_VALUE, ValueType.DOUBLE_OR_NULL);
         PARSER.declareString((map, valueAsString) -> map.put(NORMALIZED_VALUE_AS_STRING.getPreferredName(), valueAsString),
                 NORMALIZED_VALUE_AS_STRING);
     }
@@ -122,9 +127,9 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
     @SuppressWarnings("unchecked")
     public static InternalDerivative parseXContentBody(String name, XContentParser parser) {
         Map<String, Object> map = PARSER.apply(parser, null);
-        double value = (Double) map.getOrDefault(CommonFields.VALUE.getPreferredName(), Double.NEGATIVE_INFINITY);
+        double value = (Double) map.getOrDefault(CommonFields.VALUE.getPreferredName(), Double.NaN);
         String valueAsString = (String) map.get(CommonFields.VALUE_AS_STRING.getPreferredName());
-        double normalizedValue = (Double) map.getOrDefault(NORMALIZED_VALUE.getPreferredName(), Double.NEGATIVE_INFINITY);
+        double normalizedValue = (Double) map.getOrDefault(NORMALIZED_VALUE.getPreferredName(), Double.NaN);
         String normalizedValueAsString = (String) map.get(NORMALIZED_VALUE_AS_STRING.getPreferredName());
         Map<String, Object> metaData = (Map<String, Object>) map.get(CommonFields.META.getPreferredName());
         Map<Object,String> asStringValues = new HashMap<>(2);
@@ -135,7 +140,7 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
             asStringValues.put(normalizedValue, normalizedValueAsString);
         }
         DocValueFormat formatter = DocValueFormat.RAW;
-        if (asStringValues.size() > 1) {
+        if (asStringValues.size() > 0) {
             formatter = InternalNumericMetricsAggregation.wrapIntoDocValueFormat(asStringValues);
         }
         return new InternalDerivative(name, value, value / normalizedValue, formatter,

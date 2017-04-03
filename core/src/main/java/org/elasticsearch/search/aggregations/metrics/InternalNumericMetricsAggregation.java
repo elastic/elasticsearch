@@ -141,11 +141,12 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
 
             @Override
             public String getWriteableName() {
-                return null;
+                throw new UnsupportedOperationException();
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
+                throw new UnsupportedOperationException();
             }
 
             @Override
@@ -165,17 +166,17 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
 
             @Override
             public long parseLong(String value, boolean roundUp, LongSupplier now) {
-                return 0;
+                throw new UnsupportedOperationException();
             }
 
             @Override
             public double parseDouble(String value, boolean roundUp, LongSupplier now) {
-                return 0;
+                throw new UnsupportedOperationException();
             }
 
             @Override
             public BytesRef parseBytesRef(String value) {
-                return null;
+                throw new UnsupportedOperationException();
             }
         };
     }

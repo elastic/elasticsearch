@@ -160,11 +160,21 @@ public class JiraActionTests extends ESTestCase {
             }
             if (rarely()) {
                 equals = false;
+                // cover the special case that randomIssueDefaults() left an empty map here as
+                // well as in the action1, so that those would be equal - make sure they are not
                 fields = JiraAccountTests.randomIssueDefaults();
+                while (fields.equals(action1.fields)) {
+                    fields = JiraAccountTests.randomIssueDefaults();
+                }
             }
             if (rarely()) {
                 equals = false;
+                // another low probability case, that a random proxy is exactly the same including
+                // port number
                 proxy = randomHttpProxy();
+                while (proxy.equals(action1.proxy)) {
+                    proxy = randomHttpProxy();
+                }
             }
         }
 

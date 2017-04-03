@@ -350,6 +350,7 @@ public class InternalTestClusterTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/23728")
     public void testDifferentRolesMaintainPathOnRestart() throws Exception {
         final Path baseDir = createTempDir();
         final int numNodes = 5;

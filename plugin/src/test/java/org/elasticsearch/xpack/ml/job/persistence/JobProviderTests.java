@@ -581,7 +581,7 @@ public class JobProviderTests extends ESTestCase {
         JobProvider provider = createProvider(client);
 
         Integer[] holder = new Integer[1];
-        provider.expandBucket(jobId, false, bucket, null, 0, records -> holder[0] = records, RuntimeException::new,
+        provider.expandBucket(jobId, false, bucket, null, records -> holder[0] = records, RuntimeException::new,
                 client);
         int records = holder[0];
         assertEquals(400L, records);

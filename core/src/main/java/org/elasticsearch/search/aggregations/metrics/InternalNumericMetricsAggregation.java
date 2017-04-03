@@ -136,7 +136,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
                 Objects.equals(format, other.format);
     }
 
-    protected static DocValueFormat wrapStringsInFormatter(final Map<Object, String> valuesAsStrings) {
+    protected static DocValueFormat wrapStringInFormatter(String valuesAsString) {
         return new DocValueFormat() {
 
             @Override
@@ -151,17 +151,17 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
 
             @Override
             public String format(long value) {
-                return valuesAsStrings.get(value);
+                return valuesAsString;
             }
 
             @Override
             public String format(double value) {
-                return valuesAsStrings.get(value);
+                return valuesAsString;
             }
 
             @Override
             public String format(BytesRef value) {
-                return valuesAsStrings.get(value);
+                return valuesAsString;
             }
 
             @Override

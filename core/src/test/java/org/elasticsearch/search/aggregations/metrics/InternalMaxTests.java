@@ -41,9 +41,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
     @Override
     protected InternalMax createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalMax(name, frequently() ? randomDouble() : Double.NEGATIVE_INFINITY,
-                randomFrom(new DocValueFormat.Decimal("###.##"), DocValueFormat.BOOLEAN, DocValueFormat.RAW), pipelineAggregators,
-                metaData);
+        double value = frequently() ? randomDouble() : randomFrom(new Double[]{Double.NEGATIVE_INFINITY,Double.POSITIVE_INFINITY});
+        DocValueFormat formatter = randomFrom(new DocValueFormat.Decimal("###.##"), DocValueFormat.BOOLEAN, DocValueFormat.RAW);
+        return new InternalMax(name, value, formatter, pipelineAggregators, metaData);
     }
 
     @Override
@@ -75,10 +75,13 @@ public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
             assertNull(parser.nextToken());
         }
         assertEquals(max.getName(), parsed.getName());
-        assertEquals(max.getValue(), parsed.getValue(), Double.MIN_VALUE);
-        // we don't write Double.NEGATIVE_INFINITY to xContent, so we cannot always recreate the exact String representation
-        if (max.getValue() != Double.NEGATIVE_INFINITY) {
+        if (Double.isInfinite(max.getValue()) == false) {
+            assertEquals(max.getValue(), parsed.getValue(), Double.MIN_VALUE);
             assertEquals(max.getValueAsString(), parsed.getValueAsString());
+        } else {
+            // we write Double.NEGATIVE_INFINITY and Double.POSITIVE to xContent as 'null', so we
+            // cannot differentiate between them. Also we cannot recreate the exact String representation
+            assertEquals(max.getValue(), Double.NEGATIVE_INFINITY, Double.MIN_VALUE);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, params, humanReadable), xContentType);
     }

@@ -113,9 +113,11 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
         double max = (Double) map.getOrDefault(CommonFields.VALUE.getPreferredName(), Double.NEGATIVE_INFINITY);
         String valueAsString = (String) map.get(CommonFields.VALUE_AS_STRING.getPreferredName());
         Map<String, Object> metaData = (Map<String, Object>) map.get(CommonFields.META.getPreferredName());
-        DocValueFormat formatter = DocValueFormat.RAW;
+        DocValueFormat formatter;
         if (valueAsString != null) {
-            formatter = InternalNumericMetricsAggregation.wrapStringsInFormatter(Collections.singletonMap(max, valueAsString));
+            formatter = InternalNumericMetricsAggregation.wrapStringInFormatter(valueAsString);
+        } else {
+            formatter = DocValueFormat.RAW;
         }
         return new InternalMax(name, max, formatter, Collections.emptyList(), metaData);
     }

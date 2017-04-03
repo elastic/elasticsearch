@@ -48,10 +48,14 @@ public class Retry {
     private final Class<? extends Throwable> retryOnThrowable;
 
     private BackoffPolicy backoffPolicy;
-    private BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduleFn;
+    private ThreadPool threadPool;
 
     public static Retry on(Class<? extends Throwable> retryOnThrowable) {
         return new Retry(retryOnThrowable);
+    }
+
+    Retry(Class<? extends Throwable> retryOnThrowable) {
+        this.retryOnThrowable = retryOnThrowable;
     }
 
     /**
@@ -62,12 +66,11 @@ public class Retry {
         return this;
     }
 
-    Retry(Class<? extends Throwable> retryOnThrowable) {
-        this.retryOnThrowable = retryOnThrowable;
-    }
-
+    /**
+     * @param threadPool The threadPool that will be used to schedule retries.
+     */
     public Retry using(ThreadPool threadPool) {
-        this.scheduleFn = fromThreadPool(threadPool);
+        this.threadPool = threadPool;
         return this;
     }
 
@@ -80,7 +83,7 @@ public class Retry {
      * @param settings settings
      */
     public void withAsyncBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Settings settings) {
-        RetryHandler r = new RetryHandler(retryOnThrowable, backoffPolicy, consumer, listener, settings, scheduleFn);
+        RetryHandler r = new RetryHandler(retryOnThrowable, backoffPolicy, consumer, listener, settings, threadPool);
         r.execute(bulkRequest);
     }
 
@@ -96,18 +99,14 @@ public class Retry {
      */
     public BulkResponse withSyncBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest, Settings settings) throws Exception {
         PlainActionFuture<BulkResponse> actionFuture = PlainActionFuture.newFuture();
-        RetryHandler r = new RetryHandler(retryOnThrowable, backoffPolicy, consumer, actionFuture, settings, scheduleFn);
+        RetryHandler r = new RetryHandler(retryOnThrowable, backoffPolicy, consumer, actionFuture, settings, threadPool);
         r.execute(bulkRequest);
         return actionFuture.actionGet();
     }
 
-    static BiFunction<TimeValue, Runnable, ScheduledFuture<?>> fromThreadPool(ThreadPool threadPool) {
-        return (tv, r) -> threadPool.schedule(tv, ThreadPool.Names.SAME, threadPool.getThreadContext().preserveContext(r));
-    }
-
     static class RetryHandler implements ActionListener<BulkResponse> {
         private final Logger logger;
-        private final BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduleFn;
+        private final ThreadPool threadPool;
         private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
         private final ActionListener<BulkResponse> listener;
         private final Iterator<TimeValue> backoff;
@@ -122,13 +121,13 @@ public class Retry {
 
         RetryHandler(Class<? extends Throwable> retryOnThrowable, BackoffPolicy backoffPolicy,
                      BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, ActionListener<BulkResponse> listener,
-                     Settings settings, BiFunction<TimeValue, Runnable, ScheduledFuture<?>> scheduleFn) {
+                     Settings settings, ThreadPool threadPool) {
             this.retryOnThrowable = retryOnThrowable;
             this.backoff = backoffPolicy.iterator();
             this.consumer = consumer;
             this.listener = listener;
             this.logger = Loggers.getLogger(getClass(), settings);
-            this.scheduleFn = scheduleFn;
+            this.threadPool = threadPool;
             // in contrast to System.currentTimeMillis(), nanoTime() uses a monotonic clock under the hood
             this.startTimestampNanos = System.nanoTime();
         }
@@ -163,7 +162,8 @@ public class Retry {
             assert backoff.hasNext();
             TimeValue next = backoff.next();
             logger.trace("Retry of bulk request scheduled in {} ms.", next.millis());
-            scheduledRequestFuture = scheduleFn.apply(next, () -> this.execute(bulkRequestForRetry));
+            Runnable command = threadPool.getThreadContext().preserveContext(() -> this.execute(bulkRequestForRetry));
+            scheduledRequestFuture = threadPool.schedule(next, ThreadPool.Names.SAME, command);
         }
 
         private BulkRequest createBulkRequestForRetry(BulkResponse bulkItemResponses) {

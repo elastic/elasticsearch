@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
@@ -108,7 +109,10 @@ public class UpdateJobProcessNotifier extends AbstractComponent
 
                     @Override
                     public void onFailure(Exception e) {
-                        if (e.getMessage().contains("because job [" + update.getJobId() +
+                        if (e instanceof ResourceNotFoundException) {
+                            logger.debug("Remote job [{}] not updated as it has been deleted",
+                                    update.getJobId());
+                        } else if (e.getMessage().contains("because job [" + update.getJobId() +
                                     "] is not open") && e instanceof ElasticsearchStatusException) {
                             logger.debug("Remote job [{}] not updated as it is no longer open",
                                     update.getJobId());

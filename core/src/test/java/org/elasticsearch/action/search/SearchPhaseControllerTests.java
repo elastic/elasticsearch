@@ -75,7 +75,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int nShards = randomIntBetween(1, 20);
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
         AtomicArray<SearchPhaseResult> results = generateQueryResults(nShards, suggestions, queryResultSize, false);
-        ScoreDoc[] sortedDocs = searchPhaseController.sortDocs(true, results.asList(), nShards);
+        ScoreDoc[] sortedDocs = searchPhaseController.sortDocs(true, results.asList());
         int accumulatedLength = Math.min(queryResultSize, getTotalQueryHits(results));
         for (Suggest.Suggestion<?> suggestion : reducedSuggest(results)) {
             int suggestionSize = suggestion.getEntries().get(0).getOptions().size();
@@ -90,9 +90,9 @@ public class SearchPhaseControllerTests extends ESTestCase {
         AtomicArray<SearchPhaseResult> results = generateQueryResults(nShards, Collections.emptyList(), queryResultSize,
             randomBoolean() || true);
         boolean ignoreFrom = randomBoolean();
-        ScoreDoc[] sortedDocs = searchPhaseController.sortDocs(ignoreFrom, results.asList(), nShards);
+        ScoreDoc[] sortedDocs = searchPhaseController.sortDocs(ignoreFrom, results.asList());
 
-        ScoreDoc[] sortedDocs2 = searchPhaseController.sortDocs(ignoreFrom, results.asList(), nShards);
+        ScoreDoc[] sortedDocs2 = searchPhaseController.sortDocs(ignoreFrom, results.asList());
         assertArrayEquals(sortedDocs, sortedDocs2);
     }
 
@@ -351,33 +351,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
             } else {
                 assertThat("expectedNumResults: " + expectedNumResults + " bufferSize: " + bufferSize,
                     consumer, not(instanceOf(SearchPhaseController.QueryPhaseResultConsumer.class)));
-            }
-        }
-    }
-
-    public void testFillTopDocs() {
-        final int maxIters =  randomIntBetween(5, 15);
-        for (int iters = 0; iters < maxIters; iters++) {
-            TopDocs[] topDocs = new TopDocs[randomIntBetween(2, 100)];
-            int numShards = topDocs.length;
-            AtomicArray<SearchPhaseResult> resultProviderAtomicArray = generateQueryResults(numShards, Collections.emptyList(),
-                2, randomBoolean());
-            if (randomBoolean()) {
-                int maxNull = randomIntBetween(1, topDocs.length - 1);
-                for (int i = 0; i < maxNull; i++) {
-                    resultProviderAtomicArray.set(randomIntBetween(0, resultProviderAtomicArray.length() - 1), null);
-                }
-            }
-            SearchPhaseController.fillTopDocs(topDocs, resultProviderAtomicArray.asList(), Lucene.EMPTY_TOP_DOCS);
-            for (int i = 0; i < topDocs.length; i++) {
-                assertNotNull(topDocs[i]);
-                if (topDocs[i] == Lucene.EMPTY_TOP_DOCS) {
-                    assertNull(resultProviderAtomicArray.get(i));
-                } else {
-                    assertNotNull(resultProviderAtomicArray.get(i));
-                    assertNotNull(resultProviderAtomicArray.get(i).queryResult());
-                    assertSame(resultProviderAtomicArray.get(i).queryResult().topDocs(), topDocs[i]);
-                }
             }
         }
     }

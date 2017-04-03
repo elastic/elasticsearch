@@ -21,46 +21,54 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
 import static org.elasticsearch.search.query.QuerySearchResult.readQuerySearchResult;
 
-public class ScrollQuerySearchResult extends TransportResponse {
+public final class ScrollQuerySearchResult extends SearchPhaseResult {
 
-    private QuerySearchResult queryResult;
-    private SearchShardTarget shardTarget;
+    private QuerySearchResult result;
 
     public ScrollQuerySearchResult() {
     }
 
-    public ScrollQuerySearchResult(QuerySearchResult queryResult, SearchShardTarget shardTarget) {
-        this.queryResult = queryResult;
-        this.shardTarget = shardTarget;
+    public ScrollQuerySearchResult(QuerySearchResult result, SearchShardTarget shardTarget) {
+        this.result = result;
+        setSearchShardTarget(shardTarget);
     }
 
+    @Override
+    public void setSearchShardTarget(SearchShardTarget shardTarget) {
+        super.setSearchShardTarget(shardTarget);
+        result.setSearchShardTarget(shardTarget);
+    }
+
+    @Override
+    public void setShardIndex(int shardIndex) {
+        super.setShardIndex(shardIndex);
+        result.setShardIndex(shardIndex);
+    }
+
+    @Override
     public QuerySearchResult queryResult() {
-        return queryResult;
-    }
-
-    public SearchShardTarget shardTarget() {
-        return shardTarget;
+        return result;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        shardTarget = new SearchShardTarget(in);
-        queryResult = readQuerySearchResult(in);
-        queryResult.shardTarget(shardTarget);
+        SearchShardTarget shardTarget = new SearchShardTarget(in);
+        result = readQuerySearchResult(in);
+        setSearchShardTarget(shardTarget);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        shardTarget.writeTo(out);
-        queryResult.writeTo(out);
+        getSearchShardTarget().writeTo(out);
+        result.writeTo(out);
     }
 }

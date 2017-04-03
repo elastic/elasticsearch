@@ -65,6 +65,9 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.index.translog.Translog.Location;
+import org.elasticsearch.action.bulk.BulkItemResultHolder;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 
 import java.io.IOException;
 import java.util.Map;
@@ -154,10 +157,23 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
     }
 
+    static Translog.Location calculateTranslogLocation(final Translog.Location originalLocation,
+                                                       final BulkItemResultHolder bulkItemResult) {
+        final Engine.Result operationResult = bulkItemResult.operationResult;
+        if (operationResult != null && operationResult.hasFailure() == false) {
+            return locationToSync(originalLocation, operationResult.getTranslogLocation());
+        } else {
+            return originalLocation;
+        }
+    }
+
     // Visible for unit testing
-    static Translog.Location updateReplicaRequest(BulkItemResultHolder bulkItemResult,
+    /**
+     * Creates a BulkItemResponse for the primary operation and returns it. If no bulk response is
+     * needed (because one already exists and the operation failed), then return null.
+     */
+    static BulkItemResponse createPrimaryResponse(BulkItemResultHolder bulkItemResult,
                                                   final DocWriteRequest.OpType opType,
-                                                  final Translog.Location originalLocation,
                                                   BulkShardRequest request) {
         final Engine.Result operationResult = bulkItemResult.operationResult;
         final DocWriteResponse response = bulkItemResult.response;
@@ -165,16 +181,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
         if (operationResult == null) { // in case of noop update operation
             assert response.getResult() == DocWriteResponse.Result.NOOP : "only noop updates can have a null operation";
-            replicaRequest.setPrimaryResponse(new BulkItemResponse(replicaRequest.id(), opType, response));
-            return originalLocation;
+            return new BulkItemResponse(replicaRequest.id(), opType, response);
 
         } else if (operationResult.hasFailure() == false) {
             BulkItemResponse primaryResponse = new BulkItemResponse(replicaRequest.id(), opType, response);
-            replicaRequest.setPrimaryResponse(primaryResponse);
             // set a blank ShardInfo so we can safely send it to the replicas. We won't use it in the real response though.
             primaryResponse.getResponse().setShardInfo(new ShardInfo());
-            // The operation was successful, advance the translog
-            return locationToSync(originalLocation, operationResult.getTranslogLocation());
+            return primaryResponse;
 
         } else {
             DocWriteRequest docWriteRequest = replicaRequest.request();
@@ -187,19 +200,19 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     request.shardId(), docWriteRequest.opType().getLowercase(), request), failure);
             }
 
-
             // if it's a conflict failure, and we already executed the request on a primary (and we execute it
             // again, due to primary relocation and only processing up to N bulk items when the shard gets closed)
             // then just use the response we got from the failed execution
             if (replicaRequest.getPrimaryResponse() == null || isConflictException(failure) == false) {
-                replicaRequest.setPrimaryResponse(
-                        new BulkItemResponse(replicaRequest.id(), docWriteRequest.opType(),
-                                // Make sure to use request.indox() here, if you
-                                // use docWriteRequest.index() it will use the
-                                // concrete index instead of an alias if used!
-                                new BulkItemResponse.Failure(request.index(), docWriteRequest.type(), docWriteRequest.id(), failure)));
+                return new BulkItemResponse(replicaRequest.id(), docWriteRequest.opType(),
+                        // Make sure to use request.index() here, if you
+                        // use docWriteRequest.index() it will use the
+                        // concrete index instead of an alias if used!
+                        new BulkItemResponse.Failure(request.index(), docWriteRequest.type(), docWriteRequest.id(), failure));
+            } else {
+                assert replicaRequest.getPrimaryResponse() != null : "replica request must have a primary response";
+                return null;
             }
-            return originalLocation;
         }
     }
 
@@ -233,11 +246,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         // update the bulk item request because update request execution can mutate the bulk item request
         request.items()[requestIndex] = replicaRequest;
 
-        // Modify the replica request, if needed, and return a new translog location
-        location = updateReplicaRequest(responseHolder, opType, location, request);
+        // Retrieve the primary response, and update the replica request with the primary's response
+        BulkItemResponse primaryResponse = createPrimaryResponse(responseHolder, opType, request);
+        if (primaryResponse != null) {
+            replicaRequest.setPrimaryResponse(primaryResponse);
+        }
 
-        assert replicaRequest.getPrimaryResponse() != null : "replica request must have a primary response";
-        return location;
+        // Update the translog with the new location, if needed
+        return calculateTranslogLocation(location, responseHolder);
     }
 
     private static boolean isConflictException(final Exception e) {
@@ -396,14 +412,16 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return new WriteReplicaResult<>(request, location, null, replica, logger);
     }
 
-    private static Translog.Location locationToSync(Translog.Location current, Translog.Location next) {
-        /* here we are moving forward in the translog with each operation. Under the hood
-         * this might cross translog files which is ok since from the user perspective
-         * the translog is like a tape where only the highest location needs to be fsynced
-         * in order to sync all previous locations even though they are not in the same file.
-         * When the translog rolls over files the previous file is fsynced on after closing if needed.*/
+    private static Translog.Location locationToSync(Translog.Location current,
+                                                    Translog.Location next) {
+        /* here we are moving forward in the translog with each operation. Under the hood this might
+         * cross translog files which is ok since from the user perspective the translog is like a
+         * tape where only the highest location needs to be fsynced in order to sync all previous
+         * locations even though they are not in the same file. When the translog rolls over files
+         * the previous file is fsynced on after closing if needed.*/
         assert next != null : "next operation can't be null";
-        assert current == null || current.compareTo(next) < 0 : "translog locations are not increasing";
+        assert current == null || current.compareTo(next) < 0 :
+                "translog locations are not increasing";
         return next;
     }
 
@@ -411,45 +429,82 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      * Execute the given {@link IndexRequest} on a replica shard, throwing a
      * {@link RetryOnReplicaException} if the operation needs to be re-tried.
      */
-    public static Engine.IndexResult executeIndexRequestOnReplica(DocWriteResponse primaryResponse, IndexRequest request, IndexShard replica) throws IOException {
-        final ShardId shardId = replica.shardId();
-        SourceToParse sourceToParse =
-            SourceToParse.source(SourceToParse.Origin.REPLICA, shardId.getIndexName(), request.type(), request.id(), request.source(),
-                request.getContentType()).routing(request.routing()).parent(request.parent());
+    public static Engine.IndexResult executeIndexRequestOnReplica(
+            DocWriteResponse primaryResponse,
+            IndexRequest request,
+            IndexShard replica) throws IOException {
 
         final Engine.Index operation;
-        final long version = primaryResponse.getVersion();
-        final VersionType versionType = request.versionType().versionTypeForReplicationAndRecovery();
-        assert versionType.validateVersionForWrites(version);
-        final long seqNo = primaryResponse.getSeqNo();
         try {
-            operation = replica.prepareIndexOnReplica(sourceToParse, seqNo, version, versionType, request.getAutoGeneratedTimestamp(), request.isRetry());
+            operation = prepareIndexOperationOnReplica(primaryResponse, request, replica);
         } catch (MapperParsingException e) {
-            return new Engine.IndexResult(e, version, seqNo);
+            return new Engine.IndexResult(e, primaryResponse.getVersion(),
+                    primaryResponse.getSeqNo());
         }
+
         Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
         if (update != null) {
-            throw new RetryOnReplicaException(shardId, "Mappings are not available on the replica yet, triggered update: " + update);
+            final ShardId shardId = replica.shardId();
+            throw new RetryOnReplicaException(shardId,
+                    "Mappings are not available on the replica yet, triggered update: " + update);
         }
         return replica.index(operation);
     }
 
+    /** Utility method to prepare an index operation on replica shards */
+    static Engine.Index prepareIndexOperationOnReplica(
+            DocWriteResponse primaryResponse,
+            IndexRequest request,
+            IndexShard replica) {
+
+        final ShardId shardId = replica.shardId();
+        final long version = primaryResponse.getVersion();
+        final long seqNo = primaryResponse.getSeqNo();
+        final SourceToParse sourceToParse =
+                SourceToParse.source(SourceToParse.Origin.REPLICA, shardId.getIndexName(),
+                        request.type(), request.id(), request.source(), request.getContentType())
+                .routing(request.routing()).parent(request.parent());
+        final VersionType versionType = request.versionType().versionTypeForReplicationAndRecovery();
+        assert versionType.validateVersionForWrites(version);
+
+        return replica.prepareIndexOnReplica(sourceToParse, seqNo, version, versionType,
+                request.getAutoGeneratedTimestamp(), request.isRetry());
+    }
+
     /** Utility method to prepare an index operation on primary shards */
     static Engine.Index prepareIndexOperationOnPrimary(IndexRequest request, IndexShard primary) {
-        SourceToParse sourceToParse =
-            SourceToParse.source(SourceToParse.Origin.PRIMARY, request.index(), request.type(), request.id(), request.source(),
-                request.getContentType()).routing(request.routing()).parent(request.parent());
-        return primary.prepareIndexOnPrimary(sourceToParse, request.version(), request.versionType(), request.getAutoGeneratedTimestamp(), request.isRetry());
+        final SourceToParse sourceToParse =
+                SourceToParse.source(SourceToParse.Origin.PRIMARY, request.index(), request.type(),
+                        request.id(), request.source(), request.getContentType())
+                .routing(request.routing()).parent(request.parent());
+        return primary.prepareIndexOnPrimary(sourceToParse, request.version(), request.versionType(),
+                request.getAutoGeneratedTimestamp(), request.isRetry());
     }
 
     /** Executes index operation on primary shard after updates mapping if dynamic mappings are found */
     public static Engine.IndexResult executeIndexRequestOnPrimary(IndexRequest request, IndexShard primary,
                                                                   MappingUpdatePerformer mappingUpdater) throws Exception {
-        MappingUpdatePerformer.MappingUpdateResult result = mappingUpdater.updateMappingsIfNeeded(primary, request);
-        if (result.isFailed()) {
-            return new Engine.IndexResult(result.failure, request.version());
+        // Update the mappings if parsing the documents includes new dynamic updates
+        try {
+            final Engine.Index preUpdateOperation = prepareIndexOperationOnPrimary(request, primary);
+            mappingUpdater.updateMappingsIfNeeded(preUpdateOperation, primary.shardId(), request.type());
+        } catch (MapperParsingException | IllegalArgumentException failure) {
+            return new Engine.IndexResult(failure, request.version());
         }
-        return primary.index(result.operation);
+
+        // Verify that there are no more mappings that need to be applied. If there are failures, a
+        // ReplicationOperation.RetryOnPrimaryException is thrown.
+        final Engine.Index operation;
+        try {
+            operation = prepareIndexOperationOnPrimary(request, primary);
+            mappingUpdater.verifyMappings(operation, primary.shardId());
+        } catch (MapperParsingException | IllegalStateException e) {
+            // there was an error in parsing the document that was not because
+            // of pending mapping updates, so return a failure for the result
+            return new Engine.IndexResult(e, request.version());
+        }
+
+        return primary.index(operation);
     }
 
     private static Engine.DeleteResult executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard primary) throws IOException {
@@ -468,36 +523,22 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     class ConcreteMappingUpdatePerformer implements MappingUpdatePerformer {
 
-        @Nullable
-        public MappingUpdateResult updateMappingsIfNeeded(IndexShard primary, IndexRequest request) throws Exception {
-            Engine.Index operation;
-            try {
-                operation = prepareIndexOperationOnPrimary(request, primary);
-            } catch (MapperParsingException | IllegalArgumentException e) {
-                return new MappingUpdateResult(e);
-            }
+        public void updateMappingsIfNeeded(final Engine.Index operation, final ShardId shardId,
+                                           final String type) throws Exception {
             final Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
-            final ShardId shardId = primary.shardId();
             if (update != null) {
-                // can throw timeout exception when updating mappings or ISE for attempting to update default mappings
-                // which are bubbled up
-                try {
-                    mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), request.type(), update);
-                } catch (IllegalArgumentException e) {
-                    // throws IAE on conflicts merging dynamic mappings
-                    return new MappingUpdateResult(e);
-                }
-                try {
-                    operation = prepareIndexOperationOnPrimary(request, primary);
-                } catch (MapperParsingException | IllegalArgumentException e) {
-                    return new MappingUpdateResult(e);
-                }
-                if (operation.parsedDoc().dynamicMappingsUpdate() != null) {
-                    throw new ReplicationOperation.RetryOnPrimaryException(shardId,
-                            "Dynamic mappings are not available on the node that holds the primary yet");
-                }
+                // can throw timeout exception when updating mappings or ISE for attempting to
+                // update default mappings which are bubbled up
+                mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), type, update);
             }
-            return new MappingUpdateResult(operation);
+        }
+
+        public void verifyMappings(final Engine.Index operation,
+                                   final ShardId shardId) throws Exception {
+            if (operation.parsedDoc().dynamicMappingsUpdate() != null) {
+                throw new ReplicationOperation.RetryOnPrimaryException(shardId,
+                        "Dynamic mappings are not available on the node that holds the primary yet");
+            }
         }
     }
 }

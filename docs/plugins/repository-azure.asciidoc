@@ -72,6 +72,12 @@ It's not set by default which means that elasticsearch is using the
 http://azure.github.io/azure-storage-java/com/microsoft/azure/storage/RequestOptions.html#setTimeoutIntervalInMs(java.lang.Integer)[default value]
 set by the azure client (known as 5 minutes).
 
+`max_retries` can help to control the exponential backoff policy. It will fix the number of retries
+in case of failures before considering the snapshot is failing. Defaults to `3` retries.
+The initial backoff period is defined by Azure SDK as `30s`. Which means `30s` of wait time
+before retrying after a first timeout or failure. The maximum backoff period is defined by Azure SDK as
+`90s`.
+
 [source,yaml]
 ----
 cloud:
@@ -82,13 +88,15 @@ cloud:
                 account: your_azure_storage_account1
                 key: your_azure_storage_key1
                 default: true
+                max_retries: 7
             my_account2:
                 account: your_azure_storage_account2
                 key: your_azure_storage_key2
                 timeout: 30s
 ----
 
-In this example, timeout will be 10s for `my_account1` and 30s for `my_account2`.
+In this example, timeout will be `10s` per try for `my_account1` with `7` retries before failing
+and `30s` per try for `my_account2` with `3` retries.
 
 [[repository-azure-repository-settings]]
 ===== Repository settings
@@ -184,22 +192,6 @@ client.admin().cluster().preparePutRepository("my_backup_java1")
         .put(Storage.CHUNK_SIZE, new ByteSizeValue(32, ByteSizeUnit.MB))
     ).get();
 ----
-
-[[repository-azure-global-settings]]
-===== Global repositories settings
-
-All those repository settings can also be defined globally in `elasticsearch.yml` file using prefix
-`repositories.azure.`. For example:
-
-[source,yaml]
-----
-repositories.azure:
-    container: backup-container
-    base_path: backups
-    chunk_size: 32m
-    compress": true
-----
-
 
 [[repository-azure-validation]]
 ===== Repository validation rules

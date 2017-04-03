@@ -10,7 +10,7 @@ one or more `*.dic` files (all of which will automatically be picked up).
 For example, assuming the default hunspell location is used, the
 following directory layout will define the `en_US` dictionary:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 - conf
     |-- hunspell
@@ -42,24 +42,28 @@ settings:
 
 [source,js]
 --------------------------------------------------
+PUT /hunspell_example
 {
-    "analysis" : {
-        "analyzer" : {
-            "en" : {
-                "tokenizer" : "standard",
-                "filter" : [ "lowercase", "en_US" ]
-            }
-        },
-        "filter" : {
-            "en_US" : {
-                "type" : "hunspell",
-                "locale" : "en_US",
-                "dedup" : true
+    "settings": {
+        "analysis" : {
+            "analyzer" : {
+                "en" : {
+                    "tokenizer" : "standard",
+                    "filter" : [ "lowercase", "en_US" ]
+                }
+            },
+            "filter" : {
+                "en_US" : {
+                    "type" : "hunspell",
+                    "locale" : "en_US",
+                    "dedup" : true
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The hunspell token filter accepts four options:
 

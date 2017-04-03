@@ -275,7 +275,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
-                    } else {
+                    } else if (token.isValue()) {
                         if (TERM_FIELD.match(currentFieldName)) {
                             value = parser.objectBytes();
                         } else if (VALUE_FIELD.match(currentFieldName)) {
@@ -298,6 +298,9 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
                             throw new ParsingException(parser.getTokenLocation(),
                                     "[fuzzy] query does not support [" + currentFieldName + "]");
                         }
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(),
+                                "[" + NAME + "] unexpected token [" + token + "] after [" + currentFieldName + "]");
                     }
                 }
             } else {

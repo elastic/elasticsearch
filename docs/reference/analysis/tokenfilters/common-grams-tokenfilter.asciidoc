@@ -41,21 +41,33 @@ Here is an example:
 
 [source,js]
 --------------------------------------------------
-index :
-    analysis :
-        analyzer :
-            index_grams :
-                tokenizer : whitespace
-                filter : [common_grams]
-            search_grams :
-                tokenizer : whitespace
-                filter : [common_grams_query]
-        filter :
-            common_grams :
-                type : common_grams
-                common_words: [a, an, the]                
-            common_grams_query :
-                type : common_grams
-                query_mode: true
-                common_words: [a, an, the]                
+PUT /common_grams_example
+{
+    "settings": {
+        "analysis": {
+            "my_analyzer": {
+                "index_grams": {
+                    "tokenizer": "whitespace",
+                    "filter": ["common_grams"]
+                },
+                "search_grams": {
+                    "tokenizer": "whitespace",
+                    "filter": ["common_grams_query"]
+                }
+            },
+            "filter": {
+                "common_grams": {
+                    "type": "common_grams",
+                    "common_words": ["a", "an", "the"]
+                },
+                "common_grams_query": {
+                    "type": "common_grams",
+                    "query_mode": true,
+                    "common_words": ["a", "an", "the"]
+                }
+            }
+        }
+    }
+}
 --------------------------------------------------
+// CONSOLE

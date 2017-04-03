@@ -109,8 +109,22 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         final long cardinality = getValue();
-        builder.field(CommonFields.VALUE, cardinality);
+        builder.field(CommonFields.VALUE.getPreferredName(), cardinality);
         return builder;
     }
 
+    @Override
+    protected int doHashCode() {
+        return counts.hashCode(0);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalCardinality other = (InternalCardinality) obj;
+        return counts.equals(0, other.counts);
+    }
+
+    HyperLogLogPlusPlus getState() {
+        return counts;
+    }
 }

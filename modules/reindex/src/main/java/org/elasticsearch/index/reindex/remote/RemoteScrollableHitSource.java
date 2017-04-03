@@ -107,12 +107,12 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     @Override
     protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse) {
         execute("POST", scrollPath(), scrollParams(timeValueNanos(searchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos())),
-                scrollEntity(scrollId), RESPONSE_PARSER, onResponse);
+                scrollEntity(scrollId, remoteVersion), RESPONSE_PARSER, onResponse);
     }
 
     @Override
     protected void clearScroll(String scrollId, Runnable onCompletion) {
-        client.performRequestAsync("DELETE", scrollPath(), emptyMap(), clearScrollEntity(scrollId), new ResponseListener() {
+        client.performRequestAsync("DELETE", scrollPath(), emptyMap(), clearScrollEntity(scrollId, remoteVersion), new ResponseListener() {
             @Override
             public void onSuccess(org.elasticsearch.client.Response response) {
                 logger.debug("Successfully cleared [{}]", scrollId);
@@ -141,15 +141,18 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     }
 
     @Override
-    protected void cleanup() {
-        /* This is called on the RestClient's thread pool and attempting to close the client on its own threadpool causes it to fail to
-         * close. So we always shutdown the RestClient asynchronously on a thread in Elasticsearch's generic thread pool. */
+    protected void cleanup(Runnable onCompletion) {
+        /* This is called on the RestClient's thread pool and attempting to close the client on its
+         * own threadpool causes it to fail to close. So we always shutdown the RestClient
+         * asynchronously on a thread in Elasticsearch's generic thread pool. */
         threadPool.generic().submit(() -> {
             try {
                 client.close();
                 logger.debug("Shut down remote connection");
             } catch (IOException e) {
                 logger.error("Failed to shutdown the remote connection", e);
+            } finally {
+                onCompletion.run();
             }
         });
     }

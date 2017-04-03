@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.persistent;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -21,6 +20,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.xpack.security.InternalClient;
 
 import java.util.function.Predicate;
 
@@ -29,11 +29,11 @@ import java.util.function.Predicate;
  */
 public class PersistentTasksService extends AbstractComponent {
 
-    private final Client client;
+    private final InternalClient client;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
 
-    public PersistentTasksService(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
+    public PersistentTasksService(Settings settings, ClusterService clusterService, ThreadPool threadPool, InternalClient client) {
         super(settings);
         this.client = client;
         this.clusterService = clusterService;

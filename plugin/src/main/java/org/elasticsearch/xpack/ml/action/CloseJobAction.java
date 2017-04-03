@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -35,14 +36,14 @@ import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.ml.utils.JobStateObserver;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
+import org.elasticsearch.xpack.persistent.PersistentTasksService;
+import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
+import org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
 import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
@@ -228,32 +229,37 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         private final InternalClient client;
         private final ClusterService clusterService;
         private final Auditor auditor;
+        private final PersistentTasksService persistentTasksService;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                ClusterService clusterService, AutodetectProcessManager manager, InternalClient client,
-                               Auditor auditor) {
+                               Auditor auditor, PersistentTasksService persistentTasksService) {
             super(settings, CloseJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new, Response::new, ThreadPool.Names.MANAGEMENT, manager);
             this.client = client;
             this.clusterService = clusterService;
             this.auditor = auditor;
+            this.persistentTasksService = persistentTasksService;
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+            ClusterState currentState = clusterService.state();
             if (request.isForce()) {
-                forceCloseJob(request.getJobId(), listener);
+                PersistentTasksCustomMetaData tasks = currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                PersistentTask<?> jobTask = MlMetadata.getJobTask(request.getJobId(), tasks);
+                forceCloseJob(jobTask.getId(), request.getJobId(), listener);
             } else {
-                normalCloseJob(task, request, listener);
+                PersistentTask<?> jobTask = validateAndReturnJobTask(request.getJobId(), currentState);
+                normalCloseJob(task, jobTask.getId(), request, listener);
             }
         }
 
         @Override
         protected void innerTaskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener,
                                           ClusterState state) {
-            validate(request.getJobId(), state);
             task.closeJob("close job (api)");
             listener.onResponse(new Response(true));
         }
@@ -263,55 +269,65 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             return new Response(in);
         }
 
-        private void forceCloseJob(String jobId, ActionListener<Response> listener) {
+        private void forceCloseJob(long persistentTaskId, String jobId, ActionListener<Response> listener) {
             auditor.info(jobId, Messages.JOB_AUDIT_FORCE_CLOSING);
-            ClusterState currentState = clusterService.state();
-            PersistentTask<?> task = MlMetadata.getJobTask(jobId,
-                    currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
-            if (task != null) {
-                RemovePersistentTaskAction.Request request = new RemovePersistentTaskAction.Request(task.getId());
-                client.execute(RemovePersistentTaskAction.INSTANCE, request,
-                        ActionListener.wrap(
-                                response -> listener.onResponse(new Response(response.isAcknowledged())),
-                                listener::onFailure));
-            } else {
-                String msg = "Requested job [" + jobId + "] be force-closed, but job's task" +
-                        "could not be found.";
-                logger.warn(msg);
-                listener.onFailure(new RuntimeException(msg));
-            }
+            persistentTasksService.removeTask(persistentTaskId, new PersistentTaskOperationListener() {
+                @Override
+                public void onResponse(long taskId) {
+                    listener.onResponse(new Response(true));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
         }
 
-        private void normalCloseJob(Task task, Request request, ActionListener<Response> listener) {
+        private void normalCloseJob(Task task, long persistentTaskId, Request request, ActionListener<Response> listener) {
             auditor.info(request.getJobId(), Messages.JOB_AUDIT_CLOSING);
             ActionListener<Response> finalListener =
-                    ActionListener.wrap(r -> waitForJobClosed(request, r, listener), listener::onFailure);
+                    ActionListener.wrap(r -> waitForJobClosed(persistentTaskId, request, r, listener), listener::onFailure);
             super.doExecute(task, request, finalListener);
         }
 
         // Wait for job to be marked as closed in cluster state, which means the job persistent task has been removed
         // This api returns when job has been closed, but that doesn't mean the persistent task has been removed from cluster state,
         // so wait for that to happen here.
-        void waitForJobClosed(Request request, Response response, ActionListener<Response> listener) {
-            JobStateObserver observer = new JobStateObserver(threadPool, clusterService);
-            observer.waitForState(request.getJobId(), request.getCloseTimeout(), JobState.CLOSED, e -> {
-                if (e != null) {
-                    listener.onFailure(e);
-                } else {
+        void waitForJobClosed(long persistentTaskId, Request request, Response response, ActionListener<Response> listener) {
+            persistentTasksService.waitForPersistentTaskStatus(persistentTaskId, Objects::isNull, request.timeout,
+                    new WaitForPersistentTaskStatusListener() {
+                @Override
+                public void onResponse(long taskId) {
                     logger.debug("finalizing job [{}]", request.getJobId());
                     FinalizeJobExecutionAction.Request finalizeRequest =
                             new FinalizeJobExecutionAction.Request(request.getJobId());
                     client.execute(FinalizeJobExecutionAction.INSTANCE, finalizeRequest,
                             ActionListener.wrap(r-> listener.onResponse(response), listener::onFailure));
                 }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
             });
         }
 
     }
 
-    static void validate(String jobId, ClusterState state) {
+    static PersistentTask<?> validateAndReturnJobTask(String jobId, ClusterState state) {
         MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
+        Job job = mlMetadata.getJobs().get(jobId);
+        if (job == null) {
+            throw new ResourceNotFoundException("cannot close job, because job [" + jobId + "] does not exist");
+        }
+
         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTask<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
+        if (jobTask == null) {
+            throw new ElasticsearchStatusException("cannot close job, because job [" + jobId + "] is not open", RestStatus.CONFLICT);
+        }
+
         Optional<DatafeedConfig> datafeed = mlMetadata.getDatafeedByJobId(jobId);
         if (datafeed.isPresent()) {
             DatafeedState datafeedState = MlMetadata.getDatafeedState(datafeed.get().getId(), tasks);
@@ -320,6 +336,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
                 RestStatus.CONFLICT, jobId);
             }
         }
+        return jobTask;
     }
 }
 

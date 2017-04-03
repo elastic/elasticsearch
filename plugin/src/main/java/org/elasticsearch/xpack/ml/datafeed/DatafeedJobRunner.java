@@ -32,7 +32,8 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 
 import java.time.Duration;
@@ -46,7 +47,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
 
 public class DatafeedJobRunner extends AbstractComponent {
 
@@ -54,6 +58,7 @@ public class DatafeedJobRunner extends AbstractComponent {
 
     private final Client client;
     private final ClusterService clusterService;
+    private final PersistentTasksService persistentTasksService;
     private final JobProvider jobProvider;
     private final ThreadPool threadPool;
     private final Supplier<Long> currentTimeSupplier;
@@ -61,14 +66,15 @@ public class DatafeedJobRunner extends AbstractComponent {
     private final ConcurrentMap<String, Holder> runningDatafeeds = new ConcurrentHashMap<>();
 
     public DatafeedJobRunner(ThreadPool threadPool, Client client, ClusterService clusterService, JobProvider jobProvider,
-                             Supplier<Long> currentTimeSupplier, Auditor auditor) {
+                             Supplier<Long> currentTimeSupplier, Auditor auditor, PersistentTasksService persistentTasksService) {
         super(Settings.EMPTY);
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.jobProvider = Objects.requireNonNull(jobProvider);
         this.threadPool = threadPool;
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
-        this.auditor = auditor;
+        this.auditor = Objects.requireNonNull(auditor);
+        this.persistentTasksService = Objects.requireNonNull(persistentTasksService);
     }
 
     public void run(StartDatafeedAction.DatafeedTask task, Consumer<Exception> handler) {
@@ -225,7 +231,8 @@ public class DatafeedJobRunner extends AbstractComponent {
         DataExtractorFactory dataExtractorFactory = createDataExtractorFactory(datafeed, job);
         DatafeedJob datafeedJob =  new DatafeedJob(job.getId(), buildDataDescription(job), frequency.toMillis(), queryDelay.toMillis(),
                 dataExtractorFactory, client, auditor, currentTimeSupplier, finalBucketEndMs, latestRecordTimeMs);
-        return new Holder(datafeed, datafeedJob, task.isLookbackOnly(), new ProblemTracker(auditor, job.getId()), handler);
+        return new Holder(task.getPersistentTaskId(), datafeed, datafeedJob, task.isLookbackOnly(),
+                new ProblemTracker(auditor, job.getId()), handler);
     }
 
     DataExtractorFactory createDataExtractorFactory(DatafeedConfig datafeed, Job job) {
@@ -272,6 +279,7 @@ public class DatafeedJobRunner extends AbstractComponent {
 
     public class Holder {
 
+        private final long taskId;
         private final DatafeedConfig datafeed;
         // To ensure that we wait until loopback / realtime search has completed before we stop the datafeed
         private final ReentrantLock datafeedJobLock = new ReentrantLock(true);
@@ -281,8 +289,9 @@ public class DatafeedJobRunner extends AbstractComponent {
         private final Consumer<Exception> handler;
         volatile Future<?> future;
 
-        Holder(DatafeedConfig datafeed, DatafeedJob datafeedJob, boolean autoCloseJob, ProblemTracker problemTracker,
+        Holder(long taskId, DatafeedConfig datafeed, DatafeedJob datafeedJob, boolean autoCloseJob, ProblemTracker problemTracker,
                        Consumer<Exception> handler) {
+            this.taskId = taskId;
             this.datafeed = datafeed;
             this.datafeedJob = datafeedJob;
             this.autoCloseJob = autoCloseJob;
@@ -351,9 +360,13 @@ public class DatafeedJobRunner extends AbstractComponent {
         }
 
         private void closeJob() {
-            DatafeedStateObserver observer = new DatafeedStateObserver(threadPool, clusterService);
-            observer.waitForState(datafeed.getId(), TimeValue.timeValueSeconds(20), DatafeedState.STOPPED, e1 -> {
-                if (e1 == null) {
+            Predicate<PersistentTask<?>> predicate = persistentTask -> {
+                return persistentTask == null || persistentTask.getStatus() == DatafeedState.STOPPED;
+            };
+            persistentTasksService.waitForPersistentTaskStatus(taskId, predicate, TimeValue.timeValueSeconds(20),
+                    new WaitForPersistentTaskStatusListener() {
+                @Override
+                public void onResponse(long taskId) {
                     CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(datafeed.getJobId());
                     client.execute(CloseJobAction.INSTANCE, closeJobRequest, new ActionListener<CloseJobAction.Response>() {
 
@@ -369,8 +382,11 @@ public class DatafeedJobRunner extends AbstractComponent {
                             logger.error("[" + datafeed.getJobId() + "] failed to  auto-close job", e);
                         }
                     });
-                } else {
-                    logger.error("Cannot auto close job [" + datafeed.getJobId() + "]", e1);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Cannot auto close job [" + datafeed.getJobId() + "]", e);
                 }
             });
         }

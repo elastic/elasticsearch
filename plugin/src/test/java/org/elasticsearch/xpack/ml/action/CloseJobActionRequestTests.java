@@ -68,7 +68,7 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
 
         ElasticsearchStatusException e =
                 expectThrows(ElasticsearchStatusException.class,
-                        () -> CloseJobAction.validate("job_id", cs1));
+                        () -> CloseJobAction.validateAndReturnJobTask("job_id", cs1));
         assertEquals(RestStatus.CONFLICT, e.status());
         assertEquals("cannot close job [job_id], datafeed hasn't been stopped", e.getMessage());
 
@@ -81,7 +81,7 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
                 .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build())
                         .putCustom(PersistentTasksCustomMetaData.TYPE,
                                 new PersistentTasksCustomMetaData(1L, tasks))).build();
-        CloseJobAction.validate("job_id", cs2);
+        CloseJobAction.validateAndReturnJobTask("job_id", cs2);
     }
 
     public static PersistentTask<StartDatafeedAction.Request> createTask(long id,

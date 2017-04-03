@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
@@ -52,7 +51,6 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.AllocatedPersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTaskRequest;
@@ -62,10 +60,12 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Persiste
 import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
+import org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 
 public class StartDatafeedAction
         extends Action<StartDatafeedAction.Request, StartDatafeedAction.Response, StartDatafeedAction.RequestBuilder> {
@@ -338,18 +338,16 @@ public class StartDatafeedAction
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final DatafeedStateObserver observer;
         private final XPackLicenseState licenseState;
         private final PersistentTasksService persistentTasksService;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, XPackLicenseState licenseState,
                                PersistentTasksService persistentTasksService, ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService) {
+                               IndexNameExpressionResolver indexNameExpressionResolver) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.licenseState = licenseState;
             this.persistentTasksService = persistentTasksService;
-            this.observer = new DatafeedStateObserver(threadPool, clusterService);
         }
 
         @Override
@@ -358,7 +356,7 @@ public class StartDatafeedAction
                 PersistentTaskOperationListener finalListener = new PersistentTaskOperationListener() {
                     @Override
                     public void onResponse(long taskId) {
-                        waitForDatafeedStarted(request, listener);
+                        waitForDatafeedStarted(taskId, request, listener);
                     }
 
                     @Override
@@ -372,12 +370,24 @@ public class StartDatafeedAction
             }
         }
 
-        void waitForDatafeedStarted(Request request, ActionListener<Response> listener) {
-            observer.waitForState(request.getDatafeedId(), request.timeout, DatafeedState.STARTED, e -> {
-                if (e != null) {
-                    listener.onFailure(e);
-                } else {
+        void waitForDatafeedStarted(long taskId, Request request, ActionListener<Response> listener) {
+            Predicate<PersistentTask<?>> predicate = persistentTask -> {
+                if (persistentTask == null) {
+                    return false;
+                }
+                DatafeedState datafeedState = (DatafeedState) persistentTask.getStatus();
+                return datafeedState == DatafeedState.STARTED;
+            };
+            persistentTasksService.waitForPersistentTaskStatus(taskId, predicate, request.timeout,
+                    new WaitForPersistentTaskStatusListener() {
+                @Override
+                public void onResponse(long taskId) {
                     listener.onResponse(new Response(true));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
                 }
             });
         }

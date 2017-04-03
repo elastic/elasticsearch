@@ -49,14 +49,15 @@ import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.utils.JobStateObserver;
 import org.elasticsearch.xpack.persistent.AllocatedPersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTaskRequest;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
+import org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,6 +65,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE;
 
@@ -290,18 +292,16 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final JobStateObserver observer;
         private final XPackLicenseState licenseState;
         private final PersistentTasksService persistentTasksService;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, XPackLicenseState licenseState,
                                PersistentTasksService persistentTasksService, ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService) {
+                               IndexNameExpressionResolver indexNameExpressionResolver) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.licenseState = licenseState;
             this.persistentTasksService = persistentTasksService;
-            this.observer = new JobStateObserver(threadPool, clusterService);
         }
 
         @Override
@@ -310,7 +310,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                 PersistentTaskOperationListener finalListener = new PersistentTaskOperationListener() {
                     @Override
                     public void onResponse(long taskId) {
-                        waitForJobStarted(request, listener);
+                        waitForJobStarted(taskId, request, listener);
                     }
 
                     @Override
@@ -324,14 +324,46 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             }
         }
 
-        void waitForJobStarted(Request request, ActionListener<Response> listener) {
-            observer.waitForState(request.getJobId(), request.timeout, JobState.OPENED, e -> {
-                if (e != null) {
+        void waitForJobStarted(long taskId, Request request, ActionListener<Response> listener) {
+            JobPredicate predicate = new JobPredicate();
+            persistentTasksService.waitForPersistentTaskStatus(taskId, predicate, request.timeout,
+                    new WaitForPersistentTaskStatusListener() {
+                @Override
+                public void onResponse(long taskId) {
+                    listener.onResponse(new Response(predicate.opened));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
-                } else {
-                    listener.onResponse(new Response(true));
                 }
             });
+        }
+
+        private class JobPredicate implements Predicate<PersistentTask<?>> {
+
+            private volatile boolean opened;
+
+            @Override
+            public boolean test(PersistentTask<?> persistentTask) {
+                if (persistentTask == null) {
+                    return false;
+                }
+                JobState jobState = (JobState) persistentTask.getStatus();
+                if (jobState == null) {
+                    return false;
+                }
+                switch (jobState) {
+                    case OPENED:
+                        opened = true;
+                        return true;
+                    case FAILED:
+                        return true;
+                    default:
+                        throw new IllegalStateException("Unexpected job state [" + jobState + "]");
+
+                }
+            }
         }
     }
 
@@ -435,7 +467,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         if (job.isDeleted()) {
             throw ExceptionsHelper.conflictStatusException("Cannot open job [" + jobId + "] because it has been marked as deleted");
         }
-        PersistentTasksCustomMetaData.PersistentTask<?> task = MlMetadata.getJobTask(jobId, tasks);
+        PersistentTask<?> task = MlMetadata.getJobTask(jobId, tasks);
         if (task != null) {
             throw ExceptionsHelper.conflictStatusException("Cannot open job [" + jobId + "] because it has already been opened");
         }

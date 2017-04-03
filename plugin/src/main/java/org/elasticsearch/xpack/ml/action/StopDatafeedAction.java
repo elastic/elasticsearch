@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
@@ -37,14 +36,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.utils.DatafeedStateObserver;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.xpack.persistent.RemovePersistentTaskAction;
-import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.persistent.PersistentTasksService;
+import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
+import org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -217,22 +215,22 @@ public class StopDatafeedAction
 
     public static class TransportAction extends TransportTasksAction<StartDatafeedAction.DatafeedTask, Request, Response, Response> {
 
-        private final InternalClient client;
+        private final PersistentTasksService persistentTasksService;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ClusterService clusterService, InternalClient client) {
+                               ClusterService clusterService, PersistentTasksService persistentTasksService) {
             super(settings, StopDatafeedAction.NAME, threadPool, clusterService, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new, Response::new, ThreadPool.Names.MANAGEMENT);
-            this.client = client;
+            this.persistentTasksService = persistentTasksService;
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             ClusterState state = clusterService.state();
-            MetaData metaData = state.metaData();
-            PersistentTasksCustomMetaData tasks = metaData.custom(PersistentTasksCustomMetaData.TYPE);
+            MlMetadata mlMetadata = state.getMetaData().custom(MlMetadata.TYPE);
+            PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
 
             if (request.force) {
                 PersistentTask<?> datafeedTask = MlMetadata.getDatafeedTask(request.getDatafeedId(), tasks);
@@ -245,11 +243,10 @@ public class StopDatafeedAction
                     listener.onFailure(new RuntimeException(msg));
                 }
             } else {
-                MlMetadata mlMetadata = metaData.custom(MlMetadata.TYPE);
-                String nodeId = validateAndReturnNodeId(request.getDatafeedId(), mlMetadata, tasks);
-                request.setNodes(nodeId);
+                PersistentTask<?> datafeedTask = validateAndReturnDatafeedTask(request.getDatafeedId(), mlMetadata, tasks);
+                request.setNodes(datafeedTask.getExecutorNode());
                 ActionListener<Response> finalListener =
-                        ActionListener.wrap(r -> waitForDatafeedStopped(request, r, listener), listener::onFailure);
+                        ActionListener.wrap(r -> waitForDatafeedStopped(datafeedTask.getId(), request, r, listener), listener::onFailure);
                 super.doExecute(task, request, finalListener);
             }
         }
@@ -257,24 +254,33 @@ public class StopDatafeedAction
         // Wait for datafeed to be marked as stopped in cluster state, which means the datafeed persistent task has been removed
         // This api returns when task has been cancelled, but that doesn't mean the persistent task has been removed from cluster state,
         // so wait for that to happen here.
-        void waitForDatafeedStopped(Request request, Response response, ActionListener<Response> listener) {
-            DatafeedStateObserver observer = new DatafeedStateObserver(threadPool, clusterService);
-            observer.waitForState(request.getDatafeedId(), request.getTimeout(), DatafeedState.STOPPED, e -> {
-                if (e != null) {
-                    listener.onFailure(e);
-                } else {
+        void waitForDatafeedStopped(long persistentTaskId, Request request, Response response, ActionListener<Response> listener) {
+            persistentTasksService.waitForPersistentTaskStatus(persistentTaskId, Objects::isNull, request.getTimeout(),
+                    new WaitForPersistentTaskStatusListener() {
+                @Override
+                public void onResponse(long taskId) {
                     listener.onResponse(response);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
                 }
             });
         }
 
-        private void forceStopTask(long taskId, ActionListener<Response> listener) {
-            RemovePersistentTaskAction.Request request = new RemovePersistentTaskAction.Request(taskId);
+        private void forceStopTask(long persistentTaskId, ActionListener<Response> listener) {
+            persistentTasksService.removeTask(persistentTaskId, new PersistentTaskOperationListener() {
+                @Override
+                public void onResponse(long taskId) {
+                    listener.onResponse(new Response(true));
+                }
 
-            client.execute(RemovePersistentTaskAction.INSTANCE, request,
-                    ActionListener.wrap(
-                            response -> listener.onResponse(new Response(response.isAcknowledged())),
-                            listener::onFailure));
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
         }
 
         @Override
@@ -300,7 +306,7 @@ public class StopDatafeedAction
         }
     }
 
-    static String validateAndReturnNodeId(String datafeedId, MlMetadata mlMetadata, PersistentTasksCustomMetaData tasks) {
+    static PersistentTask<?> validateAndReturnDatafeedTask(String datafeedId, MlMetadata mlMetadata, PersistentTasksCustomMetaData tasks) {
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         if (datafeed == null) {
             throw new ResourceNotFoundException(Messages.getMessage(Messages.DATAFEED_NOT_FOUND, datafeedId));
@@ -310,6 +316,6 @@ public class StopDatafeedAction
             throw ExceptionsHelper.conflictStatusException("Cannot stop datafeed [" + datafeedId +
                     "] because it has already been stopped");
         }
-        return task.getExecutorNode();
+        return task;
     }
 }

@@ -231,14 +231,7 @@ public class JobResultsPersister extends AbstractComponent {
     public void persistQuantiles(Quantiles quantiles) {
         Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.TYPE.getPreferredName(),
                 Quantiles.documentId(quantiles.getJobId()));
-        if (persistable.persist(AnomalyDetectorsIndex.jobStateIndexName())) {
-            // Refresh the index when persisting quantiles so that previously
-            // persisted results will be available for searching.  Do this using the
-            // indices API rather than the index API (used to write the quantiles
-            // above), because this will refresh all shards rather than just the
-            // shard that the quantiles document itself was written to.
-            commitStateWrites(quantiles.getJobId());
-        }
+        persistable.persist(AnomalyDetectorsIndex.jobStateIndexName());
     }
 
     /**
@@ -248,17 +241,6 @@ public class JobResultsPersister extends AbstractComponent {
         Persistable persistable = new Persistable(modelSnapshot.getJobId(), modelSnapshot, ModelSnapshot.TYPE.getPreferredName(),
                 ModelSnapshot.documentId(modelSnapshot));
         persistable.persist(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()));
-    }
-
-    public void updateModelSnapshot(ModelSnapshot modelSnapshot, Consumer<Boolean> handler, Consumer<Exception> errorHandler) {
-        String index = AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId());
-        IndexRequest indexRequest = new IndexRequest(index, ModelSnapshot.TYPE.getPreferredName(), ModelSnapshot.documentId(modelSnapshot));
-        try {
-            indexRequest.source(toXContentBuilder(modelSnapshot));
-        } catch (IOException e) {
-            errorHandler.accept(e);
-        }
-        client.index(indexRequest, ActionListener.wrap(r -> handler.accept(true), errorHandler));
     }
 
     /**

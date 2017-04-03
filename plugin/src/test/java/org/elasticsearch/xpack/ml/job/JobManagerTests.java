@@ -108,7 +108,7 @@ public class JobManagerTests extends ESTestCase {
         JobResultsPersister jobResultsPersister = mock(JobResultsPersister.class);
         Client client = mock(Client.class);
         UpdateJobProcessNotifier notifier = mock(UpdateJobProcessNotifier.class);
-        return new JobManager(settings, jobProvider, jobResultsPersister, clusterService, auditor, client, notifier);
+        return new JobManager(settings, jobProvider, clusterService, auditor, client, notifier);
     }
 
     private ClusterState createClusterState() {

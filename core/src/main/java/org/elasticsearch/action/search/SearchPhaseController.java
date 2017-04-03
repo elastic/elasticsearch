@@ -182,8 +182,7 @@ public final class SearchPhaseController extends AbstractComponent {
             }
         }
         if (size != -1) {
-            final ScoreDoc[] mergedScoreDocs = topDocs.isEmpty() ? EMPTY_DOCS :
-                mergeTopDocs(topDocs, size, ignoreFrom ? 0 : from).scoreDocs;
+            final ScoreDoc[] mergedScoreDocs = mergeTopDocs(topDocs, size, ignoreFrom ? 0 : from);
             ScoreDoc[] scoreDocs = mergedScoreDocs;
             if (groupedCompletionSuggestions.isEmpty() == false) {
                 int numSuggestDocs = 0;
@@ -212,12 +211,17 @@ public final class SearchPhaseController extends AbstractComponent {
         }
     }
 
-    private TopDocs mergeTopDocs(Collection<TopDocs> results, int topN, int from) {
+    private ScoreDoc[] mergeTopDocs(Collection<TopDocs> results, int topN, int from) {
+        if (results.isEmpty()) {
+            return EMPTY_DOCS;
+        }
         final boolean setShardIndex = false;
         final TopDocs topDocs = results.stream().findFirst().get();
         final TopDocs mergedTopDocs;
         final int numShards = results.size();
-        if (topDocs instanceof CollapseTopFieldDocs) {
+        if (numShards == 1) { // only one shard we can just return the topDocs as we got them.
+            return topDocs.scoreDocs;
+        } else if (topDocs instanceof CollapseTopFieldDocs) {
             CollapseTopFieldDocs firstTopDocs = (CollapseTopFieldDocs) topDocs;
             final Sort sort = new Sort(firstTopDocs.fields);
             final CollapseTopFieldDocs[] shardTopDocs = results.toArray(new CollapseTopFieldDocs[numShards]);
@@ -231,7 +235,7 @@ public final class SearchPhaseController extends AbstractComponent {
             final TopDocs[] shardTopDocs = results.toArray(new TopDocs[numShards]);
             mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs, setShardIndex);
         }
-        return mergedTopDocs;
+        return mergedTopDocs.scoreDocs;
     }
 
     private static void setShardIndex(TopDocs topDocs, int shardIndex) {

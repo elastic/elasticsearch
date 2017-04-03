@@ -49,22 +49,22 @@ public class AWSSignersTests extends ESTestCase {
         assertThat(signerTester("AWSS3V4SignerType"), is(true));
 
         ClientConfiguration configuration = new ClientConfiguration();
-        AwsSigner.configureSigner("AWS4SignerType", configuration, "any");
+        AwsS3Signer.configureSigner("AWS4SignerType", configuration, "any");
         assertEquals(configuration.getSignerOverride(), "AWS4SignerType");
-        AwsSigner.configureSigner("S3SignerType", configuration, "any");
+        AwsS3Signer.configureSigner("S3SignerType", configuration, "any");
         assertEquals(configuration.getSignerOverride(), "S3SignerType");
     }
 
     public void testV2InInvalidRegion() {
         try {
-            AwsSigner.validateSignerType("S3SignerType", "s3.cn-north-1.amazonaws.com.cn");
+            AwsS3Signer.validateSignerType("S3SignerType", "s3.cn-north-1.amazonaws.com.cn");
             fail("S3SignerType should not be available for China region");
         } catch (IllegalArgumentException e) {
             assertEquals("[S3SignerType] may not be supported in aws Beijing and Frankfurt region", e.getMessage());
         }
 
         try {
-            AwsSigner.validateSignerType("S3SignerType", "s3.eu-central-1.amazonaws.com");
+            AwsS3Signer.validateSignerType("S3SignerType", "s3.eu-central-1.amazonaws.com");
             fail("S3SignerType should not be available for Frankfurt region");
         } catch (IllegalArgumentException e) {
             assertEquals("[S3SignerType] may not be supported in aws Beijing and Frankfurt region", e.getMessage());
@@ -79,7 +79,7 @@ public class AWSSignersTests extends ESTestCase {
      */
     private boolean signerTester(String signer) {
         try {
-            AwsSigner.validateSignerType(signer, "s3.amazonaws.com");
+            AwsS3Signer.validateSignerType(signer, "s3.amazonaws.com");
             return true;
         } catch (IllegalArgumentException e) {
             return false;

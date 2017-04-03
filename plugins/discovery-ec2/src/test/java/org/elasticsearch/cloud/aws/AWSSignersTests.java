@@ -50,9 +50,9 @@ public class AWSSignersTests extends ESTestCase {
         assertThat(signerTester("AWSS3V4SignerType"), is(false));
 
         ClientConfiguration configuration = new ClientConfiguration();
-        AwsSigner.configureSigner("AWS4SignerType", configuration);
+        AwsEc2Signer.configureSigner("AWS4SignerType", configuration);
         assertEquals(configuration.getSignerOverride(), "AWS4SignerType");
-        AwsSigner.configureSigner("AWS3SignerType", configuration);
+        AwsEc2Signer.configureSigner("AWS3SignerType", configuration);
         assertEquals(configuration.getSignerOverride(), "AWS3SignerType");
     }
 
@@ -63,7 +63,7 @@ public class AWSSignersTests extends ESTestCase {
      */
     private boolean signerTester(String signer) {
         try {
-            AwsSigner.validateSignerType(signer);
+            AwsEc2Signer.validateSignerType(signer);
             return true;
         } catch (IllegalArgumentException e) {
             return false;

@@ -595,7 +595,7 @@ public final class InternalTestCluster extends TestCluster {
                 "min master nodes may not be set when auto managed";
             assert finalSettings.get(INITIAL_STATE_TIMEOUT_SETTING.getKey()) == null :
                 "automatically managing min master nodes require nodes to complete a join cycle" +
-                    "when starting";
+                    " when starting";
             finalSettings
                 // don't wait too long not to slow down tests
                 .put(ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING.getKey(), "5s")

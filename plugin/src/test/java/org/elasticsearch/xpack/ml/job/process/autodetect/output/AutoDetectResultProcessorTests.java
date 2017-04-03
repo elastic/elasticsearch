@@ -291,4 +291,19 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         verifyNoMoreInteractions(persister);
         verifyNoMoreInteractions(renormalizer);
     }
+
+    public void testAwaitCompletion() {
+        AutodetectResult autodetectResult = mock(AutodetectResult.class);
+        @SuppressWarnings("unchecked")
+        Iterator<AutodetectResult> iterator = mock(Iterator.class);
+        when(iterator.hasNext()).thenReturn(true).thenReturn(false);
+        when(iterator.next()).thenReturn(autodetectResult);
+        AutodetectProcess process = mock(AutodetectProcess.class);
+        when(process.readAutodetectResults()).thenReturn(iterator);
+        processorUnderTest.process(process, randomBoolean());
+
+        processorUnderTest.awaitCompletion();
+        assertEquals(0, processorUnderTest.completionLatch.getCount());
+        assertEquals(1, processorUnderTest.updateModelSnapshotIdSemaphore.availablePermits());
+    }
 }

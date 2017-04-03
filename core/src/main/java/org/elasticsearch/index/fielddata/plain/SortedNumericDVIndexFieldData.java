@@ -90,6 +90,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
                 || numericType == NumericType.HALF_FLOAT) {
             return new SortField(fieldName, source, reverse);
         }
+
         final SortField sortField;
         final SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX ?
             SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN;

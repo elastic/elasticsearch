@@ -260,10 +260,10 @@ public class AutodetectProcessManager extends AbstractComponent {
 
         if (autodetectParams.dataCounts().getProcessedRecordCount() > 0) {
             if (autodetectParams.modelSnapshot() == null) {
-                logger.error("[{}] No model snapshot could be found for a job with processed records", jobId);
+                logger.warn("[{}] No model snapshot could be found for a job with processed records", jobId);
             }
             if (autodetectParams.quantiles() == null) {
-                logger.error("[{}] No quantiles could be found for a job with processed records", jobId);
+                logger.warn("[{}] No quantiles could be found for a job with processed records", jobId);
             }
         }
 

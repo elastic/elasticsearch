@@ -313,16 +313,17 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         clusterService.addListener(this);
         scheduler.start(Collections.emptyList());
         logger.debug("initializing license state");
-        final ClusterState clusterState = clusterService.state();
-        if (clusterService.lifecycleState() == Lifecycle.State.STARTED
-            && clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false
-            && clusterState.nodes().getMasterNode() != null) {
-            final LicensesMetaData currentMetaData = clusterState.metaData().custom(LicensesMetaData.TYPE);
-            if (clusterState.getNodes().isLocalNodeElectedMaster() &&
-                (currentMetaData == null || currentMetaData.getLicense() == null)) {
-                // triggers a cluster changed event
-                // eventually notifying the current licensee
-                registerTrialLicense();
+        if (clusterService.lifecycleState() == Lifecycle.State.STARTED) {
+            final ClusterState clusterState = clusterService.state();
+            if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false &&
+                    clusterState.nodes().getMasterNode() != null) {
+                final LicensesMetaData currentMetaData = clusterState.metaData().custom(LicensesMetaData.TYPE);
+                if (clusterState.getNodes().isLocalNodeElectedMaster() &&
+                        (currentMetaData == null || currentMetaData.getLicense() == null)) {
+                    // triggers a cluster changed event
+                    // eventually notifying the current licensee
+                    registerTrialLicense();
+                }
             }
         }
     }

@@ -9,13 +9,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -45,25 +45,21 @@ import static org.mockito.Mockito.when;
 
 public class PersistentTasksNodeServiceTests extends ESTestCase {
 
-    private ClusterService createClusterService() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        return new ClusterService(Settings.builder().put("cluster.name", "PersistentActionExecutorTests").build(),
-                clusterSettings, null, () -> new DiscoveryNode(UUIDs.randomBase64UUID(), buildNewFakeTransportAddress(),
-                Version.CURRENT));
-    }
-
-    private DiscoveryNodes createTestNodes(int nonLocalNodesCount, Settings settings) {
+    private ClusterState createInitialClusterState(int nonLocalNodesCount, Settings settings) {
+        ClusterState.Builder state = ClusterState.builder(new ClusterName("PersistentActionExecutorTests"));
+        state.metaData(MetaData.builder().generateClusterUuidIfNeeded());
+        state.routingTable(RoutingTable.builder().build());
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         nodes.add(DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), "this_node"));
         for (int i = 0; i < nonLocalNodesCount; i++) {
             nodes.add(new DiscoveryNode("other_node_" + i, buildNewFakeTransportAddress(), Version.CURRENT));
         }
         nodes.localNodeId("this_node");
-        return nodes.build();
+        state.nodes(nodes);
+        return state.build();
     }
 
     public void testStartTask() throws Exception {
-        ClusterService clusterService = createClusterService();
         PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
         @SuppressWarnings("unchecked") PersistentTasksExecutor<TestParams> action = mock(PersistentTasksExecutor.class);
         when(action.getExecutor()).thenReturn(ThreadPool.Names.SAME);
@@ -81,8 +77,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(Settings.EMPTY, persistentTasksService,
                 registry, new TaskManager(Settings.EMPTY), executor);
 
-        ClusterState state = ClusterState.builder(clusterService.state()).nodes(createTestNodes(nonLocalNodesCount, Settings.EMPTY))
-                .build();
+        ClusterState state = createInitialClusterState(nonLocalNodesCount, Settings.EMPTY);
 
         PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder();
         boolean added = false;
@@ -159,7 +154,6 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
     }
 
     public void testTaskCancellation() {
-        ClusterService clusterService = createClusterService();
         AtomicLong capturedTaskId = new AtomicLong();
         AtomicReference<ActionListener<CancelTasksResponse>> capturedListener = new AtomicReference<>();
         PersistentTasksService persistentTasksService = new PersistentTasksService(Settings.EMPTY, null, null, null) {
@@ -188,8 +182,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(Settings.EMPTY, persistentTasksService,
                 registry, taskManager, executor);
 
-        ClusterState state = ClusterState.builder(clusterService.state()).nodes(createTestNodes(nonLocalNodesCount, Settings.EMPTY))
-                .build();
+        ClusterState state = createInitialClusterState(nonLocalNodesCount, Settings.EMPTY);
 
         ClusterState newClusterState = state;
         // Allocate first task

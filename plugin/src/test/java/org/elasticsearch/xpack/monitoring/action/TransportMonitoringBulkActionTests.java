@@ -5,18 +5,14 @@
  */
 package org.elasticsearch.xpack.monitoring.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.LocalClusterUpdateTask;
-import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -27,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -49,7 +46,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -100,25 +96,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         clusterSettings.add(MonitoringSettings.EXPORTERS_SETTINGS);
         final DiscoveryNode node = new DiscoveryNode("node", buildNewFakeTransportAddress(), emptyMap(), emptySet(),
                 Version.CURRENT);
-        clusterService =  new ClusterService(Settings.builder().put("cluster.name",
-                TransportMonitoringBulkActionTests.class.getName()).build(),
-                new ClusterSettings(Settings.EMPTY, clusterSettings), threadPool, () -> node);
-        clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
-            @Override
-            public void connectToNodes(DiscoveryNodes discoveryNodes) {
-                // skip
-            }
-
-            @Override
-            public void disconnectFromNodesExcept(DiscoveryNodes nodesToKeep) {
-                // skip
-            }
-        });
-        clusterService.setClusterStatePublisher((event, ackListener) -> {});
-        clusterService.setDiscoverySettings(new DiscoverySettings(Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
-        clusterService.start();
-
+        clusterService = ClusterServiceUtils.createClusterService(threadPool, node, new ClusterSettings(Settings.EMPTY, clusterSettings));
         transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> node, null);
         transportService.start();
@@ -147,31 +125,9 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         expectedException.expect(hasToString(containsString("ClusterBlockException[blocked by: [SERVICE_UNAVAILABLE/2/no master]")));
 
         final ClusterBlocks.Builder block = ClusterBlocks.builder().addGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ALL);
-        final CountDownLatch latch = new CountDownLatch(1);
-
-        clusterService.submitStateUpdateTask("add blocks to cluster state", new LocalClusterUpdateTask() {
-            @Override
-            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
-                // make sure we increment versions as listener may depend on it for change
-                return newState(ClusterState.builder(currentState).blocks(block).version(currentState.version() + 1).build());
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                fail("unexpected exception: " + e);
-            }
-        });
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            throw new ElasticsearchException("unexpected interruption", e);
-        }
+        ClusterState currentState = clusterService.state();
+        ClusterServiceUtils.setState(clusterService,
+                ClusterState.builder(currentState).blocks(block).version(currentState.version() + 1).build());
 
         MonitoringBulkRequest request = randomRequest();
         action.execute(request).get();

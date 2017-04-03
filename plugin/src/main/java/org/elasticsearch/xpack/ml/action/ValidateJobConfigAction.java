@@ -68,10 +68,8 @@ extends Action<ValidateJobConfigAction.Request, ValidateJobConfigAction.Response
             // When jobs are PUT their ID must be supplied in the URL - assume this will
             // be valid unless an invalid job ID is specified in the JSON to be validated
             job.setId(job.getId() != null ? job.getId() : "ok");
-            if (job.getCreateTime() == null) {
-                job.setCreateTime(new Date());
-            }
-            return new Request(job.build());
+
+            return new Request(job.getCreateTime() == null ? job.build(new Date()) : job.build());
         }
 
         Request() {

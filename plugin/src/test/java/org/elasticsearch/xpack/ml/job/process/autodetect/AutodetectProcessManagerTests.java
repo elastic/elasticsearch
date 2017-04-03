@@ -385,9 +385,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         Job.Builder builder = new Job.Builder(jobId);
         builder.setDataDescription(dd);
         builder.setAnalysisConfig(ac);
-        builder.setCreateTime(new Date());
 
-        return builder.build();
+        return builder.build(new Date());
     }
 
     private static InputStream createInputStream(String input) {

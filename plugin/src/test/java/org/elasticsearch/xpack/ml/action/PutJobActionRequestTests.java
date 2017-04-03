@@ -23,7 +23,7 @@ public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase
     @Override
     protected Request createTestInstance() {
         Job.Builder jobConfiguration = buildJobBuilder(jobId, date);
-        return new Request(jobConfiguration.build());
+        return new Request(jobConfiguration);
     }
 
     @Override

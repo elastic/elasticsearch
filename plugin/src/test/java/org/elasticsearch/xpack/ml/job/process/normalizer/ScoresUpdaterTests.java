@@ -76,9 +76,8 @@ public class ScoresUpdaterTests extends ESTestCase {
         AnalysisConfig.Builder configBuilder = new AnalysisConfig.Builder(detectors);
         configBuilder.setBucketSpan(TimeValue.timeValueSeconds(DEFAULT_BUCKET_SPAN));
         jobBuilder.setAnalysisConfig(configBuilder);
-        jobBuilder.setCreateTime(new Date());
 
-        job = jobBuilder.build();
+        job = jobBuilder.build(new Date());
 
         scoresUpdater = new ScoresUpdater(job, jobProvider, jobRenormalizedResultsPersister, normalizerFactory);
 

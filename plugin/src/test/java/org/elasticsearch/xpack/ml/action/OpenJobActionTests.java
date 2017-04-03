@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Persiste
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -313,7 +314,7 @@ public class OpenJobActionTests extends ESTestCase {
 
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
         for (String jobId : jobIds) {
-            Job job = BaseMlIntegTestCase.createFareQuoteJob(jobId).build();
+            Job job = BaseMlIntegTestCase.createFareQuoteJob(jobId).build(new Date());
             mlMetadata.putJob(job, false);
         }
         metaData.putCustom(MlMetadata.TYPE, mlMetadata.build());

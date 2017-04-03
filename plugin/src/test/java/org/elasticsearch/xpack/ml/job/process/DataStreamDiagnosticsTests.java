@@ -29,8 +29,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
 
         Job.Builder builder = new Job.Builder("job_id");
         builder.setAnalysisConfig(acBuilder);
-        builder.setCreateTime(new Date());
-        job = builder.build();
+        job = builder.build(new Date());
     }
 
     public void testSimple() {

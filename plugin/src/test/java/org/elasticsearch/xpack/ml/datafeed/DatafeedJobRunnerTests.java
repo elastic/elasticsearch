@@ -91,7 +91,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void setUpTests() {
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
-        Job job = createDatafeedJob().build();
+        Job job = createDatafeedJob().build(new Date());
         mlMetadata.putJob(job, false);
         mlMetadata.putDatafeed(createDatafeedConfig("datafeed_id", job.getId()).build());
         PersistentTask<OpenJobAction.Request> task = createJobTask(0L, job.getId(), "node_id", JobState.OPENED);
@@ -228,7 +228,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         currentTime = 6000000;
         Job.Builder jobBuilder = createDatafeedJob();
         DatafeedConfig datafeedConfig = createDatafeedConfig("datafeed1", "job_id").build();
-        Job job = jobBuilder.build();
+        Job job = jobBuilder.build(new Date());
         MlMetadata mlMetadata = new MlMetadata.Builder()
                 .putJob(job, false)
                 .putDatafeed(datafeedConfig)
@@ -305,7 +305,6 @@ public class DatafeedJobRunnerTests extends ESTestCase {
 
         Job.Builder builder = new Job.Builder("job_id");
         builder.setAnalysisConfig(acBuilder);
-        builder.setCreateTime(new Date());
         return builder;
     }
 

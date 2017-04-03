@@ -291,7 +291,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
     public void testVerify_GivenNegativeRenormalizationWindowDays() {
         String errorMessage = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW,
-                "renormalizationWindowDays", 0, -1);
+                "renormalization_window_days", 0, -1);
         Job.Builder builder = buildJobBuilder("foo");
         builder.setRenormalizationWindowDays(-1L);
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, builder::build);
@@ -299,7 +299,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     }
 
     public void testVerify_GivenNegativeModelSnapshotRetentionDays() {
-        String errorMessage = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "modelSnapshotRetentionDays", 0, -1);
+        String errorMessage = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "model_snapshot_retention_days", 0, -1);
         Job.Builder builder = buildJobBuilder("foo");
         builder.setModelSnapshotRetentionDays(-1L);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
@@ -317,7 +317,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
     public void testVerify_GivenNegativeResultsRetentionDays() {
         String errorMessage = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW,
-                "resultsRetentionDays", 0, -1);
+                "results_retention_days", 0, -1);
         Job.Builder builder = buildJobBuilder("foo");
         builder.setResultsRetentionDays(-1L);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
@@ -342,6 +342,13 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         builder.setResultsIndexName("_bad^name");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.build());
         assertEquals(Messages.getMessage(Messages.INVALID_ID, Job.RESULTS_INDEX_NAME.getPreferredName(), "_bad^name"), e.getMessage());
+    }
+
+    public void testBuilder_buildWithCreateTime () {
+        Job.Builder builder = buildJobBuilder("foo");
+        Date now = new Date();
+        Job job = builder.build(now);
+        assertEquals(now, job.getCreateTime());
     }
 
     public static Job.Builder buildJobBuilder(String id, Date date) {

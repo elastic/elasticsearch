@@ -30,7 +30,6 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
         MachineLearningClient mlClient = xPackClient.machineLearning();
         Job.Builder job = new Job.Builder();
         job.setId("test");
-        job.setCreateTime(new Date());
 
         List<Detector> detectors = new ArrayList<>();
         Detector.Builder detector = new Detector.Builder();
@@ -42,7 +41,7 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
         job.setAnalysisConfig(analysisConfig);
 
         PutJobAction.Response putJobResponse = mlClient
-                .putJob(new PutJobAction.Request(job.build()))
+                .putJob(new PutJobAction.Request(job))
                 .actionGet();
 
         assertThat(putJobResponse, notNullValue());

@@ -494,11 +494,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         }
     }
 
-    public static class Builder {
+    public static class Builder implements Writeable, ToXContent  {
 
         private String id;
         private String description;
-
         private AnalysisConfig analysisConfig;
         private AnalysisLimits analysisLimits;
         private DataDescription dataDescription;
@@ -540,6 +539,26 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             this.modelSnapshotId = job.getModelSnapshotId();
             this.resultsIndexName = job.getResultsIndexNameNoPrefix();
             this.deleted = job.isDeleted();
+        }
+
+        public Builder(StreamInput in) throws IOException {
+            id = in.readOptionalString();
+            description = in.readOptionalString();
+            createTime = in.readBoolean() ? new Date(in.readVLong()) : null;
+            finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
+            lastDataTime = in.readBoolean() ? new Date(in.readVLong()) : null;
+            analysisConfig = in.readOptionalWriteable(AnalysisConfig::new);
+            analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
+            dataDescription = in.readOptionalWriteable(DataDescription::new);
+            modelPlotConfig = in.readOptionalWriteable(ModelPlotConfig::new);
+            renormalizationWindowDays = in.readOptionalLong();
+            backgroundPersistInterval = in.readOptionalWriteable(TimeValue::new);
+            modelSnapshotRetentionDays = in.readOptionalLong();
+            resultsRetentionDays = in.readOptionalLong();
+            customSettings = in.readMap();
+            modelSnapshotId = in.readOptionalString();
+            resultsIndexName = in.readOptionalString();
+            deleted = in.readBoolean();
         }
 
         public Builder setId(String id) {
@@ -584,7 +603,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             return this;
         }
 
-        public Builder setCreateTime(Date createTime) {
+        Builder setCreateTime(Date createTime) {
             this.createTime = createTime;
             return this;
         }
@@ -648,6 +667,138 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             return this;
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(id);
+            out.writeOptionalString(description);
+            if (createTime != null) {
+                out.writeBoolean(true);
+                out.writeVLong(createTime.getTime());
+            } else {
+                out.writeBoolean(false);
+            }
+            if (finishedTime != null) {
+                out.writeBoolean(true);
+                out.writeVLong(finishedTime.getTime());
+            } else {
+                out.writeBoolean(false);
+            }
+            if (lastDataTime != null) {
+                out.writeBoolean(true);
+                out.writeVLong(lastDataTime.getTime());
+            } else {
+                out.writeBoolean(false);
+            }
+            out.writeOptionalWriteable(analysisConfig);
+            out.writeOptionalWriteable(analysisLimits);
+            out.writeOptionalWriteable(dataDescription);
+            out.writeOptionalWriteable(modelPlotConfig);
+            out.writeOptionalLong(renormalizationWindowDays);
+            out.writeOptionalWriteable(backgroundPersistInterval);
+            out.writeOptionalLong(modelSnapshotRetentionDays);
+            out.writeOptionalLong(resultsRetentionDays);
+            out.writeMap(customSettings);
+            out.writeOptionalString(modelSnapshotId);
+            out.writeOptionalString(resultsIndexName);
+            out.writeBoolean(deleted);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (id != null) {
+                builder.field(ID.getPreferredName(), id);
+            }
+            if (description != null) {
+                builder.field(DESCRIPTION.getPreferredName(), description);
+            }
+            if (createTime != null) {
+                builder.field(CREATE_TIME.getPreferredName(), createTime.getTime());
+            }
+            if (finishedTime != null) {
+                builder.field(FINISHED_TIME.getPreferredName(), finishedTime.getTime());
+            }
+            if (lastDataTime != null) {
+                builder.field(LAST_DATA_TIME.getPreferredName(), lastDataTime.getTime());
+            }
+            if (analysisConfig != null) {
+                builder.field(ANALYSIS_CONFIG.getPreferredName(), analysisConfig, params);
+            }
+            if (analysisLimits != null) {
+                builder.field(ANALYSIS_LIMITS.getPreferredName(), analysisLimits, params);
+            }
+            if (dataDescription != null) {
+                builder.field(DATA_DESCRIPTION.getPreferredName(), dataDescription, params);
+            }
+            if (modelPlotConfig != null) {
+                builder.field(MODEL_PLOT_CONFIG.getPreferredName(), modelPlotConfig, params);
+            }
+            if (renormalizationWindowDays != null) {
+                builder.field(RENORMALIZATION_WINDOW_DAYS.getPreferredName(), renormalizationWindowDays);
+            }
+            if (backgroundPersistInterval != null) {
+                builder.field(BACKGROUND_PERSIST_INTERVAL.getPreferredName(), backgroundPersistInterval.getStringRep());
+            }
+            if (modelSnapshotRetentionDays != null) {
+                builder.field(MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
+            }
+            if (resultsRetentionDays != null) {
+                builder.field(RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
+            }
+            if (customSettings != null) {
+                builder.field(CUSTOM_SETTINGS.getPreferredName(), customSettings);
+            }
+            if (modelSnapshotId != null) {
+                builder.field(MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshotId);
+            }
+            if (resultsIndexName != null) {
+                builder.field(RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName);
+            }
+            if (params.paramAsBoolean("all", false)) {
+                builder.field(DELETED.getPreferredName(), deleted);
+            }
+
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            Job.Builder that = (Job.Builder) o;
+            return Objects.equals(this.id, that.id)
+                    && Objects.equals(this.description, that.description)
+                    && Objects.equals(this.analysisConfig, that.analysisConfig)
+                    && Objects.equals(this.analysisLimits, that.analysisLimits)
+                    && Objects.equals(this.dataDescription, that.dataDescription)
+                    && Objects.equals(this.createTime, that.createTime)
+                    && Objects.equals(this.finishedTime, that.finishedTime)
+                    && Objects.equals(this.lastDataTime, that.lastDataTime)
+                    && Objects.equals(this.modelPlotConfig, that.modelPlotConfig)
+                    && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
+                    && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
+                    && Objects.equals(this.modelSnapshotRetentionDays, that.modelSnapshotRetentionDays)
+                    && Objects.equals(this.resultsRetentionDays, that.resultsRetentionDays)
+                    && Objects.equals(this.customSettings, that.customSettings)
+                    && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
+                    && Objects.equals(this.resultsIndexName, that.resultsIndexName)
+                    && Objects.equals(this.deleted, that.deleted);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(id, description, analysisConfig, analysisLimits, dataDescription, createTime, finishedTime,
+                    lastDataTime, modelPlotConfig, renormalizationWindowDays, backgroundPersistInterval, modelSnapshotRetentionDays,
+                    resultsRetentionDays, customSettings, modelSnapshotId, resultsIndexName, deleted);
+        }
+
+        public Job build(Date createTime) {
+            setCreateTime(createTime);
+            return build();
+        }
+
         public Job build() {
 
             Date createTime;
@@ -665,9 +816,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             }
 
             checkValidBackgroundPersistInterval();
-            checkValueNotLessThan(0, "renormalizationWindowDays", renormalizationWindowDays);
-            checkValueNotLessThan(0, "modelSnapshotRetentionDays", modelSnapshotRetentionDays);
-            checkValueNotLessThan(0, "resultsRetentionDays", resultsRetentionDays);
+            checkValueNotLessThan(0, RENORMALIZATION_WINDOW_DAYS.getPreferredName(), renormalizationWindowDays);
+            checkValueNotLessThan(0, MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
+            checkValueNotLessThan(0, RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
 
             if (!MlStrings.isValidId(id)) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), id));

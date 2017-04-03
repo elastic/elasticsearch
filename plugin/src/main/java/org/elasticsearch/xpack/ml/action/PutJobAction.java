@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 
 import java.io.IOException;
-import java.util.Date;
 import java.util.Objects;
 
 public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Response, PutJobAction.RequestBuilder> {
@@ -72,22 +71,20 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, Job.ID.getPreferredName(),
                         job.getId(), jobId));
             }
-            if (job.getCreateTime() == null) {
-                job.setCreateTime(new Date());
-            }
-            return new Request(job.build());
+
+            return new Request(job);
         }
 
-        private Job job;
+        private Job.Builder job;
 
-        public Request(Job job) {
+        public Request(Job.Builder job) {
             this.job = job;
         }
 
         Request() {
         }
 
-        public Job getJob() {
+        public Job.Builder getJob() {
             return job;
         }
 
@@ -99,7 +96,7 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            job = new Job(in);
+            job = new Job.Builder(in);
         }
 
         @Override

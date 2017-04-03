@@ -106,7 +106,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         indexDocs(logger, "data", numDocs1, twoWeeksAgo, weekAgo);
 
         Job.Builder job = createScheduledJob("job_id");
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build());
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         assertTrue(putJobResponse.isAcknowledged());
 

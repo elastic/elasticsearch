@@ -54,8 +54,7 @@ public class DataCountsReporterTests extends ESTestCase {
 
         Job.Builder builder = new Job.Builder("sr");
         builder.setAnalysisConfig(acBuilder);
-        builder.setCreateTime(new Date());
-        job = builder.build();
+        job = builder.build(new Date());
         
         jobDataCountsPersister = Mockito.mock(JobDataCountsPersister.class);
         threadPool = Mockito.mock(ThreadPool.class);

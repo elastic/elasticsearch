@@ -246,9 +246,8 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     private static Job buildJob(String jobId, List<Detector> detectors) {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
         return new Job.Builder(jobId)
-                .setCreateTime(new Date(randomNonNegativeLong()))
                 .setAnalysisConfig(analysisConfig)
-                .build();
+                .build(new Date(randomNonNegativeLong()));
     }
 
     private static GetJobsStatsAction.Response.JobStats buildJobStats(String jobId, JobState state, long modelBytes) {

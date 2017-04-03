@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.util.Collections;
+import java.util.Date;
 
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedConfig;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedJob;
@@ -52,7 +53,7 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
         task = new PersistentTask<>(task, DatafeedState.STARTED);
         PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(1L, Collections.singletonMap(1L, task));
 
-        Job job = createDatafeedJob().build();
+        Job job = createDatafeedJob().build(new Date());
         MlMetadata mlMetadata1 = new MlMetadata.Builder().putJob(job, false).build();
         Exception e = expectThrows(ResourceNotFoundException.class,
                 () -> StopDatafeedAction.validateAndReturnNodeId("foo", mlMetadata1, tasks));
@@ -75,7 +76,7 @@ public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTe
             tasks = randomBoolean() ? null : new PersistentTasksCustomMetaData(0L, Collections.emptyMap());
         }
 
-        Job job = createDatafeedJob().build();
+        Job job = createDatafeedJob().build(new Date());
         DatafeedConfig datafeedConfig = createDatafeedConfig("foo", "job_id").build();
         MlMetadata mlMetadata1 = new MlMetadata.Builder()
                 .putJob(job, false)

@@ -110,8 +110,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
 
         builder.setDataDescription(dd);
         builder.setAnalysisConfig(ac);
-        builder.setCreateTime(new Date());
-        return builder.build();
+        return builder.build(new Date());
     }
 
     private AutodetectProcess mockAutodetectProcessWithOutputStream() throws IOException {

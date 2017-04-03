@@ -64,7 +64,6 @@ class DummyDataCountsReporter extends DataCountsReporter {
 
         Job.Builder builder = new Job.Builder("dummy_job_id");
         builder.setAnalysisConfig(acBuilder);
-        builder.setCreateTime(new Date());
-        return builder.build();
+        return builder.build(new Date());
     }
 }

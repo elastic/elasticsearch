@@ -26,7 +26,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
 
         // create and open first job, which succeeds:
         Job.Builder job = createJob("1");
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build());
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         assertTrue(putJobResponse.isAcknowledged());
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
@@ -38,7 +38,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
 
         // create and try to open second job, which fails:
         job = createJob("2");
-        putJobRequest = new PutJobAction.Request(job.build());
+        putJobRequest = new PutJobAction.Request(job);
         putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         assertTrue(putJobResponse.isAcknowledged());
         expectThrows(ElasticsearchStatusException.class,
@@ -71,7 +71,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         int clusterWideMaxNumberOfJobs = numNodes * maxNumberOfJobsPerNode;
         for (int i = 1; i <= (clusterWideMaxNumberOfJobs + 1); i++) {
             Job.Builder job = createJob(Integer.toString(i));
-            PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build());
+            PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
             PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
             assertTrue(putJobResponse.isAcknowledged());
 

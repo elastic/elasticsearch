@@ -61,7 +61,7 @@ public class DeleteExpiredDataIT extends SecurityIntegTestCase {
     private static final String DATA_INDEX = "delete-expired-data-test-data";
     private static final String DATA_TYPE = "my_type";
 
-    private List<Job> jobs;
+    private List<Job.Builder> jobs;
 
     @Override
     protected Settings externalClusterClientSettings() {
@@ -109,7 +109,7 @@ public class DeleteExpiredDataIT extends SecurityIntegTestCase {
     @After
     public void tearDownData() throws Exception {
         client().admin().indices().prepareDelete(DATA_INDEX).get();
-        for (Job job : jobs) {
+        for (Job.Builder job : jobs) {
             DeleteDatafeedAction.Request deleteDatafeedRequest = new DeleteDatafeedAction.Request(job.getId() + "-feed");
             client().execute(DeleteDatafeedAction.INSTANCE, deleteDatafeedRequest).get();
             DeleteJobAction.Request deleteJobRequest = new DeleteJobAction.Request(job.getId());
@@ -118,15 +118,15 @@ public class DeleteExpiredDataIT extends SecurityIntegTestCase {
     }
 
     public void testDeleteExpiredData() throws Exception {
-        jobs.add(newJobBuilder("no-retention").setResultsRetentionDays(null).setModelSnapshotRetentionDays(null).build());
-        jobs.add(newJobBuilder("results-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(null).build());
-        jobs.add(newJobBuilder("snapshots-retention").setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L).build());
-        jobs.add(newJobBuilder("snapshots-retention-with-retain").setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L).build());
-        jobs.add(newJobBuilder("results-and-snapshots-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(2L).build());
+        jobs.add(newJobBuilder("no-retention").setResultsRetentionDays(null).setModelSnapshotRetentionDays(null));
+        jobs.add(newJobBuilder("results-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(null));
+        jobs.add(newJobBuilder("snapshots-retention").setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L));
+        jobs.add(newJobBuilder("snapshots-retention-with-retain").setResultsRetentionDays(null).setModelSnapshotRetentionDays(2L));
+        jobs.add(newJobBuilder("results-and-snapshots-retention").setResultsRetentionDays(1L).setModelSnapshotRetentionDays(2L));
 
         long now = System.currentTimeMillis();
         long oneDayAgo = now - TimeValue.timeValueHours(48).getMillis() - 1;
-        for (Job job : jobs) {
+        for (Job.Builder job : jobs) {
             PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
             client().execute(PutJobAction.INSTANCE, putJobRequest).get();
 
@@ -160,7 +160,7 @@ public class DeleteExpiredDataIT extends SecurityIntegTestCase {
         // We need to wait a second to ensure the second time around model snapshots will have a different ID (it depends on epoch seconds)
         awaitBusy(() -> false, 1, TimeUnit.SECONDS);
 
-        for (Job job : jobs) {
+        for (Job.Builder job : jobs) {
             // Run up to now
             openJob(job.getId());
             startDatafeed(job.getId() + "-feed", 0, now);
@@ -230,7 +230,6 @@ public class DeleteExpiredDataIT extends SecurityIntegTestCase {
         Job.Builder jobBuilder = new Job.Builder(id);
         jobBuilder.setAnalysisConfig(analysisConfig);
         jobBuilder.setDataDescription(dataDescription);
-        jobBuilder.setCreateTime(new Date());
         return jobBuilder;
     }
 

@@ -219,7 +219,7 @@ public class PreviewDatafeedAction extends Action<PreviewDatafeedAction.Request,
             // This is important because it means the datafeed search will fail if the user
             // requesting the preview doesn't have permission to search the relevant indices.
             DataExtractorFactory dataExtractorFactory = DataExtractorFactory.create(client, datafeedWithAutoChunking.build(), job);
-            DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, System.currentTimeMillis());
+            DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, Long.MAX_VALUE);
             threadPool.generic().execute(() -> previewDatafeed(dataExtractor, listener));
         }
 

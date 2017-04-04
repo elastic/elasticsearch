@@ -32,6 +32,22 @@ setup:
           }
 
   - do:
+      indices.create:
+        index: index-1
+        body:
+          settings:
+            index:
+              number_of_replicas: 1
+
+  - do:
+      indices.create:
+        index: index-2
+        body:
+          settings:
+            index:
+              number_of_replicas: 1
+
+  - do:
       xpack.ml.put_datafeed:
         datafeed_id: datafeed-1
         body: >

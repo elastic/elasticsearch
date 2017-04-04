@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
@@ -61,8 +63,10 @@ import org.elasticsearch.xpack.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.PersistentTaskOperationListener;
 import org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
+import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -340,14 +344,19 @@ public class StartDatafeedAction
 
         private final XPackLicenseState licenseState;
         private final PersistentTasksService persistentTasksService;
+        private final InternalClient client;
+        private final ClusterService clusterService;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, XPackLicenseState licenseState,
                                PersistentTasksService persistentTasksService, ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver) {
+                               IndexNameExpressionResolver indexNameExpressionResolver, InternalClient client,
+                               ClusterService clusterService) {
             super(settings, NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, Request::new);
             this.licenseState = licenseState;
             this.persistentTasksService = persistentTasksService;
+            this.client = client;
+            this.clusterService = clusterService;
         }
 
         @Override
@@ -356,7 +365,7 @@ public class StartDatafeedAction
                 PersistentTaskOperationListener finalListener = new PersistentTaskOperationListener() {
                     @Override
                     public void onResponse(long taskId) {
-                        waitForDatafeedStarted(taskId, request, listener);
+                        waitForYellow(taskId, request, listener);
                     }
 
                     @Override
@@ -367,6 +376,22 @@ public class StartDatafeedAction
                 persistentTasksService.createPersistentActionTask(NAME, request, finalListener);
             } else {
                 listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.MACHINE_LEARNING));
+            }
+        }
+
+        void waitForYellow(long taskId, Request request, ActionListener<Response> listener) {
+            ClusterState state = clusterService.state();
+            MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
+            DatafeedConfig config = mlMetadata.getDatafeed(request.getDatafeedId());
+            List<String> indices = config.getIndexes();
+            if (!indices.isEmpty()) {
+                ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices.toArray(new String[]{}));
+                healthRequest.waitForYellowStatus();
+                client.admin().cluster().health(healthRequest, ActionListener.wrap(clusterHealthResponse -> {
+                    waitForDatafeedStarted(taskId, request, listener);
+                }, listener::onFailure));
+            } else {
+                waitForDatafeedStarted(taskId, request, listener);
             }
         }
 

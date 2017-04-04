@@ -22,6 +22,7 @@ package org.elasticsearch.index.get;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
@@ -58,7 +59,7 @@ public class GetFieldTests extends ESTestCase {
         GetField getField = tuple.v1();
         GetField expectedGetField = tuple.v2();
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(getField, xContentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(getField, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
         //test that we can parse what we print out
         GetField parsedGetField;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {

@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetField;
@@ -44,7 +45,6 @@ import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
 import static org.elasticsearch.action.DocWriteResponse.Result.NOT_FOUND;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 
 public class UpdateResponseTests extends ESTestCase {
 
@@ -87,16 +87,8 @@ public class UpdateResponseTests extends ESTestCase {
         UpdateResponse expectedUpdateResponse = tuple.v2();
 
         boolean humanReadable = randomBoolean();
-        BytesReference updateResponseBytes = toXContent(updateResponse, xContentType, humanReadable);
+        BytesReference updateResponseBytes = toShuffledXContent(updateResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
-        // Shuffle the XContent fields
-        if (randomBoolean()) {
-            try (XContentParser parser = createParser(xContentType.xContent(), updateResponseBytes)) {
-                updateResponseBytes = shuffleXContent(parser, randomBoolean()).bytes();
-            }
-        }
-
-        // Parse the XContent bytes to obtain a parsed UpdateResponse
         UpdateResponse parsedUpdateResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), updateResponseBytes)) {
             parsedUpdateResponse = UpdateResponse.fromXContent(parser);

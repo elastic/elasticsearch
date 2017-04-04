@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetField;
@@ -46,7 +47,7 @@ public class GetResponseTests extends ESTestCase {
         GetResponse getResponse = new GetResponse(tuple.v1());
         GetResponse expectedGetResponse = new GetResponse(tuple.v2());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(getResponse, xContentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(getResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable, "_source");
         //test that we can parse what we print out
         GetResponse parsedGetResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {

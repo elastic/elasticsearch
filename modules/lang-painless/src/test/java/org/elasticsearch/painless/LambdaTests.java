@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import org.apache.lucene.util.Constants;
-
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;

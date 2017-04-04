@@ -35,8 +35,10 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.lang.invoke.MethodHandles.Lookup;
 import static org.elasticsearch.painless.WriterConstants.CLASS_VERSION;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE2;
 import static org.objectweb.asm.Opcodes.ACC_FINAL;
@@ -50,139 +52,52 @@ import static org.objectweb.asm.Opcodes.H_INVOKESTATIC;
 import static org.objectweb.asm.Opcodes.H_INVOKEVIRTUAL;
 import static org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
 
-public class LambdaBootstrap {
+public final class LambdaBootstrap {
     private static final AtomicInteger COUNTER = new AtomicInteger(0);
 
-    public static CallSite bootstrap2(MethodHandles.Lookup lookup, String lambdaName,
-                                      MethodType delegateMethodType,
-                                      MethodHandle lambdaMethodHandle) {
-        try {
-            return new ConstantCallSite(lambdaMethodHandle.asType(delegateMethodType));
-        } catch (Exception exception) {
-            throw new RuntimeException(exception);
+    private static final class Capture {
+        private final String name;
+        private final Type type;
+        private final String desc;
+
+        private Capture(int count, Class type) {
+            this.name = "arg$" + count;
+            this.type = Type.getType(type);
+            this.desc = this.type.getDescriptor();
         }
     }
 
-    public static CallSite bootstrap(MethodHandles.Lookup lookup, String name, MethodType type,
-                                     MethodType delegateMethodType, String className, int callType,
-                                     String lambdaName, MethodType lambdaMethodType)
+    public static CallSite lambdaBootstrap(
+        Lookup lookup,
+        String lambdaMethodName,
+        MethodType factoryMethodType,
+        MethodType lambdaMethodType,
+        String delegateClassName,
+        int delegateInvokeType,
+        String delegateMethodName,
+        MethodType delegateMethodType)
         throws LambdaConversionException {
 
+        String lambdaClassName = lookup.lookupClass().getName().replace('.', '/') +
+            "$$Lambda" + COUNTER.getAndIncrement();
+        Type lambdaClassType = Type.getType("L" + lambdaClassName + ";");
+
+        validateTypes(lambdaMethodType, delegateMethodType);
+        ClassWriter cw =
+            beginLambdaClass(lambdaClassName, factoryMethodType.returnType().getName());
+        Capture[] captures = generateCaptureFields(cw, factoryMethodType);
+        Method constructorMethod =
+            generateLambdaConstructor(cw, lambdaClassType, factoryMethodType, captures);
+
+        if (captures != null) {
+            generateFactoryMethod(cw, factoryMethodType, lambdaClassType, constructorMethod);
+        }
+
+
+
+        endLambdaClass(cw);
+
         try {
-            if (delegateMethodType.returnType() != void.class
-                && lambdaMethodType.returnType() == void.class) {
-                throw new LambdaConversionException("Type mismatch for lambda expected return:" +
-                    " void is not convertible to " + delegateMethodType.returnType());
-            }
-
-            String baseClassName = "java/lang/Object";
-            String lambdaClassName = lookup.lookupClass().getName().replace('.', '/') + "$$Lambda"
-                + COUNTER.getAndIncrement();
-            String lambdaInterfaceName = type.returnType().getName().replace('.', '/');
-            ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
-            cw.visit(CLASS_VERSION, ACC_PUBLIC | ACC_STATIC | ACC_SUPER | ACC_FINAL | ACC_SYNTHETIC,
-                lambdaClassName, null, baseClassName, new String[]{lambdaInterfaceName});
-
-            Type lambdaType = Type.getType("L" + lambdaClassName + ";");
-            String conName = "<init>";
-            String conDesc = type.changeReturnType(void.class).toMethodDescriptorString();
-            Method conMeth = getAsmMethod(void.class, conName, type.parameterArray());
-            Type baseConType = Type.getType(Object.class);
-            Method baseConMeth = getAsmMethod(void.class, conName);
-            GeneratorAdapter constructor = new GeneratorAdapter(ACC_PUBLIC, conMeth,
-                cw.visitMethod(ACC_PUBLIC, conName, conDesc, null, null));
-            constructor.visitCode();
-            constructor.loadThis();
-            constructor.invokeConstructor(baseConType, baseConMeth);
-
-            for (int paramCount = 0; paramCount < type.parameterCount(); ++paramCount) {
-                String argName = "arg$" + paramCount;
-                Type argType = Type.getType(type.parameterType(paramCount));
-                String argDesc = argType.getDescriptor();
-
-                FieldVisitor fv =
-                    cw.visitField(ACC_PRIVATE + ACC_FINAL, argName, argDesc, null, null);
-                fv.visitEnd();
-
-                constructor.loadThis();
-                constructor.loadArg(paramCount);
-                constructor.putField(lambdaType, argName, argType);
-            }
-
-            constructor.returnValue();
-            constructor.endMethod();
-
-            String facName = "get$lambda";
-            String facDesc = type.toMethodDescriptorString();
-            Method facMeth = new Method(facName, type.toMethodDescriptorString());
-
-            GeneratorAdapter factory = new GeneratorAdapter(ACC_PUBLIC | ACC_STATIC, facMeth,
-                cw.visitMethod(ACC_PUBLIC | ACC_STATIC, facName, facDesc, null, null));
-            factory.visitCode();
-            factory.newInstance(lambdaType);
-            factory.dup();
-            factory.loadArgs();
-            factory.invokeConstructor(lambdaType, conMeth);
-            factory.returnValue();
-            factory.endMethod();
-
-            Method delegateMethod = new Method(name, delegateMethodType.toMethodDescriptorString());
-            MethodWriter delegate = new MethodWriter(ACC_PUBLIC, delegateMethod, cw, null, null);
-            delegate.visitCode();
-
-            if (callType == H_NEWINVOKESPECIAL) {
-                Type newType = Type.getType(lambdaMethodType.returnType());
-                delegate.newInstance(Type.getType(lambdaMethodType.returnType()));
-                delegate.dup();
-                delegate.invokeConstructor(newType, new Method("<init>", "()V"));
-            } else {
-
-                for (int paramCount = 0; paramCount < type.parameterCount(); ++paramCount) {
-                    String argName = "arg$" + paramCount;
-                    Type argType = Type.getType(type.parameterType(paramCount));
-                    delegate.loadThis();
-                    delegate.getField(lambdaType, argName, argType);
-                }
-
-                boolean iface = false;
-
-                if (callType == H_INVOKESTATIC) {
-                    lambdaMethodType =
-                        lambdaMethodType.insertParameterTypes(0, type.parameterArray());
-                    delegateMethodType =
-                        delegateMethodType.insertParameterTypes(0, type.parameterArray());
-                } else if (callType == H_INVOKEVIRTUAL || callType == H_INVOKEINTERFACE) {
-                    if (type.parameterCount() == 0) {
-                        Class<?> c = lambdaMethodType.parameterType(0);
-                        className = c.getName();
-                        lambdaMethodType = lambdaMethodType.dropParameterTypes(0, 1)
-                            .insertParameterTypes(0, type.parameterArray());
-                        delegateMethodType =
-                            delegateMethodType.insertParameterTypes(0, type.parameterArray());
-                    } else if (type.parameterCount() == 1) {
-                        Class<?> c = type.parameterType(0);
-                        className = c.getName();
-                        delegateMethodType = delegateMethodType.insertParameterTypes(0, c);
-                    } else {
-                        throw new RuntimeException(
-                            "unexpected number of captures: " + type.parameterCount());
-                    }
-                }
-
-                delegate.loadArgs();
-                Handle lambdaHandle =
-                    new Handle(callType, className.replace('.', '/'),
-                        lambdaName, lambdaMethodType.toMethodDescriptorString(),
-                        callType == H_INVOKEINTERFACE);
-                delegate.invokeDynamic(lambdaName, Type.getMethodType(delegateMethodType
-                        .toMethodDescriptorString()).getDescriptor(), LAMBDA_BOOTSTRAP_HANDLE2,
-                    lambdaHandle);
-            }
-
-            delegate.returnValue();
-            delegate.endMethod();
-
-            cw.visitEnd();
 
             final byte[] classBytes = cw.toByteArray();
 
@@ -221,8 +136,193 @@ public class LambdaBootstrap {
         }
     }
 
-    private static Method getAsmMethod(
-        final Class<?> rtype, final String name, final Class<?>... ptypes) {
-        return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());
+    private static void validateTypes(MethodType lambdaMethodType, MethodType delegateMethodType)
+        throws LambdaConversionException {
+
+        if (lambdaMethodType.returnType() != void.class &&
+            delegateMethodType.returnType() == void.class) {
+            throw new LambdaConversionException("lambda expects return type ["
+                + lambdaMethodType.returnType() + "], but found return type [void]");
+        }
+    }
+
+    private static ClassWriter beginLambdaClass(String lambdaClassName, String lambdaInterface) {
+        String baseClass = Object.class.getName().replace('.', '/');
+        lambdaInterface = lambdaInterface.replace('.', '/');
+        int modifiers = ACC_PUBLIC | ACC_STATIC | ACC_SUPER | ACC_FINAL | ACC_SYNTHETIC;
+
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+        cw.visit(CLASS_VERSION,
+            modifiers, lambdaClassName, null, baseClass, new String[] {lambdaInterface});
+
+        return cw;
+    }
+
+    private static Capture[] generateCaptureFields(ClassWriter cw, MethodType factoryMethodType) {
+        int captureTotal = factoryMethodType.parameterCount();
+
+        if (captureTotal == 0) {
+            return null;
+        }
+
+        Capture[] captures = new Capture[captureTotal];
+
+        for (int captureCount = 0; captureCount < captureTotal; ++captureCount) {
+            captures[captureCount] =
+                new Capture(captureCount, factoryMethodType.parameterType(captureCount));
+            int modifiers = ACC_PRIVATE + ACC_FINAL;
+
+            FieldVisitor fv = cw.visitField(
+                modifiers, captures[captureCount].name, captures[captureCount].desc, null, null);
+            fv.visitEnd();
+        }
+
+        return captures;
+    }
+
+    private static Method generateLambdaConstructor(
+        ClassWriter cw,
+        Type lambdaClassType,
+        MethodType factoryMethodType,
+        Capture[] captures) {
+
+        String conName = "<init>";
+        String conDesc = factoryMethodType.changeReturnType(void.class).toMethodDescriptorString();
+        Method conMeth = new Method(conName, conDesc);
+        Type baseConType = Type.getType(Object.class);
+        Method baseConMeth = new Method(conName,
+            MethodType.methodType(void.class).toMethodDescriptorString());
+        int modifiers = ACC_PUBLIC;
+
+        GeneratorAdapter constructor = new GeneratorAdapter(modifiers, conMeth,
+            cw.visitMethod(modifiers, conName, conDesc, null, null));
+        constructor.visitCode();
+        constructor.loadThis();
+        constructor.invokeConstructor(baseConType, baseConMeth);
+
+        for (int captureCount = 0; captureCount < captures.length; ++captureCount) {
+            constructor.loadThis();
+            constructor.loadArg(captureCount);
+            constructor.putField(
+                lambdaClassType, captures[captureCount].name, captures[captureCount].type);
+        }
+
+        constructor.returnValue();
+        constructor.endMethod();
+
+        return conMeth;
+    }
+
+    private static void generateFactoryMethod(
+        ClassWriter cw,
+        MethodType factoryMethodType,
+        Type lambdaClassType,
+        Method constructorMethod) {
+
+        String facName = "get$lambda";
+        String facDesc = factoryMethodType.toMethodDescriptorString();
+        Method facMeth = new Method(facName, facDesc);
+        int modifiers = ACC_PUBLIC | ACC_STATIC;
+
+        GeneratorAdapter factory = new GeneratorAdapter(modifiers, facMeth,
+            cw.visitMethod(modifiers, facName, facDesc, null, null));
+        factory.visitCode();
+        factory.newInstance(lambdaClassType);
+        factory.dup();
+        factory.loadArgs();
+        factory.invokeConstructor(lambdaClassType, constructorMethod);
+        factory.returnValue();
+        factory.endMethod();
+    }
+
+    public static void generateLambdaMethod(
+        ClassWriter cw,
+        MethodType factoryMethodType,
+        String lambdaClassName,
+        Type lambdaClassType,
+        String lambdaMethodName,
+        MethodType lambdaMethodType,
+        String delegateClassName,
+        int delegateInvokeType,
+        String delegateMethodName,
+        MethodType delegateMethodType,
+        Capture[] captures)
+        throws LambdaConversionException {
+
+        String lamDesc = lambdaMethodType.toMethodDescriptorString();
+        Method lamMeth = new Method(lambdaClassName, lamDesc);
+        int modifiers = ACC_PUBLIC;
+
+        GeneratorAdapter lambda = new GeneratorAdapter(modifiers, lamMeth,
+            cw.visitMethod(modifiers, lambdaMethodName, lamDesc, null, null));
+        lambda.visitCode();
+
+        if (delegateInvokeType == H_NEWINVOKESPECIAL) {
+            String conName = "<init>";
+            String conDesc = MethodType.methodType(void.class).toMethodDescriptorString();
+            Method conMeth = new Method(conName, conDesc);
+            Type conType = Type.getType(delegateMethodType.returnType());
+
+            lambda.newInstance(conType);
+            lambda.dup();
+            lambda.invokeConstructor(conType, conMeth);
+        } else {
+            for (int captureCount = 0; captureCount < captures.length; ++captureCount) {
+                lambda.loadThis();
+                lambda.getField(
+                    lambdaClassType, captures[captureCount].name, captures[captureCount].type);
+            }
+
+            lambda.loadArgs();
+
+            if (delegateInvokeType == H_INVOKESTATIC) {
+                lambdaMethodType =
+                    lambdaMethodType.insertParameterTypes(0, factoryMethodType.parameterArray());
+                delegateMethodType =
+                    delegateMethodType.insertParameterTypes(0, factoryMethodType.parameterArray());
+            } else if (delegateInvokeType == H_INVOKEVIRTUAL ||
+                delegateInvokeType == H_INVOKEINTERFACE) {
+                if (captures.length == 0) {
+                    Class<?> clazz = lambdaMethodType.parameterType(0);
+                    delegateClassName = c.getName();
+                    lambdaMethodType = lambdaMethodType.dropParameterTypes(0, 1).
+                        insertParameterTypes(0, factoryMethodType.parameterArray());
+                    delegateMethodType = delegateMethodType.
+                        insertParameterTypes(0, factoryMethodType.parameterArray());
+                } else if (captures.length == 1) {
+                    Class<?> clazz = factoryMethodType.parameterType(0);
+                    className = c.getName();
+                    delegateMethodType = delegateMethodType.insertParameterTypes(0, c);
+                } else {
+                    throw new LambdaConversionException(
+                        "unexpected number of captures [ " + );
+                }
+            }
+
+            Handle delegateHandle = new Handle(callType, className.replace('.', '/'),
+                    lambdaName, lambdaMethodType.toMethodDescriptorString(),
+                    delegateInvoke == H_INVOKEINTERFACE);
+            lambda.invokeDynamic(delegateMethodName, Type.getMethodType(delegateMethodType
+                    .toMethodDescriptorString()).getDescriptor(), LAMBDA_BOOTSTRAP_HANDLE2,
+                lambdaHandle);
+        }
+
+        lambda.returnValue();
+        lambda.endMethod();
+    }
+
+    private static void endLambdaClass(ClassWriter cw) {
+        cw.visitEnd();
+    }
+
+    public static CallSite delegateBootstrap(Lookup lookup,
+                                             String lambdaName,
+                                             MethodType lambdaMethodType,
+                                             MethodHandle delegateMethodHandle) {
+        try {
+            return new ConstantCallSite(delegateMethodHandle.asType(lambdaMethodType));
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
     }
 }

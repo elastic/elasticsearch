@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws;
+package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.SignerFactory;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 
-public class AwsSigner {
+class AwsSigner {
 
     private static final Logger logger = Loggers.getLogger(AwsSigner.class);
 

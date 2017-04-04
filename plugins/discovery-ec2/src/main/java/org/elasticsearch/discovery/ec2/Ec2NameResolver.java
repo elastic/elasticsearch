@@ -17,11 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws.network;
+package org.elasticsearch.discovery.ec2;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
-import org.elasticsearch.cloud.aws.util.SocketAccess;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
@@ -53,7 +51,7 @@ import java.nio.charset.StandardCharsets;
  *
  * @author Paul_Loy (keteracel)
  */
-public class Ec2NameResolver extends AbstractComponent implements CustomNameResolver {
+class Ec2NameResolver extends AbstractComponent implements CustomNameResolver {
 
     /**
      * enum that can be added to over time with more meta-data types (such as ipv6 when this is available)
@@ -84,7 +82,7 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
     /**
      * Construct a {@link CustomNameResolver}.
      */
-    public Ec2NameResolver(Settings settings) {
+    Ec2NameResolver(Settings settings) {
         super(settings);
     }
 

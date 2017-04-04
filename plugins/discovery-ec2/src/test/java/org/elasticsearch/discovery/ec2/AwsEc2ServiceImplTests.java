@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws;
+package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
@@ -25,6 +25,8 @@ import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.ec2.AwsEc2Service;
+import org.elasticsearch.discovery.ec2.AwsEc2ServiceImpl;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;

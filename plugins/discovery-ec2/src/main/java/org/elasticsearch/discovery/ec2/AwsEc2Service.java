@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws;
+package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
-public interface AwsEc2Service {
+interface AwsEc2Service {
     Setting<Boolean> AUTO_ATTRIBUTE_SETTING = Setting.boolSetting("cloud.node.auto_attributes", false, Property.NodeScope);
 
     // Global AWS settings (shared between discovery-ec2 and repository-s3)

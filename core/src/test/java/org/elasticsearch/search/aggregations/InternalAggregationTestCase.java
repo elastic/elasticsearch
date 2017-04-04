@@ -63,15 +63,15 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
         if (randomBoolean() && toReduce.size() > 1) {
+            // sometimes do an incremental reduce
             Collections.shuffle(toReduce, random());
-            // we leave at least one element in the list
-            int r = Math.max(1, randomIntBetween(0, toReduceSize - 2));
+            int r = randomIntBetween(1, toReduceSize);
             List<InternalAggregation> internalAggregations = toReduce.subList(0, r);
             InternalAggregation.ReduceContext context =
                 new InternalAggregation.ReduceContext(bigArrays, mockScriptService, false);
             @SuppressWarnings("unchecked")
             T reduced = (T) inputs.get(0).reduce(internalAggregations, context);
-            toReduce = toReduce.subList(r, toReduceSize);
+            toReduce = new ArrayList<>(toReduce.subList(r, toReduceSize));
             toReduce.add(reduced);
         }
         InternalAggregation.ReduceContext context =

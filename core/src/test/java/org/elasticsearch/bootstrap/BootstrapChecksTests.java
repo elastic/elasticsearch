@@ -44,6 +44,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.hasToString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -98,7 +99,9 @@ public class BootstrapChecksTests extends ESTestCase {
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
 
-        assertTrue(BootstrapChecks.enforceLimits(boundTransportAddress));
+        final String discoveryType = randomFrom("zen", "single-node");
+
+        assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), !"single-node".equals(discoveryType));
     }
 
     public void testEnforceLimitsWhenPublishingToNonLocalAddress() {
@@ -114,7 +117,9 @@ public class BootstrapChecksTests extends ESTestCase {
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
 
-        assertTrue(BootstrapChecks.enforceLimits(boundTransportAddress));
+        final String discoveryType = randomFrom("zen", "single-node");
+
+        assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), !"single-node".equals(discoveryType));
     }
 
     public void testExceptionAggregation() {

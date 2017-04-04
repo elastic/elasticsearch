@@ -64,9 +64,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.index.translog.Translog.Location;
-import org.elasticsearch.action.bulk.BulkItemResultHolder;
-import org.elasticsearch.action.bulk.BulkItemResponse;
 
 import java.io.IOException;
 import java.util.Map;
@@ -573,9 +570,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     private static Engine.NoOpResult executeFailedSeqNoOnReplica(BulkItemResponse.Failure primaryFailure, DocWriteRequest docWriteRequest, IndexShard replica) throws IOException {
-        final Engine.NoOp noOp = replica.prepareNoOpOnReplica(docWriteRequest.type(), docWriteRequest.id(),
+        final Engine.NoOp noOp = replica.preparingMarkingSeqNoAsNoOp(docWriteRequest.type(), docWriteRequest.id(),
                 primaryFailure.getSeqNo(), primaryFailure.getMessage());
-        return replica.noOp(noOp);
+        return replica.markSeqNoAsNoOp(noOp);
     }
 
     class ConcreteMappingUpdatePerformer implements MappingUpdatePerformer {

@@ -569,14 +569,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return result;
     }
 
-    public Engine.NoOp prepareNoOpOnReplica(String type, String id, long seqNo, String reason) {
+    public Engine.NoOp preparingMarkingSeqNoAsNoOp(String type, String id, long seqNo, String reason) {
         verifyReplicationTarget();
         final Term uid = extractUid(type, id);
         long startTime = System.nanoTime();
         return new Engine.NoOp(uid, seqNo, primaryTerm, Engine.Operation.Origin.REPLICA, startTime, reason);
     }
 
-    public Engine.NoOpResult noOp(Engine.NoOp noOp) throws IOException {
+    public Engine.NoOpResult markSeqNoAsNoOp(Engine.NoOp noOp) throws IOException {
         ensureWriteAllowed(noOp);
         Engine engine = getEngine();
         return engine.noOp(noOp);

@@ -52,7 +52,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
 
-public class DatafeedJobRunner extends AbstractComponent {
+public class DatafeedManager extends AbstractComponent {
 
     private static final String INF_SYMBOL = "\u221E";
 
@@ -65,8 +65,8 @@ public class DatafeedJobRunner extends AbstractComponent {
     private final Auditor auditor;
     private final ConcurrentMap<String, Holder> runningDatafeeds = new ConcurrentHashMap<>();
 
-    public DatafeedJobRunner(ThreadPool threadPool, Client client, ClusterService clusterService, JobProvider jobProvider,
-                             Supplier<Long> currentTimeSupplier, Auditor auditor, PersistentTasksService persistentTasksService) {
+    public DatafeedManager(ThreadPool threadPool, Client client, ClusterService clusterService, JobProvider jobProvider,
+                           Supplier<Long> currentTimeSupplier, Auditor auditor, PersistentTasksService persistentTasksService) {
         super(Settings.EMPTY);
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);

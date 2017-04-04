@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Persiste
 import java.util.Collections;
 import java.util.Date;
 
-import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedConfig;
-import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedJob;
+import static org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests.createDatafeedConfig;
+import static org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests.createDatafeedJob;
 import static org.hamcrest.Matchers.equalTo;
 
 public class StopDatafeedActionRequestTests extends AbstractStreamableXContentTestCase<Request> {

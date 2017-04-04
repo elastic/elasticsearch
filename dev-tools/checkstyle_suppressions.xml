@@ -128,7 +128,7 @@
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]datafeed[/\\]ChunkingConfig.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]datafeed[/\\]DatafeedConfig.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]datafeed[/\\]DatafeedJob.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]datafeed[/\\]DatafeedJobRunner.java" checks="LineLength" />
+  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]datafeed[/\\]DatafeedManager.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]datafeed[/\\]DatafeedJobValidator.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]datafeed[/\\]DatafeedUpdate.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]datafeed[/\\]extractor[/\\]DataExtractorFactory.java" checks="LineLength" />
@@ -878,7 +878,7 @@
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]action[/\\]util[/\\]QueryPageTests.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]datafeed[/\\]ChunkingConfigTests.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]datafeed[/\\]DatafeedConfigTests.java" checks="LineLength" />
-  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]datafeed[/\\]DatafeedJobRunnerTests.java" checks="LineLength" />
+  <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]datafeed[/\\]DatafeedManagerTests.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]datafeed[/\\]DatafeedJobTests.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]datafeed[/\\]DatafeedJobValidatorTests.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]datafeed[/\\]DatafeedUpdateTests.java" checks="LineLength" />

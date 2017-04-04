@@ -10,22 +10,22 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunner;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 public class InvalidLicenseEnforcer extends AbstractComponent {
 
     private final ThreadPool threadPool;
     private final XPackLicenseState licenseState;
-    private final DatafeedJobRunner datafeedJobRunner;
+    private final DatafeedManager datafeedManager;
     private final AutodetectProcessManager autodetectProcessManager;
 
     InvalidLicenseEnforcer(Settings settings, XPackLicenseState licenseState, ThreadPool threadPool,
-                                  DatafeedJobRunner datafeedJobRunner, AutodetectProcessManager autodetectProcessManager) {
+                           DatafeedManager datafeedManager, AutodetectProcessManager autodetectProcessManager) {
         super(settings);
         this.threadPool = threadPool;
         this.licenseState = licenseState;
-        this.datafeedJobRunner = datafeedJobRunner;
+        this.datafeedManager = datafeedManager;
         this.autodetectProcessManager = autodetectProcessManager;
         licenseState.addListener(this::closeJobsAndDatafeedsIfLicenseExpired);
     }
@@ -40,7 +40,7 @@ public class InvalidLicenseEnforcer extends AbstractComponent {
 
                 @Override
                 protected void doRun() throws Exception {
-                    datafeedJobRunner.stopAllDatafeeds("invalid license");
+                    datafeedManager.stopAllDatafeeds("invalid license");
                     autodetectProcessManager.closeAllJobs("invalid license");
                 }
             });

@@ -34,8 +34,8 @@ import java.util.Collections;
 import java.util.Date;
 
 import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.createJobTask;
-import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedConfig;
-import static org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests.createDatafeedJob;
+import static org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests.createDatafeedConfig;
+import static org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests.createDatafeedJob;
 import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT;
 import static org.hamcrest.Matchers.equalTo;

@@ -76,7 +76,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class DatafeedJobRunnerTests extends ESTestCase {
+public class DatafeedManagerTests extends ESTestCase {
 
     private Client client;
     private ActionFuture<PostDataAction.Response> jobDataFuture;
@@ -84,7 +84,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private DataExtractorFactory dataExtractorFactory;
-    private DatafeedJobRunner datafeedJobRunner;
+    private DatafeedManager datafeedManager;
     private long currentTime = 120000;
     private Auditor auditor;
 
@@ -144,7 +144,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
 
         PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
-        datafeedJobRunner = new DatafeedJobRunner(threadPool, client, clusterService, jobProvider, () -> currentTime, auditor,
+        datafeedManager = new DatafeedManager(threadPool, client, clusterService, jobProvider, () -> currentTime, auditor,
                 persistentTasksService) {
             @Override
             DataExtractorFactory createDataExtractorFactory(DatafeedConfig datafeedConfig, Job job) {
@@ -167,7 +167,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         when(dataExtractor.next()).thenReturn(Optional.empty());
         Consumer<Exception> handler = mockConsumer();
         DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
-        datafeedJobRunner.run(task, handler);
+        datafeedManager.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
@@ -189,7 +189,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         when(jobDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
         DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
-        datafeedJobRunner.run(task, handler);
+        datafeedManager.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
@@ -219,7 +219,7 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         when(jobDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
         DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
-        datafeedJobRunner.run(task, handler);
+        datafeedManager.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
@@ -254,8 +254,8 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         when(dataExtractor.hasNext()).thenReturn(false);
         Consumer<Exception> handler = mockConsumer();
         DatafeedTask task = createDatafeedTask("datafeed_id", 0L, null);
-        DatafeedJobRunner.Holder holder = datafeedJobRunner.createJobDatafeed(datafeedConfig, job, 100, 100, handler, task);
-        datafeedJobRunner.doDatafeedRealtime(10L, "foo", holder);
+        DatafeedManager.Holder holder = datafeedManager.createJobDatafeed(datafeedConfig, job, 100, 100, handler, task);
+        datafeedManager.doDatafeedRealtime(10L, "foo", holder);
 
         verify(threadPool, times(11)).schedule(any(), eq(MachineLearning.DATAFEED_THREAD_POOL_NAME), any());
         verify(auditor, times(1)).warning(eq("job_id"), anyString());
@@ -278,9 +278,9 @@ public class DatafeedJobRunnerTests extends ESTestCase {
         boolean cancelled = randomBoolean();
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request("datafeed_id", 0L);
         DatafeedTask task = StartDatafeedActionTests.createDatafeedTask(1, "type", "action", null,
-                startDatafeedRequest, datafeedJobRunner);
+                startDatafeedRequest, datafeedManager);
         task = spyDatafeedTask(task);
-        datafeedJobRunner.run(task, handler);
+        datafeedManager.run(task, handler);
 
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
         if (cancelled) {

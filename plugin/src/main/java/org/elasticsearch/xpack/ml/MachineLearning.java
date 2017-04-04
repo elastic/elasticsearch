@@ -70,7 +70,7 @@ import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.ValidateJobConfigAction;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunner;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
@@ -299,16 +299,16 @@ public class MachineLearning implements ActionPlugin {
                 jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, xContentRegistry);
         PersistentTasksService persistentTasksService = new PersistentTasksService(settings, clusterService, threadPool, internalClient);
-        DatafeedJobRunner datafeedJobRunner = new DatafeedJobRunner(threadPool, internalClient, clusterService, jobProvider,
+        DatafeedManager datafeedManager = new DatafeedManager(threadPool, internalClient, clusterService, jobProvider,
                 System::currentTimeMillis, auditor, persistentTasksService);
         InvalidLicenseEnforcer invalidLicenseEnforcer =
-                new InvalidLicenseEnforcer(settings, licenseState, threadPool, datafeedJobRunner, autodetectProcessManager);
+                new InvalidLicenseEnforcer(settings, licenseState, threadPool, datafeedManager, autodetectProcessManager);
 
         PersistentTasksExecutorRegistry persistentTasksExecutorRegistry = new PersistentTasksExecutorRegistry(Settings.EMPTY, Arrays.asList(
                 new OpenJobAction.OpenJobPersistentTasksExecutor(settings, threadPool, licenseState, persistentTasksService, clusterService,
                         autodetectProcessManager, auditor),
                 new StartDatafeedAction.StartDatafeedPersistentTasksExecutor(settings, threadPool, licenseState, persistentTasksService,
-                        datafeedJobRunner, auditor)
+                        datafeedManager, auditor)
         ));
 
         return Arrays.asList(
@@ -319,7 +319,7 @@ public class MachineLearning implements ActionPlugin {
                 new MachineLearningTemplateRegistry(settings, clusterService, internalClient, threadPool),
                 new MlInitializationService(settings, threadPool, clusterService, internalClient),
                 jobDataCountsPersister,
-                datafeedJobRunner,
+                datafeedManager,
                 persistentTasksService,
                 persistentTasksExecutorRegistry,
                 new PersistentTasksClusterService(Settings.EMPTY, persistentTasksExecutorRegistry, clusterService),

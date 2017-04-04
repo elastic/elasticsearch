@@ -18,8 +18,8 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunner;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedJobRunnerTests;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
@@ -112,7 +112,7 @@ public class StartDatafeedActionTests extends ESTestCase {
     }
 
     public void testValidate() {
-        Job job1 = DatafeedJobRunnerTests.createDatafeedJob().build(new Date());
+        Job job1 = DatafeedManagerTests.createDatafeedJob().build(new Date());
         MlMetadata mlMetadata1 = new MlMetadata.Builder()
                 .putJob(job1, false)
                 .build();
@@ -122,14 +122,14 @@ public class StartDatafeedActionTests extends ESTestCase {
     }
 
     public void testValidate_jobClosed() {
-        Job job1 = DatafeedJobRunnerTests.createDatafeedJob().build(new Date());
+        Job job1 = DatafeedManagerTests.createDatafeedJob().build(new Date());
         MlMetadata mlMetadata1 = new MlMetadata.Builder()
                 .putJob(job1, false)
                 .build();
         PersistentTask<OpenJobAction.Request> task =
                 new PersistentTask<>(0L, OpenJobAction.NAME, new OpenJobAction.Request("job_id"), INITIAL_ASSIGNMENT);
         PersistentTasksCustomMetaData tasks = new PersistentTasksCustomMetaData(0L, Collections.singletonMap(0L, task));
-        DatafeedConfig datafeedConfig1 = DatafeedJobRunnerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
+        DatafeedConfig datafeedConfig1 = DatafeedManagerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
         MlMetadata mlMetadata2 = new MlMetadata.Builder(mlMetadata1)
                 .putDatafeed(datafeedConfig1)
                 .build();
@@ -164,9 +164,9 @@ public class StartDatafeedActionTests extends ESTestCase {
     public static StartDatafeedAction.DatafeedTask createDatafeedTask(long id, String type, String action,
                                                                       TaskId parentTaskId,
                                                                       StartDatafeedAction.Request request,
-                                                                      DatafeedJobRunner datafeedJobRunner) {
+                                                                      DatafeedManager datafeedManager) {
         StartDatafeedAction.DatafeedTask task = new StartDatafeedAction.DatafeedTask(id, type, action, parentTaskId, request);
-        task.datafeedJobRunner = datafeedJobRunner;
+        task.datafeedManager = datafeedManager;
         return task;
     }
 

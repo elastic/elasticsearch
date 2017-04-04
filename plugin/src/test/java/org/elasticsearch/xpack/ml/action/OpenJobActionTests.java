@@ -254,7 +254,7 @@ public class OpenJobActionTests extends ESTestCase {
         csBuilder.metaData(metaData);
 
         ClusterState cs = csBuilder.build();
-        assertEquals(0, OpenJobAction.verifyIndicesPrimaryShardsAreActive(logger, "job_id", cs).size());
+        assertEquals(0, OpenJobAction.verifyIndicesPrimaryShardsAreActive("job_id", cs).size());
 
         metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
@@ -274,7 +274,7 @@ public class OpenJobActionTests extends ESTestCase {
 
         csBuilder.routingTable(routingTable.build());
         csBuilder.metaData(metaData);
-        List<String> result = OpenJobAction.verifyIndicesPrimaryShardsAreActive(logger, "job_id", csBuilder.build());
+        List<String> result = OpenJobAction.verifyIndicesPrimaryShardsAreActive("job_id", csBuilder.build());
         assertEquals(1, result.size());
         assertEquals(indexToRemove, result.get(0));
     }

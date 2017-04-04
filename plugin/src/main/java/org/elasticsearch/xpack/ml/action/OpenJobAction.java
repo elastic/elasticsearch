@@ -475,7 +475,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
     static Assignment selectLeastLoadedMlNode(String jobId, ClusterState clusterState, int maxConcurrentJobAllocations,
                                               Logger logger) {
-        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(logger, jobId, clusterState);
+        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(jobId, clusterState);
         if (unavailableIndices.size() != 0) {
             String reason = "Not opening job [" + jobId + "], because not all primary shards are active for the following indices [" +
                     String.join(",", unavailableIndices) + "]";
@@ -553,9 +553,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         return new String[]{AnomalyDetectorsIndex.jobStateIndexName(), jobResultIndex, AnomalyDetectorsIndex.ML_META_INDEX};
     }
 
-    static List<String> verifyIndicesPrimaryShardsAreActive(Logger logger, String jobId, ClusterState clusterState) {
-        MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
-        Job job = mlMetadata.getJobs().get(jobId);
+    static List<String> verifyIndicesPrimaryShardsAreActive(String jobId, ClusterState clusterState) {
         String[] indices = indicesOfInterest(clusterState, jobId);
         List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {

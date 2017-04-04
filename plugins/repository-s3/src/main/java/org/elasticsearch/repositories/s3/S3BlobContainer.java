@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws.blobstore;
+package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
@@ -46,13 +46,13 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Map;
 
-public class S3BlobContainer extends AbstractBlobContainer {
+class S3BlobContainer extends AbstractBlobContainer {
 
     protected final S3BlobStore blobStore;
 
     protected final String keyPath;
 
-    public S3BlobContainer(BlobPath path, S3BlobStore blobStore) {
+    S3BlobContainer(BlobPath path, S3BlobStore blobStore) {
         super(path);
         this.blobStore = blobStore;
         this.keyPath = path.buildAsString();

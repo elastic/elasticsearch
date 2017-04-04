@@ -17,12 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws.blobstore;
+package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.PartETag;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.repositories.s3.DefaultS3OutputStream;
+import org.elasticsearch.repositories.s3.S3BlobStore;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

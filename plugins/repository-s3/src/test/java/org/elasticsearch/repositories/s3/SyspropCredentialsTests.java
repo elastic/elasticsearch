@@ -17,23 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws.blobstore;
+package org.elasticsearch.repositories.s3;
 
-import org.elasticsearch.common.blobstore.BlobStore;
+import com.amazonaws.auth.AWSCredentialsProvider;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
+import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
-import java.util.Locale;
-
-public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
-    protected BlobStore newBlobStore() throws IOException {
-        MockAmazonS3 client = new MockAmazonS3();
-        String bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-
-        return new S3BlobStore(Settings.EMPTY, client, bucket, null, false,
-            new ByteSizeValue(10, ByteSizeUnit.MB), 5, "public-read-write", "standard");
+public class SyspropCredentialsTests extends ESTestCase {
+    public void test() {
+        AWSCredentialsProvider provider =
+            InternalAwsS3Service.buildCredentials(logger, deprecationLogger, Settings.EMPTY, Settings.EMPTY, "default");
+        // NOTE: sys props are setup by the test runner in gradle
+        assertEquals("sysprop_access", provider.getCredentials().getAWSAccessKeyId());
+        assertEquals("sysprop_secret", provider.getCredentials().getAWSSecretKey());
+        assertWarnings("Supplying S3 credentials through system properties is deprecated. " +
+                "See the breaking changes lists in the documentation for details.");
     }
 }

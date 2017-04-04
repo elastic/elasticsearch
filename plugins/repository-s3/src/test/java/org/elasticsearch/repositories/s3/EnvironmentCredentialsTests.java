@@ -17,20 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws;
+package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-public class SyspropCredentialsTests extends ESTestCase {
+public class EnvironmentCredentialsTests extends ESTestCase {
+
     public void test() {
         AWSCredentialsProvider provider =
             InternalAwsS3Service.buildCredentials(logger, deprecationLogger, Settings.EMPTY, Settings.EMPTY, "default");
-        // NOTE: sys props are setup by the test runner in gradle
-        assertEquals("sysprop_access", provider.getCredentials().getAWSAccessKeyId());
-        assertEquals("sysprop_secret", provider.getCredentials().getAWSSecretKey());
-        assertWarnings("Supplying S3 credentials through system properties is deprecated. " +
-                "See the breaking changes lists in the documentation for details.");
+        // NOTE: env vars are setup by the test runner in gradle
+        assertEquals("env_access", provider.getCredentials().getAWSAccessKeyId());
+        assertEquals("env_secret", provider.getCredentials().getAWSSecretKey());
+        assertWarnings("Supplying S3 credentials through environment variables is deprecated. "
+                + "See the breaking changes lists in the documentation for details.");
     }
 }

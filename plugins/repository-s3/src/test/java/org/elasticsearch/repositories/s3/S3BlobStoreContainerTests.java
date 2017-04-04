@@ -17,21 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws;
+package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
 
-public class EnvironmentCredentialsTests extends ESTestCase {
+import java.io.IOException;
+import java.util.Locale;
 
-    public void test() {
-        AWSCredentialsProvider provider =
-            InternalAwsS3Service.buildCredentials(logger, deprecationLogger, Settings.EMPTY, Settings.EMPTY, "default");
-        // NOTE: env vars are setup by the test runner in gradle
-        assertEquals("env_access", provider.getCredentials().getAWSAccessKeyId());
-        assertEquals("env_secret", provider.getCredentials().getAWSSecretKey());
-        assertWarnings("Supplying S3 credentials through environment variables is deprecated. "
-                + "See the breaking changes lists in the documentation for details.");
+public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
+    protected BlobStore newBlobStore() throws IOException {
+        MockAmazonS3 client = new MockAmazonS3();
+        String bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+
+        return new S3BlobStore(Settings.EMPTY, client, bucket, null, false,
+            new ByteSizeValue(10, ByteSizeUnit.MB), 5, "public-read-write", "standard");
     }
 }

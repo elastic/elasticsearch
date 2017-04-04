@@ -16,15 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cloud.aws;
+
+package org.elasticsearch.repositories.s3;
 
 import java.util.IdentityHashMap;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugin.repository.s3.S3RepositoryPlugin;
 
 public class TestAwsS3Service extends InternalAwsS3Service {
     public static class TestPlugin extends S3RepositoryPlugin {

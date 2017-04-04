@@ -17,11 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws.blobstore;
+package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.StorageClass;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.repositories.s3.S3BlobStore;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

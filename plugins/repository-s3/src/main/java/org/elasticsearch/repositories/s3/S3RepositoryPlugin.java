@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.repository.s3;
+package org.elasticsearch.repositories.s3;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -28,8 +28,6 @@ import java.util.Map;
 
 import com.amazonaws.util.json.Jackson;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cloud.aws.AwsS3Service;
-import org.elasticsearch.cloud.aws.InternalAwsS3Service;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -37,7 +35,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.s3.S3Repository;
 
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.aws.blobstore;
+package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.AmazonS3;
@@ -41,10 +41,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import java.util.ArrayList;
 import java.util.Locale;
 
-/**
- *
- */
-public class S3BlobStore extends AbstractComponent implements BlobStore {
+class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final AmazonS3 client;
 
@@ -62,7 +59,7 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final StorageClass storageClass;
 
-    public S3BlobStore(Settings settings, AmazonS3 client, String bucket, @Nullable String region, boolean serverSideEncryption,
+    S3BlobStore(Settings settings, AmazonS3 client, String bucket, @Nullable String region, boolean serverSideEncryption,
                        ByteSizeValue bufferSize, int maxRetries, String cannedACL, String storageClass) {
         super(settings);
         this.client = client;

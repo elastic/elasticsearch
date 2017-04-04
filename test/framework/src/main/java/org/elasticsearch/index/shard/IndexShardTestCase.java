@@ -173,7 +173,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param listeners an optional set of listeners to add to the shard
      */
     protected IndexShard newShard(ShardId shardId, boolean primary, IndexingOperationListener... listeners) throws IOException {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, randomAsciiOfLength(5), primary,
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, randomAlphaOfLength(5), primary,
             ShardRoutingState.INITIALIZING,
             primary ? RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
         return newShard(shardRouting, listeners);

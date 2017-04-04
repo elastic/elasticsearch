@@ -35,7 +35,7 @@ public class RemoveProcessorTests extends ESTestCase {
     public void testRemoveFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String field = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
-        Processor processor = new RemoveProcessor(randomAsciiOfLength(10), new TestTemplateService.MockTemplate(field));
+        Processor processor = new RemoveProcessor(randomAlphaOfLength(10), new TestTemplateService.MockTemplate(field));
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(field), equalTo(false));
     }
@@ -43,7 +43,7 @@ public class RemoveProcessorTests extends ESTestCase {
     public void testRemoveNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = new RemoveProcessor(randomAsciiOfLength(10), new TestTemplateService.MockTemplate(fieldName));
+        Processor processor = new RemoveProcessor(randomAlphaOfLength(10), new TestTemplateService.MockTemplate(fieldName));
         try {
             processor.execute(ingestDocument);
             fail("remove field should have failed");

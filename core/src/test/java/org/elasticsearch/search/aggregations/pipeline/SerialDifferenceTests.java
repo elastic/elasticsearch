@@ -27,11 +27,11 @@ public class SerialDifferenceTests extends BasePipelineAggregationTestCase<Seria
 
     @Override
     protected SerialDiffPipelineAggregationBuilder createTestAggregatorFactory() {
-        String name = randomAsciiOfLengthBetween(3, 20);
-        String bucketsPath = randomAsciiOfLengthBetween(3, 20);
+        String name = randomAlphaOfLengthBetween(3, 20);
+        String bucketsPath = randomAlphaOfLengthBetween(3, 20);
         SerialDiffPipelineAggregationBuilder factory = new SerialDiffPipelineAggregationBuilder(name, bucketsPath);
         if (randomBoolean()) {
-            factory.format(randomAsciiOfLengthBetween(1, 10));
+            factory.format(randomAlphaOfLengthBetween(1, 10));
         }
         if (randomBoolean()) {
             factory.gapPolicy(randomFrom(GapPolicy.values()));

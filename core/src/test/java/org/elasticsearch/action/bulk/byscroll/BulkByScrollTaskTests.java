@@ -19,13 +19,11 @@
 
 package org.elasticsearch.action.bulk.byscroll;
 
-import org.elasticsearch.action.bulk.byscroll.BulkByScrollTask;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -139,7 +137,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
             mergedRequestsPerSecond += requestsPerSecond;
             mergedThrottledUntil = timeValueNanos(min(mergedThrottledUntil.nanos(), throttledUntil.nanos()));
         }
-        String reasonCancelled = randomBoolean() ? randomAsciiOfLength(10) : null;
+        String reasonCancelled = randomBoolean() ? randomAlphaOfLength(10) : null;
         BulkByScrollTask.Status merged = new BulkByScrollTask.Status(Arrays.asList(statuses), reasonCancelled);
         assertEquals(mergedTotal, merged.getTotal());
         assertEquals(mergedUpdated, merged.getUpdated());

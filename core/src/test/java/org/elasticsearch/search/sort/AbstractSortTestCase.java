@@ -70,7 +70,6 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
@@ -191,7 +190,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     }
 
     protected QueryShardContext createMockShardContext() {
-        Index index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
+        Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index,
             Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
@@ -245,7 +244,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             case 0: return (new MatchAllQueryBuilder()).boost(randomFloat());
             case 1: return (new IdsQueryBuilder()).boost(randomFloat());
             case 2: return (new TermQueryBuilder(
-                    randomAsciiOfLengthBetween(1, 10),
+                    randomAlphaOfLengthBetween(1, 10),
                     randomDouble()).boost(randomFloat()));
             default: throw new IllegalStateException("Only three query builders supported for testing sort");
         }

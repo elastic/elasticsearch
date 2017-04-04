@@ -73,7 +73,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     public void testRangeQuery() throws Exception {
         Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAsciiOfLengthBetween(1, 10), indexSettings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         QueryShardContext context = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
                 null, null, () -> nowInMillis);
         RangeFieldMapper.RangeFieldType ft = new RangeFieldMapper.RangeFieldType(type);

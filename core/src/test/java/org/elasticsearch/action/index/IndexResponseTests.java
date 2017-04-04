@@ -104,11 +104,11 @@ public class IndexResponseTests extends ESTestCase {
      * expected {@link IndexResponse} after parsing.
      */
     public static Tuple<IndexResponse, IndexResponse> randomIndexResponse() {
-        String index = randomAsciiOfLength(5);
-        String indexUUid = randomAsciiOfLength(5);
+        String index = randomAlphaOfLength(5);
+        String indexUUid = randomAlphaOfLength(5);
         int shardId = randomIntBetween(0, 5);
-        String type = randomAsciiOfLength(5);
-        String id = randomAsciiOfLength(5);
+        String type = randomAlphaOfLength(5);
+        String id = randomAlphaOfLength(5);
         long seqNo = randomFrom(SequenceNumbersService.UNASSIGNED_SEQ_NO, randomNonNegativeLong(), (long) randomIntBetween(0, 10000));
         long version = randomBoolean() ? randomNonNegativeLong() : randomIntBetween(0, 10000);
         boolean created = randomBoolean();

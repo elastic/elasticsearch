@@ -3248,7 +3248,7 @@ public class InternalEngineTests extends ESTestCase {
                 };
             noOpEngine = createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null, () -> seqNoService);
             final long primaryTerm = randomNonNegativeLong();
-            final String reason = randomAsciiOfLength(16);
+            final String reason = randomAlphaOfLength(16);
             noOpEngine.noOp(
                 new Engine.NoOp(
                     null,

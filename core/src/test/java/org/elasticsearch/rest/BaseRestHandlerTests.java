@@ -50,8 +50,8 @@ public class BaseRestHandlerTests extends ESTestCase {
         };
 
         final HashMap<String, String> params = new HashMap<>();
-        params.put("consumed", randomAsciiOfLength(8));
-        params.put("unconsumed", randomAsciiOfLength(8));
+        params.put("consumed", randomAlphaOfLength(8));
+        params.put("unconsumed", randomAlphaOfLength(8));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
         RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
         final IllegalArgumentException e =
@@ -71,9 +71,9 @@ public class BaseRestHandlerTests extends ESTestCase {
         };
 
         final HashMap<String, String> params = new HashMap<>();
-        params.put("consumed", randomAsciiOfLength(8));
-        params.put("unconsumed-first", randomAsciiOfLength(8));
-        params.put("unconsumed-second", randomAsciiOfLength(8));
+        params.put("consumed", randomAlphaOfLength(8));
+        params.put("unconsumed-first", randomAlphaOfLength(8));
+        params.put("unconsumed-second", randomAlphaOfLength(8));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
         RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
         final IllegalArgumentException e =
@@ -102,12 +102,12 @@ public class BaseRestHandlerTests extends ESTestCase {
         };
 
         final HashMap<String, String> params = new HashMap<>();
-        params.put("consumed", randomAsciiOfLength(8));
-        params.put("flied", randomAsciiOfLength(8));
-        params.put("respones_param", randomAsciiOfLength(8));
-        params.put("tokenzier", randomAsciiOfLength(8));
-        params.put("very_close_to_parametre", randomAsciiOfLength(8));
-        params.put("very_far_from_every_consumed_parameter", randomAsciiOfLength(8));
+        params.put("consumed", randomAlphaOfLength(8));
+        params.put("flied", randomAlphaOfLength(8));
+        params.put("respones_param", randomAlphaOfLength(8));
+        params.put("tokenzier", randomAlphaOfLength(8));
+        params.put("very_close_to_parametre", randomAlphaOfLength(8));
+        params.put("very_far_from_every_consumed_parameter", randomAlphaOfLength(8));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
         RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
         final IllegalArgumentException e =
@@ -140,8 +140,8 @@ public class BaseRestHandlerTests extends ESTestCase {
         };
 
         final HashMap<String, String> params = new HashMap<>();
-        params.put("consumed", randomAsciiOfLength(8));
-        params.put("response_param", randomAsciiOfLength(8));
+        params.put("consumed", randomAlphaOfLength(8));
+        params.put("response_param", randomAlphaOfLength(8));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
         RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
         handler.handleRequest(request, channel, mock(NodeClient.class));
@@ -158,8 +158,8 @@ public class BaseRestHandlerTests extends ESTestCase {
         };
 
         final HashMap<String, String> params = new HashMap<>();
-        params.put("format", randomAsciiOfLength(8));
-        params.put("filter_path", randomAsciiOfLength(8));
+        params.put("format", randomAlphaOfLength(8));
+        params.put("filter_path", randomAlphaOfLength(8));
         params.put("pretty", randomFrom("true", "false", "", null));
         params.put("human", null);
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
@@ -188,14 +188,14 @@ public class BaseRestHandlerTests extends ESTestCase {
         };
 
         final HashMap<String, String> params = new HashMap<>();
-        params.put("format", randomAsciiOfLength(8));
-        params.put("h", randomAsciiOfLength(8));
-        params.put("v", randomAsciiOfLength(8));
-        params.put("ts", randomAsciiOfLength(8));
-        params.put("pri", randomAsciiOfLength(8));
-        params.put("bytes", randomAsciiOfLength(8));
-        params.put("size", randomAsciiOfLength(8));
-        params.put("time", randomAsciiOfLength(8));
+        params.put("format", randomAlphaOfLength(8));
+        params.put("h", randomAlphaOfLength(8));
+        params.put("v", randomAlphaOfLength(8));
+        params.put("ts", randomAlphaOfLength(8));
+        params.put("pri", randomAlphaOfLength(8));
+        params.put("bytes", randomAlphaOfLength(8));
+        params.put("size", randomAlphaOfLength(8));
+        params.put("time", randomAlphaOfLength(8));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
         RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
         handler.handleRequest(request, channel, mock(NodeClient.class));

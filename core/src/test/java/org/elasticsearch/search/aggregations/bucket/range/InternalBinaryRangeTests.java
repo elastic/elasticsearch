@@ -42,8 +42,8 @@ public class InternalBinaryRangeTests extends InternalAggregationTestCase<Intern
         Tuple<BytesRef, BytesRef>[] ranges = new Tuple[numRanges];
         for (int i = 0; i < numRanges; i++) {
             BytesRef[] values = new BytesRef[2];
-            values[0] = new BytesRef(randomAsciiOfLength(15));
-            values[1] = new BytesRef(randomAsciiOfLength(15));
+            values[0] = new BytesRef(randomAlphaOfLength(15));
+            values[1] = new BytesRef(randomAlphaOfLength(15));
             Arrays.sort(values);
             ranges[i] = new Tuple(values[0], values[1]);
         }
@@ -60,7 +60,7 @@ public class InternalBinaryRangeTests extends InternalAggregationTestCase<Intern
         List<InternalBinaryRange.Bucket> buckets = new ArrayList<>();
         for (int i = 0; i < RANGES.length; ++i) {
             final int docCount = randomIntBetween(1, 100);
-            buckets.add(new InternalBinaryRange.Bucket(format, keyed, randomAsciiOfLength(10),
+            buckets.add(new InternalBinaryRange.Bucket(format, keyed, randomAlphaOfLength(10),
                 RANGES[i].v1(), RANGES[i].v2(), docCount, InternalAggregations.EMPTY));
         }
         return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators, Collections.emptyMap());

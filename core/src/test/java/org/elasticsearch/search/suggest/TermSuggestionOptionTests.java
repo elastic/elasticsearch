@@ -35,7 +35,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 public class TermSuggestionOptionTests extends ESTestCase {
 
     public static Option createTestItem() {
-        Text text = new Text(randomAsciiOfLengthBetween(5, 15));
+        Text text = new Text(randomAlphaOfLengthBetween(5, 15));
         float score = randomFloat();
         int freq = randomInt();
         return new Option(text, freq, score);

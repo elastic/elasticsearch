@@ -71,7 +71,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
             .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), randomBoolean())
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), customPath.toAbsolutePath().toString()).build();
         try (NodeEnvironment nodeEnv = newNodeEnvironment(nodeSettings)) {
-            final Index index = new Index(randomAsciiOfLength(10), UUIDs.randomBase64UUID());
+            final Index index = new Index(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
             Settings settings = Settings.builder()
                 .put(nodeSettings)
                 .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
@@ -100,7 +100,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
             .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), randomBoolean())
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), customPath.toAbsolutePath().toString()).build();
         try (NodeEnvironment nodeEnv = newNodeEnvironment(nodeSettings)) {
-            final Index index = new Index(randomAsciiOfLength(10), UUIDs.randomBase64UUID());
+            final Index index = new Index(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
             Settings settings = Settings.builder()
                 .put(nodeSettings)
                 .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
@@ -139,7 +139,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
         final Settings nodeSettings = Settings.builder()
             .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), randomBoolean()).build();
         try (NodeEnvironment nodeEnv = newNodeEnvironment(nodeSettings)) {
-            final Index index = new Index(randomAsciiOfLength(10), UUIDs.randomBase64UUID());
+            final Index index = new Index(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
             Settings settings = Settings.builder()
                 .put(nodeSettings)
                 .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
@@ -164,7 +164,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
         try (NodeEnvironment nodeEnv = newNodeEnvironment(nodeSettings)) {
             Map<IndexSettings, Tuple<Integer, Integer>>  indexSettingsMap = new HashMap<>();
             for (int i = 0; i < randomIntBetween(2, 5); i++) {
-                final Index index = new Index(randomAsciiOfLength(10), UUIDs.randomBase64UUID());
+                final Index index = new Index(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
                 Settings settings = Settings.builder()
                     .put(nodeSettings)
                     .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())

@@ -504,7 +504,7 @@ public class UnicastZenPingTests extends ESTestCase {
     public void testUnknownHost() throws InterruptedException {
         final Logger logger = mock(Logger.class);
         final NetworkService networkService = new NetworkService(Settings.EMPTY, Collections.emptyList());
-        final String hostname = randomAsciiOfLength(8);
+        final String hostname = randomAlphaOfLength(8);
         final UnknownHostException unknownHostException = new UnknownHostException(hostname);
         final Transport transport = new MockTcpTransport(
             Settings.EMPTY,

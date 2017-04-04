@@ -138,7 +138,7 @@ public class TimeValueTests extends ESTestCase {
     private static final String FRACTIONAL_TIME_VALUES_ARE_NOT_SUPPORTED = "fractional time values are not supported";
 
     public void testNonFractionalTimeValues() {
-        final String s = randomAsciiOfLength(10) + randomTimeUnit();
+        final String s = randomAlphaOfLength(10) + randomTimeUnit();
         final ElasticsearchParseException e =
             expectThrows(ElasticsearchParseException.class, () -> TimeValue.parseTimeValue(s, null, "test"));
         assertThat(e, hasToString(containsString("failed to parse [" + s + "]")));

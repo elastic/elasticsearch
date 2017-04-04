@@ -35,11 +35,11 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 public class ShardSearchFailureTests extends ESTestCase {
 
     public static ShardSearchFailure createTestItem() {
-        String randomMessage = randomAsciiOfLengthBetween(3, 20);
+        String randomMessage = randomAlphaOfLengthBetween(3, 20);
         Exception ex = new ParsingException(0, 0, randomMessage , new IllegalArgumentException("some bad argument"));
-        String nodeId = randomAsciiOfLengthBetween(5, 10);
-        String indexName = randomAsciiOfLengthBetween(5, 10);
-        String indexUuid = randomAsciiOfLengthBetween(5, 10);
+        String nodeId = randomAlphaOfLengthBetween(5, 10);
+        String indexName = randomAlphaOfLengthBetween(5, 10);
+        String indexUuid = randomAlphaOfLengthBetween(5, 10);
         int shardId = randomInt();
         return new ShardSearchFailure(ex,
                 new SearchShardTarget(nodeId, new ShardId(new Index(indexName, indexUuid), shardId)));

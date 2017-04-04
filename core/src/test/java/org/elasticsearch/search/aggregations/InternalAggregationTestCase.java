@@ -51,7 +51,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     public void testReduceRandom() {
-        String name = randomAsciiOfLength(5);
+        String name = randomAlphaOfLength(5);
         List<T> inputs = new ArrayList<>();
         List<InternalAggregation> toReduce = new ArrayList<>();
         int toReduceSize = between(1, 200);
@@ -92,7 +92,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     @Override
     protected final T createTestInstance() {
-        return createTestInstance(randomAsciiOfLength(5));
+        return createTestInstance(randomAlphaOfLength(5));
     }
 
     private T createTestInstance(String name) {
@@ -101,7 +101,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         Map<String, Object> metaData = new HashMap<>();
         int metaDataCount = randomBoolean() ? 0 : between(1, 10);
         while (metaData.size() < metaDataCount) {
-            metaData.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+            metaData.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
         }
         return createTestInstance(name, pipelineAggregators, metaData);
     }
@@ -113,7 +113,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         Map<String, Object> metaData = new HashMap<>();
         int metaDataCount = randomBoolean() ? 0 : between(1, 10);
         while (metaData.size() < metaDataCount) {
-            metaData.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+            metaData.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
         }
         return createUnmappedInstance(name, pipelineAggregators, metaData);
     }

@@ -39,8 +39,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 public class CollectorResultTests extends ESTestCase {
 
     public static CollectorResult createTestItem(int depth) {
-        String name = randomAsciiOfLengthBetween(5, 10);
-        String reason = randomAsciiOfLengthBetween(5, 10);
+        String name = randomAlphaOfLengthBetween(5, 10);
+        String reason = randomAlphaOfLengthBetween(5, 10);
         long time = randomNonNegativeLong();
         if (randomBoolean()) {
             // also often use relatively "small" values, otherwise we will mostly test huge longs

@@ -65,7 +65,7 @@ public class SearchScrollRequestTests extends ESTestCase {
     }
 
     public static SearchScrollRequest createSearchScrollRequest() {
-        SearchScrollRequest searchScrollRequest = new SearchScrollRequest(randomAsciiOfLengthBetween(3, 10));
+        SearchScrollRequest searchScrollRequest = new SearchScrollRequest(randomAlphaOfLengthBetween(3, 10));
         searchScrollRequest.scroll(randomPositiveTimeValue());
         return searchScrollRequest;
     }

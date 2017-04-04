@@ -343,8 +343,8 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
     @Override
     protected StoredScriptSource createTestInstance() {
         return new StoredScriptSource(
-            randomAsciiOfLength(randomIntBetween(4, 32)),
-            randomAsciiOfLength(randomIntBetween(4, 16383)),
+            randomAlphaOfLength(randomIntBetween(4, 32)),
+            randomAlphaOfLength(randomIntBetween(4, 16383)),
             Collections.emptyMap());
     }
 

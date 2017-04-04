@@ -134,11 +134,15 @@ class NativeAutodetectProcess implements AutodetectProcess {
             processCloseInitiated = true;
             // closing its input causes the process to exit
             processInStream.close();
-            // wait for the process to exit by waiting for end-of-file on the named pipe connected to its logger
-            // this may take a long time as it persists the model state
-            logTailFuture.get(30, TimeUnit.MINUTES);
-            // the state processor should have stopped by now as the process should have exit
-            stateProcessorFuture.get(1, TimeUnit.SECONDS);
+            // wait for the process to exit by waiting for end-of-file on the named pipe connected
+            // to the state processor - it may take a long time for all the model state to be
+            // indexed
+            stateProcessorFuture.get(30, TimeUnit.MINUTES);
+            // the log processor should have stopped by now too - assume processing the logs will
+            // take no more than 5 seconds longer than processing the state (usually it should
+            // finish first)
+            logTailFuture.get(5, TimeUnit.SECONDS);
+
             if (cppLogHandler.seenFatalError()) {
                 throw ExceptionsHelper.serverError(cppLogHandler.getErrors());
             }

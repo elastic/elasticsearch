@@ -252,13 +252,13 @@ public class ScopedSettingsTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope),
                     Setting.intSetting("foo.bar.baz", 1, Property.NodeScope))));
-        assertFalse(settings.hasDynamicSetting("foo.bar.baz"));
-        assertTrue(settings.hasDynamicSetting("foo.bar"));
+        assertFalse(settings.isDynamicSetting("foo.bar.baz"));
+        assertTrue(settings.isDynamicSetting("foo.bar"));
         assertNotNull(settings.get("foo.bar.baz"));
         settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        assertTrue(settings.hasDynamicSetting("transport.tracer.include." + randomIntBetween(1, 100)));
-        assertFalse(settings.hasDynamicSetting("transport.tracer.include.BOOM"));
-        assertTrue(settings.hasDynamicSetting("cluster.routing.allocation.require.value"));
+        assertTrue(settings.isDynamicSetting("transport.tracer.include." + randomIntBetween(1, 100)));
+        assertFalse(settings.isDynamicSetting("transport.tracer.include.BOOM"));
+        assertTrue(settings.isDynamicSetting("cluster.routing.allocation.require.value"));
     }
 
     public void testIsFinal() {
@@ -269,15 +269,15 @@ public class ScopedSettingsTests extends ESTestCase {
                     Setting.groupSetting("foo.list.",  Property.Final, Property.NodeScope),
                     Setting.intSetting("foo.int.baz", 1, Property.NodeScope))));
 
-        assertFalse(settings.hasFinalSetting("foo.int.baz"));
-        assertTrue(settings.hasFinalSetting("foo.int"));
+        assertFalse(settings.isFinalSetting("foo.int.baz"));
+        assertTrue(settings.isFinalSetting("foo.int"));
 
-        assertFalse(settings.hasFinalSetting("foo.list"));
-        assertTrue(settings.hasFinalSetting("foo.list.0.key"));
-        assertTrue(settings.hasFinalSetting("foo.list.key"));
+        assertFalse(settings.isFinalSetting("foo.list"));
+        assertTrue(settings.isFinalSetting("foo.list.0.key"));
+        assertTrue(settings.isFinalSetting("foo.list.key"));
 
-        assertFalse(settings.hasFinalSetting("foo.group"));
-        assertTrue(settings.hasFinalSetting("foo.group.key"));
+        assertFalse(settings.isFinalSetting("foo.group"));
+        assertTrue(settings.isFinalSetting("foo.group.key"));
     }
 
     public void testDiff() throws IOException {

@@ -35,8 +35,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -382,7 +380,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Returns <code>true</code> if the setting for the given key is dynamically updateable. Otherwise <code>false</code>.
      */
-    public boolean hasDynamicSetting(String key) {
+    public boolean isDynamicSetting(String key) {
         final Setting<?> setting = get(key);
         return setting != null && setting.isDynamic();
     }
@@ -390,7 +388,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Returns <code>true</code> if the setting for the given key is final. Otherwise <code>false</code>.
      */
-    public boolean hasFinalSetting(String key) {
+    public boolean isFinalSetting(String key) {
         final Setting<?> setting = get(key);
         return setting != null && setting.isFinal();
     }
@@ -474,11 +472,11 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         final Set<String> toRemove = new HashSet<>();
         Settings.Builder settingsBuilder = Settings.builder();
         final Predicate<String> canUpdate = (key) -> (
-            hasFinalSetting(key) == false && // it's not a final setting
-                ((onlyDynamic == false && get(key) != null) || hasDynamicSetting(key)));
+            isFinalSetting(key) == false && // it's not a final setting
+                ((onlyDynamic == false && get(key) != null) || isDynamicSetting(key)));
         final Predicate<String> canRemove = (key) ->(// we can delete if
-            hasFinalSetting(key) == false && // it's not a final setting
-                (onlyDynamic && hasDynamicSetting(key)  // it's a dynamicSetting and we only do dynamic settings
+            isFinalSetting(key) == false && // it's not a final setting
+                (onlyDynamic && isDynamicSetting(key)  // it's a dynamicSetting and we only do dynamic settings
                 || get(key) == null && key.startsWith(ARCHIVED_SETTINGS_PREFIX) // the setting is not registered AND it's been archived
                 || (onlyDynamic == false && get(key) != null))); // if it's not dynamic AND we have a key
         for (Map.Entry<String, String> entry : toApply.getAsMap().entrySet()) {
@@ -493,7 +491,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 updates.put(entry.getKey(), entry.getValue());
                 changed = true;
             } else {
-                if (hasFinalSetting(entry.getKey())) {
+                if (isFinalSetting(entry.getKey())) {
                     throw new IllegalArgumentException("final " + type + " setting [" + entry.getKey() + "], not updateable");
                 } else {
                     throw new IllegalArgumentException(type + " setting [" + entry.getKey() + "], not dynamically updateable");

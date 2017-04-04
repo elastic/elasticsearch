@@ -149,7 +149,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 final BulkItemResponse response = index(indexRequest);
                 if (response.isFailed()) {
                     throw response.getFailure().getCause();
-                } else if (response.isFailed() == false) {
+                } else {
                     assertEquals(DocWriteResponse.Result.CREATED, response.getResponse().getResult());
                 }
             }

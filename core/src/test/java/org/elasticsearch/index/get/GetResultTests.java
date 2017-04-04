@@ -173,9 +173,9 @@ public class GetResultTests extends ESTestCase {
     }
 
     public static Tuple<GetResult, GetResult> randomGetResult(XContentType xContentType) {
-        final String index = randomAsciiOfLengthBetween(3, 10);
-        final String type = randomAsciiOfLengthBetween(3, 10);
-        final String id = randomAsciiOfLengthBetween(3, 10);
+        final String index = randomAlphaOfLengthBetween(3, 10);
+        final String type = randomAlphaOfLengthBetween(3, 10);
+        final String id = randomAlphaOfLengthBetween(3, 10);
         final long version;
         final boolean exists;
         BytesReference source = null;

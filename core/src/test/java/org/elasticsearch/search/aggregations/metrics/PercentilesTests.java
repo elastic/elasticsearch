@@ -27,7 +27,7 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
 
     @Override
     protected PercentilesAggregationBuilder createTestAggregatorBuilder() {
-        PercentilesAggregationBuilder factory = new PercentilesAggregationBuilder(randomAsciiOfLengthBetween(1, 20));
+        PercentilesAggregationBuilder factory = new PercentilesAggregationBuilder(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
             factory.keyed(randomBoolean());
         }

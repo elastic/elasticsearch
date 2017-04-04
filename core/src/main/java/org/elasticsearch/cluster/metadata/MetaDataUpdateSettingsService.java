@@ -165,10 +165,6 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         indexScopedSettings.validate(normalizedSettings);
         // never allow to change the number of shards
         for (Map.Entry<String, String> entry : normalizedSettings.getAsMap().entrySet()) {
-            if (entry.getKey().equals(IndexMetaData.SETTING_NUMBER_OF_SHARDS)) {
-                listener.onFailure(new IllegalArgumentException("can't change the number of shards for an index"));
-                return;
-            }
             Setting setting = indexScopedSettings.get(entry.getKey());
             assert setting != null; // we already validated the normalized settings
             settingsForClosedIndices.put(entry.getKey(), entry.getValue());
@@ -329,7 +325,6 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                             // No reason to pollute the settings, we didn't really upgrade anything
                             metaDataBuilder.put(IndexMetaData.builder(indexMetaData)
                                             .settings(Settings.builder().put(indexMetaData.getSettings())
-                                                            .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE, entry.getValue().v2())
                                                             .put(IndexMetaData.SETTING_VERSION_UPGRADED, entry.getValue().v1())
                                             )
                             );

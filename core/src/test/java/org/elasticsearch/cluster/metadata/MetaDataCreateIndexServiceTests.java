@@ -152,7 +152,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testShrinkIndexSettings() {
-        String indexName = randomAsciiOfLength(10);
+        String indexName = randomAlphaOfLength(10);
         List<Version> versions = Arrays.asList(VersionUtils.randomVersion(random()), VersionUtils.randomVersion(random()),
             VersionUtils.randomVersion(random()));
         versions.sort((l, r) -> Long.compare(l.id, r.id));
@@ -191,8 +191,6 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertEquals("1", builder.build().get("index.allocation.max_retries"));
         assertEquals(version, builder.build().getAsVersion("index.version.created", null));
         assertEquals(upgraded, builder.build().getAsVersion("index.version.upgraded", null));
-        assertEquals(minCompat.luceneVersion.toString(), builder.build().get("index.version.minimum_compatible", null));
-
     }
 
     private DiscoveryNode newNode(String nodeId) {

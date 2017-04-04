@@ -44,7 +44,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("value", "value1");
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         SetProcessor setProcessor = factory.create(null, processorTag, config);
         assertThat(setProcessor.getTag(), equalTo(processorTag));
         assertThat(setProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
@@ -58,7 +58,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         config.put("field", "field1");
         config.put("value", "value1");
         config.put("override", overrideEnabled);
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         SetProcessor setProcessor = factory.create(null, processorTag, config);
         assertThat(setProcessor.getTag(), equalTo(processorTag));
         assertThat(setProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
@@ -105,7 +105,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("value", "value1");
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, config));
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
         assertThat(exception.getHeader("processor_tag").get(0), equalTo(processorTag));

@@ -71,9 +71,9 @@ public class BulkResponseTests extends ESTestCase {
                 bulkItems[i] = new BulkItemResponse(i, opType, randomDocWriteResponses.v1());
                 expectedBulkItems[i] = new BulkItemResponse(i, opType, randomDocWriteResponses.v2());
             } else {
-                String index = randomAsciiOfLength(5);
-                String type = randomAsciiOfLength(5);
-                String id = randomAsciiOfLength(5);
+                String index = randomAlphaOfLength(5);
+                String type = randomAlphaOfLength(5);
+                String id = randomAlphaOfLength(5);
 
                 Tuple<Throwable, ElasticsearchException> failures = randomExceptions();
 

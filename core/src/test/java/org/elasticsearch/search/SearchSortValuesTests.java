@@ -52,7 +52,7 @@ public class SearchSortValuesTests extends ESTestCase {
         valueSuppliers.add(() -> randomByte());
         valueSuppliers.add(() -> randomShort());
         valueSuppliers.add(() -> randomBoolean());
-        valueSuppliers.add(() -> frequently() ? randomAsciiOfLengthBetween(1, 30) : randomRealisticUnicodeOfCodepointLength(30));
+        valueSuppliers.add(() -> frequently() ? randomAlphaOfLengthBetween(1, 30) : randomRealisticUnicodeOfCodepointLength(30));
 
         int size = randomIntBetween(1, 20);
         Object[] values = new Object[size];

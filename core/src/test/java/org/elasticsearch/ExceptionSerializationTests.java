@@ -43,6 +43,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
@@ -645,8 +646,8 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testNoLongerPrimaryShardException() throws IOException {
-        ShardId shardId = new ShardId(new Index(randomAsciiOfLength(4), randomAsciiOfLength(4)), randomIntBetween(0, Integer.MAX_VALUE));
-        String msg = randomAsciiOfLength(4);
+        ShardId shardId = new ShardId(new Index(randomAlphaOfLength(4), randomAlphaOfLength(4)), randomIntBetween(0, Integer.MAX_VALUE));
+        String msg = randomAlphaOfLength(4);
         ShardStateAction.NoLongerPrimaryShardException ex = serialize(new ShardStateAction.NoLongerPrimaryShardException(shardId, msg));
         assertEquals(shardId, ex.getShardId());
         assertEquals(msg, ex.getMessage());
@@ -680,15 +681,15 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testThatIdsArePositive() {
-        for (ElasticsearchException.ElasticsearchExceptionHandle handle : ElasticsearchException.ElasticsearchExceptionHandle.values()) {
-            assertThat("negative id", handle.id, greaterThanOrEqualTo(0));
+        for (final int id : ElasticsearchException.ids()) {
+            assertThat("negative id", id, greaterThanOrEqualTo(0));
         }
     }
 
     public void testThatIdsAreUnique() {
-        Set<Integer> ids = new HashSet<>();
-        for (ElasticsearchException.ElasticsearchExceptionHandle handle : ElasticsearchException.ElasticsearchExceptionHandle.values()) {
-            assertTrue("duplicate id", ids.add(handle.id));
+        final Set<Integer> ids = new HashSet<>();
+        for (final int id: ElasticsearchException.ids()) {
+            assertTrue("duplicate id", ids.add(id));
         }
     }
 
@@ -848,8 +849,9 @@ public class ExceptionSerializationTests extends ESTestCase {
             }
         }
 
-        for (ElasticsearchException.ElasticsearchExceptionHandle handle : ElasticsearchException.ElasticsearchExceptionHandle.values()) {
-            assertEquals((int) reverse.get(handle.exceptionClass), handle.id);
+        for (final Tuple<Integer, Class<? extends ElasticsearchException>> tuple : ElasticsearchException.classes()) {
+            assertNotNull(tuple.v1());
+            assertEquals((int) reverse.get(tuple.v2()), (int)tuple.v1());
         }
 
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

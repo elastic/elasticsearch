@@ -179,7 +179,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         assertThat(loggerConfigs, hasKey("bar"));
         assertThat(loggerConfigs.get("bar").getLevel(), equalTo(barLevel));
 
-        assertThat(ctx.getLogger(randomAsciiOfLength(16)).getLevel(), equalTo(rootLevel));
+        assertThat(ctx.getLogger(randomAlphaOfLength(16)).getLevel(), equalTo(rootLevel));
     }
 
 }

@@ -62,7 +62,7 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
         List<SignificantStringTerms.Bucket> buckets = new ArrayList<>(numBuckets);
         Set<BytesRef> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
-            BytesRef term = randomValueOtherThanMany(b -> terms.add(b) == false, () -> new BytesRef(randomAsciiOfLength(10)));
+            BytesRef term = randomValueOtherThanMany(b -> terms.add(b) == false, () -> new BytesRef(randomAlphaOfLength(10)));
 
             int subsetDf = randomIntBetween(1, 10);
             int supersetDf = randomIntBetween(subsetDf, 20);

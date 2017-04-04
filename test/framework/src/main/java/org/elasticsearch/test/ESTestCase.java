@@ -572,11 +572,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         return RandomPicks.randomFrom(random, collection);
     }
 
-    public static String randomAsciiOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
+    public static String randomAlphaOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
         return RandomizedTest.randomAsciiOfLengthBetween(minCodeUnits, maxCodeUnits);
     }
 
-    public static String randomAsciiOfLength(int codeUnits) {
+    public static String randomAlphaOfLength(int codeUnits) {
         return RandomizedTest.randomAsciiOfLength(codeUnits);
     }
 

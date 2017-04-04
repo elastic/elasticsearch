@@ -27,9 +27,9 @@
       version: " - 5.0.99"
       reason: strict stats handling does not exist in 5.0
   - do:
+      catch: request
       nodes.stats:
         metric: [ transprot ]
-        ignore: 400
 
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }

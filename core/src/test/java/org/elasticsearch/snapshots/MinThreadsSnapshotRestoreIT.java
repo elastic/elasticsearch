@@ -59,7 +59,7 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         assertAcked(client().admin().cluster().preparePutRepository(repo).setType("mock").setSettings(
             Settings.builder()
                 .put("location", randomRepoPath())
-                .put("random", randomAsciiOfLength(10))
+                .put("random", randomAlphaOfLength(10))
                 .put("wait_after_unblock", 200)).get());
 
         logger.info("--> snapshot twice");
@@ -113,7 +113,7 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         assertAcked(client().admin().cluster().preparePutRepository(repo).setType("mock").setSettings(
             Settings.builder()
                 .put("location", randomRepoPath())
-                .put("random", randomAsciiOfLength(10))
+                .put("random", randomAlphaOfLength(10))
                 .put("wait_after_unblock", 200)).get());
 
         logger.info("--> snapshot");
@@ -160,7 +160,7 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         assertAcked(client().admin().cluster().preparePutRepository(repo).setType("mock").setSettings(
             Settings.builder()
                 .put("location", randomRepoPath())
-                .put("random", randomAsciiOfLength(10))
+                .put("random", randomAlphaOfLength(10))
                 .put("wait_after_unblock", 200)).get());
 
         logger.info("--> snapshot");

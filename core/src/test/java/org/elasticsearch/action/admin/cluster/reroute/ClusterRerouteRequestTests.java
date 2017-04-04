@@ -59,16 +59,16 @@ public class ClusterRerouteRequestTests extends ESTestCase {
     private static final int ROUNDS = 30;
     private final List<Supplier<AllocationCommand>> RANDOM_COMMAND_GENERATORS = unmodifiableList(
             Arrays.<Supplier<AllocationCommand>> asList(
-            () -> new AllocateReplicaAllocationCommand(randomAsciiOfLengthBetween(2, 10), between(0, 1000),
-                    randomAsciiOfLengthBetween(2, 10)),
-            () -> new AllocateEmptyPrimaryAllocationCommand(randomAsciiOfLengthBetween(2, 10), between(0, 1000),
-                    randomAsciiOfLengthBetween(2, 10), randomBoolean()),
-            () -> new AllocateStalePrimaryAllocationCommand(randomAsciiOfLengthBetween(2, 10), between(0, 1000),
-                    randomAsciiOfLengthBetween(2, 10), randomBoolean()),
-            () -> new CancelAllocationCommand(randomAsciiOfLengthBetween(2, 10), between(0, 1000),
-                    randomAsciiOfLengthBetween(2, 10), randomBoolean()),
-            () -> new MoveAllocationCommand(randomAsciiOfLengthBetween(2, 10), between(0, 1000),
-                    randomAsciiOfLengthBetween(2, 10), randomAsciiOfLengthBetween(2, 10))));
+            () -> new AllocateReplicaAllocationCommand(randomAlphaOfLengthBetween(2, 10), between(0, 1000),
+                    randomAlphaOfLengthBetween(2, 10)),
+            () -> new AllocateEmptyPrimaryAllocationCommand(randomAlphaOfLengthBetween(2, 10), between(0, 1000),
+                    randomAlphaOfLengthBetween(2, 10), randomBoolean()),
+            () -> new AllocateStalePrimaryAllocationCommand(randomAlphaOfLengthBetween(2, 10), between(0, 1000),
+                    randomAlphaOfLengthBetween(2, 10), randomBoolean()),
+            () -> new CancelAllocationCommand(randomAlphaOfLengthBetween(2, 10), between(0, 1000),
+                    randomAlphaOfLengthBetween(2, 10), randomBoolean()),
+            () -> new MoveAllocationCommand(randomAlphaOfLengthBetween(2, 10), between(0, 1000),
+                    randomAlphaOfLengthBetween(2, 10), randomAlphaOfLengthBetween(2, 10))));
     private final NamedWriteableRegistry namedWriteableRegistry;
 
     public ClusterRerouteRequestTests() {

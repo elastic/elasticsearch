@@ -21,10 +21,12 @@ package org.elasticsearch.action.update;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -43,16 +45,20 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,6 +66,66 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class UpdateRequestTests extends ESTestCase {
+
+    private UpdateHelper updateHelper;
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        final Path genericConfigFolder = createTempDir();
+        final Settings baseSettings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
+                .build();
+        final Environment environment = new Environment(baseSettings);
+        final Map<String, Function<Map<String, Object>, Object>> scripts =  new HashMap<>();
+        scripts.put(
+                "ctx._source.update_timestamp = ctx._now",
+                vars -> {
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
+                    source.put("update_timestamp", ctx.get("_now"));
+                    return null;
+                });
+        scripts.put(
+                "ctx._timestamp = ctx._now",
+                vars -> {
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                    ctx.put("_timestamp", ctx.get("_now"));
+                    return null;
+                });
+        scripts.put(
+                "ctx.op = delete",
+                vars -> {
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                    ctx.put("op", "delete");
+                    return null;
+                });
+        scripts.put("return", vars -> null);
+        final ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(emptyList());
+        final MockScriptEngine engine = new MockScriptEngine("mock", scripts);
+        final ScriptEngineRegistry scriptEngineRegistry =
+                new ScriptEngineRegistry(singletonList(engine));
+
+        final ScriptSettings scriptSettings =
+                new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        final ResourceWatcherService watcherService =
+                new ResourceWatcherService(baseSettings, null);
+        ScriptService scriptService = new ScriptService(
+                baseSettings,
+                environment,
+                watcherService,
+                scriptEngineRegistry,
+                scriptContextRegistry,
+                scriptSettings);
+        final Settings settings = settings(Version.CURRENT).build();
+
+        updateHelper = new UpdateHelper(settings, scriptService);
+    }
 
     public void testFromXContent() throws Exception {
         UpdateRequest request = new UpdateRequest("test", "type", "1");
@@ -74,7 +140,7 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(script.getType(), equalTo(ScriptType.INLINE));
         assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         Map<String, Object> params = script.getParams();
-        assertThat(params, equalTo(Collections.emptyMap()));
+        assertThat(params, equalTo(emptyMap()));
 
         // simple verbose script
         request.fromXContent(createParser(XContentFactory.jsonBuilder().startObject()
@@ -86,7 +152,7 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(script.getType(), equalTo(ScriptType.INLINE));
         assertThat(script.getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         params = script.getParams();
-        assertThat(params, equalTo(Collections.emptyMap()));
+        assertThat(params, equalTo(emptyMap()));
 
         // script with params
         request = new UpdateRequest("test", "type", "1");
@@ -258,39 +324,6 @@ public class UpdateRequestTests extends ESTestCase {
     }
 
     public void testNowInScript() throws IOException {
-        Path genericConfigFolder = createTempDir();
-        Settings baseSettings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
-            .build();
-        Environment environment = new Environment(baseSettings);
-        Map<String, Function<Map<String, Object>, Object>> scripts =  new HashMap<>();
-        scripts.put("ctx._source.update_timestamp = ctx._now",
-            (vars) -> {
-                Map<String, Object> vars2 = vars;
-                @SuppressWarnings("unchecked")
-                Map<String, Object> ctx = (Map<String, Object>) vars2.get("ctx");
-                @SuppressWarnings("unchecked")
-                Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
-                source.put("update_timestamp", ctx.get("_now"));
-                return null;});
-        scripts.put("ctx._timestamp = ctx._now",
-            (vars) -> {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
-                ctx.put("_timestamp", ctx.get("_now"));
-                return null;});
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new MockScriptEngine("mock",
-            scripts)));
-
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        ScriptService scriptService = new ScriptService(baseSettings, environment,
-            new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings);
-        Settings settings = settings(Version.CURRENT).build();
-
-        UpdateHelper updateHelper = new UpdateHelper(settings, scriptService);
-
         // We just upsert one document with now() using a script
         IndexRequest indexRequest = new IndexRequest("test", "type1", "2")
             .source(jsonBuilder().startObject().field("foo", "bar").endObject());
@@ -298,7 +331,7 @@ public class UpdateRequestTests extends ESTestCase {
         {
             UpdateRequest updateRequest = new UpdateRequest("test", "type1", "2")
                 .upsert(indexRequest)
-                .script(new Script(ScriptType.INLINE, "mock", "ctx._source.update_timestamp = ctx._now", Collections.emptyMap()))
+                .script(mockInlineScript("ctx._source.update_timestamp = ctx._now"))
                 .scriptedUpsert(true);
             long nowInMillis = randomNonNegativeLong();
             // We simulate that the document is not existing yet
@@ -307,12 +340,12 @@ public class UpdateRequestTests extends ESTestCase {
             Streamable action = result.action();
             assertThat(action, instanceOf(IndexRequest.class));
             IndexRequest indexAction = (IndexRequest) action;
-            assertEquals(indexAction.sourceAsMap().get("update_timestamp"), nowInMillis);
+            assertEquals(nowInMillis, indexAction.sourceAsMap().get("update_timestamp"));
         }
         {
             UpdateRequest updateRequest = new UpdateRequest("test", "type1", "2")
                 .upsert(indexRequest)
-                .script(new Script(ScriptType.INLINE, "mock", "ctx._timestamp = ctx._now", Collections.emptyMap()))
+                .script(mockInlineScript("ctx._timestamp = ctx._now"))
                 .scriptedUpsert(true);
             // We simulate that the document is not existing yet
             GetResult getResult = new GetResult("test", "type1", "2", 0, true, new BytesArray("{}"), null);
@@ -320,6 +353,57 @@ public class UpdateRequestTests extends ESTestCase {
             Streamable action = result.action();
             assertThat(action, instanceOf(IndexRequest.class));
         }
+    }
+
+    public void testIndexTimeout() {
+        final GetResult getResult =
+                new GetResult("test", "type", "1", 0, true, new BytesArray("{\"f\":\"v\"}"), null);
+        final UpdateRequest updateRequest =
+                new UpdateRequest("test", "type", "1")
+                        .script(mockInlineScript("return"))
+                        .timeout(randomTimeValue());
+        runTimeoutTest(getResult, updateRequest);
+    }
+
+    public void testDeleteTimeout() {
+        final GetResult getResult =
+                new GetResult("test", "type", "1", 0, true, new BytesArray("{\"f\":\"v\"}"), null);
+        final UpdateRequest updateRequest =
+                new UpdateRequest("test", "type", "1")
+                        .script(mockInlineScript("ctx.op = delete"))
+                        .timeout(randomTimeValue());
+        runTimeoutTest(getResult, updateRequest);
+    }
+
+    public void testUpsertTimeout() throws IOException {
+        final boolean exists = randomBoolean();
+        final BytesReference source = exists ? new BytesArray("{\"f\":\"v\"}") : null;
+        final GetResult getResult = new GetResult("test", "type", "1", 0, exists, source, null);
+        final XContentBuilder sourceBuilder = jsonBuilder();
+        sourceBuilder.startObject();
+        {
+            sourceBuilder.field("f", "v");
+        }
+        sourceBuilder.endObject();
+        final IndexRequest upsert = new IndexRequest("test", "type", "1").source(sourceBuilder);
+        final UpdateRequest updateRequest =
+                new UpdateRequest("test", "type", "1")
+                .upsert(upsert)
+                .script(mockInlineScript("return"))
+                .timeout(randomTimeValue());
+        runTimeoutTest(getResult, updateRequest);
+    }
+
+    private void runTimeoutTest(final GetResult getResult, final UpdateRequest updateRequest) {
+        final UpdateHelper.Result result = updateHelper.prepare(
+                new ShardId("test", "", 0),
+                updateRequest,
+                getResult,
+                ESTestCase::randomNonNegativeLong);
+        final Streamable action = result.action();
+        assertThat(action, instanceOf(ReplicationRequest.class));
+        final ReplicationRequest request = (ReplicationRequest) action;
+        assertThat(request.timeout(), equalTo(updateRequest.timeout()));
     }
 
     public void testToAndFromXContent() throws IOException {
@@ -333,12 +417,12 @@ public class UpdateRequestTests extends ESTestCase {
             updateRequest.docAsUpsert(randomBoolean());
         } else {
             ScriptType scriptType = randomFrom(ScriptType.values());
-            String scriptLang = (scriptType != ScriptType.STORED) ? randomAsciiOfLength(10) : null;
-            String scriptIdOrCode = randomAsciiOfLength(10);
+            String scriptLang = (scriptType != ScriptType.STORED) ? randomAlphaOfLength(10) : null;
+            String scriptIdOrCode = randomAlphaOfLength(10);
             int nbScriptParams = randomIntBetween(0, 5);
             Map<String, Object> scriptParams = new HashMap<>(nbScriptParams);
             for (int i = 0; i < nbScriptParams; i++) {
-                scriptParams.put(randomAsciiOfLength(5), randomAsciiOfLength(5));
+                scriptParams.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
             updateRequest.script(new Script(scriptType, scriptLang, scriptIdOrCode, scriptParams));
             updateRequest.scriptedUpsert(randomBoolean());
@@ -351,7 +435,7 @@ public class UpdateRequestTests extends ESTestCase {
         if (randomBoolean()) {
             String[] fields = new String[randomIntBetween(0, 5)];
             for (int i = 0; i < fields.length; i++) {
-                fields[i] = randomAsciiOfLength(5);
+                fields[i] = randomAlphaOfLength(5);
             }
             updateRequest.fields(fields);
         }
@@ -361,11 +445,11 @@ public class UpdateRequestTests extends ESTestCase {
             } else {
                 String[] includes = new String[randomIntBetween(0, 5)];
                 for (int i = 0; i < includes.length; i++) {
-                    includes[i] = randomAsciiOfLength(5);
+                    includes[i] = randomAlphaOfLength(5);
                 }
                 String[] excludes = new String[randomIntBetween(0, 5)];
                 for (int i = 0; i < excludes.length; i++) {
-                    excludes[i] = randomAsciiOfLength(5);
+                    excludes[i] = randomAlphaOfLength(5);
                 }
                 if (randomBoolean()) {
                     updateRequest.fetchSource(includes, excludes);

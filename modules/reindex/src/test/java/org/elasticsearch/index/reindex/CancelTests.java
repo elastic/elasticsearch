@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestTestPlugin;
@@ -160,7 +161,14 @@ public class CancelTests extends ReindexTestCase {
         });
 
         // And check the status of the response
-        BulkByScrollResponse response = future.get();
+        BulkByScrollResponse response;
+        try {
+            response = future.get(30, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            String tasks = client().admin().cluster().prepareListTasks().setParentTaskId(mainTask.getTaskId())
+                        .setDetailed(true).get().toString();
+            throw new RuntimeException("Exception while waiting for the response. Running tasks: " + tasks, e);
+        }
         assertThat(response.getReasonCancelled(), equalTo("by user request"));
         assertThat(response.getBulkFailures(), emptyIterable());
         assertThat(response.getSearchFailures(), emptyIterable());
@@ -216,9 +224,10 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testDeleteByQueryCancel() throws Exception {
-        testCancel(DeleteByQueryAction.NAME, deleteByQuery().source(INDEX), (response, total, modified) -> {
-            assertThat(response, matcher().deleted(modified).reasonCancelled(equalTo("by user request")));
-            assertHitCount(client().prepareSearch(INDEX).setSize(0).get(), total - modified);
+        testCancel(DeleteByQueryAction.NAME, deleteByQuery().source(INDEX).filter(QueryBuilders.matchAllQuery()),
+            (response, total, modified) -> {
+                assertThat(response, matcher().deleted(modified).reasonCancelled(equalTo("by user request")));
+                assertHitCount(client().prepareSearch(INDEX).setSize(0).get(), total - modified);
         }, equalTo("delete-by-query [" + INDEX + "]"));
     }
 
@@ -250,9 +259,10 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testDeleteByQueryCancelWithWorkers() throws Exception {
-        testCancel(DeleteByQueryAction.NAME, deleteByQuery().source(INDEX).setSlices(5), (response, total, modified) -> {
-            assertThat(response, matcher().deleted(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
-            assertHitCount(client().prepareSearch(INDEX).setSize(0).get(), total - modified);
+        testCancel(DeleteByQueryAction.NAME, deleteByQuery().source(INDEX).filter(QueryBuilders.matchAllQuery()).setSlices(5),
+            (response, total, modified) -> {
+                assertThat(response, matcher().deleted(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
+                assertHitCount(client().prepareSearch(INDEX).setSize(0).get(), total - modified);
         }, equalTo("delete-by-query [" + INDEX + "]"));
     }
 

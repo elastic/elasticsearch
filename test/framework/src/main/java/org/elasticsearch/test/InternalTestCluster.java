@@ -64,6 +64,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
@@ -83,8 +84,8 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.node.NodeService;
+import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
@@ -129,6 +130,7 @@ import java.util.stream.Stream;
 
 import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
+import static org.elasticsearch.discovery.DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
@@ -589,14 +591,18 @@ public final class InternalTestCluster extends TestCluster {
             .put("node.name", name)
             .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), seed);
 
-        if (autoManageMinMasterNodes) {
+        final boolean usingSingleNodeDiscovery = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(finalSettings.build()).equals("single-node");
+        if (!usingSingleNodeDiscovery && autoManageMinMasterNodes) {
             assert finalSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null :
                 "min master nodes may not be set when auto managed";
+            assert finalSettings.get(INITIAL_STATE_TIMEOUT_SETTING.getKey()) == null :
+                "automatically managing min master nodes require nodes to complete a join cycle" +
+                    " when starting";
             finalSettings
                 // don't wait too long not to slow down tests
                 .put(ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING.getKey(), "5s")
                 .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), defaultMinMasterNodes);
-        } else if (finalSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null) {
+        } else if (!usingSingleNodeDiscovery && finalSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null) {
             throw new IllegalArgumentException(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " must be configured");
         }
         MockNode node = new MockNode(finalSettings.build(), plugins);
@@ -1079,7 +1085,7 @@ public final class InternalTestCluster extends TestCluster {
                 }
                 return true;
             }, 30, TimeUnit.SECONDS) == false) {
-                throw new IllegalStateException("cluster failed to from with expected nodes " + expectedNodes + " and actual nodes " +
+                throw new IllegalStateException("cluster failed to form with expected nodes " + expectedNodes + " and actual nodes " +
                     client.admin().cluster().prepareState().get().getState().nodes());
             }
         } catch (InterruptedException e) {

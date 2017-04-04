@@ -26,8 +26,10 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -136,7 +138,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
                 // nodes can be tagged with node.attr.remote_gateway: true to allow a node to be a gateway node for
                 // cross cluster search
                 String attribute = REMOTE_NODE_ATTRIBUTE.get(settings);
-                nodePredicate = nodePredicate.and((node) -> Boolean.getBoolean(node.getAttributes().getOrDefault(attribute, "false")));
+                nodePredicate = nodePredicate.and((node) -> Booleans.parseBoolean(node.getAttributes().getOrDefault(attribute, "false")));
             }
             remoteClusters.putAll(this.remoteClusters);
             for (Map.Entry<String, List<DiscoveryNode>> entry : seeds.entrySet()) {
@@ -183,6 +185,10 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
      */
     boolean isCrossClusterSearchEnabled() {
         return remoteClusters.isEmpty() == false;
+    }
+
+    boolean isRemoteNodeConnected(final String remoteCluster, final DiscoveryNode node) {
+        return remoteClusters.get(remoteCluster).isNodeConnected(node);
     }
 
     /**
@@ -326,13 +332,20 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
     }
 
     void updateRemoteCluster(String clusterAlias, List<InetSocketAddress> addresses) {
-        updateRemoteClusters(Collections.singletonMap(clusterAlias, addresses.stream().map(address -> {
-                TransportAddress transportAddress = new TransportAddress(address);
-                return new DiscoveryNode(clusterAlias + "#" + transportAddress.toString(),
-                    transportAddress,
-                    Version.CURRENT.minimumCompatibilityVersion());
-            }).collect(Collectors.toList())),
-            ActionListener.wrap((x) -> {}, (x) -> {}) );
+        updateRemoteCluster(clusterAlias, addresses, ActionListener.wrap((x) -> {}, (x) -> {}));
+    }
+
+    void updateRemoteCluster(
+            final String clusterAlias,
+            final List<InetSocketAddress> addresses,
+            final ActionListener<Void> connectionListener) {
+        final List<DiscoveryNode> nodes = addresses.stream().map(address -> {
+            final TransportAddress transportAddress = new TransportAddress(address);
+            final String id = clusterAlias + "#" + transportAddress.toString();
+            final Version version = Version.CURRENT.minimumCompatibilityVersion();
+            return new DiscoveryNode(id, transportAddress, version);
+        }).collect(Collectors.toList());
+        updateRemoteClusters(Collections.singletonMap(clusterAlias, nodes), connectionListener);
     }
 
     static Map<String, List<DiscoveryNode>> buildRemoteClustersSeeds(Settings settings) {

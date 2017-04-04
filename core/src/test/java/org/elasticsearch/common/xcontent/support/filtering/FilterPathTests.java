@@ -202,7 +202,7 @@ public class FilterPathTests extends ESTestCase {
         assertThat(filterPath.isSimpleWildcard(), is(true));
         assertThat(filterPath.getSegment(), equalTo("*"));
 
-        FilterPath next = filterPath.matchProperty(randomAsciiOfLength(2));
+        FilterPath next = filterPath.matchProperty(randomAlphaOfLength(2));
         assertNotNull(next);
         assertSame(next, FilterPath.EMPTY);
     }
@@ -246,7 +246,7 @@ public class FilterPathTests extends ESTestCase {
         assertThat(filterPath.isDoubleWildcard(), is(true));
         assertThat(filterPath.getSegment(), equalTo("**"));
 
-        FilterPath next = filterPath.matchProperty(randomAsciiOfLength(2));
+        FilterPath next = filterPath.matchProperty(randomAlphaOfLength(2));
         assertNotNull(next);
         assertSame(next, FilterPath.EMPTY);
     }
@@ -263,7 +263,7 @@ public class FilterPathTests extends ESTestCase {
         assertThat(filterPath.matches(), is(false));
         assertThat(filterPath.getSegment(), equalTo("**"));
 
-        FilterPath next = filterPath.matchProperty(randomAsciiOfLength(2));
+        FilterPath next = filterPath.matchProperty(randomAlphaOfLength(2));
         assertNotNull(next);
         assertThat(next.matches(), is(false));
         assertThat(next.getSegment(), equalTo("bar"));

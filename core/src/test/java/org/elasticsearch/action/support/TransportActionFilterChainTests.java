@@ -41,8 +41,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
-import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -69,7 +67,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
             filters.add(new RequestTestFilter(order, randomFrom(RequestOperation.values())));
         }
 
-        String actionName = randomAsciiOfLength(randomInt(30));
+        String actionName = randomAlphaOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
         TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null, new TaskManager(Settings.EMPTY)) {
             @Override
@@ -153,7 +151,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         Set<ActionFilter> filters = new HashSet<>();
         filters.add(testFilter);
 
-        String actionName = randomAsciiOfLength(randomInt(30));
+        String actionName = randomAlphaOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
         TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(Settings.EMPTY, actionName, null, actionFilters, null, new TaskManager(Settings.EMPTY)) {
             @Override

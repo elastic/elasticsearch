@@ -61,8 +61,8 @@ public class SearchHitTests extends ESTestCase {
 
     public static SearchHit createTestItem(boolean withOptionalInnerHits) {
         int internalId = randomInt();
-        String uid = randomAsciiOfLength(10);
-        Text type = new Text(randomAsciiOfLengthBetween(5, 10));
+        String uid = randomAlphaOfLength(10);
+        Text type = new Text(randomAlphaOfLengthBetween(5, 10));
         NestedIdentity nestedIdentity = null;
         if (randomBoolean()) {
             nestedIdentity = NestedIdentityTests.createTestItem(randomIntBetween(0, 2));
@@ -77,7 +77,7 @@ public class SearchHitTests extends ESTestCase {
                     String metaField = randomFrom(META_FIELDS);
                     fields.put(metaField, new SearchHitField(metaField, values.v1()));
                 } else {
-                    String fieldName = randomAsciiOfLengthBetween(5, 10);
+                    String fieldName = randomAlphaOfLengthBetween(5, 10);
                     fields.put(fieldName, new SearchHitField(fieldName, values.v1()));
                 }
             }
@@ -103,7 +103,7 @@ public class SearchHitTests extends ESTestCase {
             int size = randomIntBetween(0, 5);
             Map<String, HighlightField> highlightFields = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
-                highlightFields.put(randomAsciiOfLength(5), HighlightFieldTests.createTestItem());
+                highlightFields.put(randomAlphaOfLength(5), HighlightFieldTests.createTestItem());
             }
             hit.highlightFields(highlightFields);
         }
@@ -111,7 +111,7 @@ public class SearchHitTests extends ESTestCase {
             int size = randomIntBetween(0, 5);
             String[] matchedQueries = new String[size];
             for (int i = 0; i < size; i++) {
-                matchedQueries[i] = randomAsciiOfLength(5);
+                matchedQueries[i] = randomAlphaOfLength(5);
             }
             hit.matchedQueries(matchedQueries);
         }
@@ -122,13 +122,13 @@ public class SearchHitTests extends ESTestCase {
             int innerHitsSize = randomIntBetween(0, 3);
             Map<String, SearchHits> innerHits = new HashMap<>(innerHitsSize);
             for (int i = 0; i < innerHitsSize; i++) {
-                innerHits.put(randomAsciiOfLength(5), SearchHitsTests.createTestItem());
+                innerHits.put(randomAlphaOfLength(5), SearchHitsTests.createTestItem());
             }
             hit.setInnerHits(innerHits);
         }
         if (randomBoolean()) {
-            hit.shard(new SearchShardTarget(randomAsciiOfLengthBetween(5, 10),
-                    new ShardId(new Index(randomAsciiOfLengthBetween(5, 10), randomAsciiOfLengthBetween(5, 10)), randomInt())));
+            hit.shard(new SearchShardTarget(randomAlphaOfLengthBetween(5, 10),
+                    new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)), randomInt())));
         }
         return hit;
     }
@@ -147,6 +147,24 @@ public class SearchHitTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+    }
+
+    /**
+     * When e.g. with "stored_fields": "_none_", only "_index" and "_score" are returned.
+     */
+    public void testFromXContentWithoutTypeAndId() throws IOException {
+        String hit = "{\"_index\": \"my_index\", \"_score\": 1}";
+        SearchHit parsed;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, hit)) {
+            parser.nextToken(); // jump to first START_OBJECT
+            parsed = SearchHit.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+        assertEquals("my_index", parsed.getIndex());
+        assertEquals(1, parsed.getScore(), Float.MIN_VALUE);
+        assertNull(parsed.getType());
+        assertNull(parsed.getId());
     }
 
     public void testToXContent() throws IOException {
@@ -216,7 +234,7 @@ public class SearchHitTests extends ESTestCase {
     }
 
     private static Explanation createExplanation(int depth) {
-        String description = randomAsciiOfLengthBetween(5, 20);
+        String description = randomAlphaOfLengthBetween(5, 20);
         float value = randomFloat();
         List<Explanation> details = new ArrayList<>();
         if (depth > 0) {

@@ -79,7 +79,9 @@ POST my_index/_analyze
 }
 ----------------------------
 // CONSOLE
-// TEST[skip:Test interprets $1 as a stashed variable]
+// TEST[s/\$1//]
+// the test framework doesn't like the $1 so we just throw it away rather than
+// try to get it to work properly. At least we are still testing the charfilter.
 
 The above example produces the following term:
 
@@ -87,7 +89,6 @@ The above example produces the following term:
 ---------------------------
 [ My, credit, card, is 123_456_789 ]
 ---------------------------
-
 
 WARNING: Using a replacement string that changes the length of the original
 text will work for search purposes, but will result in incorrect highlighting,
@@ -193,7 +194,7 @@ POST my_index/_analyze
 
 The above returns the following terms:
 
-[source,js]
+[source,text]
 ----------------------------
 [ the, foo, bar, baz, method ]
 ----------------------------

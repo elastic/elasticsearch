@@ -105,7 +105,7 @@ public class BulkByScrollTaskStatusTests extends ESTestCase {
                         return null;
                     }
                     if (randomBoolean()) {
-                        return new BulkByScrollTask.StatusOrException(new ElasticsearchException(randomAsciiOfLength(5)));
+                        return new BulkByScrollTask.StatusOrException(new ElasticsearchException(randomAlphaOfLength(5)));
                     }
                     return new BulkByScrollTask.StatusOrException(randomWorkingStatus(i));
                 })

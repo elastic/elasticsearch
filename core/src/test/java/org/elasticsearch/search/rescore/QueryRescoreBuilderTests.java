@@ -135,7 +135,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         final long nowInMillis = randomNonNegativeLong();
         Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAsciiOfLengthBetween(1, 10), indexSettings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
         QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
                 null, null, () -> nowInMillis) {
@@ -303,7 +303,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
      */
     public static QueryRescorerBuilder randomRescoreBuilder() {
         QueryBuilder queryBuilder = new MatchAllQueryBuilder().boost(randomFloat())
-                .queryName(randomAsciiOfLength(20));
+                .queryName(randomAlphaOfLength(20));
         org.elasticsearch.search.rescore.QueryRescorerBuilder rescorer = new
                 org.elasticsearch.search.rescore.QueryRescorerBuilder(queryBuilder);
         if (randomBoolean()) {

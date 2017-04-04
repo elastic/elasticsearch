@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
@@ -40,6 +41,7 @@ import org.elasticsearch.transport.TransportSettings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -347,15 +349,19 @@ public class InternalTestClusterTests extends ESTestCase {
     public void testDifferentRolesMaintainPathOnRestart() throws Exception {
         final Path baseDir = createTempDir();
         final int numNodes = 5;
-        InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, true, true, 0, 0, "test",
-            new NodeConfigurationSource() {
+        InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false,
+            false, 0, 0, "test", new NodeConfigurationSource() {
                 @Override
                 public Settings nodeSettings(int nodeOrdinal) {
                     return Settings.builder()
                         .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), numNodes)
                         .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
-                        .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0).build();
+                        .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0)
+                        // speedup join timeout as setting initial state timeout to 0 makes split
+                        // elections more likely
+                        .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "3s")
+                        .build();
                 }
 
                 @Override
@@ -365,22 +371,32 @@ public class InternalTestClusterTests extends ESTestCase {
                 }
             }, 0, randomBoolean(), "", Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class), Function.identity());
         cluster.beforeTest(random(), 0.0);
+        List<DiscoveryNode.Role> roles = new ArrayList<>();
+        for (int i = 0; i < numNodes; i++) {
+            final DiscoveryNode.Role role = i == numNodes - 1 && roles.contains(MASTER) == false ?
+                MASTER : // last node and still no master
+                randomFrom(MASTER, DiscoveryNode.Role.DATA, DiscoveryNode.Role.INGEST);
+            roles.add(role);
+        }
+
+        final Settings minMasterNodes = Settings.builder()
+            .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(),
+                roles.stream().filter(role -> role == MASTER).count() / 2 + 1
+            ).build();
         try {
             Map<DiscoveryNode.Role, Set<String>> pathsPerRole = new HashMap<>();
             for (int i = 0; i < numNodes; i++) {
-                final DiscoveryNode.Role role = i == numNodes -1 && pathsPerRole.containsKey(MASTER) == false ?
-                    MASTER : // last noe and still no master ofr the cluster
-                    randomFrom(MASTER, DiscoveryNode.Role.DATA, DiscoveryNode.Role.INGEST);
+                final DiscoveryNode.Role role = roles.get(i);
                 final String node;
                 switch (role) {
                     case MASTER:
-                        node = cluster.startMasterOnlyNode(Settings.EMPTY);
+                        node = cluster.startMasterOnlyNode(minMasterNodes);
                         break;
                     case DATA:
-                        node = cluster.startDataOnlyNode(Settings.EMPTY);
+                        node = cluster.startDataOnlyNode(minMasterNodes);
                         break;
                     case INGEST:
-                        node = cluster.startCoordinatingOnlyNode(Settings.EMPTY);
+                        node = cluster.startCoordinatingOnlyNode(minMasterNodes);
                         break;
                     default:
                         throw new IllegalStateException("get your story straight");

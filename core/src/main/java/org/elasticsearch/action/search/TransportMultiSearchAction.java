@@ -56,7 +56,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         this.clusterService = clusterService;
         this.searchAction = searchAction;
         this.availableProcessors = EsExecutors.numberOfProcessors(settings);
-        relativeTimeProvider = System::nanoTime;
+        this.relativeTimeProvider = System::nanoTime;
     }
 
     TransportMultiSearchAction(ThreadPool threadPool, ActionFilters actionFilters, TransportService transportService,
@@ -71,7 +71,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
     @Override
     protected void doExecute(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
-        final long startTimeInNanos = getRelativeTime();
+        final long startTimeInNanos = relativeTime();
         
         ClusterState clusterState = clusterService.state();
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
@@ -172,20 +172,20 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             }
 
             private void finish() {
-                listener.onResponse(new MultiSearchResponse(getExecTimeInMillis(startTimeInNanos), responses.toArray(new MultiSearchResponse.Item[responses.length()])));
+                listener.onResponse(new MultiSearchResponse(buildTookInMillis(startTimeInNanos), responses.toArray(new MultiSearchResponse.Item[responses.length()])));
             }
             
             /**
              * Builds how long it took to execute the msearch.
              */
-            private long getExecTimeInMillis(long startTimeNanos) {
-                return TimeUnit.NANOSECONDS.toMillis(getRelativeTime() - startTimeNanos);
+            private long buildTookInMillis(long startTimeNanos) {
+                return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeNanos);
             }
 
         });
     }
 
-    private long getRelativeTime() {
+    private long relativeTime() {
         return relativeTimeProvider.getAsLong();
     }
     
@@ -198,5 +198,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             this.request = request;
             this.responseSlot = responseSlot;
         }
+
     }
+
 }

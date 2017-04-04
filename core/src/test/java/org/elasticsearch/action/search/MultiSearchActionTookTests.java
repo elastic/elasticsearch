@@ -65,38 +65,37 @@ import static org.mockito.Mockito.when;
  */
 public class MultiSearchActionTookTests extends ESTestCase {
 
-    private static ThreadPool threadPool;
+    private ThreadPool threadPool;
     private ClusterService clusterService;
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new TestThreadPool("MultiSearchActionTookTests");
     }
 
     @AfterClass
     public static void afterClass() {
-        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        threadPool = null;
     }
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        threadPool = new TestThreadPool("MultiSearchActionTookTests");
         clusterService = createClusterService(threadPool);
     }
 
     @After
     public void tearDown() throws Exception {
-        super.tearDown();
         clusterService.close();
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        super.tearDown();
     }
     
-    //Unit conversion using a controller clock
+    // test unit conversion using a controller clock
     public void testTookWithControlledClock() throws Exception {
         runTestTook(true);
     }
 
-    //Using {@link System#nanoTime()}
+    // test using System#nanoTime
     public void testTookWithRealClock() throws Exception {
         runTestTook(false);
     }
@@ -114,16 +113,16 @@ public class MultiSearchActionTookTests extends ESTestCase {
                 if (controlledClock) {
                     assertThat(
                             TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS),
-                            equalTo(multiSearchResponse.getTook().getMillis()));
+                            equalTo(multiSearchResponse.getTookInMillis()));
                 } else {
-                    assertThat(multiSearchResponse.getTook().getMillis(), greaterThanOrEqualTo(
+                    assertThat(multiSearchResponse.getTookInMillis(), greaterThanOrEqualTo(
                             TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS)));
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(e);
+                throw new RuntimeException(e);
             }
         });
     }

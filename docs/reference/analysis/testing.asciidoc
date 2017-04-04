@@ -69,13 +69,13 @@ PUT my_index
   }
 }
 
-GET my_index/_analyze <3>
+POST my_index/_analyze <3>
 {
   "analyzer": "std_folded", <4>
   "text":     "Is this déjà vu?"
 }
 
-GET my_index/_analyze <3>
+POST my_index/_analyze <3>
 {
   "field": "my_text", <5>
   "text":  "Is this déjà vu?"

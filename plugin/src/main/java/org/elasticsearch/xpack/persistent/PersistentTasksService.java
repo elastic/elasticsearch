@@ -117,28 +117,32 @@ public class PersistentTasksService extends AbstractComponent {
     }
 
     /**
-     * Waits for the persistent task with giving id (taskId) to achieve the desired status.
+     * Checks if the persistent task with giving id (taskId) has the desired state and if it doesn't
+     * waits of it.
      */
     public void waitForPersistentTaskStatus(long taskId, Predicate<PersistentTask<?>> predicate, @Nullable TimeValue timeout,
                                             WaitForPersistentTaskStatusListener listener) {
         ClusterStateObserver stateObserver = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
-        stateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
-            @Override
-            public void onNewClusterState(ClusterState state) {
-                listener.onResponse(taskId);
-            }
+        if (predicate.test(PersistentTasksCustomMetaData.getTaskWithId(stateObserver.setAndGetObservedState(), taskId))) {
+            listener.onResponse(taskId);
+        } else {
+            stateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    listener.onResponse(taskId);
+                }
 
-            @Override
-            public void onClusterServiceClose() {
-                listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                @Override
+                public void onClusterServiceClose() {
+                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                }
 
-            }
-
-            @Override
-            public void onTimeout(TimeValue timeout) {
-                listener.onTimeout(timeout);
-            }
-        }, clusterState -> predicate.test(PersistentTasksCustomMetaData.getTaskWithId(clusterState, taskId)));
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    listener.onTimeout(timeout);
+                }
+            }, clusterState -> predicate.test(PersistentTasksCustomMetaData.getTaskWithId(clusterState, taskId)));
+        }
     }
 
     public interface WaitForPersistentTaskStatusListener extends PersistentTaskOperationListener {

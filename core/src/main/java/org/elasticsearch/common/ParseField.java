@@ -160,5 +160,9 @@ public class ParseField {
         public static final ParseField FORMAT = new ParseField("format");
         public static final ParseField MISSING = new ParseField("missing");
         public static final ParseField TIME_ZONE = new ParseField("time_zone");
+        public static final ParseField KEYED = new ParseField("keyed");
+        public static final ParseField OFFSET = new ParseField("offset");
+        public static final ParseField MIN_DOC_COUNT = new ParseField("min_doc_count");
+        public static final ParseField ORDER = new ParseField("order");
     }
 }

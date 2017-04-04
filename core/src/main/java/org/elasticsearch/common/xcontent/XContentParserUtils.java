@@ -20,8 +20,10 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -106,5 +108,27 @@ public final class XContentParserUtils {
             throwUnknownToken(token, parser.getTokenLocation());
         }
         return value;
+    }
+
+    public static <T> T parseTypedKeysObject(XContentParser parser,
+                                             String delimiter,
+                                             Class<T> objectClass) throws IOException {
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME,
+                parser.currentToken(), parser::getTokenLocation);
+
+        String currentFieldName = parser.currentName();
+        if (Strings.hasLength(currentFieldName)) {
+            int start = currentFieldName.indexOf(delimiter);
+            if (start > 0) {
+                String type = currentFieldName.substring(0, start);
+                String name = currentFieldName.substring(start + 1);
+                return parser.namedObject(objectClass, type, name);
+            }
+        }
+        throw new ParsingException(parser.getTokenLocation(), "Cannot parse object of class "
+                + "[" + objectClass.getSimpleName() + "] without type information. Set ["
+                + RestSearchAction.TYPED_KEYS_PARAM + "] parameter on the request to ensure the "
+                + "type information is added to the response output");
+
     }
 }

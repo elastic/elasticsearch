@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -34,6 +35,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseTypedKeysObject;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
@@ -252,5 +258,50 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
         public static final ParseField FROM_AS_STRING = new ParseField("from_as_string");
         public static final ParseField TO = new ParseField("to");
         public static final ParseField TO_AS_STRING = new ParseField("to_as_string");
+    }
+
+    public static InternalAggregation fromXContent(XContentParser parser) throws IOException {
+        return parseTypedKeysObject(parser, TYPED_KEYS_DELIMITER, InternalAggregation.class);
+    }
+
+    protected static void parseCommonToXContent(XContentParser parser, Builder builder) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+
+        String currentFieldName = parser.currentName();
+        token = parser.nextToken();
+
+        if (token == XContentParser.Token.START_OBJECT) {
+            if (CommonFields.META.getPreferredName().equals(currentFieldName)) {
+                builder.setMetaData(parser.map());
+            } else {
+                throwUnknownField(currentFieldName, parser.getTokenLocation());
+            }
+        } else {
+            throwUnknownToken(token, parser.getTokenLocation());
+        }
+    }
+
+    public abstract static class Builder {
+        protected String name;
+        protected Map<String, Object> metaData;
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public Map<String, Object> getMetaData() {
+            return metaData;
+        }
+
+        public void setMetaData(Map<String, Object> metaData) {
+            this.metaData = metaData;
+        }
+
+        public abstract InternalAggregation build();
     }
 }

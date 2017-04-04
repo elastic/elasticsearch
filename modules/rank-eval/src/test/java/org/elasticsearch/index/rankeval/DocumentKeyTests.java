@@ -27,9 +27,9 @@ import java.io.IOException;
 public class DocumentKeyTests extends ESTestCase {
 
     static DocumentKey createRandomRatedDocumentKey() {
-        String index = randomAsciiOfLengthBetween(1, 10);
-        String type = randomAsciiOfLengthBetween(1, 10);
-        String docId = randomAsciiOfLengthBetween(1, 10);
+        String index = randomAlphaOfLengthBetween(1, 10);
+        String type = randomAlphaOfLengthBetween(1, 10);
+        String docId = randomAlphaOfLengthBetween(1, 10);
         return  new DocumentKey(index, type, docId);
     }
 

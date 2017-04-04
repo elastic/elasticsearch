@@ -39,7 +39,7 @@ public class RankEvalResponseTests extends ESTestCase {
         int numberOfRequests = randomIntBetween(0, 5);
         Map<String, EvalQueryQuality> partials = new HashMap<>(numberOfRequests);
         for (int i = 0; i < numberOfRequests; i++) {
-            String id = randomAsciiOfLengthBetween(3, 10);
+            String id = randomAlphaOfLengthBetween(3, 10);
             int numberOfUnknownDocs = randomIntBetween(0, 5);
             List<DocumentKey> unknownDocs = new ArrayList<>(numberOfUnknownDocs);
             for (int d = 0; d < numberOfUnknownDocs; d++) {
@@ -52,8 +52,8 @@ public class RankEvalResponseTests extends ESTestCase {
         int numberOfErrors = randomIntBetween(0, 2);
         Map<String, Exception> errors = new HashMap<>(numberOfRequests);
         for (int i = 0; i < numberOfErrors; i++) {
-            errors.put(randomAsciiOfLengthBetween(3, 10),
-                    new IllegalArgumentException(randomAsciiOfLength(10)));
+            errors.put(randomAlphaOfLengthBetween(3, 10),
+                    new IllegalArgumentException(randomAlphaOfLength(10)));
         }
         return new RankEvalResponse(randomDouble(), partials, errors);
     }

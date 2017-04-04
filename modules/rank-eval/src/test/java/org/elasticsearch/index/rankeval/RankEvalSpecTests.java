@@ -75,12 +75,12 @@ public class RankEvalSpecTests extends ESTestCase {
             if (scriptType == ScriptType.INLINE) {
                 try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                     builder.startObject();
-                    builder.field("field", randomAsciiOfLengthBetween(1, 5));
+                    builder.field("field", randomAlphaOfLengthBetween(1, 5));
                     builder.endObject();
                     script = builder.string();
                 }
             } else {
-                script = randomAsciiOfLengthBetween(1, 5);
+                script = randomAlphaOfLengthBetween(1, 5);
             }
 
             templates = new HashSet<>();
@@ -183,12 +183,12 @@ public class RankEvalSpecTests extends ESTestCase {
             break;
         case 2:
             if (templates.size() > 0) {
-                String mutatedTemplate = randomAsciiOfLength(10);
+                String mutatedTemplate = randomAlphaOfLength(10);
                 templates.put("mutation", new Script(ScriptType.INLINE, "mustache", mutatedTemplate,
                         new HashMap<>()));
             } else {
                 String mutatedTemplate = randomValueOtherThanMany(templates::containsValue,
-                        () -> randomAsciiOfLength(10));
+                        () -> randomAlphaOfLength(10));
                 templates.put("mutation", new Script(ScriptType.INLINE, "mustache", mutatedTemplate,
                         new HashMap<>()));
             }

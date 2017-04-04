@@ -31,9 +31,9 @@ import java.io.IOException;
 public class RatedDocumentTests extends ESTestCase {
 
     public static RatedDocument createRatedDocument() {
-        String index = randomAsciiOfLength(10);
-        String type = randomAsciiOfLength(10);
-        String docId = randomAsciiOfLength(10);
+        String index = randomAlphaOfLength(10);
+        String type = randomAlphaOfLength(10);
+        String docId = randomAlphaOfLength(10);
         int rating = randomInt();
 
         return new RatedDocument(index, type, docId, rating);
@@ -89,13 +89,13 @@ public class RatedDocumentTests extends ESTestCase {
             rating = randomValueOtherThan(rating, () -> randomInt());
             break;
         case 1:
-            index = randomValueOtherThan(index, () -> randomAsciiOfLength(10));
+            index = randomValueOtherThan(index, () -> randomAlphaOfLength(10));
             break;
         case 2:
-            type = randomValueOtherThan(type, () -> randomAsciiOfLength(10));
+            type = randomValueOtherThan(type, () -> randomAlphaOfLength(10));
             break;
         case 3:
-            docId = randomValueOtherThan(docId, () -> randomAsciiOfLength(10));
+            docId = randomValueOtherThan(docId, () -> randomAlphaOfLength(10));
             break;
         default:
             throw new IllegalStateException("The test should only allow two parameters mutated");

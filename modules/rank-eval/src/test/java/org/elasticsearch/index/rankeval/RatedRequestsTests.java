@@ -74,7 +74,7 @@ public class RatedRequestsTests extends ESTestCase {
 
     public static RatedRequest createTestItem(List<String> indices, List<String> types,
             boolean forceRequest) {
-        String requestId = randomAsciiOfLength(50);
+        String requestId = randomAlphaOfLength(50);
 
         List<RatedDocument> ratedDocs = new ArrayList<>();
         int size = randomIntBetween(0, 2);
@@ -91,14 +91,14 @@ public class RatedRequestsTests extends ESTestCase {
         } else {
             int randomSize = randomIntBetween(1, 10);
             for (int i = 0; i < randomSize; i++) {
-                params.put(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+                params.put(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
             }
         }
 
         List<String> summaryFields = new ArrayList<>();
         int numSummaryFields = randomIntBetween(0, 5);
         for (int i = 0; i < numSummaryFields; i++) {
-            summaryFields.add(randomAsciiOfLength(5));
+            summaryFields.add(randomAlphaOfLength(5));
         }
 
         RatedRequest ratedRequest = null;
@@ -108,7 +108,7 @@ public class RatedRequestsTests extends ESTestCase {
             ratedRequest.setTypes(types);
             ratedRequest.setSummaryFields(summaryFields);
         } else {
-            ratedRequest = new RatedRequest(requestId, ratedDocs, params, randomAsciiOfLength(5));
+            ratedRequest = new RatedRequest(requestId, ratedDocs, params, randomAlphaOfLength(5));
             ratedRequest.setIndices(indices);
             ratedRequest.setTypes(types);
             ratedRequest.setSummaryFields(summaryFields);
@@ -120,13 +120,13 @@ public class RatedRequestsTests extends ESTestCase {
         List<String> indices = new ArrayList<>();
         int size = randomIntBetween(0, 20);
         for (int i = 0; i < size; i++) {
-            indices.add(randomAsciiOfLengthBetween(0, 50));
+            indices.add(randomAlphaOfLengthBetween(0, 50));
         }
 
         List<String> types = new ArrayList<>();
         size = randomIntBetween(0, 20);
         for (int i = 0; i < size; i++) {
-            types.add(randomAsciiOfLengthBetween(0, 50));
+            types.add(randomAlphaOfLengthBetween(0, 50));
         }
 
         RatedRequest testItem = createTestItem(indices, types, randomBoolean());
@@ -152,13 +152,13 @@ public class RatedRequestsTests extends ESTestCase {
         List<String> indices = new ArrayList<>();
         int size = randomIntBetween(0, 20);
         for (int i = 0; i < size; i++) {
-            indices.add(randomAsciiOfLengthBetween(0, 50));
+            indices.add(randomAlphaOfLengthBetween(0, 50));
         }
 
         List<String> types = new ArrayList<>();
         size = randomIntBetween(0, 20);
         for (int i = 0; i < size; i++) {
-            types.add(randomAsciiOfLengthBetween(0, 50));
+            types.add(randomAlphaOfLengthBetween(0, 50));
         }
 
         RatedRequest original = createTestItem(indices, types, randomBoolean());
@@ -178,13 +178,13 @@ public class RatedRequestsTests extends ESTestCase {
         List<String> indices = new ArrayList<>();
         int size = randomIntBetween(0, 20);
         for (int i = 0; i < size; i++) {
-            indices.add(randomAsciiOfLengthBetween(0, 50));
+            indices.add(randomAlphaOfLengthBetween(0, 50));
         }
 
         List<String> types = new ArrayList<>();
         size = randomIntBetween(0, 20);
         for (int i = 0; i < size; i++) {
-            types.add(randomAsciiOfLengthBetween(0, 50));
+            types.add(randomAlphaOfLengthBetween(0, 50));
         }
 
         RatedRequest testItem = createTestItem(indices, types, randomBoolean());
@@ -211,7 +211,7 @@ public class RatedRequestsTests extends ESTestCase {
         int mutate = randomIntBetween(0, 5);
         switch (mutate) {
         case 0:
-            id = randomValueOtherThan(id, () -> randomAsciiOfLength(10));
+            id = randomValueOtherThan(id, () -> randomAlphaOfLength(10));
             break;
         case 1:
             if (testRequest != null) {
@@ -226,7 +226,7 @@ public class RatedRequestsTests extends ESTestCase {
                     mutated.put("one_more_key", "one_more_value");
                     params = mutated;
                 } else {
-                    templateId = randomValueOtherThan(templateId, () -> randomAsciiOfLength(5));
+                    templateId = randomValueOtherThan(templateId, () -> randomAlphaOfLength(5));
                 }
             }
             break;
@@ -236,15 +236,15 @@ public class RatedRequestsTests extends ESTestCase {
             break;
         case 3:
             indices = Arrays.asList(
-                    randomValueOtherThanMany(indices::contains, () -> randomAsciiOfLength(10)));
+                    randomValueOtherThanMany(indices::contains, () -> randomAlphaOfLength(10)));
             break;
         case 4:
             types = Arrays.asList(
-                    randomValueOtherThanMany(types::contains, () -> randomAsciiOfLength(10)));
+                    randomValueOtherThanMany(types::contains, () -> randomAlphaOfLength(10)));
             break;
         case 5:
             summaryFields = Arrays.asList(randomValueOtherThanMany(summaryFields::contains,
-                    () -> randomAsciiOfLength(10)));
+                    () -> randomAlphaOfLength(10)));
             break;
         default:
             throw new IllegalStateException("Requested to modify more than available parameters.");

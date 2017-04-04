@@ -42,7 +42,7 @@ public class EvalQueryQualityTests extends ESTestCase {
         for (int i = 0; i < numberOfSearchHits; i++) {
             ratedHits.add(RatedSearchHitTests.randomRatedSearchHit());
         }
-        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(randomAsciiOfLength(10),
+        EvalQueryQuality evalQueryQuality = new EvalQueryQuality(randomAlphaOfLength(10),
                 randomDoubleBetween(0.0, 1.0, true));
         if (randomBoolean()) {
             // TODO randomize this

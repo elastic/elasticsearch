@@ -29,6 +29,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
@@ -73,7 +74,7 @@ final class BootstrapChecks {
         final List<BootstrapCheck> combinedChecks = new ArrayList<>(builtInChecks);
         combinedChecks.addAll(additionalChecks);
         check(
-                enforceLimits(boundTransportAddress),
+                enforceLimits(boundTransportAddress, DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings)),
                 Collections.unmodifiableList(combinedChecks),
                 Node.NODE_NAME_SETTING.get(settings));
     }
@@ -166,11 +167,13 @@ final class BootstrapChecks {
      * @param boundTransportAddress the node network bindings
      * @return {@code true} if the checks should be enforced
      */
-    static boolean enforceLimits(final BoundTransportAddress boundTransportAddress) {
-        Predicate<TransportAddress> isLoopbackOrLinkLocalAddress =
+    static boolean enforceLimits(final BoundTransportAddress boundTransportAddress, final String discoveryType) {
+        final Predicate<TransportAddress> isLoopbackOrLinkLocalAddress =
                 t -> t.address().getAddress().isLinkLocalAddress() || t.address().getAddress().isLoopbackAddress();
-        return !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackOrLinkLocalAddress) &&
+        final boolean bound =
+                !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackOrLinkLocalAddress) &&
                 isLoopbackOrLinkLocalAddress.test(boundTransportAddress.publishAddress()));
+        return bound && !"single-node".equals(discoveryType);
     }
 
     // the list of checks to execute

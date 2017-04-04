@@ -136,6 +136,9 @@
   - do:
         indices.create:
             index: test2
+  - do:
+        indices.create:
+            index: test3
 
   - do:
         indices.put_alias:
@@ -146,6 +149,10 @@
         indices.put_alias:
             index: test2
             name: bar
+  - do:
+        indices.put_alias:
+            index: test3
+            name: baz
 
   - do:
         cat.aliases:
@@ -156,6 +163,10 @@
 
   - match:
       $body: /(^|\n)bar\s+test2 /
+
+  - match:
+      $body: /(^|\n)[^bar\s+test3] /
+
 
 ---
 "Column headers":

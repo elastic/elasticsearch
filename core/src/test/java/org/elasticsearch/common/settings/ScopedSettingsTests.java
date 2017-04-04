@@ -35,7 +35,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.IllegalFormatCodePointException;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -600,6 +599,16 @@ public class ScopedSettingsTests extends ESTestCase {
                 assertEquals("complex setting key: [foo.] overlaps existing setting key: [foo.bar]", e.getMessage());
             }
         }
+    }
+
+    public void testUpdateNumberOfShardsFail() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY,
+            IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> settings.updateSettings(Settings.builder().put("index.number_of_shards", 8).build(),
+                Settings.builder(), Settings.builder(), "index"));
+        assertThat(ex.getMessage(),
+            containsString("final index setting [index.number_of_shards], not updateable"));
     }
 
     public void testFinalSettingUpdateFail() {

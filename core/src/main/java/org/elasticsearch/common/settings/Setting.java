@@ -96,7 +96,8 @@ public class Setting<T> extends ToXContentToBytes {
         Dynamic,
 
         /**
-         * mark this setting as final (the value cannot be updated)
+         * mark this setting as final, not updateable even when the context is not dynamic
+         * ie. Setting this property on an index scoped setting will fail update when the index is closed
          */
         Final,
 

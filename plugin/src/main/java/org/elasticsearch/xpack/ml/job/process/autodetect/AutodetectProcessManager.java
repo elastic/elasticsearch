@@ -270,37 +270,37 @@ public class AutodetectProcessManager extends AbstractComponent {
         Job job = jobManager.getJobOrThrowIfUnknown(jobId);
         // A TP with no queue, so that we fail immediately if there are no threads available
         ExecutorService autoDetectExecutorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
-        try (DataCountsReporter dataCountsReporter = new DataCountsReporter(threadPool, settings, job,
-                autodetectParams.dataCounts(), jobDataCountsPersister)) {
-            ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobProvider, new JobRenormalizedResultsPersister(settings, client),
-                    normalizerFactory);
-            ExecutorService renormalizerExecutorService =  threadPool.executor(MachineLearning.NORMALIZER_THREAD_POOL_NAME);
-            Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdater,
-                    renormalizerExecutorService, job.getAnalysisConfig().getUsePerPartitionNormalization());
+        DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, autodetectParams.dataCounts(),
+                jobDataCountsPersister);
+        ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobProvider, new JobRenormalizedResultsPersister(settings, client),
+                normalizerFactory);
+        ExecutorService renormalizerExecutorService = threadPool.executor(MachineLearning.NORMALIZER_THREAD_POOL_NAME);
+        Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdater,
+                renormalizerExecutorService, job.getAnalysisConfig().getUsePerPartitionNormalization());
 
-            AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams.modelSnapshot(),
-                    autodetectParams.quantiles(), autodetectParams.filters(), ignoreDowntime,
-                    autoDetectExecutorService, () -> setJobState(jobTask, JobState.FAILED));
-            boolean usePerPartitionNormalization = job.getAnalysisConfig().getUsePerPartitionNormalization();
-            AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
-                    client, jobId, renormalizer, jobResultsPersister, autodetectParams.modelSizeStats());
-            ExecutorService autodetectWorkerExecutor;
+        AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams.modelSnapshot(),
+                autodetectParams.quantiles(), autodetectParams.filters(), ignoreDowntime,
+                autoDetectExecutorService, () -> setJobState(jobTask, JobState.FAILED));
+        boolean usePerPartitionNormalization = job.getAnalysisConfig().getUsePerPartitionNormalization();
+        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
+                client, jobId, renormalizer, jobResultsPersister, autodetectParams.modelSizeStats());
+        ExecutorService autodetectWorkerExecutor;
+        try {
+            autodetectWorkerExecutor = createAutodetectExecutorService(autoDetectExecutorService);
+            autoDetectExecutorService.submit(() -> processor.process(process, usePerPartitionNormalization));
+        } catch (EsRejectedExecutionException e) {
+            // If submitting the operation to read the results from the process fails we need to close
+            // the process too, so that other submitted operations to threadpool are stopped.
             try {
-                autodetectWorkerExecutor = createAutodetectExecutorService(autoDetectExecutorService);
-                autoDetectExecutorService.submit(() -> processor.process(process, usePerPartitionNormalization));
-            } catch (EsRejectedExecutionException e) {
-                // If submitting the operation to read the results from the process fails we need to close
-                // the process too, so that other submitted operations to threadpool are stopped.
-                try {
-                    IOUtils.close(process);
-                } catch (IOException ioe) {
-                    logger.error("Can't close autodetect", ioe);
-                }
-                throw e;
+                IOUtils.close(process);
+            } catch (IOException ioe) {
+                logger.error("Can't close autodetect", ioe);
             }
-            return new AutodetectCommunicator(job, process, dataCountsReporter, processor,
-                    handler, xContentRegistry, autodetectWorkerExecutor);
+            throw e;
         }
+        return new AutodetectCommunicator(job, process, dataCountsReporter, processor,
+                handler, xContentRegistry, autodetectWorkerExecutor);
+
     }
 
     /**

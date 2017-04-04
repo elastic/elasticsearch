@@ -106,7 +106,6 @@ public class AutodetectCommunicator implements Closeable {
     public void close(boolean restart, String reason) throws IOException {
         Future<?> future = autodetectWorkerExecutor.submit(() -> {
             checkProcessIsAlive();
-            dataCountsReporter.close();
             autodetectProcess.close();
             autoDetectResultProcessor.awaitCompletion();
             handler.accept(restart ? new ElasticsearchException(reason) : null);
@@ -122,7 +121,6 @@ public class AutodetectCommunicator implements Closeable {
             throw ExceptionsHelper.convertToElastic(e);
         }
     }
-
 
     public void writeUpdateProcessMessage(ModelPlotConfig config, List<JobUpdate.DetectorUpdate> updates,
                                           BiConsumer<Void, Exception> handler) throws IOException {

@@ -12,12 +12,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 
-import java.io.Closeable;
 import java.util.Date;
 import java.util.Locale;
 import java.util.function.Function;
@@ -37,12 +35,8 @@ import java.util.function.Function;
  * function depending on which reporting stage is the current, the function
  * changes when each of the reporting stages are passed. If the
  * function returns {@code true} the usage is logged.
- *
- * DataCounts are persisted periodically in a datafeed task via
- * {@linkplain JobDataCountsPersister},  {@link #close()} must be called to
- * cancel the datafeed task.
  */
-public class DataCountsReporter extends AbstractComponent implements Closeable {
+public class DataCountsReporter extends AbstractComponent {
     /**
      * The max percentage of date parse errors allowed before
      * an exception is thrown.
@@ -76,13 +70,9 @@ public class DataCountsReporter extends AbstractComponent implements Closeable {
 
     private Function<Long, Boolean> reportingBoundaryFunction;
 
-    private volatile boolean persistDataCountsOnNextRecord;
-    private final ThreadPool.Cancellable persistDataCountsDatafeedAction;
-
     private DataStreamDiagnostics diagnostics;
 
-    public DataCountsReporter(ThreadPool threadPool, Settings settings, Job job, DataCounts counts,
-            JobDataCountsPersister dataCountsPersister) {
+    public DataCountsReporter(Settings settings, Job job, DataCounts counts, JobDataCountsPersister dataCountsPersister) {
 
         super(settings);
 
@@ -97,9 +87,6 @@ public class DataCountsReporter extends AbstractComponent implements Closeable {
         acceptablePercentOutOfOrderErrors = ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING.get(settings);
 
         reportingBoundaryFunction = this::reportEvery100Records;
-
-        persistDataCountsDatafeedAction = threadPool.scheduleWithFixedDelay(() -> persistDataCountsOnNextRecord = true,
-                PERSIST_INTERVAL, ThreadPool.Names.GENERIC);
     }
 
     /**
@@ -135,14 +122,6 @@ public class DataCountsReporter extends AbstractComponent implements Closeable {
             logStatus(totalRecords);
         }
 
-        if (persistDataCountsOnNextRecord) {
-            retrieveDiagnosticsIntermediateResults();
-            
-            DataCounts copy = new DataCounts(runningTotalStats());
-            dataCountsPersister.persistDataCounts(job.getId(), copy, new LoggingActionListener());
-            persistDataCountsOnNextRecord = false;
-        }
-        
         diagnostics.checkRecord(recordTimeMs);
     }
 
@@ -372,11 +351,6 @@ public class DataCountsReporter extends AbstractComponent implements Closeable {
     public synchronized DataCounts runningTotalStats() {
         totalRecordStats.calcProcessedFieldCount(getAnalysedFieldsPerRecord());
         return totalRecordStats;
-    }
-
-    @Override
-    public void close() {
-        persistDataCountsDatafeedAction.cancel();
     }
 
     private void retrieveDiagnosticsIntermediateResults() {

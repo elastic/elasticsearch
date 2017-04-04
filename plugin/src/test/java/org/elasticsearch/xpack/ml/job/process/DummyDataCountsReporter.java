@@ -27,7 +27,7 @@ class DummyDataCountsReporter extends DataCountsReporter {
     int logStatusCallCount = 0;
 
     DummyDataCountsReporter() {  
-        super(mock(ThreadPool.class), Settings.EMPTY, createJob(), new DataCounts("DummyJobId"),
+        super(Settings.EMPTY, createJob(), new DataCounts("DummyJobId"),
                 mock(JobDataCountsPersister.class));
     }
 
@@ -42,7 +42,6 @@ class DummyDataCountsReporter extends DataCountsReporter {
         ++logStatusCallCount;
     }
 
-
     /**
      * @return Then number of times {@link #logStatus(long)} was called.
      */
@@ -50,11 +49,6 @@ class DummyDataCountsReporter extends DataCountsReporter {
         return logStatusCallCount;
     }
 
-    @Override
-    public void close() {
-        // Do nothing
-    }
-    
     private static Job createJob() {
         AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(
                 Arrays.asList(new Detector.Builder("metric", "field").build()));

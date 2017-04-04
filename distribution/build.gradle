@@ -65,6 +65,10 @@ task buildModules(type: Sync) {
   into 'build/modules'
 }
 
+task buildModulesConfig(type: Sync) {
+  into 'build/modules-config'
+}
+
 ext.restTestExpansions = [
   'expected.modules.count': 0,
 ]
@@ -79,6 +83,24 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each
     dependsOn({ project(module.path).bundlePlugin })
     into(module.name) {
       from { zipTree(project(module.path).bundlePlugin.outputs.files.singleFile) }
+      exclude 'config/'
+    }
+  }
+  buildModulesConfig {
+    dependsOn({ project(module.path).bundlePlugin })
+    into(module.name) {
+      from { zipTree(project(module.path).bundlePlugin.outputs.files.singleFile) }
+      include 'config/'
+      includeEmptyDirs false
+      eachFile { file ->
+        if (file.sourcePath.startsWith('config/')) {
+          // Remove the config/ folder at the root of the zip archive
+          String configPath = file.sourcePath - 'config/'
+          file.setPath("${module.name}/${configPath}")
+        } else {
+          file.exclude()
+        }
+      }
     }
   }
   // We would like to make sure integ tests for the distribution run after
@@ -174,6 +196,10 @@ configure(distributions) {
       from project(':distribution').buildTransportModules
     }
 
+    configModulesFiles = copySpec {
+      from project(':distribution').buildModulesConfig
+    }
+
     configFiles = copySpec {
       from '../src/main/resources/config'
       MavenFilteringHack.filter(it, expansions)
@@ -232,6 +258,7 @@ configure(distributions.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.n
         dirMode 0750
         fileMode 0660
         with configFiles
+        with configModulesFiles
       }
       into('bin') {
         with copySpec {
@@ -318,6 +345,7 @@ configure(distributions.findAll { ['deb', 'rpm'].contains(it.name) }) {
   task fillEtc(type: Copy) {
     dependsOn createEtc, createEtcScripts
     with configFiles
+    with configModulesFiles
     into "${packagingFiles}/etc/elasticsearch"
     /* Explicitly declare the output files so this task doesn't consider itself
       up to date when the directory is created, which it would by default. And

@@ -89,6 +89,9 @@ verify_archive_installation() {
     assert_file "$ESCONFIG/elasticsearch.yml" f elasticsearch elasticsearch 660
     assert_file "$ESCONFIG/jvm.options" f elasticsearch elasticsearch 660
     assert_file "$ESCONFIG/log4j2.properties" f elasticsearch elasticsearch 660
+    assert_file "$ESCONFIG/ingest-geoip" d elasticsearch elasticsearch 750
+    assert_file "$ESCONFIG/ingest-geoip/GeoLite2-City.mmdb.gz" f elasticsearch elasticsearch 660
+    assert_file "$ESCONFIG/ingest-geoip/GeoLite2-Country.mmdb.gz" f elasticsearch elasticsearch 660
     assert_file "$ESPLUGINS" d elasticsearch elasticsearch 755
     assert_file "$ESHOME/lib" d elasticsearch elasticsearch 755
     assert_file "$ESHOME/NOTICE.txt" f elasticsearch elasticsearch 644

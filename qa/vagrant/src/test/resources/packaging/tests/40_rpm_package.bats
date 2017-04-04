@@ -133,7 +133,15 @@ setup() {
     assert_file_not_exist "/usr/share/elasticsearch/lib"
     assert_file_not_exist "/usr/share/elasticsearch/modules"
 
-    assert_file_not_exist "/etc/elasticsearch"
+    # The script directory is deleted when removing the package
+    # see prerm file
+    assert_file_not_exist "/etc/elasticsearch/scripts"
+    assert_file_not_exist "/etc/elasticsearch/elasticsearch.yml"
+    assert_file_not_exist "/etc/elasticsearch/jvm.options"
+    assert_file_not_exist "/etc/elasticsearch/log4j2.properties"
+    assert_file_not_exist "/etc/elasticsearch/ingest-geoip"
+    assert_file_not_exist "/etc/elasticsearch/ingest-geoip/GeoLite2-City.mmdb.gz"
+    assert_file_not_exist "/etc/elasticsearch/ingest-geoip/GeoLite2-Country.mmdb.gz"
 
     assert_file_not_exist "/etc/init.d/elasticsearch"
     assert_file_not_exist "/usr/lib/systemd/system/elasticsearch.service"
@@ -191,6 +199,10 @@ setup() {
     # directory but do not append the ".rpmsave" suffix
     test -e "/etc/elasticsearch/scripts" || test -e "/etc/elasticsearch/scripts.rpmsave"
     test -e "/etc/elasticsearch/scripts/script" || test -e "/etc/elasticsearch/scripts.rpmsave/script"
+
+    assert_file_not_exist "/etc/elasticsearch/ingest-geoip"
+    assert_file_not_exist "/etc/elasticsearch/ingest-geoip/GeoLite2-City.mmdb.gz"
+    assert_file_not_exist "/etc/elasticsearch/ingest-geoip/GeoLite2-Country.mmdb.gz"
 
     assert_file_not_exist "/etc/init.d/elasticsearch"
     assert_file_not_exist "/usr/lib/systemd/system/elasticsearch.service"

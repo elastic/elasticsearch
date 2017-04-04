@@ -115,6 +115,7 @@ chown -R $ES_USER:$ES_GROUP /var/log/elasticsearch
 chown -R root:$ES_GROUP /etc/elasticsearch
 chmod 0750 /etc/elasticsearch
 chmod 0750 /etc/elasticsearch/scripts
+chmod 0750 /etc/elasticsearch/ingest-geoip
 
 if [ -f /etc/sysconfig/elasticsearch ]; then
    chmod 0660 /etc/sysconfig/elasticsearch

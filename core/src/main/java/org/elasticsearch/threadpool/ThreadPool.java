@@ -679,14 +679,23 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     public static boolean terminate(ExecutorService service, long timeout, TimeUnit timeUnit) {
         if (service != null) {
             service.shutdown();
-            try {
-                if (service.awaitTermination(timeout, timeUnit)) {
-                    return true;
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            if (awaitTermination(service, timeout, timeUnit)) return true;
             service.shutdownNow();
+            return awaitTermination(service, timeout, timeUnit);
+        }
+        return false;
+    }
+
+    private static boolean awaitTermination(
+            final ExecutorService service,
+            final long timeout,
+            final TimeUnit timeUnit) {
+        try {
+            if (service.awaitTermination(timeout, timeUnit)) {
+                return true;
+            }
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
         return false;
     }
@@ -699,18 +708,27 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         if (pool != null) {
             try {
                 pool.shutdown();
-                try {
-                    if (pool.awaitTermination(timeout, timeUnit)) {
-                        return true;
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
+                if (awaitTermination(pool, timeout, timeUnit)) return true;
                 // last resort
                 pool.shutdownNow();
+                return awaitTermination(pool, timeout, timeUnit);
             } finally {
                 IOUtils.closeWhileHandlingException(pool);
             }
+        }
+        return false;
+    }
+
+    private static boolean awaitTermination(
+            final ThreadPool pool,
+            final long timeout,
+            final TimeUnit timeUnit) {
+        try {
+            if (pool.awaitTermination(timeout, timeUnit)) {
+                return true;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
         return false;
     }

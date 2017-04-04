@@ -246,7 +246,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     List<InternalAggregation> toReduce = aggs.subList(0, r);
                     A reduced = (A) aggs.get(0).doReduce(toReduce,
                         new InternalAggregation.ReduceContext(root.context().bigArrays(), null, false));
-                    aggs = aggs.subList(r, toReduceSize);
+                    aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
                     aggs.add(reduced);
                 }
                 // now do the final reduce

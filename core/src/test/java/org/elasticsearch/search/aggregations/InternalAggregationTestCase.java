@@ -71,7 +71,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
                 new InternalAggregation.ReduceContext(bigArrays, mockScriptService, false);
             @SuppressWarnings("unchecked")
             T reduced = (T) inputs.get(0).reduce(internalAggregations, context);
-            toReduce = toReduce.subList(r, toReduceSize);
+            toReduce = new ArrayList<>(toReduce.subList(r, toReduceSize));
             toReduce.add(reduced);
         }
         InternalAggregation.ReduceContext context =

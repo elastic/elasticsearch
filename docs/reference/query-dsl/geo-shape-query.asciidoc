@@ -6,7 +6,7 @@ Filter documents indexed using the `geo_shape` type.
 Requires the <<geo-shape,`geo_shape` Mapping>>.
 
 The `geo_shape` query uses the same grid square representation as the
-geo_shape mapping to find documents that have a shape that intersects
+`geo_shape` mapping to find documents that have a shape that intersects
 with the query shape. It will also use the same PrefixTree configuration
 as defined for the field mapping.
 
@@ -17,28 +17,44 @@ examples.
 
 ==== Inline Shape Definition
 
-Similar to the `geo_shape` type, the `geo_shape` Filter uses
+Similar to the `geo_shape` type, the `geo_shape` query uses
 http://www.geojson.org[GeoJSON] to represent shapes.
 
-Given a document that looks like this:
+Given the following index:
 
 [source,js]
 --------------------------------------------------
+PUT /example
+{
+    "mappings": {
+        "doc": {
+            "properties": {
+                "location": {
+                    "type": "geo_shape"
+                }
+            }
+        }
+    }
+}
+
+POST /example/doc?refresh
 {
     "name": "Wind & Wetter, Berlin, Germany",
-        "location": {
-            "type": "Point",
-            "coordinates": [13.400544, 52.530286]
-        }
+    "location": {
+        "type": "point",
+        "coordinates": [13.400544, 52.530286]
+    }
 }
 --------------------------------------------------
+// CONSOLE
+// TESTSETUP
 
 The following query will find the point using the Elasticsearch's
 `envelope` GeoJSON extension:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /example/_search
 {
     "query":{
         "bool": {
@@ -83,25 +99,43 @@ shape:
 
 [source,js]
 --------------------------------------------------
-GET /_search
+PUT /shapes
+{
+    "mappings": {
+        "doc": {
+            "properties": {
+                "location": {
+                    "type": "geo_shape"
+                }
+            }
+        }
+    }
+}
+
+PUT /shapes/doc/deu
+{
+    "location": {
+        "type": "envelope",
+        "coordinates" : [[13.0, 53.0], [14.0, 52.0]]
+    }
+}
+
+GET /example/_search
 {
     "query": {
         "bool": {
-            "must": {
-                "match_all": {}
-            },
-                "filter": {
-                    "geo_shape": {
-                        "location": {
-                            "indexed_shape": {
-                                "id": "DEU",
-                                "type": "countries",
-                                "index": "shapes",
-                                "path": "location"
-                            }
+            "filter": {
+                "geo_shape": {
+                    "location": {
+                        "indexed_shape": {
+                            "index": "shapes",
+                            "type": "doc",
+                            "id": "deu",
+                            "path": "location"
                         }
                     }
                 }
+            }
         }
     }
 }

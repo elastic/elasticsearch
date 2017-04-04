@@ -6,9 +6,9 @@ setup:
           settings:
             number_of_replicas: 0
           aliases:
-            alias_1: {
+            alias_1:
               "filter" : { "match_all" : {} }
-            }
+
 
 ---
 "Validate query api":

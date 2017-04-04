@@ -238,13 +238,16 @@ public abstract class AggregatorTestCase extends ESTestCase {
             if (aggs.isEmpty()) {
                 return null;
             } else {
-                if (randomBoolean()) {
+                if (randomBoolean() && aggs.size() > 1) {
                     // sometimes do an incremental reduce
-                    List<InternalAggregation> internalAggregations = randomSubsetOf(randomIntBetween(1, aggs.size()), aggs);
-                    A internalAgg = (A) aggs.get(0).doReduce(internalAggregations,
+                    int toReduceSize = aggs.size();
+                    Collections.shuffle(aggs, random());
+                    int r = randomIntBetween(1, toReduceSize);
+                    List<InternalAggregation> toReduce = aggs.subList(0, r);
+                    A reduced = (A) aggs.get(0).doReduce(toReduce,
                         new InternalAggregation.ReduceContext(root.context().bigArrays(), null, false));
-                    aggs.removeAll(internalAggregations);
-                    aggs.add(internalAgg);
+                    aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
+                    aggs.add(reduced);
                 }
                 // now do the final reduce
                 @SuppressWarnings("unchecked")

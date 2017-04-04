@@ -516,4 +516,9 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         assert connectHandler.running.availablePermits() == 1;
         return true;
     }
+
+    boolean isNodeConnected(final DiscoveryNode node) {
+        return connectedNodes.contains(node);
+    }
+
 }

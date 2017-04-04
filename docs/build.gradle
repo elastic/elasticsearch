@@ -53,22 +53,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/pipeline/serial-diff-aggregation.asciidoc',
   'reference/aggregations/pipeline/stats-bucket-aggregation.asciidoc',
   'reference/aggregations/pipeline/sum-bucket-aggregation.asciidoc',
-  'reference/analysis/analyzers/lang-analyzer.asciidoc',
-  'reference/analysis/analyzers/pattern-analyzer.asciidoc',
-  'reference/analysis/charfilters/htmlstrip-charfilter.asciidoc',
-  'reference/analysis/charfilters/pattern-replace-charfilter.asciidoc',
-  'reference/analysis/tokenfilters/asciifolding-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/cjk-bigram-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/common-grams-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/compound-word-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/elision-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/hunspell-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/keep-types-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/keep-words-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/keyword-marker-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/keyword-repeat-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/limit-token-count-tokenfilter.asciidoc',
-  'reference/analysis/tokenfilters/lowercase-tokenfilter.asciidoc',
   'reference/cat/snapshots.asciidoc',
   'reference/cat/templates.asciidoc',
   'reference/cat/thread_pool.asciidoc',
@@ -99,16 +83,13 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/mapping/fields/all-field.asciidoc',
   'reference/mapping/params/analyzer.asciidoc',
   'reference/mapping/types/binary.asciidoc',
-  'reference/mapping/types/geo-shape.asciidoc',
   'reference/mapping/types/ip.asciidoc',
   'reference/mapping/types/nested.asciidoc',
   'reference/mapping/types/object.asciidoc',
   'reference/mapping/types/percolator.asciidoc',
   'reference/modules/scripting/security.asciidoc',
-  'reference/modules/scripting/using.asciidoc',
   'reference/modules/cross-cluster-search.asciidoc', // this is hard to test since we need 2 clusters -- maybe we can trick it into referencing itself...
   'reference/query-dsl/function-score-query.asciidoc',
-  'reference/query-dsl/geo-shape-query.asciidoc',
   'reference/search/field-stats.asciidoc',
   'reference/search/profile.asciidoc',
   'reference/search/request/highlighting.asciidoc',
@@ -125,15 +106,20 @@ integTestCluster {
   Closure configFile = {
     extraConfigFile it, "src/test/cluster/config/$it"
   }
+  configFile 'scripts/calculate_score.painless'
   configFile 'scripts/my_script.painless'
   configFile 'scripts/my_init_script.painless'
   configFile 'scripts/my_map_script.painless'
   configFile 'scripts/my_combine_script.painless'
   configFile 'scripts/my_reduce_script.painless'
+  configFile 'analysis/example_word_list.txt'
+  configFile 'analysis/hyphenation_patterns.xml'
   configFile 'analysis/synonym.txt'
   configFile 'analysis/stemmer_override.txt'
   configFile 'userdict_ja.txt'
   configFile 'KeywordTokenizer.rbbi'
+  extraConfigFile 'hunspell/en_US/en_US.aff', '../core/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff'
+  extraConfigFile 'hunspell/en_US/en_US.dic', '../core/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic'
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }

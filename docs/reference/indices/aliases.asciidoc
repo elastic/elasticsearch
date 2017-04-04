@@ -71,7 +71,7 @@ POST /_aliases
 // CONSOLE
 // TEST[s/^/PUT test1\nPUT test2\n/]
 
-Multiple indices for an action can be specified with the `indices` array syntax:
+Multiple indices can be specified for an action with the `indices` array syntax:
 
 [source,js]
 --------------------------------------------------

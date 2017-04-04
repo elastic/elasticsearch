@@ -21,6 +21,7 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -29,30 +30,30 @@ import java.util.Objects;
  * Response upon a successful start or an persistent task
  */
 public class PersistentTaskResponse extends ActionResponse {
-    private long taskId;
+    private PersistentTask<?> task;
 
     public PersistentTaskResponse() {
         super();
     }
 
-    public PersistentTaskResponse(long taskId) {
-        this.taskId = taskId;
+    public PersistentTaskResponse(PersistentTask<?> task) {
+        this.task = task;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        taskId = in.readLong();
+        task = in.readOptionalWriteable(PersistentTask::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(taskId);
+        out.writeOptionalWriteable(task);
     }
 
-    public long getTaskId() {
-        return taskId;
+    public PersistentTask<?> getTask() {
+        return task;
     }
 
     @Override
@@ -60,11 +61,11 @@ public class PersistentTaskResponse extends ActionResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PersistentTaskResponse that = (PersistentTaskResponse) o;
-        return taskId == that.taskId;
+        return Objects.equals(task, that.task);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(taskId);
+        return Objects.hash(task);
     }
 }

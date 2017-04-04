@@ -21,6 +21,7 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -35,8 +36,8 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse.Empty;
-import org.elasticsearch.persistent.PersistentTasksService.PersistentTaskOperationListener;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestRequest;
 
 import java.io.IOException;
@@ -163,10 +164,10 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
     public void testTaskCancellation() {
         ClusterService clusterService = createClusterService();
         AtomicLong capturedTaskId = new AtomicLong();
-        AtomicReference<PersistentTaskOperationListener> capturedListener = new AtomicReference<>();
+        AtomicReference<ActionListener<CancelTasksResponse>> capturedListener = new AtomicReference<>();
         PersistentTasksService persistentTasksService = new PersistentTasksService(Settings.EMPTY, null, null, null) {
             @Override
-            public void sendCancellation(long taskId, PersistentTaskOperationListener listener) {
+            public void sendCancellation(long taskId, ActionListener<CancelTasksResponse> listener) {
                 capturedTaskId.set(taskId);
                 capturedListener.set(listener);
             }
@@ -217,7 +218,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         // That should trigger cancellation request
         assertThat(capturedTaskId.get(), equalTo(localId));
         // Notify successful cancellation
-        capturedListener.get().onResponse(localId);
+        capturedListener.get().onResponse(new CancelTasksResponse());
 
         // finish or fail task
         if (randomBoolean()) {
@@ -240,11 +241,12 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             ClusterService clusterService = createClusterService();
             AtomicLong capturedTaskId = new AtomicLong(-1L);
             AtomicReference<Exception> capturedException = new AtomicReference<>();
-            AtomicReference<PersistentTaskOperationListener> capturedListener = new AtomicReference<>();
+            AtomicReference<ActionListener<PersistentTask<?>>> capturedListener = new AtomicReference<>();
             PersistentTasksService persistentTasksService =
                     new PersistentTasksService(Settings.EMPTY, clusterService, null, null) {
                         @Override
-                        public void sendCompletionNotification(long taskId, Exception failure, PersistentTaskOperationListener listener) {
+                        public void sendCompletionNotification(long taskId, Exception failure,
+                                                               ActionListener<PersistentTask<?>> listener) {
                             capturedTaskId.set(taskId);
                             capturedException.set(failure);
                             capturedListener.set(listener);
@@ -297,7 +299,8 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             long id = taskManager.getTasks().values().iterator().next().getParentTaskId().getId();
 
             // This time acknowledge notification
-            capturedListener.get().onResponse(id);
+            capturedListener.get().onResponse(
+                    new PersistentTask<>(1, TestPersistentTasksPlugin.TestPersistentTasksExecutor.NAME, new TestRequest(), null));
 
             // Reallocate failed task to another node
             state = newClusterState;
